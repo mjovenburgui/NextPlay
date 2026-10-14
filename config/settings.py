@@ -63,9 +63,10 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 # PostgreSQL in production via DATABASE_URL; SQLite keeps local setup dependency-free.
+# An empty DATABASE_URL (as in .env.example) also falls back to SQLite.
 DATABASES = {
-    "default": dj_database_url.config(
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+    "default": dj_database_url.parse(
+        os.environ.get("DATABASE_URL") or f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=600,
     )
 }
@@ -110,3 +111,7 @@ if not DEBUG:
 # IGDB uses Twitch application credentials: https://api-docs.igdb.com/#account-creation
 IGDB_CLIENT_ID = os.environ.get("IGDB_CLIENT_ID", "")
 IGDB_CLIENT_SECRET = os.environ.get("IGDB_CLIENT_SECRET", "")
+
+# Store prices come from IsThereAnyDeal: https://docs.isthereanydeal.com/
+ITAD_API_KEY = os.environ.get("ITAD_API_KEY", "")
+ITAD_COUNTRY = os.environ.get("ITAD_COUNTRY", "ES")

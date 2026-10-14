@@ -37,6 +37,82 @@
       {% endif %}
 
       {% if game.summary %}<p class="summary">{{ game.summary }}</p>{% endif %}
+
+      {% if game.critic_score is not None %}
+        <section class="widget critic">
+          <span class="score score-{{ game.critic_tier }}">{{ game.critic_score }}</span>
+          <div>
+            <p class="widget-label">Nota de la crítica</p>
+            <p class="muted">
+              Media de {{ game.critic_rating_count }} reseña{{ game.critic_rating_count|pluralize }}
+              profesional{{ game.critic_rating_count|pluralize:"es" }} · Fuente: IGDB
+            </p>
+          </div>
+        </section>
+      {% endif %}
+
+      <section class="widget">
+        <p class="widget-label">
+          {% if game.is_free %}Dónde jugarlo <span class="free-badge">Free to play</span>{% else %}Dónde comprarlo{% endif %}
+        </p>
+        {% if game.prices_edition %}<p class="help edition">Edición a la venta: {{ game.prices_edition }}</p>{% endif %}
+        {% if featured_prices or store_searches %}
+          <div class="shop-tiles">
+            {% for price in featured_prices %}
+              <a class="shop-tile" href="{{ price.url }}" target="_blank" rel="nofollow sponsored noopener">
+                {% include price.logo_template %}
+                <span class="shop-tile-name">{{ price.shop_name }}</span>
+                <span class="shop-tile-price">
+                  <strong>{% if price.is_free %}Gratis{% else %}{{ price.price|floatformat:2 }} {{ price.symbol }}{% endif %}</strong>
+                  {% if price.cut %}
+                    <span class="cut">-{{ price.cut }}%</span>
+                    <s class="muted">{{ price.regular_price|floatformat:2 }} {{ price.symbol }}</s>
+                  {% endif %}
+                </span>
+              </a>
+            {% endfor %}
+            {% for store, logo, url in store_searches %}
+              <a class="shop-tile shop-tile-search" href="{{ url }}" target="_blank" rel="noopener">
+                {% include logo %}
+                <span class="shop-tile-name">{{ store }}</span>
+                <span class="shop-tile-price">Buscar ↗</span>
+              </a>
+            {% endfor %}
+          </div>
+        {% endif %}
+        {% if listed_prices %}
+          <ul class="prices">
+            {% for price in listed_prices %}{% include "games/_price.html" %}{% endfor %}
+          </ul>
+        {% endif %}
+        {% if featured_prices or listed_prices %}
+          {% if best_price %}
+            <p class="best-price">
+              Mejor precio: <strong>{% if best_price.is_free %}Gratis{% else %}{{ best_price.price|floatformat:2 }} {{ best_price.symbol }}{% endif %}</strong> en
+              <a href="{{ best_price.url }}" target="_blank" rel="nofollow sponsored noopener">{{ best_price.shop_name }}</a>
+            </p>
+          {% endif %}
+          {% if folded_prices %}
+            <details class="more-prices">
+              <summary>Ver {{ folded_prices|length }} tienda{{ folded_prices|length|pluralize }} más</summary>
+              <ul class="prices">
+                {% for price in folded_prices %}{% include "games/_price.html" %}{% endfor %}
+              </ul>
+            </details>
+          {% endif %}
+          <p class="help">
+            {% if game.historical_low is not None and not game.is_free %}
+              Mínimo histórico en PC: {{ game.historical_low|floatformat:2 }} {{ game.historical_low_symbol }} ·
+            {% endif %}
+            {% if game.prices_updated_at %}Actualizado hace {{ game.prices_updated_at|timesince }} ·{% endif %}
+            Precios de PC de <a href="https://isthereanydeal.com/" target="_blank" rel="noopener">IsThereAnyDeal</a>
+          </p>
+          {% if not has_pc_prices %}<p class="help">No se han encontrado precios en tiendas de PC.</p>{% endif %}
+        {% else %}
+          <p class="muted no-prices">No se han encontrado precios en las tiendas.</p>
+        {% endif %}
+      </section>
+
     </div>
   </article>
 {% endblock %}

@@ -9,7 +9,7 @@ from django.views.decorators.http import require_POST
 from library.models import LibraryEntry
 
 from . import igdb
-from .models import Game, Genre, Platform
+from .models import Game, GamePrice, Genre, Platform
 
 PAGE_SIZE = 24
 
@@ -54,14 +54,25 @@ def catalog(request):
 
 
 def detail(request, slug):
-    game = get_object_or_404(Game.objects.prefetch_related("genres", "platforms"), slug=slug)
+    game = get_object_or_404(Game.objects.prefetch_related("genres", "platforms", "prices"), slug=slug)
     entry = None
     if request.user.is_authenticated:
         entry = LibraryEntry.objects.filter(user=request.user, game=game).first()
+    featured_prices, listed_prices, folded_prices, best_price = game.price_groups()
     return render(
         request,
         "games/detail.html",
-        {"game": game, "entry": entry, "statuses": LibraryEntry.Status.choices},
+        {
+            "game": game,
+            "entry": entry,
+            "statuses": LibraryEntry.Status.choices,
+            "featured_prices": featured_prices,
+            "listed_prices": listed_prices,
+            "folded_prices": folded_prices,
+            "best_price": best_price,
+            "has_pc_prices": any(price.source == GamePrice.Source.ITAD for price in game.prices.all()),
+            "store_searches": game.store_searches(),
+        },
     )
 
 

@@ -1,0 +1,9 @@
+<li>
+  <span class="shop">{{ price.shop_name }}</span>
+  {% if price.cut %}
+    <span class="cut">-{{ price.cut }}%</span>
+    <s class="muted">{{ price.regular_price|floatformat:2 }} {{ price.symbol }}</s>
+  {% endif %}
+  <strong>{% if price.is_free %}Gratis{% else %}{{ price.price|floatformat:2 }} {{ price.symbol }}{% endif %}</strong>
+  <a class="btn" href="{{ price.url }}" target="_blank" rel="nofollow sponsored noopener">Ver</a>
+</li>

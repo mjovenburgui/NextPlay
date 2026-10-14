@@ -1,5 +1,7 @@
 """IGDB client and the upsert that maps its payloads onto the local catalog."""
 
+import re
+import time
 from datetime import datetime, timezone
 
 import requests
@@ -9,16 +11,24 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils.text import slugify
 
-from .models import Game, Genre, Platform
+from .models import Game, GamePrice, Genre, Platform
 
 TOKEN_URL = "https://id.twitch.tv/oauth2/token"
 API_URL = "https://api.igdb.com/v4"
 TOKEN_CACHE_KEY = "igdb:access_token"
 TIMEOUT = 15
 MAX_PAGE_SIZE = 500
+STEAM_SOURCE_ID = 1  # external_game_source for Steam; uid is the Steam app ID
+GOG_SOURCE_ID = 5  # uid is the GOG product ID
+STORE_SOURCES = {"steam": STEAM_SOURCE_ID, "gog": GOG_SOURCE_ID}
+MICROSOFT_SOURCE_ID = 11  # uid is a Microsoft Store product ID (or an "xbox360..." legacy one)
+MICROSOFT_PRODUCT_ID = re.compile(r"^[0-9A-Z]{12}$")
 
+STEAM_FIELDS = "external_games.uid, external_games.name, external_games.external_game_source"
 GAME_FIELDS = (
     "fields name, slug, summary, first_release_date, total_rating_count, cover.image_id, "
+    f"aggregated_rating, aggregated_rating_count, {STEAM_FIELDS}, "
+    f"remasters.name, {STEAM_FIELDS.replace('external_games', 'remasters.external_games')}, "
     "genres.name, genres.slug, platforms.name, platforms.abbreviation, platforms.slug;"
 )
 
@@ -85,7 +95,7 @@ class IGDBClient:
             f"{GAME_FIELDS} where version_parent = null & total_rating_count > 0; "
             f"sort total_rating_count desc; limit {limit}; offset {offset};"
         )
-        return self.query("games", body)
+        return self._with_editions(self.query("games", body))
 
     def search(self, term, limit=20):
         # Apicalypse string literal: drop the characters that would end or escape it.
@@ -93,7 +103,28 @@ class IGDBClient:
         if not term:
             return []
         body = f'search "{term}"; {GAME_FIELDS} where version_parent = null; limit {limit};'
-        return self.query("games", body)
+        return self._with_editions(self.query("games", body))
+
+    def _with_editions(self, games):
+        """Attach each game's editions (GOTY, Definitive...) as "editions", for their Steam IDs."""
+        if not games:
+            return games
+        ids = ",".join(str(game["id"]) for game in games)
+        editions, offset = [], 0
+        while True:
+            time.sleep(0.25)  # IGDB allows 4 requests per second
+            page = self.query(
+                "games",
+                f"fields name, version_parent, {STEAM_FIELDS}; where version_parent = ({ids}); "
+                f"sort id asc; limit {MAX_PAGE_SIZE}; offset {offset};",
+            )
+            editions += page
+            if len(page) < MAX_PAGE_SIZE:
+                break
+            offset += MAX_PAGE_SIZE
+        for game in games:
+            game["editions"] = [edition for edition in editions if edition.get("version_parent") == game["id"]]
+        return games
 
 
 def _upsert_ref(model, data, **extra):
@@ -110,6 +141,58 @@ def _upsert_ref(model, data, **extra):
         setattr(obj, field, value)
     obj.save()
     return obj
+
+
+def _normalize(name):
+    return " ".join(re.sub(r"[™®©]", "", name or "").casefold().split())
+
+
+def _store_ids(data):
+    """{"steam": [...], "gog": [...]} IDs of an IGDB game.
+
+    IGDB can list several entries per store: re-releases named like the game (all kept, their deals
+    get merged) and odd ones like "Mac Portal" (used only when nothing is named like the game).
+    """
+    name = _normalize(data["name"])
+    ids = {}
+    for store, source in STORE_SOURCES.items():
+        entries = [
+            item for item in data.get("external_games") or []
+            if item.get("external_game_source") == source and str(item.get("uid") or "").isdigit()
+        ]
+        chosen = [item for item in entries if _normalize(item.get("name")) == name] or entries[:1]
+        uids = list(dict.fromkeys(int(item["uid"]) if store == "steam" else str(item["uid"]) for item in chosen))
+        if uids:
+            ids[store] = uids
+    return ids
+
+
+def _store_alternatives(data, own_ids):
+    """Store IDs of the game's editions, then its remasters: where its prices live once it is delisted."""
+    seen = {(store, uid) for store, uids in own_ids.items() for uid in uids}
+    alternatives = []
+    for related in (data.get("editions") or []) + (data.get("remasters") or []):
+        ids = {}
+        for store, uids in _store_ids(related).items():
+            new = [uid for uid in uids if (store, uid) not in seen]
+            seen.update((store, uid) for uid in new)
+            if new:
+                ids[store] = new
+        if ids:
+            alternatives.append({"name": related["name"][:255], **ids})
+    return alternatives
+
+
+def _xbox_product_ids(data):
+    """Microsoft Store product IDs of the game, then of its editions and remasters."""
+    ids = []
+    for related in [data] + (data.get("editions") or []) + (data.get("remasters") or []):
+        for item in related.get("external_games") or []:
+            uid = str(item.get("uid") or "")
+            if item.get("external_game_source") == MICROSOFT_SOURCE_ID and MICROSOFT_PRODUCT_ID.match(uid):
+                if uid not in ids:
+                    ids.append(uid)
+    return ids
 
 
 @transaction.atomic
@@ -139,6 +222,22 @@ def upsert_games(payload):
             datetime.fromtimestamp(released, tz=timezone.utc).date() if released is not None else None
         )
         game.popularity = data.get("total_rating_count") or 0
+        game.critic_rating = data.get("aggregated_rating")
+        game.critic_rating_count = data.get("aggregated_rating_count") or 0
+        store_ids = _store_ids(data)
+        steam_app_id = (store_ids.get("steam") or [None])[0]
+        if store_ids != game.store_ids and not game.steam_app_id_override:
+            # Prices were found through the old store IDs; drop them with them.
+            game.prices_edition = ""
+            game.historical_low = None
+            game.historical_low_currency = ""
+            game.prices_updated_at = None
+            if game.pk:
+                game.prices.filter(source=GamePrice.Source.ITAD).delete()
+        game.steam_app_id = steam_app_id
+        game.store_ids = store_ids
+        game.store_alternatives = _store_alternatives(data, store_ids)
+        game.xbox_product_ids = _xbox_product_ids(data)
         game.save()
 
         game_genres = []

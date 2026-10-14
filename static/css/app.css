@@ -167,3 +167,41 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   .nav { gap: .75rem; font-size: .95rem; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 1rem .75rem; }
 }
+
+/* Critic score and store prices on the game page */
+.critic { display: flex; align-items: center; gap: 1rem; }
+.critic p { margin: 0; }
+.score {
+  display: grid; place-items: center; flex: none;
+  width: 3.25rem; height: 3.25rem; border-radius: 10px;
+  font-size: 1.35rem; font-weight: 800; color: #04121a;
+}
+.score-high { background: var(--cyan); box-shadow: 0 0 14px rgba(34, 224, 240, .4); }
+.score-mid { background: var(--violet); color: #fff; }
+.score-low { background: var(--pink); color: #fff; }
+.prices { margin: 0; padding: 0; list-style: none; }
+.prices li { display: flex; align-items: center; gap: .6rem; padding: .5rem 0; border-top: 1px solid var(--border); }
+.prices li:first-child { border-top: 0; }
+.prices .shop { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prices .cut { padding: .1rem .4rem; border-radius: 6px; background: var(--pink); color: #fff; font-size: .8rem; font-weight: 700; }
+.prices .btn { padding: .3rem .7rem; font-size: .85rem; }
+.more-prices summary { padding: .5rem 0; border-top: 1px solid var(--border); color: var(--cyan); cursor: pointer; }
+.more-prices .prices li:first-child { border-top: 1px solid var(--border); }
+.edition { margin: -.3rem 0 .4rem; }
+.best-price { margin: 0; padding: .5rem 0; border-top: 1px solid var(--border); font-size: .9rem; }
+.shop-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .6rem; margin-bottom: .6rem; }
+.shop-tile {
+  display: flex; flex-direction: column; gap: .35rem; padding: .75rem;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; color: var(--text);
+}
+.shop-tile:hover { border-color: var(--violet); box-shadow: 0 0 14px rgba(157, 92, 255, .3); text-decoration: none; }
+.shop-logo { width: 1.6rem; height: 1.6rem; }
+.shop-tile-name { font-size: .85rem; color: var(--muted); }
+.shop-tile-price { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+.shop-tile-price strong { font-size: 1.15rem; }
+.shop-tile-price s { font-size: .8rem; }
+.shop-tile-search .shop-tile-price { color: var(--muted); font-size: .9rem; }
+.shop-tile-search:hover .shop-tile-price { color: var(--cyan); }
+.no-prices + .shop-tiles, .shop-tiles + .no-prices { margin-top: .6rem; }
+.free-badge { margin-left: .4rem; padding: .1rem .45rem; border-radius: 6px; background: var(--cyan); color: #04121a; letter-spacing: 0; text-transform: none; }
+.no-prices { margin: 0; }
