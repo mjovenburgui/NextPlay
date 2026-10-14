@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}Entrar · NextPlay{% endblock %}
+
+{% block content %}
+  <section class="panel">
+    <h1>Entrar</h1>
+    <form method="post">
+      {% include "_form.html" %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <button class="btn btn-primary" type="submit">Entrar</button>
+    </form>
+    <p class="muted"><a href="{% url 'password_reset' %}">¿Has olvidado tu contraseña?</a> · <a href="{% url 'signup' %}">Crear cuenta</a></p>
+  </section>
+{% endblock %}

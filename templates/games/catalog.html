@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}{% if query %}«{{ query }}» · {% endif %}Juegos · NextPlay{% endblock %}
+
+{% block content %}
+  <div class="page-head">
+    <h1>{% if query %}Resultados para «{{ query }}»{% else %}Catálogo{% endif %}</h1>
+    <form class="filters" method="get">
+      {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
+      <select name="genero" aria-label="Género" onchange="this.form.submit()">
+        <option value="">Todos los géneros</option>
+        {% for genre in genres %}
+          <option value="{{ genre.slug }}" {% if genre.slug == active_genre %}selected{% endif %}>{{ genre.name }}</option>
+        {% endfor %}
+      </select>
+      <select name="plataforma" aria-label="Plataforma" onchange="this.form.submit()">
+        <option value="">Todas las plataformas</option>
+        {% for platform in platforms %}
+          <option value="{{ platform.slug }}" {% if platform.slug == active_platform %}selected{% endif %}>{{ platform.name }}</option>
+        {% endfor %}
+      </select>
+      <noscript><button class="btn" type="submit">Filtrar</button></noscript>
+    </form>
+  </div>
+
+  {% if page.object_list %}
+    <div class="grid">
+      {% for game in page.object_list %}
+        {% include "games/_card.html" with status=game.library_status %}
+      {% endfor %}
+    </div>
+
+    {% if page.has_other_pages %}
+      <nav class="pager" aria-label="Paginación">
+        {% if page.has_previous %}
+          <a class="btn" href="?{% if filter_qs %}{{ filter_qs }}&amp;{% endif %}page={{ page.previous_page_number }}">← Anterior</a>
+        {% endif %}
+        <span class="muted">Página {{ page.number }} de {{ page.paginator.num_pages }}</span>
+        {% if page.has_next %}
+          <a class="btn" href="?{% if filter_qs %}{{ filter_qs }}&amp;{% endif %}page={{ page.next_page_number }}">Siguiente →</a>
+        {% endif %}
+      </nav>
+    {% endif %}
+  {% else %}
+    <p class="empty">No hay juegos que coincidan.</p>
+  {% endif %}
+
+  {% if can_import %}
+    <form class="import" action="{% url 'games:import_search' %}" method="post">
+      {% csrf_token %}
+      <input type="hidden" name="q" value="{{ query }}">
+      <span class="muted">¿No encuentras lo que buscas?</span>
+      <button class="btn" type="submit">Buscar «{{ query }}» en IGDB</button>
+    </form>
+  {% endif %}
+{% endblock %}

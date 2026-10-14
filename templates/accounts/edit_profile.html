@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Editar perfil · NextPlay{% endblock %}
+
+{% block content %}
+  <section class="panel">
+    <h1>Editar perfil</h1>
+    <form method="post">
+      {% include "_form.html" %}
+      <button class="btn btn-primary" type="submit">Guardar</button>
+      <a class="btn" href="{% url 'profile' user.username %}">Cancelar</a>
+    </form>
+  </section>
+{% endblock %}

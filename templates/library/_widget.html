@@ -1,0 +1,21 @@
+<div class="widget" id="library-widget">
+  <p class="widget-label">{% if entry %}En tu biblioteca{% else %}Añadir a tu biblioteca{% endif %}</p>
+  <form action="{% url 'library:set_status' game.id %}" method="post"
+        hx-post="{% url 'library:set_status' game.id %}" hx-target="#library-widget" hx-swap="outerHTML">
+    {% csrf_token %}
+    <div class="status-row">
+      {% for value, label in statuses %}
+        <button class="btn status status-{{ value }}{% if entry.status == value %} is-active{% endif %}"
+                type="submit" name="status" value="{{ value }}"
+                {% if entry.status == value %}aria-pressed="true"{% else %}aria-pressed="false"{% endif %}>{{ label }}</button>
+      {% endfor %}
+    </div>
+  </form>
+  {% if entry %}
+    <form action="{% url 'library:remove' game.id %}" method="post"
+          hx-post="{% url 'library:remove' game.id %}" hx-target="#library-widget" hx-swap="outerHTML">
+      {% csrf_token %}
+      <button class="link small" type="submit">Quitar de la biblioteca</button>
+    </form>
+  {% endif %}
+</div>

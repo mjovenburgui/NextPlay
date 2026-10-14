@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}{{ owner.profile.name }} (@{{ owner.username }}) · NextPlay{% endblock %}
+{% block description %}Biblioteca de {{ owner.profile.name }} en NextPlay: {{ total }} juegos.{% endblock %}
+
+{% block content %}
+  <section class="profile-head">
+    <div class="avatar" aria-hidden="true">{{ owner.profile.name|slice:":1"|upper }}</div>
+    <div>
+      <h1>{{ owner.profile.name }}</h1>
+      <p class="muted">@{{ owner.username }}{% if not owner.profile.is_public %} · Perfil privado{% endif %}</p>
+      {% if owner.profile.bio %}<p class="bio">{{ owner.profile.bio|linebreaksbr }}</p>{% endif %}
+    </div>
+    {% if is_owner %}<a class="btn" href="{% url 'edit_profile' %}">Editar perfil</a>{% endif %}
+  </section>
+
+  <nav class="tabs" aria-label="Estados de la biblioteca">
+    <a class="tab{% if not active_status %} is-active{% endif %}" href="{% url 'profile' owner.username %}">Todos <span>{{ total }}</span></a>
+    {% for value, label, count in tabs %}
+      <a class="tab{% if active_status == value %} is-active{% endif %}" href="?estado={{ value }}">{{ label }} <span>{{ count }}</span></a>
+    {% endfor %}
+  </nav>
+
+  {% if entries %}
+    <div class="grid">
+      {% for entry in entries %}
+        {% if active_status %}
+          {% include "games/_card.html" with game=entry.game status="" %}
+        {% else %}
+          {% include "games/_card.html" with game=entry.game status=entry.get_status_display %}
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% elif is_owner and not total %}
+    <p class="empty">Tu biblioteca está vacía. <a href="{% url 'games:catalog' %}">Explora el catálogo</a> y añade tus juegos.</p>
+  {% else %}
+    <p class="empty">No hay juegos en esta sección.</p>
+  {% endif %}
+{% endblock %}

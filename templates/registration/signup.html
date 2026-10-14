@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Crear cuenta · NextPlay{% endblock %}
+
+{% block content %}
+  <section class="panel">
+    <h1>Crear cuenta</h1>
+    <form method="post">
+      {% include "_form.html" %}
+      <button class="btn btn-primary" type="submit">Crear cuenta</button>
+    </form>
+    <p class="muted">¿Ya tienes cuenta? <a href="{% url 'login' %}">Entrar</a></p>
+  </section>
+{% endblock %}

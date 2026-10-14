@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}{{ game.name }} · NextPlay{% endblock %}
+{% block description %}{{ game.summary|default:game.name|truncatechars:155 }}{% endblock %}
+
+{% block content %}
+  <article class="game">
+    <div class="cover cover-lg">
+      {% if game.cover_url %}
+        <img src="{{ game.cover_url }}" alt="Carátula de {{ game.name }}">
+      {% else %}
+        <span class="cover-fallback">{{ game.name }}</span>
+      {% endif %}
+    </div>
+
+    <div class="game-body">
+      <h1>{{ game.name }}</h1>
+      {% if game.first_release_date %}
+        <p class="muted">{{ game.first_release_date|date:"j \d\e F \d\e Y" }}</p>
+      {% endif %}
+
+      <div class="chips">
+        {% for genre in game.genres.all %}
+          <a class="chip" href="{% url 'games:catalog' %}?genero={{ genre.slug }}">{{ genre.name }}</a>
+        {% endfor %}
+        {% for platform in game.platforms.all %}
+          <a class="chip chip-alt" href="{% url 'games:catalog' %}?plataforma={{ platform.slug }}">{{ platform.short_name }}</a>
+        {% endfor %}
+      </div>
+
+      {% if user.is_authenticated %}
+        {% include "library/_widget.html" %}
+      {% else %}
+        <p class="widget">
+          <a href="{% url 'login' %}?next={{ request.path|urlencode }}">Inicia sesión</a> para añadirlo a tu biblioteca.
+        </p>
+      {% endif %}
+
+      {% if game.summary %}<p class="summary">{{ game.summary }}</p>{% endif %}
+    </div>
+  </article>
+{% endblock %}
