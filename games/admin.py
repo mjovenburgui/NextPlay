@@ -1,11 +1,32 @@
 from django.contrib import admin
 
-from .models import Game, Genre, Platform
+from .models import Game, GamePrice, Genre, Platform
+
+
+class GamePriceInline(admin.TabularInline):
+    model = GamePrice
+    extra = 0
+    can_delete = False
+    readonly_fields = ("shop_name", "price", "regular_price", "currency", "cut", "url")
+    fields = readonly_fields
+
+    def has_add_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Game)
 class GameAdmin(admin.ModelAdmin):
-    list_display = ("name", "first_release_date", "popularity", "igdb_id")
+    list_display = ("name", "first_release_date", "popularity", "critic_rating", "steam_app_id", "igdb_id")
+    inlines = [GamePriceInline]
+    readonly_fields = (
+        "steam_app_id",
+        "store_ids",
+        "store_alternatives",
+        "prices_edition",
+        "historical_low",
+        "historical_low_currency",
+        "prices_updated_at",
+    )
     search_fields = ("name",)
     list_filter = ("genres", "platforms")
     prepopulated_fields = {"slug": ("name",)}
