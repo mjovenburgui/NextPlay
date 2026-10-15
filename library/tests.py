@@ -51,6 +51,53 @@ class LibraryTests(TestCase):
         self.client.post(self.remove_url)
         self.assertEqual(list(LibraryEntry.objects.values_list("user", flat=True)), [self.other.id])
 
+    def test_rate_sets_and_clears_the_rating(self):
+        LibraryEntry.objects.create(user=self.user, game=self.game)
+        self.client.force_login(self.user)
+        rate_url = reverse("library:rate", args=[self.game.id])
+        self.assertRedirects(self.client.post(rate_url, {"rating": "4"}), self.game.get_absolute_url())
+        self.assertEqual(LibraryEntry.objects.get().rating, 4)
+        self.client.post(rate_url, {"rating": "0"})
+        self.assertIsNone(LibraryEntry.objects.get().rating)
+
+    def test_rate_rejects_out_of_range_values(self):
+        LibraryEntry.objects.create(user=self.user, game=self.game, rating=3)
+        self.client.force_login(self.user)
+        rate_url = reverse("library:rate", args=[self.game.id])
+        for value in ("6", "-1", "abc", ""):
+            self.assertEqual(self.client.post(rate_url, {"rating": value}).status_code, 400)
+        self.assertEqual(LibraryEntry.objects.get().rating, 3)
+
+    def test_rate_needs_the_game_in_the_library(self):
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("library:rate", args=[self.game.id]), {"rating": "5"})
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(LibraryEntry.objects.exists())
+
+    def test_htmx_rating_also_refreshes_the_community_box(self):
+        LibraryEntry.objects.create(user=self.other, game=self.game, rating=2)
+        LibraryEntry.objects.create(user=self.user, game=self.game)
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("library:rate", args=[self.game.id]), {"rating": "5"}, headers={"HX-Request": "true"}
+        )
+        self.assertContains(response, 'id="community-rating" hx-swap-oob="true"')
+        self.assertContains(response, "3,5")
+        self.assertContains(response, "2 valoraciones")
+
+    def test_community_rating_averages_only_rated_entries(self):
+        LibraryEntry.objects.create(user=self.user, game=self.game, rating=5)
+        LibraryEntry.objects.create(user=self.other, game=self.game, rating=None)
+        self.assertEqual(self.game.community_rating(), {"average": 5.0, "count": 1})
+        response = self.client.get(self.game.get_absolute_url())
+        self.assertContains(response, "1 valoración de jugadores")
+        self.assertContains(response, "width: 100%")
+
+    def test_game_page_without_ratings(self):
+        response = self.client.get(self.game.get_absolute_url())
+        self.assertContains(response, "Aún nadie lo ha valorado")
+        self.assertContains(response, "width: 0%")
+
     def test_database_rejects_duplicate_entries(self):
         LibraryEntry.objects.create(user=self.user, game=self.game)
         with self.assertRaises(IntegrityError), transaction.atomic():

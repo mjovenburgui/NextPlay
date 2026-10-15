@@ -11,6 +11,7 @@ class GamePriceInline(admin.TabularInline):
     fields = readonly_fields
 
     def has_add_permission(self, request, obj=None):
+        """Impide añadir precios a mano: solo los escribe update_prices."""
         return False
 
 

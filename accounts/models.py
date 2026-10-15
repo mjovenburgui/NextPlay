@@ -21,14 +21,18 @@ class Profile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
+        """Texto del perfil en el admin y en la consola: su nombre visible."""
         return self.name
 
     @property
     def name(self):
+        """Nombre que se muestra: el nombre visible si lo tiene, si no el nombre de usuario."""
         return self.display_name or self.user.username
 
     def get_absolute_url(self):
+        """URL del perfil público del usuario (/u/<usuario>/)."""
         return reverse("profile", args=[self.user.username])
 
     def visible_to(self, viewer):
+        """Indica si viewer puede ver el perfil: siempre si es público, y si es privado solo su dueño."""
         return self.is_public or viewer == self.user

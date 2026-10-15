@@ -9,10 +9,12 @@ class Command(BaseCommand):
     help = "Actualiza los precios por tienda: PC (IsThereAnyDeal) y consola Xbox (tienda de Microsoft)."
 
     def add_arguments(self, parser):
+        """Opciones del comando: --limit (solo los N más populares) y --game (un solo juego por slug)."""
         parser.add_argument("--limit", type=int, help="Solo los N juegos más populares.")
         parser.add_argument("--game", help="Solo el juego con este slug.")
 
     def handle(self, *args, **options):
+        """Actualiza los precios de PC (si hay ITAD_API_KEY) y después los de Xbox de los juegos elegidos."""
         games = Game.objects.prefetch_related("platforms", "prices")
         if options["game"]:
             games = games.filter(slug=options["game"])

@@ -7,5 +7,9 @@ from .models import Profile
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
 def create_profile(sender, instance, created, raw=False, **kwargs):
+    """Crea el perfil de un usuario justo después de crearlo.
+
+    No hace nada al guardar un usuario ya existente ni al cargar fixtures (raw=True).
+    """
     if created and not raw:
         Profile.objects.get_or_create(user=instance)

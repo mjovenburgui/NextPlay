@@ -15,6 +15,12 @@ PAGE_SIZE = 24
 
 
 def catalog(request):
+    """Catálogo de juegos, que también es la portada.
+
+    Filtra por nombre (?q=), género (?genero=) y plataforma (?plataforma=) y pagina de 24 en 24.
+    Si hay sesión, marca en cada tarjeta el estado del juego en la biblioteca del usuario. Ofrece
+    importar de IGDB cuando hay búsqueda, sesión y credenciales de IGDB.
+    """
     query = request.GET.get("q", "").strip()
     genre = request.GET.get("genero", "")
     platform = request.GET.get("plataforma", "")
@@ -54,6 +60,11 @@ def catalog(request):
 
 
 def detail(request, slug):
+    """Ficha de un juego: datos, nota de la crítica, valoración de la comunidad, widget de biblioteca y precios.
+
+    Los precios llegan ya repartidos por Game.price_groups(); store_searches() da los enlaces de
+    búsqueda a las tiendas de consola sin precio.
+    """
     game = get_object_or_404(Game.objects.prefetch_related("genres", "platforms", "prices"), slug=slug)
     entry = None
     if request.user.is_authenticated:
@@ -72,6 +83,7 @@ def detail(request, slug):
             "best_price": best_price,
             "has_pc_prices": any(price.source == GamePrice.Source.ITAD for price in game.prices.all()),
             "store_searches": game.store_searches(),
+            "community": game.community_rating(),
         },
     )
 
@@ -79,7 +91,11 @@ def detail(request, slug):
 @require_POST
 @login_required
 def import_search(request):
-    """Pull IGDB matches for a search the local catalog could not satisfy."""
+    """Importa de IGDB los resultados de una búsqueda que no estaban en el catálogo local.
+
+    Después vuelve al catálogo con la misma búsqueda y avisa de cuántos juegos se importaron, o
+    de que IGDB no respondió.
+    """
     query = request.POST.get("q", "").strip()
     if query:
         try:

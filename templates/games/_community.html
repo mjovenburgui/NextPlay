@@ -1,0 +1,19 @@
+<section class="widget side-score" id="community-rating"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <p class="widget-label">Valoración de la comunidad</p>
+  <div class="community">
+    <span class="community-average">{% if community.average %}{{ community.average|floatformat:1 }}{% else %}–{% endif %}</span>
+    <div>
+      <span class="stars" role="img"
+            aria-label="{% if community.average %}{{ community.average|floatformat:1 }} de 5 estrellas{% else %}Sin valoraciones{% endif %}">
+        <span class="stars-fill" style="width: {% widthratio community.average|default:0 5 100 %}%"></span>
+      </span>
+      <p class="muted small">
+        {% if community.count %}
+          {{ community.count }} valoraci{{ community.count|pluralize:"ón,ones" }} de jugadores
+        {% else %}
+          Aún nadie lo ha valorado
+        {% endif %}
+      </p>
+    </div>
+  </div>
+</section>

@@ -1,4 +1,4 @@
-"""Xbox console prices from Microsoft's public store catalog (undocumented, no key needed)."""
+"""Precios de consola Xbox sacados del catálogo público de la tienda de Microsoft (sin documentar, sin clave)."""
 
 import re
 import time
@@ -18,19 +18,24 @@ XBOX_PLATFORM = "Windows.Xbox"
 
 
 class XboxError(Exception):
-    pass
+    """Fallo al consultar la tienda de Xbox (red o respuesta no válida)."""
 
 
 def _market():
+    """País de la tienda, el mismo que ITAD_COUNTRY (p. ej. «ES»)."""
     return settings.ITAD_COUNTRY.upper()
 
 
 def _locale():
+    """Idioma y país de la tienda, p. ej. «es-ES»."""
     return f"{settings.LANGUAGE_CODE}-{_market()}"
 
 
 def fetch_products(product_ids):
-    """Return {product_id: (price, regular_price, currency)} for products buyable on Xbox consoles."""
+    """Devuelve {ID de producto: (precio, precio normal, moneda)} de los productos que se pueden comprar en consola Xbox.
+
+    Pide los productos de 20 en 20; los que no se venden en consola no aparecen en el resultado.
+    """
     found = {}
     for start in range(0, len(product_ids), BATCH_SIZE):
         batch = product_ids[start : start + BATCH_SIZE]
@@ -52,7 +57,10 @@ def fetch_products(product_ids):
 
 
 def _console_offer(product):
-    """Cheapest paid purchase offer that runs on Xbox; 0.00 SKUs are Game Pass, trials or bundled copies."""
+    """Oferta de compra más barata de un producto que funciona en Xbox, o None si no hay.
+
+    Ignora las de 0,00, que son Game Pass, pruebas o copias incluidas en packs.
+    """
     best = None
     for sku in product.get("DisplaySkuAvailabilities") or []:
         for availability in sku.get("Availabilities") or []:
@@ -75,11 +83,12 @@ def _console_offer(product):
 
 
 def _normalize(title):
+    """Título para comparar: sin ™ ® ©, en minúsculas y con los espacios simplificados."""
     return " ".join(re.sub(r"[™®©]", "", title or "").casefold().split())
 
 
 def search_games(name):
-    """Product IDs of Xbox games titled exactly like name (English titles, as in IGDB)."""
+    """IDs de producto de los juegos de Xbox que se llaman exactamente como name (títulos en inglés, como en IGDB)."""
     try:
         response = requests.get(
             SEARCH_URL,
@@ -106,11 +115,13 @@ def search_games(name):
 
 
 def store_url(product_id):
+    """Enlace a la página del producto en xbox.com."""
     return f"https://www.xbox.com/{_locale()}/games/store/_/{product_id}"
 
 
 @transaction.atomic
 def _store(game, product_id, offer):
+    """Sustituye el precio de Xbox del juego por offer y calcula el % de descuento; sin offer lo deja sin precio."""
     game.prices.filter(source=GamePrice.Source.XBOX).delete()
     if offer:
         price, regular, currency = offer
@@ -128,11 +139,12 @@ def _store(game, product_id, offer):
 
 
 def update_xbox_prices(games, sleep=time.sleep):
-    """Store the Xbox price of each game: its first product ID (own, then editions) sold on consoles.
+    """Guarda el precio de Xbox de cada juego y devuelve cuántos acabaron con precio.
 
-    IGDB often lists only products no longer sold (e.g. the original release of a re-released game),
-    so games on current Xbox consoles without a price are also searched by their exact title.
-    Returns how many games ended up with a price.
+    Usa el primer ID de producto (el suyo y después sus ediciones) que se venda en consola. Como IGDB
+    a menudo solo tiene productos que ya no se venden (p. ej. la versión original de un relanzamiento),
+    los juegos de Xbox One/Series sin precio se buscan también por su título exacto, salvo que otro
+    juego del catálogo se llame igual o que la búsqueda dé más de un producto.
     """
     games = [game for game in games if game.xbox_lookup_ids or game.on_current_xbox]
     offers = fetch_products(sorted({pid for game in games for pid in game.xbox_lookup_ids}))
