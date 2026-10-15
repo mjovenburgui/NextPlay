@@ -5,13 +5,30 @@
 
 {% block content %}
   <article class="game">
-    <div class="cover cover-lg">
-      {% if game.cover_url %}
-        <img src="{{ game.cover_url }}" alt="Carátula de {{ game.name }}">
-      {% else %}
-        <span class="cover-fallback">{{ game.name }}</span>
+    <aside class="game-side">
+      <div class="cover cover-lg">
+        {% if game.cover_url %}
+          <img src="{{ game.cover_url }}" alt="Carátula de {{ game.name }}">
+        {% else %}
+          <span class="cover-fallback">{{ game.name }}</span>
+        {% endif %}
+      </div>
+
+      {% if game.critic_score is not None %}
+        <section class="widget side-score">
+          <p class="widget-label">Nota de la crítica</p>
+          <div class="critic">
+            <span class="score score-{{ game.critic_tier }}">{{ game.critic_score }}</span>
+            <p class="muted small">
+              Media de {{ game.critic_rating_count }} reseña{{ game.critic_rating_count|pluralize }}
+              profesional{{ game.critic_rating_count|pluralize:"es" }} · IGDB
+            </p>
+          </div>
+        </section>
       {% endif %}
-    </div>
+
+      {% include "games/_community.html" %}
+    </aside>
 
     <div class="game-body">
       <h1>{{ game.name }}</h1>
@@ -37,19 +54,6 @@
       {% endif %}
 
       {% if game.summary %}<p class="summary">{{ game.summary }}</p>{% endif %}
-
-      {% if game.critic_score is not None %}
-        <section class="widget critic">
-          <span class="score score-{{ game.critic_tier }}">{{ game.critic_score }}</span>
-          <div>
-            <p class="widget-label">Nota de la crítica</p>
-            <p class="muted">
-              Media de {{ game.critic_rating_count }} reseña{{ game.critic_rating_count|pluralize }}
-              profesional{{ game.critic_rating_count|pluralize:"es" }} · Fuente: IGDB
-            </p>
-          </div>
-        </section>
-      {% endif %}
 
       <section class="widget">
         <p class="widget-label">

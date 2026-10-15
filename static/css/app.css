@@ -8,6 +8,8 @@
   --violet: #9d5cff;
   --cyan: #22e0f0;
   --pink: #ff4fa3;
+  --gold: #ffc84a;
+  --star-off: #3d4670;
   --radius: 12px;
 }
 
@@ -164,12 +166,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 @media (max-width: 640px) {
   .game { grid-template-columns: 1fr; }
   .cover-lg { max-width: 200px; }
+  .game-side { max-width: 320px; }
   .nav { gap: .75rem; font-size: .95rem; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 1rem .75rem; }
 }
 
 /* Critic score and store prices on the game page */
-.critic { display: flex; align-items: center; gap: 1rem; }
+.game-side .side-score { margin: 1rem 0 0; }
+.critic { display: flex; align-items: center; gap: .85rem; }
 .critic p { margin: 0; }
 .score {
   display: grid; place-items: center; flex: none;
@@ -205,3 +209,23 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .no-prices + .shop-tiles, .shop-tiles + .no-prices { margin-top: .6rem; }
 .free-badge { margin-left: .4rem; padding: .1rem .45rem; border-radius: 6px; background: var(--cyan); color: #04121a; letter-spacing: 0; text-transform: none; }
 .no-prices { margin: 0; }
+
+/* Community rating: stars painted as text, the gold layer clipped to the average */
+.community { display: flex; align-items: center; gap: .85rem; }
+.community p { margin: .15rem 0 0; }
+.community-average { font-size: 2rem; font-weight: 800; line-height: 1; color: var(--gold); min-width: 3.25rem; text-align: center; }
+.stars, .stars-fill { display: inline-block; font-size: 1.25rem; line-height: 1; letter-spacing: .1em; white-space: nowrap; }
+.stars { position: relative; color: var(--star-off); }
+.stars::before { content: "★★★★★"; }
+.stars-fill { position: absolute; top: 0; left: 0; overflow: hidden; color: var(--gold); }
+.stars-fill::before { content: "★★★★★"; }
+
+/* Your own rating in the library widget; buttons go 5→1 so hover lights the star and those before it */
+.rate { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.rate-label { font-size: .9rem; color: var(--muted); }
+.rate-stars { display: inline-flex; flex-direction: row-reverse; }
+.rate-star { padding: 0 .1rem; background: none; border: 0; font-size: 1.5rem; line-height: 1; color: var(--star-off); cursor: pointer; }
+.rate-star.is-on { color: var(--gold); }
+.rate-stars:hover .rate-star { color: var(--star-off); }
+.rate-stars .rate-star:hover, .rate-stars .rate-star:hover ~ .rate-star { color: var(--gold); }
+.rate-star:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; border-radius: 4px; }

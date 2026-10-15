@@ -13,6 +13,7 @@ class SignupForm(UserCreationForm):
         fields = ("username", "email")
 
     def clean_email(self):
+        """Pasa el correo a minúsculas y rechaza el registro si ya hay una cuenta con ese correo."""
         email = self.cleaned_data["email"].lower()
         if User.objects.filter(email__iexact=email).exists():
             raise forms.ValidationError("Ya existe una cuenta con este correo.")

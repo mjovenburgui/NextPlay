@@ -12,6 +12,19 @@
     </div>
   </form>
   {% if entry %}
+    <form class="rate" action="{% url 'library:rate' game.id %}" method="post"
+          hx-post="{% url 'library:rate' game.id %}" hx-target="#library-widget" hx-swap="outerHTML">
+      {% csrf_token %}
+      <span class="rate-label">Tu valoración</span>
+      <span class="rate-stars">
+        {% for value in entry.RATING_STARS %}
+          <button class="rate-star{% if entry.rating and value <= entry.rating %} is-on{% endif %}" type="submit"
+                  name="rating" value="{% if entry.rating == value %}0{% else %}{{ value }}{% endif %}"
+                  aria-label="{% if entry.rating == value %}Quitar tu valoración{% else %}Valorar con {{ value }} estrella{{ value|pluralize }}{% endif %}"
+                  title="{% if entry.rating == value %}Quitar tu valoración{% else %}{{ value }} estrella{{ value|pluralize }}{% endif %}">★</button>
+        {% endfor %}
+      </span>
+    </form>
     <form action="{% url 'library:remove' game.id %}" method="post"
           hx-post="{% url 'library:remove' game.id %}" hx-target="#library-widget" hx-swap="outerHTML">
       {% csrf_token %}
@@ -19,3 +32,4 @@
     </form>
   {% endif %}
 </div>
+{% if community_oob %}{% include "games/_community.html" with oob=True %}{% endif %}

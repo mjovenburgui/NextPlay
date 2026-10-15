@@ -1,4 +1,4 @@
-"""IGDB client and the upsert that maps its payloads onto the local catalog."""
+"""Cliente de IGDB y la función que vuelca sus juegos en el catálogo local."""
 
 import re
 import time
@@ -34,21 +34,24 @@ GAME_FIELDS = (
 
 
 class IGDBError(Exception):
-    pass
+    """Fallo al hablar con IGDB o con Twitch (credenciales, red o respuesta no válida)."""
 
 
 def is_configured():
+    """Indica si están puestas las credenciales de Twitch para usar IGDB."""
     return bool(settings.IGDB_CLIENT_ID and settings.IGDB_CLIENT_SECRET)
 
 
 class IGDBClient:
     def __init__(self, client_id=None, client_secret=None):
+        """Prepara el cliente con las credenciales dadas o las de settings; falla si no hay ninguna."""
         self.client_id = client_id or settings.IGDB_CLIENT_ID
         self.client_secret = client_secret or settings.IGDB_CLIENT_SECRET
         if not (self.client_id and self.client_secret):
             raise IGDBError("Faltan IGDB_CLIENT_ID e IGDB_CLIENT_SECRET.")
 
     def _token(self):
+        """Token de acceso de Twitch: lo saca de la caché o pide uno nuevo y lo guarda hasta que caduque."""
         token = cache.get(TOKEN_CACHE_KEY)
         if token:
             return token
@@ -71,6 +74,10 @@ class IGDBClient:
         return token
 
     def query(self, endpoint, body):
+        """Lanza una consulta en Apicalypse (el lenguaje de IGDB) contra endpoint y devuelve el JSON.
+
+        Si IGDB responde 401 borra el token de la caché para que la próxima llamada pida uno nuevo.
+        """
         try:
             response = requests.post(
                 f"{API_URL}/{endpoint}",
@@ -90,6 +97,7 @@ class IGDBClient:
             raise IGDBError(f"Error consultando IGDB: {exc}") from exc
 
     def top_games(self, limit=MAX_PAGE_SIZE, offset=0):
+        """Una página de los juegos más valorados por número de votos, sin ediciones sueltas, con sus ediciones."""
         limit = min(limit, MAX_PAGE_SIZE)
         body = (
             f"{GAME_FIELDS} where version_parent = null & total_rating_count > 0; "
@@ -98,6 +106,7 @@ class IGDBClient:
         return self._with_editions(self.query("games", body))
 
     def search(self, term, limit=20):
+        """Busca juegos por texto en IGDB (hasta limit resultados, sin ediciones sueltas), con sus ediciones."""
         # Apicalypse string literal: drop the characters that would end or escape it.
         term = term.replace("\\", " ").replace('"', " ").strip()
         if not term:
@@ -106,7 +115,7 @@ class IGDBClient:
         return self._with_editions(self.query("games", body))
 
     def _with_editions(self, games):
-        """Attach each game's editions (GOTY, Definitive...) as "editions", for their Steam IDs."""
+        """Añade a cada juego sus ediciones (GOTY, Definitive...) en la clave «editions», para tener sus IDs de tienda."""
         if not games:
             return games
         ids = ",".join(str(game["id"]) for game in games)
@@ -128,7 +137,7 @@ class IGDBClient:
 
 
 def _upsert_ref(model, data, **extra):
-    """Get or create a Genre/Platform, adopting a non-IGDB row that shares the slug."""
+    """Busca o crea un Genre o Platform de IGDB, aprovechando uno que no venga de IGDB con el mismo slug."""
     slug = (data.get("slug") or slugify(data["name"]))[:120]
     obj = model.objects.filter(igdb_id=data["id"]).first()
     if obj is None:
@@ -144,14 +153,16 @@ def _upsert_ref(model, data, **extra):
 
 
 def _normalize(name):
+    """Nombre para comparar: sin ™ ® ©, en minúsculas y con los espacios simplificados."""
     return " ".join(re.sub(r"[™®©]", "", name or "").casefold().split())
 
 
 def _store_ids(data):
-    """{"steam": [...], "gog": [...]} IDs of an IGDB game.
+    """IDs de tienda de un juego de IGDB: {"steam": [...], "gog": [...]}.
 
-    IGDB can list several entries per store: re-releases named like the game (all kept, their deals
-    get merged) and odd ones like "Mac Portal" (used only when nothing is named like the game).
+    IGDB puede tener varias entradas por tienda: relanzamientos con el mismo nombre que el juego (se
+    quedan todos y sus ofertas se juntan) y otras raras como «Mac Portal» (solo se usa la primera,
+    y únicamente si ninguna se llama como el juego).
     """
     name = _normalize(data["name"])
     ids = {}
@@ -168,7 +179,10 @@ def _store_ids(data):
 
 
 def _store_alternatives(data, own_ids):
-    """Store IDs of the game's editions, then its remasters: where its prices live once it is delisted."""
+    """IDs de tienda de las ediciones del juego y después de sus remasters, sin repetir los suyos.
+
+    Sirven para encontrar precios cuando el juego original ya no se vende.
+    """
     seen = {(store, uid) for store, uids in own_ids.items() for uid in uids}
     alternatives = []
     for related in (data.get("editions") or []) + (data.get("remasters") or []):
@@ -184,7 +198,7 @@ def _store_alternatives(data, own_ids):
 
 
 def _xbox_product_ids(data):
-    """Microsoft Store product IDs of the game, then of its editions and remasters."""
+    """IDs de producto de Microsoft Store del juego y después de sus ediciones y remasters, sin repetidos."""
     ids = []
     for related in [data] + (data.get("editions") or []) + (data.get("remasters") or []):
         for item in related.get("external_games") or []:
@@ -197,7 +211,12 @@ def _xbox_product_ids(data):
 
 @transaction.atomic
 def upsert_games(payload):
-    """Create or update local games from IGDB game objects. Returns the Game list."""
+    """Crea o actualiza los juegos locales a partir de los de IGDB y devuelve la lista de Game.
+
+    Guarda datos, nota, portada, IDs de tienda, géneros y plataformas. Aprovecha juegos de demo o
+    creados a mano con el mismo nombre o slug en vez de duplicarlos. Si cambian los IDs de tienda,
+    borra los precios de PC, que se buscaron con los IDs viejos. Todo va en una transacción.
+    """
     genres, platforms, games = {}, {}, []
     for data in payload:
         if not data.get("name") or not data.get("slug"):

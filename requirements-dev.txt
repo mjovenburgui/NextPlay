@@ -1,0 +1,3 @@
+-r requirements.txt
+# Solo para generar docs/NextPlay-funciones.pdf (docs/generar_pdf.py).
+reportlab>=4.2

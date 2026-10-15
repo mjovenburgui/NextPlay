@@ -12,6 +12,11 @@ User = get_user_model()
 
 
 def signup(request):
+    """Registro de cuenta nueva.
+
+    Si el usuario ya ha iniciado sesión lo manda a su perfil. Al registrarse bien inicia su sesión y
+    lo lleva al catálogo para que añada sus primeros juegos.
+    """
     if request.user.is_authenticated:
         return redirect("profile", username=request.user.username)
     form = SignupForm(request.POST or None)
@@ -24,6 +29,11 @@ def signup(request):
 
 
 def profile(request, username):
+    """Perfil público de un usuario con su biblioteca.
+
+    Muestra pestañas por estado (Jugando, Completado...) con su contador y filtra la lista con el
+    parámetro ?estado=. Un perfil privado da 404 a cualquiera que no sea su dueño.
+    """
     owner = get_object_or_404(User.objects.select_related("profile"), username=username)
     # 404 rather than 403 so private profiles don't confirm that the account exists.
     if not owner.profile.visible_to(request.user):
@@ -60,6 +70,7 @@ def profile(request, username):
 
 @login_required
 def edit_profile(request):
+    """Formulario para que el usuario con sesión cambie su nombre visible, biografía y privacidad."""
     form = ProfileForm(request.POST or None, instance=request.user.profile)
     if request.method == "POST" and form.is_valid():
         form.save()

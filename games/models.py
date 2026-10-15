@@ -13,6 +13,7 @@ class Genre(models.Model):
         ordering = ["name"]
 
     def __str__(self):
+        """Nombre del género."""
         return self.name
 
 
@@ -26,10 +27,12 @@ class Platform(models.Model):
         ordering = ["name"]
 
     def __str__(self):
+        """Nombre completo de la plataforma."""
         return self.name
 
     @property
     def short_name(self):
+        """Nombre corto para las etiquetas (p. ej. «PS5»); el completo si no tiene abreviatura."""
         return self.abbreviation or self.name
 
 
@@ -85,26 +88,32 @@ class Game(models.Model):
         ordering = ["-popularity", "name"]
 
     def __str__(self):
+        """Nombre del juego."""
         return self.name
 
     def get_absolute_url(self):
+        """URL de la ficha del juego (/juegos/<slug>/)."""
         return reverse("games:detail", args=[self.slug])
 
     @property
     def cover_url(self):
+        """URL de la portada en el CDN de IGDB, o cadena vacía si el juego no tiene portada."""
         if not self.cover_image_id:
             return ""
         return f"https://images.igdb.com/igdb/image/upload/t_cover_big/{self.cover_image_id}.jpg"
 
     @property
     def release_year(self):
+        """Año de lanzamiento, o None si no se conoce la fecha."""
         return self.first_release_date.year if self.first_release_date else None
 
     @property
     def price_lookups(self):
-        """([(store, store ID), ...], edition name) groups to look prices up with, in order of preference.
+        """Grupos ([(tienda, ID en la tienda), ...], nombre de edición) con los que buscar precios, por preferencia.
 
-        The IDs of one group belong to the same product, so their deals are merged.
+        Primero los IDs del propio juego y después los de sus ediciones y remasters. Los IDs de un
+        mismo grupo son el mismo producto, así que sus ofertas se juntan. Si hay un ID de Steam
+        manual, solo se usa ese.
         """
         if self.steam_app_id_override:
             return [([("steam", self.steam_app_id_override)], "")]
@@ -118,22 +127,26 @@ class Game(models.Model):
 
     @property
     def xbox_lookup_ids(self):
+        """IDs de producto de Xbox con los que buscar el precio: el manual si lo hay, si no los de IGDB."""
         return [self.xbox_product_id_override] if self.xbox_product_id_override else self.xbox_product_ids
 
     @property
     def on_current_xbox(self):
+        """Indica si el juego está en Xbox One o Xbox Series X|S."""
         return any(platform.name in CURRENT_XBOX_PLATFORMS for platform in self.platforms.all())
 
     @property
     def is_free(self):
+        """Indica si alguna tienda lo da gratis (precio y precio normal a 0), es decir, si es free-to-play."""
         return any(price.is_free for price in self.prices.all())
 
     def price_groups(self):
-        """(featured, listed, folded, best) for the game page.
+        """Reparte los precios para la ficha del juego en (destacados, listados, plegados, mejor).
 
-        featured: the best-known stores, in a fixed order. listed: the cheapest others, shown only
-        when the game is in none of them. folded: the rest by price. best: the cheapest deal when
-        it is folded away, so it can still be pointed out.
+        destacados: las tiendas más conocidas (Steam, Epic, Microsoft, GOG, Xbox) en un orden fijo.
+        listados: las demás más baratas, solo si el juego no está en ninguna destacada.
+        plegados: el resto por precio, dentro de «Ver N tiendas más».
+        mejor: la oferta más barata cuando ha quedado plegada, para poder señalarla igualmente.
         """
         prices = list(self.prices.all())
         featured_ids = list(FEATURED_SHOPS)
@@ -145,7 +158,10 @@ class Game(models.Model):
         return featured, listed, folded, best
 
     def store_searches(self):
-        """(store name, logo template, search URL) for consoles the game is on but that have no price for it."""
+        """(tienda, plantilla del logo, URL de búsqueda) de las consolas en las que está el juego pero sin precio.
+
+        Son PlayStation Store, Nintendo eShop y, si no se encontró precio de Xbox, Xbox Store.
+        """
         platforms = {platform.name for platform in self.platforms.all()}
         has_xbox_price = any(price.shop_id == XBOX_SHOP_ID for price in self.prices.all())
         return [
@@ -154,12 +170,20 @@ class Game(models.Model):
             if platforms.intersection(consoles) and not (store == "Xbox Store" and has_xbox_price)
         ]
 
+    def community_rating(self):
+        """Media de las valoraciones de los usuarios de NextPlay: {"average": 1-5 o None, "count": n}."""
+        return self.library_entries.filter(rating__isnull=False).aggregate(
+            average=models.Avg("rating"), count=models.Count("id")
+        )
+
     @property
     def critic_score(self):
+        """Nota de la crítica redondeada (0-100), o None si no tiene."""
         return round(self.critic_rating) if self.critic_rating is not None else None
 
     @property
     def critic_tier(self):
+        """Franja de la nota para colorearla: «high» (75 o más), «mid» (50-74), «low» o vacío sin nota."""
         score = self.critic_score
         if score is None:
             return ""
@@ -167,6 +191,7 @@ class Game(models.Model):
 
     @property
     def historical_low_symbol(self):
+        """Símbolo de la moneda del mínimo histórico (€, $, £...)."""
         return currency_symbol(self.historical_low_currency)
 
 
@@ -200,11 +225,12 @@ CURRENCY_SYMBOLS = {"EUR": "€", "USD": "$", "GBP": "£"}
 
 
 def currency_symbol(code):
+    """Símbolo de una moneda a partir de su código ISO («EUR» → «€»); el propio código si no lo conoce."""
     return CURRENCY_SYMBOLS.get(code, code)
 
 
 class GamePrice(models.Model):
-    """Current price of a game in one store."""
+    """Precio actual de un juego en una tienda."""
 
     class Source(models.TextChoices):
         ITAD = "itad", "IsThereAnyDeal"
@@ -227,20 +253,25 @@ class GamePrice(models.Model):
         constraints = [models.UniqueConstraint(fields=["game", "shop_id"], name="unique_price_per_shop")]
 
     def __str__(self):
+        """Texto del precio en el admin: «juego · tienda: precio moneda»."""
         return f"{self.game} · {self.shop_name}: {self.price} {self.currency}"
 
     @property
     def symbol(self):
+        """Símbolo de la moneda del precio."""
         return currency_symbol(self.currency)
 
     @property
     def is_free(self):
+        """Indica si el juego es gratis en esta tienda (no solo rebajado a 0 por una oferta)."""
         return self.price == 0 and self.regular_price == 0
 
     @property
     def is_featured(self):
+        """Indica si la tienda es una de las destacadas (Steam, Epic, Microsoft, GOG, Xbox)."""
         return self.shop_id in FEATURED_SHOPS
 
     @property
     def logo_template(self):
+        """Ruta de la plantilla SVG con el logo de la tienda; solo para tiendas destacadas."""
         return f"games/shop_icons/{FEATURED_SHOPS[self.shop_id]}.svg"
