@@ -102,3 +102,55 @@ class LibraryTests(TestCase):
         LibraryEntry.objects.create(user=self.user, game=self.game)
         with self.assertRaises(IntegrityError), transaction.atomic():
             LibraryEntry.objects.create(user=self.user, game=self.game)
+
+
+class ReviewTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.other = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.game = Game.objects.create(name="Hades", slug="hades")
+        cls.url = reverse("library:review", args=[cls.game.id])
+
+    def test_write_edit_and_delete_review(self):
+        LibraryEntry.objects.create(user=self.user, game=self.game)
+        self.client.force_login(self.user)
+        response = self.client.post(self.url, {"review": "  Adictivo.  ", "review_has_spoilers": "on"})
+        self.assertRedirects(response, f"{self.game.get_absolute_url()}#resenas", fetch_redirect_response=False)
+        entry = LibraryEntry.objects.get()
+        self.assertEqual((entry.review, entry.review_has_spoilers), ("Adictivo.", True))
+        self.assertIsNotNone(entry.reviewed_at)
+        self.client.post(self.url, {"review": "   "})
+        entry.refresh_from_db()
+        self.assertEqual((entry.review, entry.review_has_spoilers, entry.reviewed_at), ("", False, None))
+
+    def test_review_needs_the_game_in_the_library(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.post(self.url, {"review": "Hola"}).status_code, 404)
+
+    def test_too_long_review_is_rejected(self):
+        LibraryEntry.objects.create(user=self.user, game=self.game)
+        self.client.force_login(self.user)
+        self.client.post(self.url, {"review": "x" * 3001})
+        self.assertEqual(LibraryEntry.objects.get().review, "")
+
+    def test_game_page_hides_reviews_from_private_profiles(self):
+        LibraryEntry.objects.create(user=self.user, game=self.game, review="Pública", reviewed_at="2026-01-01T10:00Z")
+        LibraryEntry.objects.create(user=self.other, game=self.game, review="Secreta", reviewed_at="2026-01-02T10:00Z")
+        self.other.profile.is_public = False
+        self.other.profile.save()
+        response = self.client.get(self.game.get_absolute_url())
+        self.assertContains(response, "Pública")
+        self.assertNotContains(response, "Secreta")
+        self.client.force_login(self.other)
+        response = self.client.get(self.game.get_absolute_url())
+        self.assertContains(response, "Secreta")
+        self.assertContains(response, "Tu reseña")
+
+    def test_htmx_add_to_library_refreshes_the_review_section(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("library:set_status", args=[self.game.id]), {"status": "playing"}, headers={"HX-Request": "true"}
+        )
+        self.assertContains(response, 'id="resenas" hx-swap-oob="true"')
+        self.assertContains(response, "Publicar reseña")

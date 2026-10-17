@@ -8,5 +8,11 @@
     {% if status %}<span class="badge">{{ status }}</span>{% endif %}
   </div>
   <p class="card-title">{{ game.name }}</p>
-  {% if game.release_year %}<p class="muted small">{{ game.release_year }}</p>{% endif %}
+  {% if entry.rating or entry.playtime_hours %}
+    {# En los perfiles: las estrellas y las horas jugadas (Steam + PlayStation + Xbox) del dueño en lugar del año. #}
+    <p class="muted small card-extra">
+      {% if entry.rating %}<span class="gold" aria-label="{{ entry.rating }} de 5 estrellas">{% for value in entry.RATING_STARS %}{% if value <= entry.rating %}★{% endif %}{% endfor %}</span>{% endif %}
+      {% if entry.playtime_hours %}<span>{{ entry.playtime_hours|floatformat:"-1" }} h</span>{% endif %}
+    </p>
+  {% elif game.release_year %}<p class="muted small">{{ game.release_year }}</p>{% endif %}
 </a>

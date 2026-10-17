@@ -1,19 +1,36 @@
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from games.models import Game
 
+from .forms import ReviewForm
 from .models import LibraryEntry
+
+
+REVIEWS_SHOWN = 30
+
+
+def review_context(game, entry, viewer):
+    """Variables de la sección de reseñas de un juego: las reseñas que viewer puede leer, cuántas son
+    y el formulario de su propia reseña (None si el juego no está en su biblioteca)."""
+    reviews = LibraryEntry.objects.filter(game=game).reviews_visible_to(viewer)
+    return {
+        "reviews": reviews[:REVIEWS_SHOWN],
+        "review_count": reviews.count(),
+        "review_form": ReviewForm(instance=entry) if entry else None,
+    }
 
 
 def _respond(request, game, entry):
     """Respuesta común de las acciones de biblioteca.
 
     Si la petición viene de HTMX devuelve el widget de biblioteca ya actualizado junto con el
-    recuadro de valoración de la comunidad (que HTMX cambia en su sitio); si no, redirige a la
-    ficha del juego.
+    recuadro de valoración de la comunidad y la sección de reseñas (que HTMX cambia en su sitio);
+    si no, redirige a la ficha del juego.
     """
     # HTMX swaps the widget in place; without JS the form falls back to a full reload.
     if request.headers.get("HX-Request"):
@@ -27,6 +44,7 @@ def _respond(request, game, entry):
                 "statuses": LibraryEntry.Status.choices,
                 "community": game.community_rating(),
                 "community_oob": True,
+                **review_context(game, entry, request.user),
             },
         )
     return redirect(game)
@@ -77,3 +95,31 @@ def rate(request, game_id):
     entry.rating = rating or None
     entry.save(update_fields=["rating", "updated_at"])
     return _respond(request, game, entry)
+
+
+@require_POST
+@login_required
+def review(request, game_id):
+    """Guarda, cambia o borra (si llega vacía) la reseña del usuario sobre un juego de su biblioteca.
+
+    Responde 404 si el juego no está en su biblioteca. Si la reseña no es válida (demasiado larga)
+    avisa del error. Siempre vuelve a la sección de reseñas de la ficha del juego.
+    """
+    game = get_object_or_404(Game, pk=game_id)
+    entry = get_object_or_404(LibraryEntry, user=request.user, game=game)
+    old_review = entry.review
+    form = ReviewForm(request.POST, instance=entry)
+    if form.is_valid():
+        entry = form.save(commit=False)
+        if not entry.review:
+            entry.review_has_spoilers = False
+            entry.reviewed_at = None
+            messages.success(request, "Reseña borrada." if old_review else "La reseña estaba vacía.")
+        else:
+            if entry.review != old_review or entry.reviewed_at is None:
+                entry.reviewed_at = timezone.now()
+            messages.success(request, "Reseña publicada." if not old_review else "Reseña actualizada.")
+        entry.save()
+    else:
+        messages.error(request, " ".join(form.errors.get("review", ["La reseña no es válida."])))
+    return redirect(f"{game.get_absolute_url()}#resenas")

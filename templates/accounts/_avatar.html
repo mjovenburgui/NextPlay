@@ -1,0 +1,4 @@
+{# Avatar de un perfil: el de Steam o PlayStation si hay alguno vinculado; si no, la inicial. size: "sm", "" o "lg". #}
+<span class="avatar{% if size %} avatar-{{ size }}{% endif %}" aria-hidden="true">
+  {% if profile.avatar_url %}<img src="{{ profile.avatar_url }}" alt="" loading="lazy">{% else %}{{ profile.name|slice:":1"|upper }}{% endif %}
+</span>

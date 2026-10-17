@@ -1,0 +1,31 @@
+{# Una reseña. Con show_game=True (en el perfil) enlaza al juego; si no, muestra al autor. #}
+<article class="review{% if entry.user == user %} is-own{% endif %}">
+  <header class="review-head">
+    {% if show_game %}
+      <a class="review-thumb" href="{{ entry.game.get_absolute_url }}">
+        {% if entry.game.cover_url %}<img src="{{ entry.game.cover_url }}" alt="" loading="lazy">{% endif %}
+      </a>
+      <div class="review-meta">
+        <a class="review-author" href="{{ entry.game.get_absolute_url }}">{{ entry.game.name }}</a>
+    {% else %}
+      {% include "accounts/_avatar.html" with profile=entry.user.profile size="sm" %}
+      <div class="review-meta">
+        <a class="review-author" href="{{ entry.user.profile.get_absolute_url }}">{{ entry.user.profile.name }}</a>
+        {% if entry.user == user %}<span class="own-tag">Tu reseña</span>{% endif %}
+    {% endif %}
+        <p class="muted small">
+          {% if entry.rating %}<span class="review-stars" aria-label="{{ entry.rating }} de 5 estrellas">{% for value in entry.RATING_STARS %}<span class="{% if value <= entry.rating %}on{% endif %}">★</span>{% endfor %}</span> · {% endif %}
+          {{ entry.get_status_display }}{% if entry.playtime_hours %} · {{ entry.playtime_hours|floatformat:"-1" }} h jugadas{% endif %}
+          · <time datetime="{{ entry.reviewed_at|date:'c' }}">{{ entry.reviewed_at|date:"j M Y" }}</time>
+        </p>
+      </div>
+  </header>
+  {% if entry.review_has_spoilers %}
+    <details class="spoiler">
+      <summary>Contiene spoilers · Mostrar reseña</summary>
+      <p class="review-text">{{ entry.review|linebreaksbr }}</p>
+    </details>
+  {% else %}
+    <p class="review-text">{{ entry.review|linebreaksbr }}</p>
+  {% endif %}
+</article>

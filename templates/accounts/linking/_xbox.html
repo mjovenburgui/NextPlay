@@ -1,0 +1,27 @@
+{# Panel de Xbox: cuenta vinculada y botón de inicio de sesión con Microsoft. Con next, vuelve a esa página. #}
+{% with account=profile.xbox %}
+  {% if account %}
+    <div class="steam-account">
+      <span class="avatar avatar-sm" aria-hidden="true">{% if account.avatar %}<img src="{{ account.avatar }}" alt="" loading="lazy">{% else %}X{% endif %}</span>
+      <div>
+        {% if account.url %}<a href="{{ account.url }}" target="_blank" rel="noopener"><strong>{{ account.name }}</strong></a>{% else %}<strong>{{ account.name }}</strong>{% endif %}
+        <p class="help">{% if account.synced_at %}Última importación hace {{ account.synced_at|timesince }}{% endif %}</p>
+      </div>
+      <form action="{% url 'xbox_unlink' %}" method="post">
+        {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+        <button class="link small" type="submit">Desvincular</button>
+      </form>
+    </div>
+  {% else %}
+    <p class="muted">Importa los juegos de tu historial de Xbox (consola y PC) con los minutos jugados. Iniciarás sesión en la web de Microsoft: NextPlay nunca ve tu contraseña.</p>
+  {% endif %}
+  {% if xbox_configured %}
+    <form action="{% url 'xbox_link' %}" method="post">
+      {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+      <button class="btn btn-xbox" type="submit">{% include "games/shop_icons/xbox.svg" %} {% if account %}Sincronizar Xbox{% else %}Vincular con Microsoft{% endif %}</button>
+    </form>
+    <p class="help">{% if account %}Para sincronizar se vuelve a iniciar sesión: no guardamos ningún token de Microsoft.{% else %}Algunos juegos antiguos (Xbox 360) no publican los minutos jugados y entran sin horas.{% endif %}</p>
+  {% else %}
+    <p class="help">La importación de Xbox no está disponible: faltan XBOX_CLIENT_ID y XBOX_CLIENT_SECRET.</p>
+  {% endif %}
+{% endwith %}

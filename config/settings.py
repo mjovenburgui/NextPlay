@@ -115,3 +115,12 @@ IGDB_CLIENT_SECRET = os.environ.get("IGDB_CLIENT_SECRET", "")
 # Store prices come from IsThereAnyDeal: https://docs.isthereanydeal.com/
 ITAD_API_KEY = os.environ.get("ITAD_API_KEY", "")
 ITAD_COUNTRY = os.environ.get("ITAD_COUNTRY", "ES")
+
+# Clave de la Web API de Steam (https://steamcommunity.com/dev/apikey) para leer la biblioteca de las
+# cuentas vinculadas. Vincular la cuenta usa el inicio de sesión OpenID de Steam y no necesita clave.
+STEAM_API_KEY = os.environ.get("STEAM_API_KEY", "")
+
+# Aplicación de Azure (https://portal.azure.com › Registros de aplicaciones) para el inicio de sesión
+# con cuenta Microsoft e importar los juegos de Xbox. Tipo de cuenta: «Solo cuentas Microsoft personales».
+XBOX_CLIENT_ID = os.environ.get("XBOX_CLIENT_ID", "")
+XBOX_CLIENT_SECRET = os.environ.get("XBOX_CLIENT_SECRET", "")

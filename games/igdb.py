@@ -114,6 +114,50 @@ class IGDBClient:
         body = f'search "{term}"; {GAME_FIELDS} where version_parent = null; limit {limit};'
         return self._with_editions(self.query("games", body))
 
+    def games_by_steam_ids(self, app_ids):
+        """Juegos de IGDB (con sus ediciones) de una lista de IDs de Steam y un dict {ID de Steam: id de IGDB}.
+
+        Los IDs que IGDB no conoce (herramientas, bandas sonoras, servidores...) no aparecen en el dict.
+        """
+        steam_to_igdb = {}
+        app_ids = [str(app_id) for app_id in app_ids]
+        for start in range(0, len(app_ids), MAX_PAGE_SIZE):
+            chunk = ",".join(f'"{uid}"' for uid in app_ids[start:start + MAX_PAGE_SIZE])
+            time.sleep(0.25)  # IGDB admite 4 peticiones por segundo
+            for item in self.query(
+                "external_games",
+                f"fields game, uid; where external_game_source = {STEAM_SOURCE_ID} & uid = ({chunk}); "
+                f"limit {MAX_PAGE_SIZE};",
+            ):
+                if item.get("game") and str(item.get("uid") or "").isdigit():
+                    steam_to_igdb.setdefault(int(item["uid"]), item["game"])
+        igdb_ids = sorted(set(steam_to_igdb.values()))
+        games = []
+        for start in range(0, len(igdb_ids), MAX_PAGE_SIZE):
+            ids = ",".join(str(game_id) for game_id in igdb_ids[start:start + MAX_PAGE_SIZE])
+            time.sleep(0.25)
+            games += self.query("games", f"{GAME_FIELDS} where id = ({ids}); limit {MAX_PAGE_SIZE};")
+        return self._with_editions(games), steam_to_igdb
+
+    def games_by_names(self, names):
+        """Juegos de IGDB (con sus ediciones) cuyo nombre es exactamente uno de names, sin ediciones sueltas.
+
+        Va en lotes para no hacer una petición por juego. Si dos juegos se llaman igual vienen los dos;
+        quien llama decide con cuál quedarse (p. ej. el más popular).
+        """
+        names = [name.replace("\\", " ").replace('"', " ").strip() for name in names]
+        names = list(dict.fromkeys(name for name in names if name))
+        games = []
+        for start in range(0, len(names), 50):  # 50 nombres por consulta: la cláusula no se hace enorme
+            chunk = ",".join(f'"{name}"' for name in names[start:start + 50])
+            time.sleep(0.25)  # IGDB admite 4 peticiones por segundo
+            games += self.query(
+                "games",
+                f"{GAME_FIELDS} where name = ({chunk}) & version_parent = null; "
+                f"sort total_rating_count desc; limit {MAX_PAGE_SIZE};",
+            )
+        return self._with_editions(games)
+
     def _with_editions(self, games):
         """Añade a cada juego sus ediciones (GOTY, Definitive...) en la clave «editions», para tener sus IDs de tienda."""
         if not games:

@@ -7,6 +7,7 @@ from django.utils.http import urlencode
 from django.views.decorators.http import require_POST
 
 from library.models import LibraryEntry
+from library.views import review_context
 
 from . import igdb
 from .models import Game, GamePrice, Genre, Platform
@@ -60,10 +61,11 @@ def catalog(request):
 
 
 def detail(request, slug):
-    """Ficha de un juego: datos, nota de la crítica, valoración de la comunidad, widget de biblioteca y precios.
+    """Ficha de un juego: datos, nota de la crítica, valoración de la comunidad, widget de biblioteca,
+    precios y reseñas.
 
     Los precios llegan ya repartidos por Game.price_groups(); store_searches() da los enlaces de
-    búsqueda a las tiendas de consola sin precio.
+    búsqueda a las tiendas de consola sin precio. Las reseñas de perfiles privados solo las ve su autor.
     """
     game = get_object_or_404(Game.objects.prefetch_related("genres", "platforms", "prices"), slug=slug)
     entry = None
@@ -84,6 +86,7 @@ def detail(request, slug):
             "has_pc_prices": any(price.source == GamePrice.Source.ITAD for price in game.prices.all()),
             "store_searches": game.store_searches(),
             "community": game.community_rating(),
+            **review_context(game, entry, request.user),
         },
     )
 
