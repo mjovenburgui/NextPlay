@@ -135,17 +135,122 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .status-dropped.is-active { background: var(--pink); border-color: var(--pink); color: #fff; box-shadow: 0 0 14px rgba(255, 79, 163, .4); }
 
 /* Profile */
-.profile-head { display: flex; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
-.profile-head > div:nth-child(2) { flex: 1 1 14rem; }
-.profile-head p { margin: 0; }
-.bio { margin-top: .5rem !important; max-width: 60ch; }
+.profile-hero { position: relative; margin-bottom: 1.5rem; padding: 0 1.25rem 1.25rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.profile-banner {
+  height: 110px; margin: 0 -1.25rem;
+  background:
+    radial-gradient(circle at 15% 120%, rgba(255, 79, 163, .55), transparent 55%),
+    radial-gradient(circle at 85% -20%, rgba(34, 224, 240, .45), transparent 55%),
+    linear-gradient(120deg, #1b1440, #2a1260 45%, #0b2740);
+}
+.profile-main { display: flex; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-top: -44px; }
+.profile-id { flex: 1 1 14rem; min-width: 0; padding-bottom: .25rem; }
+.profile-id p { margin: 0; }
+.profile-actions { display: flex; gap: .5rem; flex-wrap: wrap; padding-bottom: .25rem; }
+.profile-actions form { margin: 0; }
+.bio { margin: 1rem 0 0; max-width: 60ch; white-space: normal; }
+.pill { margin-left: .4rem; padding: .05rem .5rem; border: 1px solid var(--border); border-radius: 999px; font-size: .75rem; }
+.gold { color: var(--gold); }
 .avatar {
   width: 72px; height: 72px; flex: none;
-  display: flex; align-items: center; justify-content: center;
+  display: inline-flex; align-items: center; justify-content: center;
+  overflow: hidden;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--violet), var(--pink));
   font-size: 2rem; font-weight: 800; color: #fff;
 }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-lg { width: 104px; height: 104px; font-size: 2.8rem; border: 4px solid var(--surface); box-shadow: 0 0 22px rgba(157, 92, 255, .45); }
+.avatar-sm { width: 40px; height: 40px; font-size: 1.1rem; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: .6rem; margin: 1.25rem 0 0; }
+.stats div { padding: .65rem .8rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; }
+.stats dt { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.stats dd { margin: .1rem 0 0; font-size: 1.4rem; font-weight: 800; }
+.top-genres { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; margin: 1rem 0 0; }
+.steam-badges { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .4rem !important; }
+.steam-badge { display: inline-flex; align-items: center; gap: .35rem; padding: .15rem .6rem .15rem .4rem; background: #1b2838; border: 1px solid #2a475e; border-radius: 999px; font-size: .82rem; color: #c7d5e0; }
+.steam-badge .shop-logo, .btn-steam .shop-logo, .steam-panel h2 .shop-logo { width: 1.1rem; height: 1.1rem; vertical-align: -.15rem; }
+.btn-steam { display: inline-flex; align-items: center; gap: .45rem; background: linear-gradient(135deg, #1b2838, #2a475e); border-color: #66c0f4; color: #fff; }
+.btn-steam:hover { border-color: #66c0f4; box-shadow: 0 0 14px rgba(102, 192, 244, .4); }
+.library-bar { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+.library-bar .tabs { margin-bottom: 0; border-bottom: 0; }
+.sort { display: flex; align-items: center; gap: .5rem; margin: 0 0 .5rem; }
+.sort select { width: auto; padding: .35rem .6rem; }
+.tabs-main .tab { font-size: 1.05rem; font-weight: 600; }
+.card-extra { display: flex; gap: .5rem; }
+.psn-badge { background: #00205b; border-color: #0070d1; color: #dbe7ff; }
+.psn-badge .shop-logo, .btn-psn .shop-logo, .psn-panel h2 .shop-logo { width: 1.1rem; height: 1.1rem; vertical-align: -.15rem; }
+.btn-psn { display: inline-flex; align-items: center; gap: .45rem; background: linear-gradient(135deg, #00205b, #0070d1); border-color: #3d9bff; color: #fff; }
+.btn-psn:hover { border-color: #3d9bff; box-shadow: 0 0 14px rgba(0, 112, 209, .45); }
+.psn-steps { margin: 1rem 0; padding-left: 1.2rem; font-size: .9rem; color: var(--muted); }
+.psn-steps li { margin-bottom: .3rem; }
+.psn-steps code { padding: .05rem .3rem; background: var(--surface-2); border-radius: 4px; font-size: .8rem; }
+.platform-badge { background: var(--surface-2); border-color: var(--border); color: var(--text); }
+.platform-badge .shop-logo, .platforms-panel .shop-logo { width: 1.1rem; height: 1.1rem; vertical-align: -.15rem; }
+.platforms-panel .steam-account .shop-logo { width: 1.6rem; height: 1.6rem; flex: none; }
+.platform-form { margin-top: 1rem !important; }
+.btn-xbox { display: inline-flex; align-items: center; gap: .45rem; background: linear-gradient(135deg, #0e5a0e, #107c10); border-color: #3fbf3f; color: #fff; }
+.btn-xbox:hover { border-color: #3fbf3f; box-shadow: 0 0 14px rgba(16, 124, 16, .45); }
+.btn-xbox .shop-logo, .xbox-panel h2 .shop-logo { width: 1.1rem; height: 1.1rem; vertical-align: -.15rem; }
+.xbox-badge { background: #0b3b0b; border-color: #107c10; color: #d7f5d7; }
+.xbox-badge .shop-logo { width: 1.1rem; height: 1.1rem; vertical-align: -.15rem; }
+.btn-link-accounts { background: linear-gradient(135deg, var(--violet), var(--pink)); border-color: transparent; color: #fff; box-shadow: 0 0 16px rgba(157, 92, 255, .35); }
+
+/* Modal «Vincular cuentas» */
+.link-dialog {
+  width: min(640px, calc(100vw - 2rem)); max-height: calc(100vh - 2rem);
+  padding: 1.25rem; overflow-y: auto; overflow-wrap: anywhere;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .6);
+}
+.link-dialog::backdrop { background: rgba(3, 5, 12, .75); backdrop-filter: blur(3px); }
+.link-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.link-dialog-head h2 { margin: 0; font-size: 1.3rem; }
+.link-dialog-close { padding: 0 .4rem; background: none; border: 0; color: var(--muted); font-size: 1.8rem; line-height: 1; cursor: pointer; }
+.link-dialog-close:hover { color: var(--text); }
+.link-block { margin-top: 1rem; padding: 1rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; }
+.link-block h3 { display: flex; align-items: center; gap: .5rem; margin: 0 0 .75rem; font-size: 1rem; }
+.link-block h3 .shop-logo { width: 1.3rem; height: 1.3rem; }
+.link-status { margin-left: auto; font-size: .8rem; font-weight: 400; color: var(--muted); }
+.link-block form { margin: .75rem 0 0; }
+.link-block .check { display: flex; align-items: flex-start; gap: .5rem; margin-bottom: .75rem; font-size: .9rem; }
+.link-block .btn-steam .shop-logo, .link-block .btn-psn .shop-logo, .link-block .btn-xbox .shop-logo { width: 1.1rem; height: 1.1rem; }
+.link-block .steam-account .shop-logo { width: 1.6rem; height: 1.6rem; flex: none; }
+.link-details summary { color: var(--cyan); cursor: pointer; font-size: .9rem; }
+.steam-panel h2 { display: flex; align-items: center; gap: .5rem; margin: 0 0 1rem; font-size: 1.15rem; }
+.steam-panel form { margin: .75rem 0 0; }
+.steam-panel .check { display: flex; align-items: flex-start; gap: .5rem; margin-bottom: .75rem; font-size: .9rem; }
+.steam-accounts { margin: 0; padding: 0; list-style: none; }
+.steam-account { display: flex; align-items: center; gap: .75rem; padding: .6rem 0; border-top: 1px solid var(--border); }
+.steam-account:first-child { border-top: 0; padding-top: 0; }
+.steam-account > div { flex: 1; min-width: 0; }
+.steam-account p { margin: 0; }
+.steam-account form { margin: 0 !important; }
+
+/* Reseñas */
+.reviews { margin-top: 2rem; }
+.reviews h2 { font-size: 1.3rem; margin: 0 0 .75rem; }
+.reviews h2 .muted { font-size: 1rem; font-weight: 400; }
+.review-form summary { cursor: pointer; margin: 0; }
+.review-form[open] summary { margin-bottom: .75rem; }
+.review-form .btn + .help { display: inline; margin-left: .75rem; }
+.review { margin: 0 0 .75rem; padding: 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.review.is-own { border-color: rgba(157, 92, 255, .6); }
+.review-head { display: flex; align-items: center; gap: .75rem; }
+.review-meta { min-width: 0; }
+.review-meta p { margin: 0; }
+.review-author { font-weight: 700; color: var(--text); }
+.own-tag { margin-left: .4rem; padding: .05rem .45rem; border-radius: 6px; background: var(--violet); color: #fff; font-size: .72rem; font-weight: 600; }
+.review-thumb { flex: none; width: 44px; aspect-ratio: 3 / 4; overflow: hidden; border: 1px solid var(--border); border-radius: 6px; background: linear-gradient(145deg, #1b1440, #0b2740); }
+.review-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.review-stars { letter-spacing: .05em; color: var(--star-off); }
+.review-stars { display: inline-flex; flex-direction: row-reverse; }
+.review-stars .on { color: var(--gold); }
+.review-text { margin: .75rem 0 0; max-width: 75ch; overflow-wrap: anywhere; }
+.spoiler { margin-top: .75rem; }
+.spoiler summary { color: var(--pink); cursor: pointer; font-size: .9rem; }
+
 .tabs { display: flex; gap: .25rem; overflow-x: auto; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
 .tab { padding: .6rem .9rem; color: var(--muted); white-space: nowrap; border-bottom: 2px solid transparent; }
 .tab:hover { color: var(--text); text-decoration: none; }

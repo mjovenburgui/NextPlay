@@ -1,0 +1,92 @@
+[
+  {
+    "titulo": "Importar juegos y horas de Xbox",
+    "fecha": "2026-10-17",
+    "estado": "en curso",
+    "tipo": "Funcionalidad",
+    "resumen": "Vincular cuentas de Xbox (cuenta Microsoft) e importar sus juegos con los minutos jugados, igual que con Steam.",
+    "motivo": "Después de Steam, Xbox es la única plataforma que permite hacerlo de forma fiable: el usuario inicia sesión con su cuenta Microsoft y se puede leer su historial de juegos y estadísticas.",
+    "pasos": [
+      "Registrar una aplicación gratuita en Azure (o pedir una clave de OpenXBL, más sencillo) y guardar sus credenciales en el .env.",
+      "Inicio de sesión con cuenta Microsoft (OAuth) y obtención del token de Xbox Live del usuario.",
+      "Modelo XboxAccount (usuario, XUID único, gamertag, avatar), con varias cuentas por usuario como en Steam.",
+      "Leer el historial de juegos y los minutos jugados, y emparejar con el catálogo vía IGDB (que guarda los IDs de Microsoft Store).",
+      "Sumar las horas con las de Steam cuando un juego está en las dos plataformas."
+    ],
+    "notas": "Algunos juegos antiguos o de Xbox 360 no tienen estadística de minutos jugados; entrarían sin horas. Programada el 17/10/2026 con la vía oficial (aplicación de Azure + XboxLive.signin), sin guardar tokens y emparejando por nombre; falta probarla con una cuenta real cuando estén XBOX_CLIENT_ID y XBOX_CLIENT_SECRET."
+  },
+  {
+    "titulo": "Vincular otras plataformas sin importar (PSN, Switch, Epic, GOG, Battle.net)",
+    "fecha": "2026-10-17",
+    "estado": "hecha",
+    "tipo": "Funcionalidad",
+    "resumen": "Que el usuario pueda poner en su perfil su PSN ID, código de amigo de Switch y usuarios de Epic, GOG y Battle.net, mostrados como insignias con su icono.",
+    "motivo": "Estas plataformas no tienen API pública para leer la biblioteca (o solo no oficial), pero vincularlas sirve para que otros jugadores te encuentren.",
+    "pasos": [
+      "Modelo PlatformAccount (usuario, plataforma, nombre o código) con una cuenta por plataforma.",
+      "Validar el formato de cada una (p. ej. SW-XXXX-XXXX-XXXX para Switch).",
+      "Sección en Editar perfil para añadirlas y quitarlas.",
+      "Insignias en el perfil con el logo de cada plataforma (ya hay SVG de PlayStation, Nintendo, Epic y GOG)."
+    ],
+    "notas": "No se verifica que la cuenta sea del usuario: es lo que él escribe, como en la mayoría de webs. Hecha el 17/10/2026 con Xbox (gamertag), Nintendo Switch, Epic Games, GOG y Battle.net; PlayStation quedó fuera porque ya tiene su propia importación."
+  },
+  {
+    "titulo": "Importar juegos y horas de PlayStation (experimental)",
+    "fecha": "2026-10-17",
+    "estado": "hecha",
+    "tipo": "Funcionalidad",
+    "resumen": "Importar los juegos de PS4/PS5 con sus horas y trofeos usando la API no oficial de la app de PlayStation.",
+    "motivo": "Sony no ofrece API pública, pero la API que usa su app devuelve los juegos jugados y el tiempo de juego, y la usan webs conocidas de trofeos.",
+    "pasos": [
+      "El usuario copia su código NPSSO desde la web de PlayStation (con su sesión iniciada) y lo pega en NextPlay.",
+      "Cambiar ese código por un token de acceso y leer la lista de juegos jugados con su duración.",
+      "Emparejar con el catálogo por nombre (IGDB no guarda IDs de PlayStation Store de forma fiable) y crear las entradas.",
+      "Marcarlo como experimental en la interfaz."
+    ],
+    "notas": "Riesgo: es no oficial y Sony puede romperlo en cualquier momento; además el NPSSO da acceso a la cuenta, así que habría que guardarlo cifrado o no guardarlo. Hacer solo si compensa. Hecha el 17/10/2026: el NPSSO no se guarda (se pega en cada sincronización), una cuenta de PSN por usuario, las horas se suman con las de Steam y el lanzador «Call of Duty®» de PS5 se ignora. Probada con una cuenta real: 129 juegos importados."
+  },
+  {
+    "titulo": "Varias cuentas de Steam por usuario",
+    "fecha": "2026-10-17",
+    "estado": "hecha",
+    "tipo": "Funcionalidad",
+    "resumen": "Que cada usuario pueda vincular más de una cuenta de Steam a su perfil y que la importación junte los juegos de todas.",
+    "motivo": "La idea es que todo el mundo pueda conectar una o varias cuentas. Ahora el SteamID se guarda en el propio perfil, así que solo cabe una.",
+    "pasos": [
+      "Nuevo modelo SteamAccount (usuario, SteamID único, nombre, avatar, URL del perfil y fecha de la última sincronización).",
+      "Migración que pase la cuenta ya vinculada del perfil a la nueva tabla y quite los campos viejos.",
+      "Importar de cada cuenta o de todas a la vez; si un juego está en varias cuentas se suman sus horas en vez de duplicarlo.",
+      "En Editar perfil, una lista de cuentas con «Añadir otra cuenta» y, en cada una, sincronizar y desvincular.",
+      "Una insignia por cuenta en el perfil y tests nuevos."
+    ],
+    "notas": "No hace falta una API key por usuario: la clave de Steam es de NextPlay y sirve para leer cualquier cuenta con los «Detalles del juego» públicos. Hecha el 17/10/2026: hasta 5 cuentas por usuario; la sincronización es conjunta (no por cuenta) para que las horas sumadas cuadren, y las cuentas privadas se saltan avisando."
+  },
+  {
+    "titulo": "Sacar .env del repositorio y cambiar las claves",
+    "fecha": "2026-10-17",
+    "estado": "pendiente",
+    "tipo": "Seguridad",
+    "resumen": "Dejar de versionar el archivo .env para que las claves (IGDB, IsThereAnyDeal, Steam...) no acaben en GitHub.",
+    "motivo": ".gitignore incluye .env, pero el archivo se subió en el commit «Create .env» y git lo sigue versionando. Cualquier clave que se ponga ahí se sube con el siguiente commit.",
+    "pasos": [
+      "git rm --cached .env para que git deje de versionarlo sin borrarlo del ordenador.",
+      "Commit del cambio; a partir de ahí .gitignore lo ignora de verdad.",
+      "Cambiar en cada servicio las claves que ya se subieron (están en el historial de git aunque se quite el archivo).",
+      "Mantener .env.example con los nombres de las variables y sin valores."
+    ],
+    "notas": ""
+  },
+  {
+    "titulo": "Traducir al español los comentarios antiguos en inglés",
+    "fecha": "2026-10-17",
+    "estado": "pendiente",
+    "tipo": "Documentación",
+    "resumen": "Pasar al español los comentarios sueltos (#) del código que ya existía antes de esta sesión.",
+    "motivo": "Todo el código nuevo se comenta en español, pero los comentarios del código anterior (modelos, IGDB, precios...) siguen en inglés.",
+    "pasos": [
+      "Recorrer accounts, games, library y config y traducir los comentarios # y de plantillas.",
+      "No tocar las docstrings, que ya están en español."
+    ],
+    "notas": ""
+  }
+]

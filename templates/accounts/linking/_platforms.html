@@ -1,0 +1,47 @@
+{# Panel de otras plataformas (Switch, Epic, GOG, Battle.net...). Con next, vuelve a esa página. #}
+<p class="muted">Añade tus cuentas para que otros jugadores te encuentren. Solo se muestran en tu perfil: de estas plataformas no se importan juegos.</p>
+{% with accounts=profile.platforms %}
+  {% if accounts %}
+    <ul class="steam-accounts">
+      {% for account in accounts %}
+        <li class="steam-account">
+          {% include account.logo_template %}
+          <div>
+            <strong>{{ account.handle }}</strong>
+            <p class="help">{{ account.get_platform_display }}</p>
+          </div>
+          <form action="{% url 'platform_remove' account.platform %}" method="post">
+            {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+            <button class="link small" type="submit" aria-label="Quitar {{ account.get_platform_display }}">Quitar</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+{% endwith %}
+<form class="platform-form" action="{% url 'platform_add' %}" method="post">
+  {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+  <div class="field">
+    <label for="platform">Plataforma</label>
+    <select id="platform" name="platform">
+      {% for value, label, field_label, help_text in platform_rules %}
+        <option value="{{ value }}" data-label="{{ field_label }}" data-help="{{ help_text }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field">
+    <label for="handle" id="handle-label">{{ platform_rules.0.2 }}</label>
+    <input id="handle" name="handle" required maxlength="40" spellcheck="false" autocomplete="off">
+    <p class="help" id="handle-help">{{ platform_rules.0.3 }}</p>
+  </div>
+  <button class="btn btn-primary" type="submit">Añadir</button>
+  <p class="help">Si ya tenías una cuenta de esa plataforma, se cambia por la nueva.</p>
+</form>
+<script>
+  // Cambia la etiqueta y la ayuda del campo según la plataforma elegida.
+  document.getElementById("platform").addEventListener("change", function () {
+    var option = this.options[this.selectedIndex];
+    document.getElementById("handle-label").textContent = option.dataset.label;
+    document.getElementById("handle-help").textContent = option.dataset.help;
+  });
+</script>

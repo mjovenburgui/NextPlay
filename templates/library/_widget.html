@@ -32,4 +32,7 @@
     </form>
   {% endif %}
 </div>
-{% if community_oob %}{% include "games/_community.html" with oob=True %}{% endif %}
+{% if community_oob %}
+  {% include "games/_community.html" with oob=True %}
+  {% include "library/_reviews.html" with oob=True %}
+{% endif %}

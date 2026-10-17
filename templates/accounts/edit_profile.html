@@ -11,4 +11,23 @@
       <a class="btn" href="{% url 'profile' user.username %}">Cancelar</a>
     </form>
   </section>
+
+  <section class="panel steam-panel" id="steam">
+    <h2>{% include "games/shop_icons/steam.svg" %} Cuentas de Steam</h2>
+    {% include "accounts/linking/_steam.html" %}
+  </section>
+  <section class="panel steam-panel xbox-panel" id="xbox">
+    <h2>{% include "games/shop_icons/xbox.svg" %} Xbox</h2>
+    {% include "accounts/linking/_xbox.html" %}
+  </section>
+
+  <section class="panel steam-panel psn-panel" id="psn">
+    <h2>{% include "games/shop_icons/playstation.svg" %} PlayStation <span class="pill">Experimental</span></h2>
+    {% include "accounts/linking/_psn.html" %}
+  </section>
+
+  <section class="panel steam-panel platforms-panel" id="plataformas">
+    <h2>Otras plataformas</h2>
+    {% include "accounts/linking/_platforms.html" %}
+  </section>
 {% endblock %}

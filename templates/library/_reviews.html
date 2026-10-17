@@ -1,0 +1,25 @@
+<section class="reviews" id="resenas"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <h2>Reseñas <span class="muted">{{ review_count }}</span></h2>
+
+  {% if review_form %}
+    <details class="widget review-form"{% if not entry.review %} open{% endif %}>
+      <summary class="widget-label">{% if entry.review %}Editar tu reseña{% else %}Escribe tu reseña{% endif %}</summary>
+      <form action="{% url 'library:review' game.id %}" method="post">
+        {% include "_form.html" with form=review_form %}
+        <button class="btn btn-primary" type="submit">{% if entry.review %}Guardar cambios{% else %}Publicar reseña{% endif %}</button>
+        {% if not entry.rating %}<span class="help">Consejo: valóralo también con estrellas arriba.</span>{% endif %}
+      </form>
+    </details>
+  {% elif user.is_authenticated %}
+    <p class="widget muted">Añade el juego a tu biblioteca para escribir una reseña.</p>
+  {% else %}
+    <p class="widget"><a href="{% url 'login' %}?next={{ request.path|urlencode }}">Inicia sesión</a> para escribir una reseña.</p>
+  {% endif %}
+
+  {% for entry in reviews %}
+    {% include "library/_review.html" %}
+  {% empty %}
+    <p class="muted">Todavía no hay reseñas. ¡Sé el primero!</p>
+  {% endfor %}
+  {% if review_count > reviews|length %}<p class="help">Mostrando las {{ reviews|length }} más recientes.</p>{% endif %}
+</section>

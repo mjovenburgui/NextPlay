@@ -1,0 +1,32 @@
+{# Panel de PlayStation: cuenta vinculada y formulario del código NPSSO. Con next, vuelve a esa página. #}
+{% with account=profile.psn %}
+  {% if account %}
+    <div class="steam-account">
+      <span class="avatar avatar-sm" aria-hidden="true">{% if account.avatar %}<img src="{{ account.avatar }}" alt="" loading="lazy">{% else %}P{% endif %}</span>
+      <div>
+        <strong>{{ account.name }}</strong>
+        <p class="help">{% if account.synced_at %}Última importación hace {{ account.synced_at|timesince }}{% endif %}</p>
+      </div>
+      <form action="{% url 'psn_unlink' %}" method="post">
+        {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+        <button class="link small" type="submit">Desvincular</button>
+      </form>
+    </div>
+  {% else %}
+    <p class="muted">Importa tus juegos de PS4 y PS5 con las horas jugadas. Sony no tiene una API oficial, así que se usa la de su app: puede dejar de funcionar sin avisar.</p>
+  {% endif %}
+  <ol class="psn-steps">
+    <li>Inicia sesión en <a href="https://www.playstation.com/" target="_blank" rel="noopener">playstation.com</a> con tu cuenta.</li>
+    <li>En el mismo navegador abre <a href="{{ psn_npsso_url }}" target="_blank" rel="noopener">esta página de Sony</a>: verás algo como <code>{"npsso":"…"}</code>.</li>
+    <li>Copia el código (o todo el texto) y pégalo aquí.</li>
+  </ol>
+  <form action="{% url 'psn_sync' %}" method="post" autocomplete="off">
+    {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+    <div class="field">
+      <label for="npsso">Código NPSSO</label>
+      <input id="npsso" name="npsso" type="password" required spellcheck="false" autocomplete="off" placeholder="64 letras y números">
+      <p class="help">Solo se usa para esta importación y no se guarda. Da acceso a tu cuenta: no lo compartas con nadie más.</p>
+    </div>
+    <button class="btn btn-psn" type="submit">{% include "games/shop_icons/playstation.svg" %} {% if account %}Sincronizar PlayStation{% else %}Vincular e importar{% endif %}</button>
+  </form>
+{% endwith %}

@@ -1,0 +1,52 @@
+{# Modal «Vincular cuentas» del perfil: todas las plataformas en un sitio. Necesita profile y next. #}
+<dialog class="link-dialog" id="link-dialog" aria-labelledby="link-dialog-title">
+  <header class="link-dialog-head">
+    <h2 id="link-dialog-title">Vincular cuentas</h2>
+    <button class="link-dialog-close" type="button" data-close-dialog aria-label="Cerrar">×</button>
+  </header>
+  <p class="muted small">Importa tus juegos y horas desde Steam, Xbox y PlayStation, o muestra en tu perfil tus cuentas de otras plataformas.</p>
+
+  <section class="link-block">
+    <h3>{% include "games/shop_icons/steam.svg" %} Steam
+      <span class="link-status">{% with n=profile.steam_accounts|length %}{% if n %}{{ n }} cuenta{{ n|pluralize }}{% else %}Sin vincular{% endif %}{% endwith %}</span>
+    </h3>
+    {% include "accounts/linking/_steam.html" %}
+  </section>
+
+  <section class="link-block">
+    <h3>{% include "games/shop_icons/xbox.svg" %} Xbox
+      <span class="link-status">{% if profile.xbox %}{{ profile.xbox.name }}{% else %}Sin vincular{% endif %}</span>
+    </h3>
+    {% include "accounts/linking/_xbox.html" %}
+  </section>
+
+  <section class="link-block">
+    <h3>{% include "games/shop_icons/playstation.svg" %} PlayStation <span class="pill">Experimental</span>
+      <span class="link-status">{% if profile.psn %}{{ profile.psn.name }}{% else %}Sin vincular{% endif %}</span>
+    </h3>
+    <details class="link-details"{% if not profile.psn %} open{% endif %}>
+      <summary>{% if profile.psn %}Sincronizar o desvincular{% else %}Cómo vincularla{% endif %}</summary>
+      {% include "accounts/linking/_psn.html" %}
+    </details>
+  </section>
+
+  <section class="link-block">
+    <h3>Otras plataformas
+      <span class="link-status">{% with n=profile.platforms|length %}{% if n %}{{ n }} añadida{{ n|pluralize }}{% else %}Ninguna{% endif %}{% endwith %}</span>
+    </h3>
+    {% include "accounts/linking/_platforms.html" %}
+  </section>
+</dialog>
+<script>
+  // Abre y cierra el modal; también se cierra al pulsar fuera de él o con Esc (lo hace <dialog>).
+  (function () {
+    var dialog = document.getElementById("link-dialog");
+    document.querySelectorAll('[data-open-dialog="link-dialog"]').forEach(function (button) {
+      button.addEventListener("click", function () { dialog.showModal(); });
+    });
+    dialog.querySelector("[data-close-dialog]").addEventListener("click", function () { dialog.close(); });
+    dialog.addEventListener("click", function (event) {
+      if (event.target === dialog) dialog.close();
+    });
+  })();
+</script>
