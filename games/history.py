@@ -5,6 +5,7 @@ largo del tiempo: un punto [fecha ISO, precio, % de rebaja, tienda] por cada vez
 a ITAD al abrir la ficha y se reutiliza durante MAX_AGE.
 """
 
+import json
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -110,17 +111,13 @@ def _points(game):
     ]
 
 
-def _price_at(points, moment):
-    """Precio más barato que tenía en ese momento (el del último cambio anterior), o None si no se sabe."""
-    before = [price for when, price, _, _ in points if when <= moment]
-    return before[-1] if before else None
-
-
 def _year(points, now):
-    """[(fecha, precio)] del último año, empezando con el precio que tenía hace un año si se sabe."""
+    """Puntos (fecha, precio, rebaja, tienda) del último año, empezando con el que estaba vigente hace un
+    año (con esa fecha) si se sabe."""
     start = now - timedelta(days=CHART_DAYS)
-    series = [(start, price)] if (price := _price_at(points, start)) is not None else []
-    return series + [(when, price) for when, price, _, _ in points if start < when <= now]
+    before = [point for point in points if point[0] <= start]
+    series = [(start, *before[-1][1:])] if before else []
+    return series + [point for point in points if start < point[0] <= now]
 
 
 def verdict(game, current, now):
@@ -130,10 +127,10 @@ def verdict(game, current, now):
     está cerca de lo más barato del año; «espera» si ha bajado de ese precio varias veces.
     """
     year = _year(_points(game), now)
-    year_low = min([price for _, price in year] + [current])
+    year_low = min([price for _, price, _, _ in year] + [current])
     threshold = current * DROP_MARGIN
     drops, below, rose_at = 0, False, None
-    for when, price in year:
+    for when, price, _, _ in year:
         if price < threshold:
             if not below and (rose_at is None or when - rose_at >= DROP_GAP):
                 drops += 1
@@ -165,20 +162,24 @@ def last_big_sale(game):
 def chart(game, now, current=None, width=320, height=90, pad=6):
     """Datos de la gráfica escalonada del último año para dibujarla en SVG, o None si no hay historial.
 
-    Termina en current (el precio de hoy que enseña la ficha) si se da: el historial de ITAD puede
-    contar alguna tienda que no sale entre los precios de hoy.
+    Termina en current (el GamePrice más barato de hoy, el que enseña la ficha) si se da: el
+    historial de ITAD puede contar alguna tienda que no sale entre los precios de hoy.
 
     Devuelve el tamaño, los puntos de la línea («line») y del área bajo ella («area»), el precio
-    más alto y más bajo de la gráfica y la altura de la línea del mínimo histórico («low_y», None si
-    queda fuera). Las coordenadas van ya en texto con punto decimal: en una plantilla en español,
-    floatformat pondría coma y el SVG no sería válido.
+    más alto y más bajo de la gráfica, la altura de la línea del mínimo histórico («low_y», None si
+    queda fuera) y, en JSON («hover»), cada tramo con su fecha, posición, precio, rebaja y tienda
+    para la etiqueta que sale al pasar por encima. Las coordenadas van ya en texto con punto
+    decimal: en una plantilla en español, floatformat pondría coma y el SVG no sería válido.
     """
     start = now - timedelta(days=CHART_DAYS)
     series = _year(_points(game), now)
     if not series:
         return None
-    series.append((now, current if current is not None else series[-1][1]))
-    low, high = min(price for _, price in series), max(price for _, price in series)
+    if current is not None:
+        series.append((now, current.price, current.cut, current.shop_name))
+    else:
+        series.append((now, *series[-1][1:]))
+    low, high = min(point[1] for point in series), max(point[1] for point in series)
     span = (high - low) or Decimal(1)
 
     def x(moment):
@@ -190,7 +191,7 @@ def chart(game, now, current=None, width=320, height=90, pad=6):
         return pad + float((high - price) / span) * (height - 2 * pad)
 
     coords = []
-    for (when, price), (next_when, _) in zip(series, series[1:]):
+    for (when, price, _, _), (next_when, *_) in zip(series, series[1:]):
         coords += [(x(when), y(price)), (x(next_when), y(price))]
     coords.append((x(now), y(series[-1][1])))  # el último salto, hasta el precio de hoy
     line = " ".join(f"{cx:.1f},{cy:.1f}" for cx, cy in coords)
@@ -198,9 +199,20 @@ def chart(game, now, current=None, width=320, height=90, pad=6):
     area = f"{coords[0][0]:.1f},{bottom} {line} {coords[-1][0]:.1f},{bottom}"
     historical_low = game.historical_low
     low_y = f"{y(historical_low):.1f}" if historical_low is not None and low <= historical_low <= high else None
+    hover = {
+        "start": int(start.timestamp() * 1000), "end": int(now.timestamp() * 1000),
+        "pad": pad, "width": width, "height": height,
+        "points": [
+            {
+                "t": int(max(when, start).timestamp() * 1000), "x": round(x(when), 1), "y": round(y(price), 1),
+                "price": format_price(price), "cut": cut, "shop": shop,
+            }
+            for when, price, cut, shop in series
+        ],
+    }
     return {
         "width": width, "height": height, "line": line, "area": area,
-        "high": high, "low": low, "low_y": low_y, "start": start,
+        "high": high, "low": low, "low_y": low_y, "start": start, "hover": json.dumps(hover),
     }
 
 
@@ -217,6 +229,6 @@ def summary(game, now=None):
     return {
         "current": current,
         "verdict": verdict(game, current.price, now),
-        "chart": chart(game, now, current.price),
+        "chart": chart(game, now, current),
         "last_big_sale": last_big_sale(game),
     }

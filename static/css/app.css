@@ -399,6 +399,18 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .price-chart-low { stroke: var(--gold); stroke-width: 1; stroke-dasharray: 4 3; }
 .price-chart-low-key { color: var(--gold); }
 .price-chart figcaption { display: flex; justify-content: space-between; gap: .5rem; flex-wrap: wrap; }
+.price-chart-plot { position: relative; cursor: crosshair; touch-action: pan-y; border-radius: 6px; }
+.price-chart-plot:focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; }
+.price-chart-guide { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--muted); pointer-events: none; }
+.price-chart-dot {
+  position: absolute; width: 9px; height: 9px; border-radius: 50%; background: var(--cyan);
+  box-shadow: 0 0 0 3px rgba(34, 224, 240, .25); transform: translate(-50%, -50%); pointer-events: none;
+}
+.price-chart-tip {
+  position: absolute; bottom: calc(100% + 6px); z-index: 2; width: max-content; max-width: 100%;
+  padding: .3rem .55rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .45); font-size: .8rem; pointer-events: none;
+}
 @media (max-width: 640px) {
   .wish-row { flex-wrap: wrap; }
   .wish-price { align-items: flex-start; text-align: left; }

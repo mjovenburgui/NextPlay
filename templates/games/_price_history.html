@@ -7,19 +7,87 @@
         <span>{{ verdict.text }}</span>
       </p>
       {% if chart %}
-        <figure class="price-chart">
-          <svg viewBox="0 0 {{ chart.width }} {{ chart.height }}" preserveAspectRatio="none" role="img"
-               aria-label="Precio más barato en PC durante el último año: entre {{ chart.low|floatformat:2 }} € y {{ chart.high|floatformat:2 }} €">
-            <polygon class="price-chart-area" points="{{ chart.area }}"/>
-            {% if chart.low_y is not None %}<line class="price-chart-low" x1="0" x2="{{ chart.width }}" y1="{{ chart.low_y }}" y2="{{ chart.low_y }}" vector-effect="non-scaling-stroke"/>{% endif %}
-            <polyline class="price-chart-line" points="{{ chart.line }}" vector-effect="non-scaling-stroke"/>
-          </svg>
+        <figure class="price-chart" data-chart="{{ chart.hover }}">
+          {# Al pasar el ratón o el dedo (o con las flechas, si tiene el foco) enseña el precio de ese día. #}
+          <div class="price-chart-plot" tabindex="0"
+               aria-label="Precio más barato en PC durante el último año, entre {{ chart.low|floatformat:2 }} € y {{ chart.high|floatformat:2 }} €. Usa las flechas para recorrerlo.">
+            <svg viewBox="0 0 {{ chart.width }} {{ chart.height }}" preserveAspectRatio="none" aria-hidden="true">
+              <polygon class="price-chart-area" points="{{ chart.area }}"/>
+              {% if chart.low_y is not None %}<line class="price-chart-low" x1="0" x2="{{ chart.width }}" y1="{{ chart.low_y }}" y2="{{ chart.low_y }}" vector-effect="non-scaling-stroke"/>{% endif %}
+              <polyline class="price-chart-line" points="{{ chart.line }}" vector-effect="non-scaling-stroke"/>
+            </svg>
+            <span class="price-chart-guide" hidden></span>
+            <span class="price-chart-dot" hidden></span>
+            <span class="price-chart-tip" role="status" hidden></span>
+          </div>
           <figcaption class="help">
             <span>{{ chart.start|date:"M Y" }}</span>
             <span>{{ chart.low|floatformat:2 }} € – {{ chart.high|floatformat:2 }} €{% if chart.low_y is not None %} · <span class="price-chart-low-key">mínimo histórico</span>{% endif %}</span>
             <span>Hoy</span>
           </figcaption>
         </figure>
+        <script>
+          // Etiqueta de la gráfica: fecha, precio, tienda y rebaja del tramo bajo el cursor (o el elegido con las flechas).
+          // Vale tanto si la ficha la pinta directamente como si llega después por HTMX (que ejecuta este script).
+          (function () {
+            document.querySelectorAll(".price-chart[data-chart]:not([data-ready])").forEach(function (figure) {
+              figure.dataset.ready = "1";
+              var data = JSON.parse(figure.dataset.chart);
+              var points = data.points;
+              var plot = figure.querySelector(".price-chart-plot");
+              var guide = plot.querySelector(".price-chart-guide");
+              var dot = plot.querySelector(".price-chart-dot");
+              var tip = plot.querySelector(".price-chart-tip");
+              var current = points.length - 1;
+
+              function day(ms) {
+                return new Date(ms).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
+              }
+
+              // Muestra el tramo i en la posición x (en unidades del viewBox) con la fecha ms.
+              function show(i, x, ms) {
+                var point = points[i];
+                var left = (x / data.width) * 100;
+                current = i;
+                guide.style.left = dot.style.left = left + "%";
+                dot.style.top = (point.y / data.height) * 100 + "%";
+                var price = document.createElement("strong");
+                price.textContent = point.price;
+                tip.replaceChildren(day(ms) + " · ", price, " en " + point.shop + (point.cut ? " (-" + point.cut + " %)" : ""));
+                guide.hidden = dot.hidden = tip.hidden = false;
+                var width = plot.clientWidth;
+                var tipWidth = tip.offsetWidth;
+                tip.style.left = Math.min(Math.max((left / 100) * width - tipWidth / 2, 0), Math.max(width - tipWidth, 0)) + "px";
+              }
+
+              function hide() {
+                guide.hidden = dot.hidden = tip.hidden = true;
+              }
+
+              function follow(event) {
+                var rect = plot.getBoundingClientRect();
+                var x = ((event.clientX - rect.left) / rect.width) * data.width;
+                var ratio = (x - data.pad) / (data.width - 2 * data.pad);
+                var ms = data.start + Math.min(Math.max(ratio, 0), 1) * (data.end - data.start);
+                var i = 0;
+                while (i + 1 < points.length && points[i + 1].t <= ms) i++;
+                show(i, Math.min(Math.max(x, data.pad), data.width - data.pad), ms);
+              }
+
+              plot.addEventListener("pointermove", follow);
+              plot.addEventListener("pointerdown", follow);
+              plot.addEventListener("pointerleave", hide);
+              plot.addEventListener("blur", hide);
+              plot.addEventListener("keydown", function (event) {
+                var step = { ArrowLeft: -1, ArrowRight: 1 }[event.key];
+                if (!step) return;
+                event.preventDefault();
+                var i = Math.min(Math.max(guide.hidden ? current : current + step, 0), points.length - 1);
+                show(i, points[i].x, points[i].t);
+              });
+            });
+          })();
+        </script>
       {% endif %}
       {% if price_history.last_big_sale %}
         {% with sale=price_history.last_big_sale %}

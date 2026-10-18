@@ -1,4 +1,5 @@
 import io
+import json
 from datetime import date, timedelta
 from decimal import Decimal
 from unittest import mock
@@ -604,6 +605,12 @@ class PriceHistoryTests(TestCase):
         chart = summary["chart"]
         self.assertEqual((chart["low"], chart["high"]), (Decimal("6.24"), Decimal("24.99")))
         self.assertEqual(chart["low_y"], "84.0")  # con punto aunque la web esté en español
+        hover = json.loads(chart["hover"])
+        self.assertEqual(
+            [(point["price"], point["cut"], point["shop"]) for point in hover["points"]],
+            [("24,99 €", 0, "Steam"), ("6,24 €", 75, "Steam"), ("24,99 €", 0, "Steam"), ("24,99 €", 0, "Steam")],
+        )
+        self.assertEqual(hover["points"][0]["t"], hover["start"])  # el primer tramo empieza con la gráfica
         self.assertTrue(chart["line"].startswith("6.0,6.0"))
 
     def test_detail_loads_history_lazily_then_inline(self):
@@ -615,7 +622,9 @@ class PriceHistoryTests(TestCase):
             self.client.get(reverse("games:price_history", args=["hades"]))
         self.assertContains(response, "Buen precio")
         self.client_mock.history.assert_called_once()  # el segundo usa el guardado
-        self.assertContains(self.client.get(self.game.get_absolute_url()), "price-chart")
+        page = self.client.get(self.game.get_absolute_url())
+        self.assertContains(page, "price-chart")
+        self.assertContains(page, "data-chart=")
 
     def test_chart_coordinates_use_a_decimal_point(self):
         self.load(itad_change(200, 61, "Steam", 6.24, 24.99, self.now), itad_change(190, 61, "Steam", 24.99, 24.99, self.now))
