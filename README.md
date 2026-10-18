@@ -77,6 +77,11 @@ aviso opcional. Al terminar, `update_prices` avisa (en la campana de la cabecera
 desactiva en Editar perfil) de los juegos que bajan de ese precio o están rebajados a su mínimo
 histórico. Para que los enlaces de los correos apunten a la web pública, pon `SITE_URL` en `.env`.
 
+En Editar perfil › Tiendas en las que compras, cada usuario elige sus tiendas: la ficha solo enseña
+sus precios (con «Ver todas» para comparar un momento), la gráfica sale por defecto de sus tiendas y
+la lista de deseos y los avisos solo cuentan esas. El historial se guarda por tienda, así que la
+gráfica también puede verse de todas o de una tienda concreta.
+
 ## Importar de Xbox (aplicación de Azure)
 
 Para el botón «Vincular con Microsoft» hace falta una aplicación de Azure (gratis):

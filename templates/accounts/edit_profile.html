@@ -12,6 +12,24 @@
     </form>
   </section>
 
+  <section class="panel steam-panel" id="tiendas">
+    <h2>Tiendas en las que compras</h2>
+    {% if shop_choices %}
+      <form action="{% url 'shops_update' %}" method="post">
+        {% csrf_token %}
+        <p class="help">NextPlay solo te enseñará precios, historial y avisos de las que marques (en cada ficha puedes ver todas un momento). Sin ninguna marcada, se ven todas.</p>
+        <div class="shop-choices">
+          {% for shop_id, name, checked in shop_choices %}
+            <label class="check"><input type="checkbox" name="shops" value="{{ shop_id }}"{% if checked %} checked{% endif %}> {{ name }}</label>
+          {% endfor %}
+        </div>
+        <button class="btn btn-primary" type="submit">Guardar tiendas</button>
+      </form>
+    {% else %}
+      <p class="help">Aún no hay precios en el catálogo para elegir tiendas.</p>
+    {% endif %}
+  </section>
+
   <section class="panel steam-panel" id="steam">
     <h2>{% include "games/shop_icons/steam.svg" %} Cuentas de Steam</h2>
     {% include "accounts/linking/_steam.html" %}

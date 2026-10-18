@@ -1,7 +1,7 @@
 """Avisos de la lista de deseos: comparan los precios de hoy con lo que quiere cada usuario.
 
-Se lanzan al terminar update_prices. Un juego avisa cuando su mejor precio (PC o Xbox) baja del
-precio que puso el usuario o cuando está rebajado a su mínimo histórico. No se repite el aviso hasta
+Se lanzan al terminar update_prices. Un juego avisa cuando su mejor precio (PC o Xbox, solo en las
+tiendas del usuario si las ha elegido) baja del precio que puso el usuario o cuando está rebajado a su mínimo histórico. No se repite el aviso hasta
 que baje más, o hasta que vuelva a subir y baje otra vez. Los juegos que ya están en la biblioteca
 del usuario no avisan (ya lo tiene).
 """
@@ -58,7 +58,7 @@ def check_alerts(games=None):
 
     created = defaultdict(list)  # usuario -> [aviso]
     for item in items:
-        best = item.game.best_price
+        best = item.game.cheapest(set(item.user.profile.shops) or None)
         reason = alert_reason(item, best)
         if reason is None:
             if item.alerted_price is not None:

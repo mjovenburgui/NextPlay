@@ -562,10 +562,17 @@ class PriceHistoryTests(TestCase):
             itad_change(200, 35, "GOG", 9.99, 24.99, self.now),
             itad_change(190, 35, "GOG", 24.99, 24.99, self.now),
         )
-        self.assertEqual([point[1:] for point in self.game.price_history], [
+        shops = self.game.price_history["shops"]
+        self.assertEqual(sorted(shops), ["35", "61"])
+        self.assertEqual([point[1:] for point in shops["35"]["points"]], [[24.99, 0], [9.99, 60], [24.99, 0]])
+        series = history.lowest_series(self.game.price_history)
+        self.assertEqual([point[1:] for point in series], [
             # Al acabar la rebaja de GOG, Steam y GOG valen lo mismo: se queda la primera tienda.
-            [24.99, 0, "Steam"], [12.49, 50, "Steam"], [24.99, 0, "Steam"], [9.99, 60, "GOG"], [24.99, 0, "Steam"],
+            (Decimal("24.99"), 0, "Steam"), (Decimal("12.49"), 50, "Steam"), (Decimal("24.99"), 0, "Steam"),
+            (Decimal("9.99"), 60, "GOG"), (Decimal("24.99"), 0, "Steam"),
         ])
+        gog = history.lowest_series(self.game.price_history, {35})
+        self.assertEqual([point[1] for point in gog], [Decimal("24.99"), Decimal("9.99"), Decimal("24.99")])
         since = self.client_mock.history.call_args.args[1]
         self.assertEqual((self.now - since).days, 730)
 
@@ -655,4 +662,89 @@ class PriceHistoryTests(TestCase):
         self.client_mock.prices.return_value = [ITAD_HADES]
         prices.update_prices([self.game], self.client_mock)
         self.game.refresh_from_db()
-        self.assertEqual((self.game.itad_ids, self.game.price_history), (["uuid-hades"], []))
+        self.assertEqual((self.game.itad_ids, self.game.price_history), (["uuid-hades"], {}))
+
+    def test_old_format_is_asked_again(self):
+        self.game.price_history, self.game.price_history_updated_at = [["2026-01-01T00:00:00+00:00", 1.0, 0, "X"]], self.now
+        self.assertTrue(history.needs_update(self.game, self.now))
+        self.assertIsNone(history.summary(self.game, self.now))
+
+    def test_chart_of_one_shop_or_the_users_shops(self):
+        GamePrice.objects.create(
+            game=self.game, shop_id=35, shop_name="GOG", price=Decimal("19.99"), regular_price=Decimal("24.99"),
+            cut=20, currency="EUR", url="https://itad.link/gog",
+        )
+        self.load(
+            itad_change(200, 61, "Steam", 6.24, 24.99, self.now),
+            itad_change(190, 61, "Steam", 24.99, 24.99, self.now),
+            itad_change(10, 35, "GOG", 19.99, 24.99, self.now),
+        )
+        url = reverse("games:price_history", args=["hades"])
+        response = self.client.get(url, {"tienda": "35"})
+        self.assertEqual(response.context["price_history"]["current"].shop_name, "GOG")
+        self.assertContains(response, "Lo más barato en dos años")
+        self.assertContains(response, "mínimo en dos años")
+        options = [value for value, _ in response.context["history_shops"]]
+        self.assertEqual(options, ["todas", "61", "35"])  # sin sesión no hay «Tus tiendas»; Steam antes que GOG
+        # Con sesión y sus tiendas elegidas (solo GOG), es lo que sale por defecto.
+        user = User.objects.create_user("ana", "ana@example.com", "x")
+        user.profile.shops = [35]
+        user.profile.save()
+        self.client.force_login(user)
+        response = self.client.get(url)
+        self.assertEqual(response.context["history_shop"], "")
+        self.assertEqual(response.context["price_history"]["current"].shop_name, "GOG")
+        self.assertEqual(response.context["history_shops"][0], ("", "Tus tiendas"))
+        response = self.client.get(url, {"tienda": "todas"})
+        self.assertEqual(response.context["price_history"]["current"].shop_name, "GOG")  # el más barato de todas
+        self.assertTrue(response.context["price_history"]["all_shops"])
+
+    def test_a_shop_that_does_not_sell_it_now_says_so(self):
+        self.load(itad_change(100, 35, "GOG", 9.99, 24.99, self.now))
+        response = self.client.get(reverse("games:price_history", args=["hades"]), {"tienda": "35"})
+        self.assertIsNone(response.context["price_history"])
+        self.assertContains(response, "Esa tienda no lo vende ahora")
+
+
+class PreferredShopsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.game = Game.objects.create(name="Hades", slug="hades")
+        for shop_id, name, price in ((61, "Steam", "24.99"), (35, "GOG", "19.99"), (0, "Xbox", "29.99")):
+            GamePrice.objects.create(
+                game=cls.game, shop_id=shop_id, shop_name=name, price=Decimal(price), regular_price=Decimal(price),
+                currency="EUR", url=f"https://shop.test/{shop_id}",
+                source=GamePrice.Source.XBOX if shop_id == 0 else GamePrice.Source.ITAD,
+            )
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def test_choose_shops_in_the_profile(self):
+        response = self.client.get(reverse("edit_profile"))
+        self.assertContains(response, "Tiendas en las que compras")
+        self.assertEqual([name for _, name, _ in response.context["shop_choices"]], ["Steam", "GOG", "Xbox"])
+        self.client.post(reverse("shops_update"), {"shops": ["61", "0", "999"]})
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.profile.shops, [0, 61])  # la desconocida se ignora
+        # Marcarlas todas es lo mismo que ninguna: así se ven también las tiendas nuevas.
+        self.client.post(reverse("shops_update"), {"shops": ["61", "35", "0"]})
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.profile.shops, [])
+
+    def test_game_page_shows_only_the_users_shops_unless_asked(self):
+        self.user.profile.shops = [61]
+        self.user.profile.save()
+        response = self.client.get(self.game.get_absolute_url())
+        self.assertEqual([price.shop_name for price in response.context["featured_prices"]], ["Steam"])
+        self.assertContains(response, "2 tiendas en las que no compras ocultas")
+        response = self.client.get(self.game.get_absolute_url(), {"tiendas": "todas"})
+        self.assertEqual([price.shop_name for price in response.context["featured_prices"]], ["Steam", "GOG", "Xbox"])
+        self.assertContains(response, "Solo las mías")
+
+    def test_none_of_the_users_shops_sells_it(self):
+        self.user.profile.shops = [16]  # Epic
+        self.user.profile.save()
+        self.assertContains(self.client.get(self.game.get_absolute_url()), "Ninguna de tus tiendas lo vende")
+

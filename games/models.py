@@ -81,9 +81,8 @@ class Game(models.Model):
     prices_updated_at = models.DateTimeField(null=True, blank=True)
     # UUID de IsThereAnyDeal de los juegos con los que se encontraron los precios de PC (para pedir su historial).
     itad_ids = models.JSONField(default=list, blank=True)
-    # Precio más barato en PC a lo largo del tiempo: [[fecha ISO, precio, % de rebaja, tienda], ...] de más
-    # viejo a más nuevo, un punto por cada cambio. Lo rellena games.history con el historial de IsThereAnyDeal.
-    price_history = models.JSONField(default=list, blank=True)
+    # Historial de precios de PC por tienda (formato en games.history), de IsThereAnyDeal.
+    price_history = models.JSONField(default=dict, blank=True)
     price_history_updated_at = models.DateTimeField(null=True, blank=True)
     genres = models.ManyToManyField(Genre, related_name="games", blank=True)
     platforms = models.ManyToManyField(Platform, related_name="games", blank=True)
@@ -144,7 +143,14 @@ class Game(models.Model):
     @property
     def best_price(self):
         """Oferta más barata de todas las tiendas (PC y Xbox), o None si no hay precios."""
-        prices = sorted(self.prices.all(), key=lambda price: price.price)
+        return self.cheapest()
+
+    def cheapest(self, shops=None):
+        """Oferta más barata de esas tiendas (ids; None = todas), o None si ninguna lo vende."""
+        prices = sorted(
+            (price for price in self.prices.all() if shops is None or price.shop_id in shops),
+            key=lambda price: price.price,
+        )
         return prices[0] if prices else None
 
     @property
@@ -152,15 +158,15 @@ class Game(models.Model):
         """Indica si alguna tienda lo da gratis (precio y precio normal a 0), es decir, si es free-to-play."""
         return any(price.is_free for price in self.prices.all())
 
-    def price_groups(self):
-        """Reparte los precios para la ficha del juego en (destacados, listados, plegados, mejor).
+    def price_groups(self, shops=None):
+        """Reparte los precios de esas tiendas (ids; None = todas) para la ficha en (destacados, listados, plegados, mejor).
 
         destacados: las tiendas más conocidas (Steam, Epic, Microsoft, GOG, Xbox) en un orden fijo.
         listados: las demás más baratas, solo si el juego no está en ninguna destacada.
         plegados: el resto por precio, dentro de «Ver N tiendas más».
         mejor: la oferta más barata cuando ha quedado plegada, para poder señalarla igualmente.
         """
-        prices = list(self.prices.all())
+        prices = [price for price in self.prices.all() if shops is None or price.shop_id in shops]
         featured_ids = list(FEATURED_SHOPS)
         featured = sorted((p for p in prices if p.is_featured), key=lambda p: featured_ids.index(p.shop_id))
         others = [p for p in prices if not p.is_featured]
@@ -239,6 +245,18 @@ CURRENCY_SYMBOLS = {"EUR": "€", "USD": "$", "GBP": "£"}
 def currency_symbol(code):
     """Símbolo de una moneda a partir de su código ISO («EUR» → «€»); el propio código si no lo conoce."""
     return CURRENCY_SYMBOLS.get(code, code)
+
+
+def known_shops():
+    """Tiendas con algún precio en el catálogo, [(id, nombre)]: las destacadas primero y después por nombre."""
+    names = {}
+    for shop_id, name in GamePrice.objects.values_list("shop_id", "shop_name").distinct():
+        names.setdefault(shop_id, name)
+    featured = list(FEATURED_SHOPS)
+    return sorted(
+        names.items(),
+        key=lambda item: (featured.index(item[0]) if item[0] in featured else len(featured), item[1].casefold()),
+    )
 
 
 def format_price(amount, symbol="€"):

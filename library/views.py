@@ -185,16 +185,18 @@ WISHLIST_SORTS = {
 
 @login_required
 def wishlist(request):
-    """Lista de deseos del usuario con el mejor precio de hoy de cada juego, su mínimo histórico y si está
-    por debajo de su límite. Se ordena con ?orden= (recientes por defecto, descuento, precio o nombre)."""
+    """Lista de deseos del usuario con el mejor precio de hoy de cada juego (en sus tiendas, si las ha
+    elegido), su mínimo histórico y si está por debajo de su límite. Se ordena con ?orden= (recientes
+    por defecto, descuento, precio o nombre)."""
     wishes = WishlistItem.objects.filter(user=request.user).select_related("game").prefetch_related("game__prices")
     owned = set(
         LibraryEntry.objects.filter(user=request.user, game__wishlisted_by__user=request.user)
         .values_list("game_id", flat=True)
     )
+    shops = set(request.user.profile.shops) or None
     rows = []
     for wish in wishes:
-        best = wish.game.best_price
+        best = wish.game.cheapest(shops)
         low = wish.game.historical_low
         rows.append({
             "wish": wish,
