@@ -1,3 +1,5 @@
+from decimal import Decimal, InvalidOperation
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseBadRequest
@@ -8,7 +10,7 @@ from django.views.decorators.http import require_POST
 from games.models import Game
 
 from .forms import ReviewForm
-from .models import LibraryEntry
+from .models import LibraryEntry, WishlistItem
 
 
 REVIEWS_SHOWN = 30
@@ -123,3 +125,91 @@ def review(request, game_id):
     else:
         messages.error(request, " ".join(form.errors.get("review", ["La reseña no es válida."])))
     return redirect(f"{game.get_absolute_url()}#resenas")
+
+
+def _wish_response(request, game, wish, error=""):
+    """Respuesta de las acciones de la lista de deseos: el botón «Lo quiero» actualizado si es HTMX; si no,
+    vuelve a la página de la que vino (la ficha por defecto) avisando del error si lo hay."""
+    if request.headers.get("HX-Request"):
+        return render(request, "library/_wish.html", {"game": game, "wish": wish, "wish_error": error})
+    if error:
+        messages.error(request, error)
+    target = request.POST.get("next", "")
+    if target.startswith("/") and not target.startswith("//"):
+        return redirect(target)
+    return redirect(game)
+
+
+@require_POST
+@login_required
+def wish_toggle(request, game_id):
+    """Añade el juego a la lista de deseos del usuario o lo quita si ya estaba."""
+    game = get_object_or_404(Game, pk=game_id)
+    wish, created = WishlistItem.objects.get_or_create(user=request.user, game=game)
+    if not created:
+        wish.delete()
+        wish = None
+    return _wish_response(request, game, wish)
+
+
+@require_POST
+@login_required
+def wish_target(request, game_id):
+    """Guarda el precio por debajo del cual avisar (vacío = solo avisar del mínimo histórico).
+
+    Al cambiarlo se olvida el último aviso, para volver a comparar con el precio nuevo. Responde 404
+    si el juego no está en su lista.
+    """
+    game = get_object_or_404(Game, pk=game_id)
+    wish = get_object_or_404(WishlistItem, user=request.user, game=game)
+    raw = request.POST.get("target_price", "").strip().replace(",", ".")
+    try:
+        target = Decimal(raw).quantize(Decimal("0.01")) if raw else None
+    except InvalidOperation:
+        target = Decimal(-1)
+    if target is not None and not Decimal(0) <= target < Decimal(100000):
+        return _wish_response(request, game, wish, "Escribe un precio en euros, por ejemplo 19,99.")
+    wish.target_price = target
+    wish.alerted_price = None
+    wish.save(update_fields=["target_price", "alerted_price"])
+    return _wish_response(request, game, wish)
+
+
+# Valor de ?orden= en la lista de deseos → (etiqueta, clave de orden). Los que no tienen precio van al final.
+WISHLIST_SORTS = {
+    "descuento": ("Mayor descuento", lambda row: -(row["best"].cut if row["best"] else -1)),
+    "precio": ("Más baratos", lambda row: (row["best"] is None, row["best"].price if row["best"] else 0)),
+    "nombre": ("Nombre", lambda row: row["wish"].game.name.casefold()),
+}
+
+
+@login_required
+def wishlist(request):
+    """Lista de deseos del usuario con el mejor precio de hoy de cada juego, su mínimo histórico y si está
+    por debajo de su límite. Se ordena con ?orden= (recientes por defecto, descuento, precio o nombre)."""
+    wishes = WishlistItem.objects.filter(user=request.user).select_related("game").prefetch_related("game__prices")
+    owned = set(
+        LibraryEntry.objects.filter(user=request.user, game__wishlisted_by__user=request.user)
+        .values_list("game_id", flat=True)
+    )
+    rows = []
+    for wish in wishes:
+        best = wish.game.best_price
+        low = wish.game.historical_low
+        rows.append({
+            "wish": wish,
+            "best": best,
+            "owned": wish.game_id in owned,
+            "below_target": bool(best and wish.target_price is not None and best.price <= wish.target_price),
+            "at_low": bool(best and best.cut and low is not None and best.price <= low),
+        })
+    sort = request.GET.get("orden", "")
+    if sort in WISHLIST_SORTS:
+        rows.sort(key=WISHLIST_SORTS[sort][1])
+    else:
+        sort = ""
+    return render(request, "library/wishlist.html", {
+        "rows": rows,
+        "sorts": [(value, label) for value, (label, _) in WISHLIST_SORTS.items()],
+        "active_sort": sort,
+    })

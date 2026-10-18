@@ -1,0 +1,22 @@
+{# Botón «Lo quiero» y precio de aviso de la ficha. Necesita game y wish (el WishlistItem del usuario o None). #}
+<div class="wish" id="wish-widget">
+  <form action="{% url 'library:wish_toggle' game.id %}" method="post"
+        hx-post="{% url 'library:wish_toggle' game.id %}" hx-target="#wish-widget" hx-swap="outerHTML">
+    {% csrf_token %}
+    <button class="btn wish-btn{% if wish %} is-active{% endif %}" type="submit" aria-pressed="{% if wish %}true{% else %}false{% endif %}">
+      <span aria-hidden="true">{% if wish %}♥{% else %}♡{% endif %}</span> {% if wish %}En tu lista de deseos{% else %}Lo quiero{% endif %}
+    </button>
+  </form>
+  {% if wish %}
+    <form class="wish-target" action="{% url 'library:wish_target' game.id %}" method="post"
+          hx-post="{% url 'library:wish_target' game.id %}" hx-target="#wish-widget" hx-swap="outerHTML">
+      {% csrf_token %}
+      <label for="target-{{ game.id }}">Avísame si baja de</label>
+      <input id="target-{{ game.id }}" type="number" name="target_price" min="0" step="0.01" inputmode="decimal"
+             value="{% if wish.target_price is not None %}{{ wish.target_price|stringformat:'s' }}{% endif %}" placeholder="€">
+      <button class="btn btn-small" type="submit">Guardar</button>
+    </form>
+    <p class="help">{% if wish.target_price is not None %}Te avisaremos cuando baje de {{ wish.target_price|floatformat:2 }} € o llegue a su mínimo histórico.{% else %}Te avisaremos cuando esté rebajado a su mínimo histórico; pon un precio para avisarte antes.{% endif %} <a href="{% url 'library:wishlist' %}">Ver tu lista</a></p>
+    {% if wish_error %}<p class="errorlist">{{ wish_error }}</p>{% endif %}
+  {% endif %}
+</div>

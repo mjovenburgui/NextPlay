@@ -17,6 +17,12 @@
     <nav class="nav">
       <a href="{% url 'games:catalog' %}">Juegos</a>
       {% if user.is_authenticated %}
+        <a href="{% url 'library:wishlist' %}">Deseos</a>
+        <a class="bell{% if unread_notifications %} has-unread{% endif %}" href="{% url 'notifications' %}"
+           aria-label="Avisos{% if unread_notifications %} ({{ unread_notifications }} sin leer){% endif %}" title="Avisos">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6v-5a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"/></svg>
+          {% if unread_notifications %}<span class="bell-count">{{ unread_notifications }}</span>{% endif %}
+        </a>
         <a href="{% url 'profile' user.username %}">Mi perfil</a>
         <form action="{% url 'logout' %}" method="post">
           {% csrf_token %}

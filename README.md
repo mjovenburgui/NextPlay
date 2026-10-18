@@ -66,6 +66,17 @@ GTA V → GTA V Enhanced), pon el ID de Steam correcto en el campo «ID de Steam
 Los juegos importados antes de este cambio necesitan reimportarse con `import_igdb` para obtener nota
 e ID de Steam.
 
+### Historial de precios y lista de deseos
+
+La ficha enseña el historial del precio más barato en PC del último año (de IsThereAnyDeal, con la
+misma clave) y un veredicto: «mínimo histórico», «buen precio» o «suele bajar más: espera». Se pide
+al abrir la ficha, se carga con HTMX para no frenarla y se guarda un día.
+
+Con «Lo quiero» el juego pasa a la lista de deseos (`/biblioteca/lista-de-deseos/`), con un precio de
+aviso opcional. Al terminar, `update_prices` avisa (en la campana de la cabecera y por correo, que se
+desactiva en Editar perfil) de los juegos que bajan de ese precio o están rebajados a su mínimo
+histórico. Para que los enlaces de los correos apunten a la web pública, pon `SITE_URL` en `.env`.
+
 ## Importar de Xbox (aplicación de Azure)
 
 Para el botón «Vincular con Microsoft» hace falta una aplicación de Azure (gratis):

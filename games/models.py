@@ -79,6 +79,12 @@ class Game(models.Model):
     historical_low = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     historical_low_currency = models.CharField(max_length=3, blank=True)
     prices_updated_at = models.DateTimeField(null=True, blank=True)
+    # UUID de IsThereAnyDeal de los juegos con los que se encontraron los precios de PC (para pedir su historial).
+    itad_ids = models.JSONField(default=list, blank=True)
+    # Precio más barato en PC a lo largo del tiempo: [[fecha ISO, precio, % de rebaja, tienda], ...] de más
+    # viejo a más nuevo, un punto por cada cambio. Lo rellena games.history con el historial de IsThereAnyDeal.
+    price_history = models.JSONField(default=list, blank=True)
+    price_history_updated_at = models.DateTimeField(null=True, blank=True)
     genres = models.ManyToManyField(Genre, related_name="games", blank=True)
     platforms = models.ManyToManyField(Platform, related_name="games", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -134,6 +140,12 @@ class Game(models.Model):
     def on_current_xbox(self):
         """Indica si el juego está en Xbox One o Xbox Series X|S."""
         return any(platform.name in CURRENT_XBOX_PLATFORMS for platform in self.platforms.all())
+
+    @property
+    def best_price(self):
+        """Oferta más barata de todas las tiendas (PC y Xbox), o None si no hay precios."""
+        prices = sorted(self.prices.all(), key=lambda price: price.price)
+        return prices[0] if prices else None
 
     @property
     def is_free(self):
@@ -227,6 +239,11 @@ CURRENCY_SYMBOLS = {"EUR": "€", "USD": "$", "GBP": "£"}
 def currency_symbol(code):
     """Símbolo de una moneda a partir de su código ISO («EUR» → «€»); el propio código si no lo conoce."""
     return CURRENCY_SYMBOLS.get(code, code)
+
+
+def format_price(amount, symbol="€"):
+    """Precio escrito como en España para los textos que se generan fuera de las plantillas: «2,99 €»."""
+    return f"{amount:.2f}".replace(".", ",") + f" {symbol}"
 
 
 class GamePrice(models.Model):

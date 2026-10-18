@@ -16,6 +16,7 @@ urlpatterns = [
     path("cuenta/xbox/vuelta/", views.xbox_callback, name="xbox_callback"),
     path("cuenta/xbox/desvincular/", views.xbox_unlink, name="xbox_unlink"),
     path("cuenta/juegos-importados/", views.imported_titles, name="imported_titles"),
+    path("avisos/", views.notifications, name="notifications"),
     path("cuenta/juegos-importados/<int:pk>/asignar/", views.imported_title_assign, name="imported_title_assign"),
     path("cuenta/juegos-importados/<int:pk>/ocultar/", views.imported_title_hide, name="imported_title_hide"),
     path("cuenta/plataformas/anadir/", views.platform_add, name="platform_add"),

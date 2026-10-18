@@ -23,7 +23,7 @@ class SignupForm(UserCreationForm):
 class ProfileForm(forms.ModelForm):
     class Meta:
         model = Profile
-        fields = ("display_name", "bio", "is_public")
+        fields = ("display_name", "bio", "is_public", "price_alert_emails")
         widgets = {"bio": forms.Textarea(attrs={"rows": 4})}
 
 

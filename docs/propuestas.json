@@ -83,8 +83,7 @@
   {
     "titulo": "Lista de deseos con alertas de precio",
     "fecha": "2026-10-17",
-    "estado": "pendiente",
-    "prioridad": "alta",
+    "estado": "hecha",
     "tipo": "Funcionalidad",
     "resumen": "Marcar juegos como «Lo quiero» y recibir un aviso (en la web y por correo) cuando bajen de un precio o lleguen a su mínimo histórico.",
     "motivo": "Ya se guardan precios de varias tiendas y el mínimo histórico cada día con update_prices; falta sacarle partido para el usuario.",
@@ -94,13 +93,12 @@
       "Icono de notificaciones en la cabecera y correo opcional (ya está configurado el envío para recuperar contraseña).",
       "Página «Mi lista de deseos» ordenable por descuento."
     ],
-    "notas": "Solo funciona en PC y Xbox, que es donde hay fuente de precios; en PlayStation y Nintendo se mostraría sin alerta. Ya estaba planeada antes de proponerla."
+    "notas": "Solo funciona en PC y Xbox, que es donde hay fuente de precios; en PlayStation y Nintendo se mostraría sin alerta. Ya estaba planeada antes de proponerla. Hecha el 18/10/2026: modelo WishlistItem aparte (no un estado de la biblioteca) con precio de aviso opcional, botón «Lo quiero» en la ficha, página /biblioteca/lista-de-deseos/ ordenable por descuento o precio, campana de avisos en la cabecera (modelo Notification, reutilizable para los avisos sociales) y un correo por usuario con sus avisos, que se desactiva en Editar perfil. Avisa al bajar del precio puesto o al estar rebajado a su mínimo histórico, una sola vez hasta que baje más o suba y vuelva a bajar, y nunca de juegos que ya tiene en la biblioteca. Probada con precios reales."
   },
   {
     "titulo": "Historial de precios y «¿compro ahora o espero?»",
     "fecha": "2026-10-17",
-    "estado": "pendiente",
-    "prioridad": "alta",
+    "estado": "hecha",
     "tipo": "Funcionalidad",
     "resumen": "Una gráfica con la evolución del precio en PC y un veredicto sencillo: «está en su mínimo histórico», «buen precio» o «suele bajar más, espera».",
     "motivo": "Ahora solo se muestra el mínimo histórico. IsThereAnyDeal también da el historial completo de precios con la misma clave que ya se usa.",
@@ -110,7 +108,7 @@
       "Calcular el veredicto comparando el precio de hoy con el mínimo y con cuántas veces ha bajado de ahí en el último año.",
       "Mostrar cuándo fue la última rebaja fuerte."
     ],
-    "notas": "Solo funciona en PC, que es de donde viene el historial."
+    "notas": "Solo funciona en PC, que es de donde viene el historial. Hecha el 18/10/2026: se piden dos años a IsThereAnyDeal y se dibuja el último en un SVG generado en el servidor, cargado con HTMX y guardado un día. Veredicto: «mínimo histórico», «buen precio» (no ha estado más barato en un año o está a menos de un 10 % de lo más barato del año) o «espera» (ha bajado de ese precio; las rebajas solapadas de varias tiendas cuentan como una), y fecha de la última rebaja de al menos un 50 %. El historial de ITAD a veces cuenta tiendas que no salen en los precios de hoy, así que la gráfica termina siempre en el precio que enseña la ficha."
   },
   {
     "titulo": "Seguir a otros jugadores y feed de actividad",

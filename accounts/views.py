@@ -10,6 +10,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.defaultfilters import pluralize
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.html import format_html
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
@@ -573,3 +574,15 @@ def imported_title_hide(request, pk):
     verb = "ocultado" if imported.hidden else "vuelto a mostrar"
     messages.success(request, f"Has {verb} «{imported.title.name}».")
     return _back(request, reverse("imported_titles"))
+
+
+NOTIFICATIONS_SHOWN = 50
+
+
+@login_required
+def notifications(request):
+    """Últimos avisos del usuario (bajadas de precio...). Al abrir la página, los no leídos pasan a leídos."""
+    shown = list(request.user.notifications.select_related("game")[:NOTIFICATIONS_SHOWN])
+    unread = {n.pk for n in shown if n.read_at is None}
+    request.user.notifications.filter(read_at__isnull=True).update(read_at=timezone.now())
+    return render(request, "accounts/notifications.html", {"shown": shown, "unread": unread})

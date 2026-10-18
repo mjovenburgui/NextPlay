@@ -55,6 +55,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "accounts.context_processors.notifications",
             ],
         },
     },
@@ -100,6 +101,8 @@ EMAIL_BACKEND = os.environ.get(
     "DJANGO_EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
 )
 DEFAULT_FROM_EMAIL = os.environ.get("DJANGO_DEFAULT_FROM_EMAIL", "NextPlay <no-reply@localhost>")
+# Dirección pública de la web, para los enlaces de los correos que se mandan sin petición (avisos de precio).
+SITE_URL = os.environ.get("SITE_URL", "http://localhost:8000").rstrip("/")
 
 if not DEBUG:
     SECURE_SSL_REDIRECT = True

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Avisos · NextPlay{% endblock %}
+
+{% block content %}
+  <section class="panel panel-wide">
+    <h1>Avisos</h1>
+    <ul class="notifications">
+      {% for notification in shown %}
+        <li class="notification{% if notification.pk in unread %} is-unread{% endif %}">
+          {% if notification.game %}
+            <span class="review-thumb" aria-hidden="true">{% if notification.game.cover_url %}<img src="{{ notification.game.cover_url }}" alt="" loading="lazy">{% endif %}</span>
+          {% endif %}
+          <div>
+            {% if notification.url %}<a href="{{ notification.url }}">{{ notification.text }}</a>{% else %}{{ notification.text }}{% endif %}
+            <p class="help">{% if notification.pk in unread %}<span class="new-tag">Nuevo</span> {% endif %}Hace {{ notification.created_at|timesince }}</p>
+          </div>
+        </li>
+      {% empty %}
+        <li class="empty">No tienes avisos. Añade juegos a tu <a href="{% url 'library:wishlist' %}">lista de deseos</a> y te avisaremos cuando bajen de precio.</li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endblock %}

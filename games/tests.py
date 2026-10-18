@@ -1,15 +1,18 @@
 import io
-from datetime import date
+import json
+from datetime import date, timedelta
+from decimal import Decimal
 from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.core.management import CommandError, call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from library.models import LibraryEntry
 
-from . import igdb, prices, xbox
+from . import history, igdb, prices, xbox
 from .models import Game, GamePrice, Genre, Platform
 
 User = get_user_model()
@@ -519,3 +522,137 @@ class XboxTests(TestCase):
             "editions": [{"id": 2, "name": "Hades GOTY", **microsoft("9NVB51LMXLJF", "BTBMZQ3FM2V8")}],
         }])
         self.assertEqual(Game.objects.get(igdb_id=113112).xbox_product_ids, ["BTBMZQ3FM2V8", "9NVB51LMXLJF"])
+
+
+def itad_change(days_ago, shop_id, shop, price, regular, now):
+    """Cambio de precio tal como lo devuelve el historial de IsThereAnyDeal."""
+    when = now - timedelta(days=days_ago)
+    cut = round(100 - price * 100 / regular)
+    return {
+        "timestamp": when.isoformat(),
+        "shop": {"id": shop_id, "name": shop},
+        "deal": {"price": {"amount": price, "currency": "EUR"}, "regular": {"amount": regular, "currency": "EUR"}, "cut": cut},
+    }
+
+
+@override_settings(ITAD_API_KEY="key", ITAD_COUNTRY="ES")
+class PriceHistoryTests(TestCase):
+    def setUp(self):
+        self.now = timezone.now()
+        self.game = Game.objects.create(
+            name="Hades", slug="hades", store_ids={"steam": [1145360]}, itad_ids=["uuid-hades"],
+            historical_low=Decimal("6.24"), historical_low_currency="EUR",
+        )
+        self.steam = GamePrice.objects.create(
+            game=self.game, shop_id=61, shop_name="Steam", price=Decimal("24.99"), regular_price=Decimal("24.99"),
+            currency="EUR", url="https://itad.link/steam",
+        )
+        self.client_mock = mock.Mock(spec=prices.ITADClient)
+
+    def load(self, *changes):
+        """Guarda como historial del juego los cambios dados (simulando ITAD)."""
+        self.client_mock.history.return_value = list(changes)
+        history.update_history(self.game, self.client_mock, now=self.now)
+        self.game.refresh_from_db()
+
+    def test_series_keeps_the_cheapest_shop_and_starts_at_the_regular_price(self):
+        self.load(
+            itad_change(300, 61, "Steam", 12.49, 24.99, self.now),
+            itad_change(290, 61, "Steam", 24.99, 24.99, self.now),
+            itad_change(200, 35, "GOG", 9.99, 24.99, self.now),
+            itad_change(190, 35, "GOG", 24.99, 24.99, self.now),
+        )
+        self.assertEqual([point[1:] for point in self.game.price_history], [
+            # Al acabar la rebaja de GOG, Steam y GOG valen lo mismo: se queda la primera tienda.
+            [24.99, 0, "Steam"], [12.49, 50, "Steam"], [24.99, 0, "Steam"], [9.99, 60, "GOG"], [24.99, 0, "Steam"],
+        ])
+        since = self.client_mock.history.call_args.args[1]
+        self.assertEqual((self.now - since).days, 730)
+
+    def test_wait_when_it_dropped_below_today_several_times(self):
+        self.load(
+            itad_change(300, 61, "Steam", 12.49, 24.99, self.now),
+            itad_change(290, 61, "Steam", 24.99, 24.99, self.now),
+            itad_change(120, 61, "Steam", 9.99, 24.99, self.now),
+            itad_change(110, 61, "Steam", 24.99, 24.99, self.now),
+        )
+        verdict = history.summary(self.game, self.now)["verdict"]
+        self.assertEqual(verdict["code"], "espera")
+        self.assertIn("2 veces, hasta 9,99 €", verdict["text"])
+
+    def test_overlapping_sales_count_once(self):
+        self.load(
+            itad_change(100, 61, "Steam", 9.99, 24.99, self.now),
+            itad_change(99, 61, "Steam", 24.99, 24.99, self.now),
+            itad_change(98, 61, "Steam", 9.99, 24.99, self.now),
+            itad_change(90, 61, "Steam", 24.99, 24.99, self.now),
+        )
+        self.assertIn("una vez", history.summary(self.game, self.now)["verdict"]["text"])
+
+    def test_good_price_and_historical_low(self):
+        self.load()
+        self.assertEqual(history.summary(self.game, self.now)["verdict"]["code"], "bueno")
+        GamePrice.objects.filter(pk=self.steam.pk).update(price=Decimal("6.24"), cut=75)
+        self.assertEqual(history.summary(self.game, self.now)["verdict"]["code"], "minimo")
+
+    def test_last_big_sale_and_chart(self):
+        self.load(
+            itad_change(200, 61, "Steam", 6.24, 24.99, self.now),
+            itad_change(190, 61, "Steam", 24.99, 24.99, self.now),
+        )
+        summary = history.summary(self.game, self.now)
+        self.assertEqual((summary["last_big_sale"]["cut"], summary["last_big_sale"]["price"]), (75, Decimal("6.24")))
+        chart = summary["chart"]
+        self.assertEqual((chart["low"], chart["high"]), (Decimal("6.24"), Decimal("24.99")))
+        self.assertEqual(chart["low_y"], "84.0")  # con punto aunque la web esté en español
+        hover = json.loads(chart["hover"])
+        self.assertEqual(
+            [(point["price"], point["cut"], point["shop"]) for point in hover["points"]],
+            [("24,99 €", 0, "Steam"), ("6,24 €", 75, "Steam"), ("24,99 €", 0, "Steam"), ("24,99 €", 0, "Steam")],
+        )
+        self.assertEqual(hover["points"][0]["t"], hover["start"])  # el primer tramo empieza con la gráfica
+        self.assertTrue(chart["line"].startswith("6.0,6.0"))
+
+    def test_detail_loads_history_lazily_then_inline(self):
+        response = self.client.get(self.game.get_absolute_url())
+        self.assertContains(response, 'hx-get="/juegos/hades/historial-de-precios/"')
+        self.client_mock.history.return_value = []  # sin cambios en dos años: siempre al precio de hoy
+        with mock.patch("games.prices.ITADClient", return_value=self.client_mock):
+            response = self.client.get(reverse("games:price_history", args=["hades"]))
+            self.client.get(reverse("games:price_history", args=["hades"]))
+        self.assertContains(response, "Buen precio")
+        self.client_mock.history.assert_called_once()  # el segundo usa el guardado
+        page = self.client.get(self.game.get_absolute_url())
+        self.assertContains(page, "price-chart")
+        self.assertContains(page, "data-chart=")
+
+    def test_chart_coordinates_use_a_decimal_point(self):
+        self.load(itad_change(200, 61, "Steam", 6.24, 24.99, self.now), itad_change(190, 61, "Steam", 24.99, 24.99, self.now))
+        response = self.client.get(self.game.get_absolute_url())
+        self.assertContains(response, 'y1="84.0"')
+        self.assertNotRegex(response.content.decode(), r'points="[^"]*\d,\d+,')
+
+    def test_itad_failure_still_answers(self):
+        self.client_mock.history.side_effect = prices.ITADError("caído")
+        with mock.patch("games.prices.ITADClient", return_value=self.client_mock), \
+                self.assertLogs("games.views", "ERROR"):
+            response = self.client.get(reverse("games:price_history", args=["hades"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "verdict")
+
+    def test_old_games_look_up_their_itad_ids(self):
+        self.game.itad_ids = []
+        self.game.save()
+        self.client_mock.lookup.return_value = {1145360: "uuid-hades"}
+        self.load()
+        self.assertEqual(self.game.itad_ids, ["uuid-hades"])
+        self.client_mock.history.assert_called_once_with("uuid-hades", mock.ANY)
+
+    def test_update_prices_remembers_itad_ids_and_drops_stale_history(self):
+        self.game.itad_ids, self.game.price_history = ["uuid-old"], [["2026-01-01T00:00:00+00:00", 1.0, 0, "X"]]
+        self.game.save()
+        self.client_mock.lookup.side_effect = lambda store, ids: {i: "uuid-hades" for i in ids}
+        self.client_mock.prices.return_value = [ITAD_HADES]
+        prices.update_prices([self.game], self.client_mock)
+        self.game.refresh_from_db()
+        self.assertEqual((self.game.itad_ids, self.game.price_history), (["uuid-hades"], []))

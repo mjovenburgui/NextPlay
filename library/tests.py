@@ -1,11 +1,19 @@
+import io
+from decimal import Decimal
+from unittest import mock
+
 from django.contrib.auth import get_user_model
+from django.core import mail
+from django.core.management import call_command
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from games.models import Game
+from accounts.models import Notification
+from games.models import Game, GamePrice
 
-from .models import LibraryEntry
+from . import wishlist
+from .models import LibraryEntry, WishlistItem
 
 User = get_user_model()
 
@@ -154,3 +162,104 @@ class ReviewTests(TestCase):
         )
         self.assertContains(response, 'id="resenas" hx-swap-oob="true"')
         self.assertContains(response, "Publicar reseña")
+
+
+class WishlistTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.game = Game.objects.create(name="Hades", slug="hades", historical_low=Decimal("6.24"))
+        cls.other_game = Game.objects.create(name="Celeste", slug="celeste")
+
+    def setUp(self):
+        self.client.force_login(self.user)
+        self.price = GamePrice.objects.create(
+            game=self.game, shop_id=61, shop_name="Steam", price=Decimal("24.99"), regular_price=Decimal("24.99"),
+            currency="EUR", url="https://itad.link/steam",
+        )
+
+    def set_price(self, price, cut):
+        """Cambia el precio de hoy de Hades en Steam."""
+        GamePrice.objects.filter(pk=self.price.pk).update(price=Decimal(price), cut=cut)
+
+    def test_toggle_and_target_from_the_game_page(self):
+        response = self.client.get(self.game.get_absolute_url())
+        self.assertContains(response, "Lo quiero")
+        response = self.client.post(reverse("library:wish_toggle", args=[self.game.id]), HTTP_HX_REQUEST="true")
+        self.assertContains(response, "En tu lista de deseos")
+        response = self.client.post(
+            reverse("library:wish_target", args=[self.game.id]), {"target_price": "14,5"}, HTTP_HX_REQUEST="true"
+        )
+        self.assertContains(response, "cuando baje de 14,50 €")
+        self.assertEqual(WishlistItem.objects.get().target_price, Decimal("14.50"))
+        response = self.client.post(
+            reverse("library:wish_target", args=[self.game.id]), {"target_price": "barato"}, HTTP_HX_REQUEST="true"
+        )
+        self.assertContains(response, "Escribe un precio")
+        self.client.post(reverse("library:wish_toggle", args=[self.game.id]))
+        self.assertFalse(WishlistItem.objects.exists())
+
+    def test_alert_when_below_target_only_once_until_it_drops_again(self):
+        WishlistItem.objects.create(user=self.user, game=self.game, target_price=Decimal("15"))
+        self.assertEqual(wishlist.check_alerts(), 0)
+        self.set_price("12.49", 50)
+        self.assertEqual(wishlist.check_alerts(), 1)
+        self.assertEqual(wishlist.check_alerts(), 0)  # mismo precio: no se repite
+        self.set_price("9.99", 60)
+        self.assertEqual(wishlist.check_alerts(), 1)  # ha bajado más
+        self.set_price("24.99", 0)
+        wishlist.check_alerts()
+        self.set_price("12.49", 50)
+        self.assertEqual(wishlist.check_alerts(), 1)  # subió y volvió a bajar
+        notification = Notification.objects.filter(user=self.user).first()
+        self.assertEqual(notification.text, "Hades ha bajado a 12,49 € en Steam (tu límite: 15,00 €).")
+        self.assertEqual(len(mail.outbox), 3)
+        self.assertIn("http://localhost:8000/juegos/hades/", mail.outbox[0].body)
+
+    def test_alert_at_historical_low_needs_a_sale(self):
+        WishlistItem.objects.create(user=self.user, game=self.game)
+        self.set_price("6.24", 0)  # nunca rebajado: no avisa
+        self.assertEqual(wishlist.check_alerts(), 0)
+        self.set_price("6.24", 75)
+        self.assertEqual(wishlist.check_alerts(), 1)
+        self.assertIn("su mínimo histórico", Notification.objects.get().text)
+
+    def test_no_alert_for_owned_games_and_no_email_when_disabled(self):
+        WishlistItem.objects.create(user=self.user, game=self.game, target_price=Decimal("30"))
+        LibraryEntry.objects.create(user=self.user, game=self.game)
+        self.assertEqual(wishlist.check_alerts(), 0)
+        LibraryEntry.objects.all().delete()
+        self.user.profile.price_alert_emails = False
+        self.user.profile.save()
+        self.assertEqual(wishlist.check_alerts(), 1)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_update_prices_command_checks_alerts(self):
+        WishlistItem.objects.create(user=self.user, game=self.game, target_price=Decimal("30"))
+        with override_settings(ITAD_API_KEY=""), mock.patch("games.xbox.update_xbox_prices", return_value=0):
+            out = io.StringIO()
+            call_command("update_prices", stdout=out, stderr=io.StringIO())
+        self.assertIn("Avisos de la lista de deseos: 1", out.getvalue())
+
+    def test_wishlist_page_sorts_by_discount_and_marks_targets(self):
+        WishlistItem.objects.create(user=self.user, game=self.other_game)
+        WishlistItem.objects.create(user=self.user, game=self.game, target_price=Decimal("15"))
+        self.set_price("12.49", 50)
+        response = self.client.get(reverse("library:wishlist"), {"orden": "descuento"})
+        names = [row["wish"].game.name for row in response.context["rows"]]
+        self.assertEqual(names, ["Hades", "Celeste"])
+        self.assertContains(response, "Por debajo de tu límite")
+        self.assertContains(response, "Sin precio")
+
+    def test_bell_counts_unread_and_the_page_marks_them_read(self):
+        Notification.objects.create(user=self.user, kind="price", text="Hades ha bajado", url="/juegos/hades/")
+        self.assertContains(self.client.get(reverse("library:wishlist")), '<span class="bell-count">1</span>')
+        response = self.client.get(reverse("notifications"))
+        self.assertContains(response, "Nuevo")
+        self.assertNotContains(self.client.get(reverse("notifications")), "Nuevo")
+        self.assertNotContains(self.client.get(reverse("library:wishlist")), "bell-count")
+
+    def test_pages_need_login(self):
+        self.client.logout()
+        for url in (reverse("library:wishlist"), reverse("notifications")):
+            self.assertEqual(self.client.get(url).status_code, 302)
