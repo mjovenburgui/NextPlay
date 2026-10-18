@@ -23,6 +23,11 @@ class Profile(models.Model):
     # La biblioteca de Steam se vuelve a importar sola cada noche (comando sync_libraries) salvo que lo desactive.
     auto_sync = models.BooleanField("sincronizar Steam cada noche", default=True)
     auto_synced_at = models.DateTimeField("última sincronización automática", null=True, blank=True)
+    price_alert_emails = models.BooleanField(
+        "avisarme también por correo",
+        default=True,
+        help_text="Cuando un juego de tu lista de deseos baje de tu precio o llegue a su mínimo histórico.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -356,3 +361,30 @@ class ImportedTitle(models.Model):
     def hours(self):
         """Horas jugadas redondeadas a una décima."""
         return round(self.minutes / 60, 1)
+
+
+class Notification(models.Model):
+    """Aviso para un usuario: se ve en la campana de la cabecera hasta que abre la página de avisos."""
+
+    class Kind(models.TextChoices):
+        PRICE = "price", "Bajada de precio"
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
+    kind = models.CharField("tipo", max_length=20, choices=Kind.choices)
+    text = models.CharField("texto", max_length=300)
+    url = models.CharField("enlace", max_length=500, blank=True)
+    game = models.ForeignKey(
+        "games.Game", on_delete=models.CASCADE, null=True, blank=True, related_name="+", verbose_name="juego"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField("leído", null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["user", "read_at"])]
+        verbose_name = "aviso"
+        verbose_name_plural = "avisos"
+
+    def __str__(self):
+        """Texto del aviso en el admin: «usuario · texto»."""
+        return f"{self.user} · {self.text}"

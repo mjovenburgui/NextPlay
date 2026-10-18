@@ -135,3 +135,32 @@ class LibraryEntry(models.Model):
         if self.steam_playtime_minutes is None:
             return None
         return round(self.steam_playtime_minutes / 60, 1)
+
+
+class WishlistItem(models.Model):
+    """Juego que el usuario quiere («Lo quiero»), con un precio por debajo del cual avisarle (opcional).
+
+    Los avisos los crea library.wishlist.check_alerts después de actualizar los precios; también avisa
+    cuando el juego está rebajado a su mínimo histórico, aunque no haya precio objetivo.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="wishlist")
+    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="wishlisted_by")
+    target_price = models.DecimalField(
+        "avisar por debajo de", max_digits=8, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(0)],
+    )
+    # Precio del que se avisó la última vez: no se repite el aviso hasta que baje más. Se vacía cuando el
+    # precio vuelve a subir, para avisar de la siguiente bajada.
+    alerted_price = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [models.UniqueConstraint(fields=["user", "game"], name="unique_wishlist_item_per_user_game")]
+        verbose_name = "juego de la lista de deseos"
+        verbose_name_plural = "listas de deseos"
+
+    def __str__(self):
+        """Texto en el admin: «usuario · juego»."""
+        return f"{self.user} · {self.game}"

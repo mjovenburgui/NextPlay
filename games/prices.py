@@ -36,19 +36,23 @@ class ITADClient:
             raise ITADError("Falta ITAD_API_KEY.")
 
     def _post(self, path, body, params=None):
-        """POST a la API con la clave y devuelve el JSON.
+        """POST a la API con la clave y devuelve el JSON."""
+        return self._send(requests.post, path, json=body, params=params)
+
+    def _get(self, path, params):
+        """GET a la API con la clave y devuelve el JSON."""
+        return self._send(requests.get, path, params=params)
+
+    def _send(self, method, path, **kwargs):
+        """Llama a la API con method (requests.get o requests.post) y la clave, y devuelve el JSON.
 
         Si la API responde 429 (demasiadas peticiones) espera lo que diga Retry-After (máximo 5
         minutos) y reintenta hasta 3 veces.
         """
         try:
             for attempt in range(MAX_RETRIES + 1):
-                response = requests.post(
-                    f"{API_URL}{path}",
-                    json=body,
-                    params=params,
-                    headers={"ITAD-API-Key": self.api_key},
-                    timeout=TIMEOUT,
+                response = method(
+                    f"{API_URL}{path}", headers={"ITAD-API-Key": self.api_key}, timeout=TIMEOUT, **kwargs
                 )
                 if response.status_code != 429 or attempt == MAX_RETRIES:
                     break
@@ -68,6 +72,15 @@ class ITADClient:
     def prices(self, itad_ids):
         """Ofertas actuales y mínimo histórico de cada juego de ITAD en el país configurado."""
         return self._post("/games/prices/v3", list(itad_ids), params={"country": self.country})
+
+    def history(self, itad_id, since):
+        """Cambios de precio de un juego de ITAD desde la fecha since, en todas las tiendas del país.
+
+        Cada cambio es {"timestamp", "shop": {"id", "name"}, "deal": {"price", "regular", "cut"}};
+        «deal» es None cuando la tienda deja de venderlo. Vienen del más nuevo al más viejo.
+        """
+        params = {"id": itad_id, "country": self.country, "since": since.isoformat(timespec="seconds")}
+        return self._get("/games/history/v2", params) or []
 
 
 def _amount(value):
@@ -93,11 +106,12 @@ def _cheapest_per_shop(deals):
 
 
 @transaction.atomic
-def _store_prices(game, data, edition=""):
+def _store_prices(game, data, edition="", itad_ids=()):
     """Sustituye los precios de PC del juego por las ofertas de data y guarda su mínimo histórico.
 
     Con data vacío deja el juego sin precios de PC. edition es el nombre de la edición de la que
-    salen los precios (vacío si son del propio juego).
+    salen los precios (vacío si son del propio juego) e itad_ids, los juegos de ITAD de los que salen;
+    si cambian, se borra el historial guardado, que era de otros.
     """
     game.prices.filter(source=GamePrice.Source.ITAD).delete()
     GamePrice.objects.bulk_create(
@@ -118,7 +132,14 @@ def _store_prices(game, data, edition=""):
     game.historical_low_currency = low["currency"] if low else ""
     game.prices_edition = edition if data else ""
     game.prices_updated_at = timezone.now()
-    game.save(update_fields=["prices_edition", "historical_low", "historical_low_currency", "prices_updated_at"])
+    if list(itad_ids) != game.itad_ids:
+        game.itad_ids = list(itad_ids)
+        game.price_history = []
+        game.price_history_updated_at = None
+    game.save(update_fields=[
+        "prices_edition", "historical_low", "historical_low_currency", "prices_updated_at",
+        "itad_ids", "price_history", "price_history_updated_at",
+    ])
 
 
 def _lookup(client, keys):
@@ -162,7 +183,7 @@ def update_prices(games, client=None):
     """
     client = client or ITADClient()
     games = [game for game in games if game.price_lookups]
-    found = {}  # game.pk -> (merged prices item, edition name)
+    found = {}  # game.pk -> (merged prices item, edition name, ITAD ids with data)
     pending, rank = games, 0
     while pending:
         round_ = [(game, game.price_lookups[rank]) for game in pending if len(game.price_lookups) > rank]
@@ -172,14 +193,26 @@ def update_prices(games, client=None):
         data = _fetch_prices(client, {itad_id for itad_id in itad_ids.values() if itad_id})
         pending = []
         for game, (keys, edition) in round_:
-            item = _merge([data.get(itad_id) for itad_id in dict.fromkeys(itad_ids.get(key) for key in keys) if itad_id])
+            ids = [itad_id for itad_id in dict.fromkeys(itad_ids.get(key) for key in keys) if data.get(itad_id)]
+            item = _merge([data[itad_id] for itad_id in ids])
             if item and item["deals"]:
-                found[game.pk] = (item, edition)
+                found[game.pk] = (item, edition, ids)
             else:
                 pending.append(game)
         rank += 1
 
     for game in games:
-        item, edition = found.get(game.pk, (None, ""))
-        _store_prices(game, item, edition)
+        item, edition, ids = found.get(game.pk, (None, "", []))
+        _store_prices(game, item, edition, ids)
     return len(found)
+
+
+def lookup_ids(game, client=None):
+    """UUID de ITAD de los IDs de tienda con los que se encontraron los precios actuales del juego.
+
+    Sirve para los juegos cuyos precios se guardaron antes de que se apuntaran sus itad_ids.
+    """
+    client = client or ITADClient()
+    keys = next((keys for keys, edition in game.price_lookups if edition == game.prices_edition), [])
+    found = _lookup(client, set(keys))
+    return [itad_id for itad_id in dict.fromkeys(found.get(key) for key in keys) if itad_id]

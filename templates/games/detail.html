@@ -60,6 +60,7 @@
           {% if game.is_free %}Dónde jugarlo <span class="free-badge">Free to play</span>{% else %}Dónde comprarlo{% endif %}
         </p>
         {% if game.prices_edition %}<p class="help edition">Edición a la venta: {{ game.prices_edition }}</p>{% endif %}
+        {% if user.is_authenticated and not game.is_free %}{% include "library/_wish.html" %}{% endif %}
         {% if featured_prices or store_searches %}
           <div class="shop-tiles">
             {% for price in featured_prices %}
@@ -112,6 +113,13 @@
             Precios de PC de <a href="https://isthereanydeal.com/" target="_blank" rel="noopener">IsThereAnyDeal</a>
           </p>
           {% if not has_pc_prices %}<p class="help">No se han encontrado precios en tiendas de PC.</p>{% endif %}
+          {% if price_history %}
+            {% include "games/_price_history.html" %}
+          {% elif load_price_history %}
+            <div id="price-history" hx-get="{% url 'games:price_history' game.slug %}" hx-trigger="load" hx-swap="outerHTML">
+              <p class="help">Cargando el historial de precios…</p>
+            </div>
+          {% endif %}
         {% else %}
           <p class="muted no-prices">No se han encontrado precios en las tiendas.</p>
         {% endif %}

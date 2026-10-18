@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Lista de deseos · NextPlay{% endblock %}
+
+{% block content %}
+  <section class="panel panel-wide">
+    <div class="page-head">
+      <h1>Lista de deseos</h1>
+      {% if rows|length > 1 %}
+        <form class="sort" method="get">
+          <label class="muted small" for="orden">Ordenar</label>
+          <select id="orden" name="orden" onchange="this.form.submit()">
+            <option value="">Añadidos hace menos</option>
+            {% for value, label in sorts %}<option value="{{ value }}"{% if active_sort == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+          <noscript><button class="btn" type="submit">Aplicar</button></noscript>
+        </form>
+      {% endif %}
+    </div>
+    <p class="muted">Te avisamos en la campana{% if user.profile.price_alert_emails %} y por correo{% endif %} cuando un juego baja de tu precio o está rebajado a su mínimo histórico. Los precios son de PC y Xbox: los juegos solo de PlayStation o Switch no avisan.</p>
+
+    <ul class="wishlist">
+      {% for row in rows %}
+        {% with wish=row.wish best=row.best game=row.wish.game %}
+          <li class="wish-row">
+            <a class="review-thumb" href="{{ game.get_absolute_url }}" aria-hidden="true" tabindex="-1">{% if game.cover_url %}<img src="{{ game.cover_url }}" alt="" loading="lazy">{% endif %}</a>
+            <div class="wish-info">
+              <a href="{{ game.get_absolute_url }}"><strong>{{ game.name }}</strong></a>
+              {% if row.owned %}<span class="pill">Ya en tu biblioteca</span>{% endif %}
+              <p class="help">
+                {% if wish.target_price is not None %}Tu límite: {{ wish.target_price|floatformat:2 }} €{% else %}Sin límite: solo avisa del mínimo histórico{% endif %}
+                {% if game.historical_low is not None %} · mínimo histórico {{ game.historical_low|floatformat:2 }} {{ game.historical_low_symbol }}{% endif %}
+              </p>
+              {% if row.below_target %}<p class="wish-flag">Por debajo de tu límite</p>{% elif row.at_low %}<p class="wish-flag">En su mínimo histórico</p>{% endif %}
+            </div>
+            <div class="wish-price">
+              {% if best %}
+                <a href="{{ best.url }}" target="_blank" rel="nofollow sponsored noopener">
+                  <strong>{{ best.price|floatformat:2 }} {{ best.symbol }}</strong>
+                  {% if best.cut %}<span class="cut">-{{ best.cut }}%</span>{% endif %}
+                </a>
+                <span class="help">{{ best.shop_name }}</span>
+              {% else %}
+                <span class="help">Sin precio</span>
+              {% endif %}
+            </div>
+            <form action="{% url 'library:wish_toggle' game.id %}" method="post">
+              {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button class="link small" type="submit" aria-label="Quitar {{ game.name }} de la lista">Quitar</button>
+            </form>
+          </li>
+        {% endwith %}
+      {% empty %}
+        <li class="empty">Tu lista está vacía. En la ficha de un juego pulsa «Lo quiero» para que te avisemos cuando baje de precio.</li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endblock %}

@@ -2,7 +2,9 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
 from .matching import update_library
-from .models import ExternalTitle, PlatformAccount, Profile, PSNAccount, SteamAccount, User, XboxAccount
+from .models import (
+    ExternalTitle, Notification, PlatformAccount, Profile, PSNAccount, SteamAccount, User, XboxAccount,
+)
 
 admin.site.register(User, UserAdmin)
 
@@ -80,3 +82,11 @@ class ExternalTitleAdmin(admin.ModelAdmin):
     def unlock(self, request, queryset):
         """Desbloquea los títulos elegidos."""
         queryset.update(locked=False)
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ("text", "user", "kind", "created_at", "read_at")
+    list_filter = ("kind",)
+    search_fields = ("text", "user__username")
+    raw_id_fields = ("user", "game")

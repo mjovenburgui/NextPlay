@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
@@ -6,13 +8,14 @@ from django.urls import reverse
 from django.utils.http import urlencode
 from django.views.decorators.http import require_POST
 
-from library.models import LibraryEntry
+from library.models import LibraryEntry, WishlistItem
 from library.views import review_context
 
-from . import igdb
+from . import history, igdb, prices
 from .models import Game, GamePrice, Genre, Platform
 
 PAGE_SIZE = 24
+logger = logging.getLogger(__name__)
 
 
 def catalog(request):
@@ -68,10 +71,14 @@ def detail(request, slug):
     búsqueda a las tiendas de consola sin precio. Las reseñas de perfiles privados solo las ve su autor.
     """
     game = get_object_or_404(Game.objects.prefetch_related("genres", "platforms", "prices"), slug=slug)
-    entry = None
+    entry = wish = None
     if request.user.is_authenticated:
         entry = LibraryEntry.objects.filter(user=request.user, game=game).first()
+        wish = WishlistItem.objects.filter(user=request.user, game=game).first()
     featured_prices, listed_prices, folded_prices, best_price = game.price_groups()
+    has_pc_prices = any(price.source == GamePrice.Source.ITAD for price in game.prices.all())
+    # Con el historial reciente se pinta ya; si hay que pedirlo a ITAD, la ficha lo carga después con HTMX.
+    fresh = not history.needs_update(game)
     return render(
         request,
         "games/detail.html",
@@ -83,7 +90,10 @@ def detail(request, slug):
             "listed_prices": listed_prices,
             "folded_prices": folded_prices,
             "best_price": best_price,
-            "has_pc_prices": any(price.source == GamePrice.Source.ITAD for price in game.prices.all()),
+            "has_pc_prices": has_pc_prices,
+            "price_history": history.summary(game) if fresh else None,
+            "load_price_history": not fresh and has_pc_prices and not game.is_free and prices.is_configured(),
+            "wish": wish,
             "store_searches": game.store_searches(),
             "community": game.community_rating(),
             **review_context(game, entry, request.user),
@@ -108,3 +118,19 @@ def import_search(request):
         else:
             messages.success(request, f"{len(imported)} juegos importados de IGDB.")
     return redirect(f"{reverse('games:catalog')}?{urlencode({'q': query})}")
+
+
+def price_history(request, slug):
+    """Historial de precios de PC del juego con el veredicto «¿compro ahora o espero?» (fragmento HTML).
+
+    Si el guardado tiene más de un día, lo pide antes a IsThereAnyDeal; si ITAD falla, enseña el que
+    hubiera. La ficha lo carga con HTMX para no esperar a ITAD.
+    """
+    game = get_object_or_404(Game.objects.prefetch_related("prices"), slug=slug)
+    has_pc_prices = any(price.source == GamePrice.Source.ITAD for price in game.prices.all())
+    if has_pc_prices and history.needs_update(game) and prices.is_configured():
+        try:
+            history.update_history(game)
+        except prices.ITADError:
+            logger.exception("Falló el historial de precios de %s", game.slug)
+    return render(request, "games/_price_history.html", {"game": game, "price_history": history.summary(game)})

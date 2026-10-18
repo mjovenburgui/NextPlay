@@ -358,3 +358,48 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .candidate p { margin: 0; }
 .candidate form { margin: 0; }
 .unmatched-note { margin: 1rem 0 0; font-size: .9rem; }
+
+/* Lista de deseos, avisos e historial de precios */
+.bell { position: relative; display: inline-flex; color: var(--muted); }
+.bell svg { width: 1.3rem; height: 1.3rem; fill: currentColor; }
+.bell:hover, .bell.has-unread { color: var(--text); text-decoration: none; }
+.bell-count {
+  position: absolute; top: -.45rem; right: -.6rem; min-width: 1.1rem; padding: 0 .25rem;
+  border-radius: 999px; background: var(--pink); color: #fff; font-size: .7rem; font-weight: 700; line-height: 1.1rem; text-align: center;
+}
+.wish { margin: .25rem 0 1rem; }
+.wish form { margin: 0; }
+.wish-btn.is-active { border-color: var(--pink); color: #ffc2de; }
+.wish-btn span { color: var(--pink); }
+.wish-target { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-top: .6rem !important; font-size: .9rem; }
+.wish-target input { width: 7rem; }
+.wishlist, .notifications { margin: 1rem 0 0; padding: 0; list-style: none; }
+.wish-row, .notification { display: flex; align-items: center; gap: .75rem; padding: .7rem 0; border-top: 1px solid var(--border); }
+.wish-row:first-child, .notification:first-child { border-top: 0; }
+.wish-row form { margin: 0; }
+.wish-info, .notification > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.wish-info p, .notification p { margin: 0; }
+.wish-info .pill { margin-left: .4rem; }
+.wish-flag { color: var(--cyan); font-size: .85rem; font-weight: 600; }
+.wish-price { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
+.wish-price .cut { margin-left: .3rem; padding: .1rem .4rem; border-radius: 6px; background: var(--pink); color: #fff; font-size: .8rem; font-weight: 700; }
+.notification.is-unread { margin: 0 -.75rem; padding: .7rem .75rem; background: var(--surface-2); border-radius: 10px; }
+.new-tag { padding: .05rem .4rem; border-radius: 6px; background: var(--pink); color: #fff; font-size: .7rem; font-weight: 700; }
+.price-history { margin-top: .75rem; padding-top: .75rem; border-top: 1px solid var(--border); }
+.verdict { display: flex; flex-direction: column; gap: .1rem; margin: 0 0 .6rem; padding: .55rem .75rem; border-left: 3px solid var(--violet); border-radius: 8px; background: var(--surface-2); font-size: .9rem; }
+.verdict-minimo { border-left-color: var(--cyan); }
+.verdict-minimo strong { color: var(--cyan); }
+.verdict-espera { border-left-color: var(--gold); }
+.verdict-espera strong { color: var(--gold); }
+.price-chart { margin: 0; }
+/* Se estira a lo ancho (preserveAspectRatio=none); las líneas no engordan gracias a non-scaling-stroke. */
+.price-chart svg { display: block; width: 100%; height: 90px; }
+.price-chart-line { fill: none; stroke: var(--cyan); stroke-width: 2; stroke-linejoin: round; }
+.price-chart-area { fill: rgba(34, 224, 240, .12); }
+.price-chart-low { stroke: var(--gold); stroke-width: 1; stroke-dasharray: 4 3; }
+.price-chart-low-key { color: var(--gold); }
+.price-chart figcaption { display: flex; justify-content: space-between; gap: .5rem; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .wish-row { flex-wrap: wrap; }
+  .wish-price { align-items: flex-start; text-align: left; }
+}
