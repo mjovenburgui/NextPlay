@@ -15,11 +15,8 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from games import igdb
-from library.models import LibraryEntry
-
-from .matching import clean_name, match_by_name
-from .models import PSNAccount
+from .matching import add_title, clean_name, match_by_name, normalize, save_titles, update_library
+from .models import ExternalTitle, PSNAccount
 
 AUTH_URL = "https://ca.account.sony.com/api/authz/v3/oauth"
 # Cliente público de la app oficial de PlayStation para Android (el mismo que usan las librerías no oficiales).
@@ -167,14 +164,17 @@ def duration_minutes(value):
 # Títulos de PSN que no son un juego concreto sino un lanzador de varios (p. ej. «Call of Duty®» en PS5,
 # desde el que se abren MWII, MWIII y Black Ops 6). Se cuentan como no encontrados.
 LAUNCHERS = {"call of duty"}
+# Plataforma de IGDB de cada categoría de PSN, para desempatar juegos que se llaman igual (remakes).
+CATEGORY_PLATFORMS = {"ps4_game": "PlayStation 4", "ps5_native_game": "PlayStation 5"}
 
 
 def import_library(user, npsso):
     """Vincula (o actualiza) la cuenta de PSN del NPSSO e importa sus juegos de PS4/PS5 con sus horas.
 
     Los nuevos entran como «Jugando» si se jugaron en los últimos 14 días y como «Jugado» si no; los
-    que ya tenía conservan su estado y solo se les actualizan las horas de PlayStation. Lanza
-    PSNAuthError si el código no vale y ValueError si esa cuenta de PSN ya es de otro usuario.
+    que ya tenía conservan su estado y solo se les actualizan las horas de PlayStation. La versión de
+    PS4 y la de PS5 de un juego se suman. Lanza PSNAuthError si el código no vale y ValueError si esa
+    cuenta de PSN ya es de otro usuario.
 
     Devuelve un dict con la cuenta («account») y cuántos juegos se han añadido («added»), actualizado
     («updated») y no se han encontrado en el catálogo («unmatched»).
@@ -184,36 +184,27 @@ def import_library(user, npsso):
     owner = PSNAccount.objects.filter(account_id=info["account_id"]).exclude(user=user).first()
     if owner is not None:
         raise ValueError("Esa cuenta de PlayStation ya está vinculada a otro usuario.")
-    titles = played_games(token)
 
-    # Minutos y última partida por nombre limpio, juntando la versión de PS4 y la de PS5 del mismo juego.
-    totals = {}
-    for title in titles:
+    titles = {}
+    for title in played_games(token):
         name = clean_name(title.get("localizedName") or title.get("name"))
         if not name:
             continue
-        if igdb._normalize(name) in LAUNCHERS:
-            totals.setdefault(igdb._normalize(name), (0, None, name))  # cuenta como no encontrado
-            continue
-        key = igdb._normalize(name)
-        minutes, last_played, _ = totals.get(key, (0, None, name))
-        played_at = parse_datetime(title.get("lastPlayedDateTime") or "")
-        if played_at and (last_played is None or played_at > last_played):
-            last_played = played_at
-        totals[key] = (minutes + duration_minutes(title.get("playDuration")), last_played, name)
+        platform = CATEGORY_PLATFORMS.get(title.get("category"))
+        add_title(
+            titles, title.get("titleId") or f"name:{normalize(name)}", name,
+            duration_minutes(title.get("playDuration")), parse_datetime(title.get("lastPlayedDateTime") or ""),
+            [platform] if platform else [],
+        )
 
-    matches = match_by_name([name for key, (_, _, name) in totals.items() if key not in LAUNCHERS])
-    per_game = {}
-    for key, (minutes, last_played, _) in totals.items():
-        game = matches.get(key)
-        if game is None:
-            continue
-        old_minutes, old_last = per_game.get(game, (0, None))
-        newest = max((d for d in (old_last, last_played) if d), default=None)
-        per_game[game] = (old_minutes + minutes, newest)
+    def auto_match(ids):
+        """Busca por nombre (y plataforma) los títulos que aún no tienen juego, salvo los lanzadores."""
+        return match_by_name({
+            i: (titles[i]["name"], titles[i]["platforms"])
+            for i in ids if normalize(titles[i]["name"]) not in LAUNCHERS
+        })
 
-    existing = {entry.game_id: entry for entry in LibraryEntry.objects.filter(user=user, game__in=list(per_game))}
-    added = updated = 0
+    games = save_titles(user, ExternalTitle.Platform.PSN, titles, auto_match)
     with transaction.atomic():
         account, _ = PSNAccount.objects.update_or_create(
             user=user,
@@ -224,20 +215,7 @@ def import_library(user, npsso):
                 "synced_at": timezone.now(),
             },
         )
-        for game, (minutes, last_played) in per_game.items():
-            entry = existing.get(game.id)
-            if entry is None:
-                # PSN solo lista juegos que se han abierto: nunca entran como «Pendiente».
-                status = LibraryEntry.imported_status(minutes, last_played)
-                if status == LibraryEntry.Status.BACKLOG:
-                    status = LibraryEntry.Status.PLAYED
-                LibraryEntry.objects.create(
-                    user=user, game=game, status=status,
-                    psn_playtime_minutes=minutes, psn_last_played=last_played,
-                )
-                added += 1
-            elif entry.update_import("psn", minutes, last_played):
-                updated += 1
-    unmatched = sum(1 for key in totals if key not in matches)
+        # PSN solo lista juegos que se han abierto: nunca entran como «Pendiente».
+        added, updated = update_library(user, ExternalTitle.Platform.PSN, opened_only=True)
+    unmatched = sum(1 for game in games.values() if game is None)
     return {"account": account, "added": added, "updated": updated, "unmatched": unmatched}
-

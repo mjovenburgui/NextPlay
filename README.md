@@ -66,6 +66,53 @@ GTA V → GTA V Enhanced), pon el ID de Steam correcto en el campo «ID de Steam
 Los juegos importados antes de este cambio necesitan reimportarse con `import_igdb` para obtener nota
 e ID de Steam.
 
+## Importar de Xbox (aplicación de Azure)
+
+Para el botón «Vincular con Microsoft» hace falta una aplicación de Azure (gratis):
+
+1. En https://portal.azure.com › Microsoft Entra ID › **Registros de aplicaciones** › Nuevo registro.
+2. Tipos de cuenta: **Solo cuentas personales de Microsoft**. URI de redirección: **Web** y
+   `http://localhost:8000/cuenta/xbox/vuelta/` (en producción, la misma ruta con tu dominio).
+3. Copia el «Id. de aplicación (cliente)» a `XBOX_CLIENT_ID`. En **Certificados y secretos** › Nuevo
+   secreto de cliente, copia el **Valor** (no el «Id. de secreto») a `XBOX_CLIENT_SECRET`.
+4. Reinicia `runserver`. No se guarda ningún token de Microsoft: cada sincronización pide iniciar sesión.
+
+## Juegos importados sin emparejar
+
+Cada juego importado de Steam, PlayStation o Xbox se guarda como título de su plataforma
+(`ExternalTitle`) con el juego del catálogo que le corresponde, y cada usuario con sus horas
+(`ImportedTitle`). Los que no se encuentran aparecen en `/cuenta/juegos-importados/` para emparejarlos
+a mano, y la ficha de un juego importado ofrece «¿No es este el juego que jugaste?» para corregir los
+mal emparejados (remakes que se llaman igual). La corrección sirve para todos los usuarios en su
+próxima importación. En `/admin/` › Títulos importados se revisan las correcciones («emparejado por:
+Usuario»), se corrigen al momento para todos y se pueden bloquear.
+
+## Tareas de cada noche
+
+`nightly` sincroniza la biblioteca de Steam de quien tenga activada la sincronización nocturna (se
+desactiva desde el panel de Steam del perfil) y después actualiza los precios:
+
+```bash
+.venv/Scripts/python manage.py nightly
+.venv/Scripts/python manage.py sync_libraries --user ana   # solo un usuario, aunque la tenga desactivada
+```
+
+`sync_libraries` espera 3 segundos entre usuarios (`--pause`) para repartir las llamadas a Steam e IGDB
+y se salta a quien se haya sincronizado en las últimas 12 horas (`--min-hours`). PlayStation y Xbox no
+se sincronizan solas porque no se guarda el código ni el token de la cuenta.
+
+Para programarlo, en Linux con cron (todos los días a las 4:00):
+
+```bash
+0 4 * * * cd /ruta/a/NextPlay && .venv/bin/python manage.py nightly >> nightly.log 2>&1
+```
+
+En Windows, con el Programador de tareas (desde la carpeta del proyecto):
+
+```bash
+schtasks /Create /TN "NextPlay nightly" /SC DAILY /ST 04:00 /TR "cmd /c cd /d %CD% && .venv\Scripts\python.exe manage.py nightly >> nightly.log 2>&1"
+```
+
 ## Tests
 
 ```bash

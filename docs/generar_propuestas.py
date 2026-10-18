@@ -4,7 +4,8 @@
 
 Con --hook lee por stdin el aviso de edición de Claude Code y solo regenera si se tocó propuestas.json.
 Cada propuesta del JSON tiene: titulo, fecha (AAAA-MM-DD), estado (pendiente, en curso, hecha o
-descartada), tipo, resumen, motivo, pasos (lista) y notas.
+descartada), prioridad (alta, media o baja; solo las abiertas), tipo, resumen, motivo, pasos (lista) y notas.
+Dentro de cada prioridad se respeta el orden del JSON, así que la primera es la más urgente.
 """
 
 import json
@@ -25,22 +26,34 @@ from generar_pdf import ACCENT, CODE_BG, MUTED, register_fonts
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "docs" / "propuestas.json"
 OUTPUT = ROOT / "docs" / "NextPlay-propuestas.pdf"
-# Color de la etiqueta de cada estado; las pendientes van primero en el documento.
+# Color de la etiqueta de cada estado.
 STATES = {
     "pendiente": colors.HexColor("#d97706"),
     "en curso": colors.HexColor("#2563eb"),
     "hecha": colors.HexColor("#059669"),
     "descartada": colors.HexColor("#6b7280"),
 }
+# Color de cada prioridad; las abiertas van de alta a baja y las hechas o descartadas al final.
+PRIORITIES = {
+    "alta": colors.HexColor("#dc2626"),
+    "media": colors.HexColor("#d97706"),
+    "baja": colors.HexColor("#6b7280"),
+}
+CLOSED = ("hecha", "descartada")
 
 
 def load():
-    """Lee las propuestas del JSON, ordenadas por estado (pendientes primero) y de la más nueva a la más vieja."""
+    """Lee las propuestas del JSON: abiertas por prioridad (en el orden del JSON) y luego hechas y descartadas."""
     proposals = json.loads(SOURCE.read_text(encoding="utf-8"))
-    order = list(STATES)
-    proposals.sort(key=lambda p: p["fecha"], reverse=True)
-    proposals.sort(key=lambda p: order.index(p["estado"]) if p["estado"] in order else len(order))
-    return proposals
+    order = list(PRIORITIES)
+
+    def rank(p):
+        """Posición de la propuesta: cerradas al final y, entre las abiertas, por prioridad."""
+        if p["estado"] in CLOSED:
+            return (1, list(STATES).index(p["estado"]))
+        return (0, order.index(p.get("prioridad")) if p.get("prioridad") in order else len(order))
+
+    return sorted(proposals, key=rank)
 
 
 def build():
@@ -64,10 +77,13 @@ def build():
         Spacer(1, 0.8 * cm),
     ]
 
-    index = [["Propuesta", "Tipo", "Estado", "Fecha"]]
-    for p in proposals:
-        index.append([Paragraph(escape(p["titulo"]), styles["body"]), p.get("tipo", ""), p["estado"], _date(p["fecha"])])
-    table = Table(index, colWidths=[9 * cm, 3 * cm, 2.5 * cm, 2.5 * cm])
+    index = [["#", "Propuesta", "Prioridad", "Tipo", "Estado"]]
+    for number, p in enumerate(proposals, 1):
+        index.append([
+            str(number), Paragraph(escape(p["titulo"]), styles["body"]), Paragraph(_badge(p.get("prioridad", "—"), PRIORITIES, p.get("prioridad")), styles["body"]),
+            p.get("tipo", ""), p["estado"],
+        ])
+    table = Table(index, colWidths=[0.9 * cm, 8.6 * cm, 2.2 * cm, 2.8 * cm, 2.5 * cm])
     table.setStyle(TableStyle([
         ("FONT", (0, 0), (-1, -1), regular, 9),
         ("FONT", (0, 0), (-1, 0), bold, 9),
@@ -79,11 +95,12 @@ def build():
     story += [table, Spacer(1, 0.8 * cm)]
 
     for number, p in enumerate(proposals, 1):
-        color = STATES.get(p["estado"], MUTED)
-        badge = f'<font color="{color.hexval().replace("0x", "#")}"><b>{escape(p["estado"].upper())}</b></font>'
+        badges = _badge(p["estado"].upper(), STATES, p["estado"])
+        if p.get("prioridad") and p["estado"] not in CLOSED:
+            badges = f"{_badge('PRIORIDAD ' + p['prioridad'].upper(), PRIORITIES, p['prioridad'])} · {badges}"
         block = [
             Paragraph(f"{number}. {escape(p['titulo'])}", styles["h2"]),
-            Paragraph(f"{badge} · {escape(p.get('tipo', ''))} · propuesta el {_date(p['fecha'])}", styles["muted"]),
+            Paragraph(f"{badges} · {escape(p.get('tipo', ''))} · propuesta el {_date(p['fecha'])}", styles["muted"]),
             Paragraph("Qué es", styles["label"]),
             Paragraph(escape(p["resumen"]), styles["body"]),
         ]
@@ -116,6 +133,12 @@ def build():
     )
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
     return len(proposals)
+
+
+def _badge(text, palette, key):
+    """Texto en negrita con el color que le toca a key en la paleta (estado o prioridad), o gris si no está."""
+    color = palette.get(key, MUTED).hexval().replace("0x", "#")
+    return f'<font color="{color}"><b>{escape(text)}</b></font>'
 
 
 def _date(value):

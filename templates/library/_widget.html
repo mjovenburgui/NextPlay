@@ -30,6 +30,10 @@
       {% csrf_token %}
       <button class="link small" type="submit">Quitar de la biblioteca</button>
     </form>
+    {% if entry.playtime_minutes is not None %}
+      {# Solo los que vienen de una importación: puede que se emparejaran con un juego que se llama igual. #}
+      <a class="small" href="{% url 'imported_titles' %}?juego={{ game.id }}">¿No es este el juego que jugaste?</a>
+    {% endif %}
   {% endif %}
 </div>
 {% if community_oob %}

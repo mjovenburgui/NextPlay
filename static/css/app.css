@@ -334,3 +334,27 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .rate-stars:hover .rate-star { color: var(--star-off); }
 .rate-stars .rate-star:hover, .rate-stars .rate-star:hover ~ .rate-star { color: var(--gold); }
 .rate-star:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; border-radius: 4px; }
+
+/* Juegos importados sin emparejar */
+.panel-wide { max-width: 760px; }
+.btn-small { padding: .3rem .7rem; font-size: .85rem; }
+.imported-list { margin: 0; padding: 0; list-style: none; }
+.imported { padding: .8rem 0; border-top: 1px solid var(--border); }
+.imported:first-child { border-top: 0; }
+.imported.is-selected { margin: 0 -.75rem; padding: .8rem .75rem; background: var(--surface-2); border-radius: 10px; }
+.imported-head { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.imported-head form { margin: 0; }
+.imported-head .pill { margin: 0; flex: none; }
+.imported-name { flex: 1; min-width: 10rem; overflow-wrap: anywhere; }
+.imported-name p { margin: 0; }
+.pill-steam { border-color: #66c0f4; color: #66c0f4; }
+.pill-psn { border-color: #3d9bff; color: #3d9bff; }
+.pill-xbox { border-color: #3fbf3f; color: #3fbf3f; }
+.imported-search { display: flex; gap: .5rem; margin: .75rem 0; }
+.imported-search input { flex: 1; }
+.candidates { margin: 0 0 .5rem; padding: 0; list-style: none; }
+.candidate { display: flex; align-items: center; gap: .75rem; padding: .5rem 0; border-top: 1px solid var(--border); }
+.candidate > div { flex: 1; min-width: 0; }
+.candidate p { margin: 0; }
+.candidate form { margin: 0; }
+.unmatched-note { margin: 1rem 0 0; font-size: .9rem; }

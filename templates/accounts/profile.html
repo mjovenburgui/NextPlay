@@ -58,6 +58,9 @@
       <div><dt>Nota media</dt><dd>{% if stats.average_rating %}<span class="gold">★</span> {{ stats.average_rating|floatformat:1 }}{% else %}–{% endif %}</dd></div>
       <div><dt>Reseñas</dt><dd>{{ stats.reviews }}</dd></div>
     </dl>
+    {% if unmatched_count %}
+      <p class="unmatched-note"><a href="{% url 'imported_titles' %}">{{ unmatched_count }} juego{{ unmatched_count|pluralize }} importado{{ unmatched_count|pluralize }} sin emparejar</a> <span class="muted">· búscalos para añadirlos con sus horas</span></p>
+    {% endif %}
     {% if stats.top_genres %}
       <p class="top-genres"><span class="muted small">Le gusta:</span>
         {% for genre in stats.top_genres %}<span class="chip">{{ genre }}</span>{% endfor %}
