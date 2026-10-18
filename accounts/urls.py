@@ -5,6 +5,7 @@ from . import views
 urlpatterns = [
     path("cuenta/registro/", views.signup, name="signup"),
     path("cuenta/perfil/", views.edit_profile, name="edit_profile"),
+    path("cuenta/tiendas/", views.shops_update, name="shops_update"),
     path("cuenta/steam/vincular/", views.steam_link, name="steam_link"),
     path("cuenta/steam/vuelta/", views.steam_callback, name="steam_callback"),
     path("cuenta/steam/importar/", views.steam_import, name="steam_import"),

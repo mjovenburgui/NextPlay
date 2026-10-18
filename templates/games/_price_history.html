@@ -1,5 +1,20 @@
-{# Historial de precios de PC: veredicto, gráfica del último año y última rebaja fuerte. Necesita price_history (o None). #}
+{# Historial de precios de PC: selector de tienda, veredicto, gráfica del último año y última rebaja fuerte. #}
+{# Necesita price_history (o None), history_shops (opciones del selector), history_shop (la elegida) y history_has_data. #}
 <div id="price-history" class="price-history">
+  {% if history_has_data and history_shops|length > 2 %}
+    {# Sin JS el formulario recarga la ficha con ?tienda=; con HTMX solo cambia esta sección. #}
+    <form class="history-shop" method="get" action="{{ game.get_absolute_url }}"
+          hx-get="{% url 'games:price_history' game.slug %}" hx-trigger="change" hx-target="#price-history" hx-swap="outerHTML">
+      <label class="muted small" for="tienda-{{ game.id }}">Historial de</label>
+      <select id="tienda-{{ game.id }}" name="tienda">
+        {% for value, label in history_shops %}<option value="{{ value }}"{% if value == history_shop %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+      <noscript><button class="btn btn-small" type="submit">Ver</button></noscript>
+    </form>
+  {% endif %}
+  {% if history_has_data and not price_history %}
+    <p class="help">{% if history_shop == "" %}Ninguna de tus tiendas lo vende ahora en PC.{% else %}Esa tienda no lo vende ahora.{% endif %} Elige otra para ver su historial.</p>
+  {% endif %}
   {% if price_history %}
     {% with verdict=price_history.verdict chart=price_history.chart %}
       <p class="verdict verdict-{{ verdict.code }}">
@@ -22,7 +37,7 @@
           </div>
           <figcaption class="help">
             <span>{{ chart.start|date:"M Y" }}</span>
-            <span>{{ chart.low|floatformat:2 }} € – {{ chart.high|floatformat:2 }} €{% if chart.low_y is not None %} · <span class="price-chart-low-key">mínimo histórico</span>{% endif %}</span>
+            <span>{{ chart.low|floatformat:2 }} € – {{ chart.high|floatformat:2 }} €{% if chart.low_y is not None %} · <span class="price-chart-low-key">{% if price_history.all_shops %}mínimo histórico{% else %}mínimo en dos años{% endif %}</span>{% endif %}</span>
             <span>Hoy</span>
           </figcaption>
         </figure>

@@ -113,15 +113,22 @@
             Precios de PC de <a href="https://isthereanydeal.com/" target="_blank" rel="noopener">IsThereAnyDeal</a>
           </p>
           {% if not has_pc_prices %}<p class="help">No se han encontrado precios en tiendas de PC.</p>{% endif %}
-          {% if price_history %}
+          {% if history_has_data %}
             {% include "games/_price_history.html" %}
           {% elif load_price_history %}
             <div id="price-history" hx-get="{% url 'games:price_history' game.slug %}" hx-trigger="load" hx-swap="outerHTML">
               <p class="help">Cargando el historial de precios…</p>
             </div>
           {% endif %}
+        {% elif hidden_prices %}
+          <p class="muted no-prices">Ninguna de tus tiendas lo vende.</p>
         {% else %}
           <p class="muted no-prices">No se han encontrado precios en las tiendas.</p>
+        {% endif %}
+        {% if hidden_prices %}
+          <p class="help shops-note">{{ hidden_prices }} tienda{{ hidden_prices|pluralize }} en la{{ hidden_prices|pluralize }} que no compras oculta{{ hidden_prices|pluralize }} · <a href="?tiendas=todas">Ver todas</a> · <a href="{% url 'edit_profile' %}#tiendas">Elegir tiendas</a></p>
+        {% elif user_shops and request.GET.tiendas == "todas" %}
+          <p class="help shops-note">Viendo todas las tiendas · <a href="{{ request.path }}">Solo las mías</a></p>
         {% endif %}
       </section>
 

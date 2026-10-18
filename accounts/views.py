@@ -17,7 +17,7 @@ from django.views.decorators.http import require_POST
 
 from games import igdb
 
-from games.models import Game, Genre
+from games.models import Game, Genre, known_shops
 from library.models import LibraryEntry
 
 from . import matching, psn, steam, xbox
@@ -157,10 +157,16 @@ def edit_profile(request):
         form.save()
         messages.success(request, "Perfil actualizado.")
         return redirect("profile", username=request.user.username)
+    chosen = set(request.user.profile.shops)
     return render(
         request,
         "accounts/edit_profile.html",
-        {"form": form, "profile": request.user.profile, **linking_context()},
+        {
+            "form": form,
+            "profile": request.user.profile,
+            "shop_choices": [(shop_id, name, shop_id in chosen) for shop_id, name in known_shops()],
+            **linking_context(),
+        },
     )
 
 
@@ -586,3 +592,20 @@ def notifications(request):
     unread = {n.pk for n in shown if n.read_at is None}
     request.user.notifications.filter(read_at__isnull=True).update(read_at=timezone.now())
     return render(request, "accounts/notifications.html", {"shown": shown, "unread": unread})
+
+
+@require_POST
+@login_required
+def shops_update(request):
+    """Guarda las tiendas en las que compra el usuario (casillas «shops»). Ninguna o todas = enseñar todas,
+    así las tiendas que aparezcan más adelante también se ven."""
+    known = {shop_id for shop_id, _ in known_shops()}
+    chosen = sorted({int(value) for value in request.POST.getlist("shops") if value.isdigit()} & known)
+    profile = request.user.profile
+    profile.shops = [] if set(chosen) == known else chosen
+    profile.save(update_fields=["shops"])
+    if profile.shops:
+        messages.success(request, f"Guardado: te enseñaremos precios y avisos de {len(profile.shops)} tienda{pluralize(len(profile.shops))}.")
+    else:
+        messages.success(request, "Guardado: te enseñaremos todas las tiendas.")
+    return redirect(f"{reverse('edit_profile')}#tiendas")

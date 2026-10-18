@@ -68,14 +68,19 @@ def detail(request, slug):
     precios y reseñas.
 
     Los precios llegan ya repartidos por Game.price_groups(); store_searches() da los enlaces de
-    búsqueda a las tiendas de consola sin precio. Las reseñas de perfiles privados solo las ve su autor.
+    búsqueda a las tiendas de consola sin precio. Si el usuario ha elegido sus tiendas solo se enseñan
+    esas, salvo con ?tiendas=todas; la gráfica de precios elige tienda con ?tienda=. Las reseñas de
+    perfiles privados solo las ve su autor.
     """
     game = get_object_or_404(Game.objects.prefetch_related("genres", "platforms", "prices"), slug=slug)
     entry = wish = None
     if request.user.is_authenticated:
         entry = LibraryEntry.objects.filter(user=request.user, game=game).first()
         wish = WishlistItem.objects.filter(user=request.user, game=game).first()
-    featured_prices, listed_prices, folded_prices, best_price = game.price_groups()
+    user_shops = _user_shops(request)
+    show_all = request.GET.get("tiendas") == history.ALL_SHOPS or not user_shops
+    featured_prices, listed_prices, folded_prices, best_price = game.price_groups(None if show_all else user_shops)
+    hidden_prices = 0 if show_all else sum(1 for price in game.prices.all() if price.shop_id not in user_shops)
     has_pc_prices = any(price.source == GamePrice.Source.ITAD for price in game.prices.all())
     # Con el historial reciente se pinta ya; si hay que pedirlo a ITAD, la ficha lo carga después con HTMX.
     fresh = not history.needs_update(game)
@@ -91,8 +96,10 @@ def detail(request, slug):
             "folded_prices": folded_prices,
             "best_price": best_price,
             "has_pc_prices": has_pc_prices,
-            "price_history": history.summary(game) if fresh else None,
+            "hidden_prices": hidden_prices,
+            "user_shops": user_shops,
             "load_price_history": not fresh and has_pc_prices and not game.is_free and prices.is_configured(),
+            **(_history_context(request, game, user_shops) if fresh and has_pc_prices else {}),
             "wish": wish,
             "store_searches": game.store_searches(),
             "community": game.community_rating(),
@@ -120,11 +127,31 @@ def import_search(request):
     return redirect(f"{reverse('games:catalog')}?{urlencode({'q': query})}")
 
 
+def _user_shops(request):
+    """Tiendas en las que compra el usuario con sesión (conjunto de ids), o vacío si no ha elegido o no hay sesión."""
+    if not request.user.is_authenticated:
+        return set()
+    return set(request.user.profile.shops)
+
+
+def _history_context(request, game, user_shops):
+    """Variables de la sección del historial: el resumen de las tiendas elegidas con ?tienda= (por defecto,
+    las del usuario), las opciones del selector y la elegida."""
+    shops, selected = history.selected_shops(request.GET.get("tienda", ""), user_shops)
+    return {
+        "price_history": history.summary(game, shops=shops),
+        "history_shops": history.shop_options(game, user_shops),
+        "history_shop": selected,
+        "history_has_data": isinstance(game.price_history, dict) and bool(game.price_history.get("shops")),
+    }
+
+
 def price_history(request, slug):
     """Historial de precios de PC del juego con el veredicto «¿compro ahora o espero?» (fragmento HTML).
 
     Si el guardado tiene más de un día, lo pide antes a IsThereAnyDeal; si ITAD falla, enseña el que
-    hubiera. La ficha lo carga con HTMX para no esperar a ITAD.
+    hubiera. La ficha lo carga con HTMX para no esperar a ITAD, y el selector de tienda lo vuelve a
+    pedir con ?tienda=.
     """
     game = get_object_or_404(Game.objects.prefetch_related("prices"), slug=slug)
     has_pc_prices = any(price.source == GamePrice.Source.ITAD for price in game.prices.all())
@@ -133,4 +160,6 @@ def price_history(request, slug):
             history.update_history(game)
         except prices.ITADError:
             logger.exception("Falló el historial de precios de %s", game.slug)
-    return render(request, "games/_price_history.html", {"game": game, "price_history": history.summary(game)})
+    return render(
+        request, "games/_price_history.html", {"game": game, **_history_context(request, game, _user_shops(request))}
+    )

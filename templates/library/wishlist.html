@@ -17,7 +17,7 @@
         </form>
       {% endif %}
     </div>
-    <p class="muted">Te avisamos en la campana{% if user.profile.price_alert_emails %} y por correo{% endif %} cuando un juego baja de tu precio o está rebajado a su mínimo histórico. Los precios son de PC y Xbox: los juegos solo de PlayStation o Switch no avisan.</p>
+    <p class="muted">Te avisamos en la campana{% if user.profile.price_alert_emails %} y por correo{% endif %} cuando un juego baja de tu precio o está rebajado a su mínimo histórico. Los precios son de PC y Xbox{% if user.profile.shops %}, solo de <a href="{% url 'edit_profile' %}#tiendas">tus tiendas</a>{% endif %}: los juegos solo de PlayStation o Switch no avisan.</p>
 
     <ul class="wishlist">
       {% for row in rows %}
@@ -41,7 +41,7 @@
                 </a>
                 <span class="help">{{ best.shop_name }}</span>
               {% else %}
-                <span class="help">Sin precio</span>
+                <span class="help">{% if user.profile.shops %}No está en tus tiendas{% else %}Sin precio{% endif %}</span>
               {% endif %}
             </div>
             <form action="{% url 'library:wish_toggle' game.id %}" method="post">

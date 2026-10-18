@@ -134,7 +134,7 @@ def _store_prices(game, data, edition="", itad_ids=()):
     game.prices_updated_at = timezone.now()
     if list(itad_ids) != game.itad_ids:
         game.itad_ids = list(itad_ids)
-        game.price_history = []
+        game.price_history = {}
         game.price_history_updated_at = None
     game.save(update_fields=[
         "prices_edition", "historical_low", "historical_low_currency", "prices_updated_at",

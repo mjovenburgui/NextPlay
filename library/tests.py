@@ -224,6 +224,17 @@ class WishlistTests(TestCase):
         self.assertEqual(wishlist.check_alerts(), 1)
         self.assertIn("su mínimo histórico", Notification.objects.get().text)
 
+    def test_only_the_users_shops_count(self):
+        WishlistItem.objects.create(user=self.user, game=self.game, target_price=Decimal("15"))
+        self.set_price("12.49", 50)  # rebajado en Steam, que no es de sus tiendas
+        self.user.profile.shops = [35]
+        self.user.profile.save()
+        self.assertEqual(wishlist.check_alerts(), 0)
+        self.assertContains(self.client.get(reverse("library:wishlist")), "No está en tus tiendas")
+        self.user.profile.shops = [61, 35]
+        self.user.profile.save()
+        self.assertEqual(wishlist.check_alerts(), 1)
+
     def test_no_alert_for_owned_games_and_no_email_when_disabled(self):
         WishlistItem.objects.create(user=self.user, game=self.game, target_price=Decimal("30"))
         LibraryEntry.objects.create(user=self.user, game=self.game)
