@@ -20,6 +20,9 @@ class Profile(models.Model):
         default=True,
         help_text="Si lo desactivas, solo tú podrás ver tu perfil y tu biblioteca.",
     )
+    # La biblioteca de Steam se vuelve a importar sola cada noche (comando sync_libraries) salvo que lo desactive.
+    auto_sync = models.BooleanField("sincronizar Steam cada noche", default=True)
+    auto_synced_at = models.DateTimeField("última sincronización automática", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -268,3 +271,88 @@ class XboxAccount(models.Model):
     def url(self):
         """Perfil público del gamertag en xbox.com, o vacío si no se conoce."""
         return f"https://www.xbox.com/es-ES/play/user/{self.gamertag}" if self.gamertag else ""
+
+
+class ExternalTitle(models.Model):
+    """Juego tal como lo identifica una plataforma (app de Steam, titleId de PlayStation o de Xbox) y el
+    juego del catálogo que le corresponde (vacío si no se encontró).
+
+    Es compartido entre usuarios: la importación lo mira antes de buscar por nombre, así que una
+    corrección hecha a mano sirve para todos. Un administrador puede bloquearlo para que nadie más lo cambie.
+    """
+
+    class Platform(models.TextChoices):
+        STEAM = "steam", "Steam"
+        PSN = "psn", "PlayStation"
+        XBOX = "xbox", "Xbox"
+
+    class Source(models.TextChoices):
+        AUTO = "auto", "Automático"
+        USER = "user", "Usuario"
+        ADMIN = "admin", "Administrador"
+
+    platform = models.CharField("plataforma", max_length=10, choices=Platform.choices)
+    external_id = models.CharField("ID en la plataforma", max_length=64)
+    name = models.CharField("nombre en la plataforma", max_length=255)
+    game = models.ForeignKey(
+        "games.Game", on_delete=models.SET_NULL, null=True, blank=True, related_name="external_titles",
+        verbose_name="juego",
+    )
+    # Las importaciones solo vuelven a buscar los automáticos sin juego; lo puesto a mano se respeta.
+    source = models.CharField("emparejado por", max_length=10, choices=Source.choices, default=Source.AUTO)
+    locked = models.BooleanField(
+        "bloqueado", default=False, help_text="Los usuarios ya no pueden cambiar el juego de este título."
+    )
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+        verbose_name="asignado por",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(fields=["platform", "external_id"], name="unique_external_title"),
+        ]
+        verbose_name = "título importado"
+        verbose_name_plural = "títulos importados"
+
+    def __str__(self):
+        """Texto del título en el admin: «Plataforma: nombre»."""
+        return f"{self.get_platform_display()}: {self.name}"
+
+
+class ImportedTitle(models.Model):
+    """Título que tiene un usuario en una plataforma, con los minutos y la última partida de su última importación.
+
+    De aquí salen las horas de cada plataforma en la biblioteca, así que al corregir el juego de un
+    título se pueden recolocar sin volver a importar.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="imported_titles")
+    title = models.ForeignKey(ExternalTitle, on_delete=models.CASCADE, related_name="imports")
+    # Juego al que se pasaron sus horas en la biblioteca la última vez: si el título cambia de juego, se le
+    # quitan a este. Vacío hasta la primera vez (y en los títulos sin juego).
+    game = models.ForeignKey("games.Game", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    minutes = models.PositiveIntegerField("minutos jugados", default=0)
+    last_played = models.DateTimeField("última partida", null=True, blank=True)
+    # El usuario lo quita de «Sin emparejar» (herramientas, demos, apps...).
+    hidden = models.BooleanField("oculto", default=False)
+    imported_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["title__name"]
+        constraints = [
+            models.UniqueConstraint(fields=["user", "title"], name="unique_imported_title_per_user"),
+        ]
+        verbose_name = "título de un usuario"
+        verbose_name_plural = "títulos de los usuarios"
+
+    def __str__(self):
+        """Texto en el admin: «usuario · título»."""
+        return f"{self.user} · {self.title}"
+
+    @property
+    def hours(self):
+        """Horas jugadas redondeadas a una décima."""
+        return round(self.minutes / 60, 1)

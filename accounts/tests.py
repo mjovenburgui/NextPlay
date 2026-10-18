@@ -1,18 +1,20 @@
+import io
 import json
 import time
 from datetime import timedelta
 from unittest import mock
 
 from django.contrib.auth import get_user_model
+from django.core.management import CommandError, call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from games.models import Game
+from games.models import Game, Platform
 from library.models import LibraryEntry
 
-from . import psn, steam, xbox
-from .models import PlatformAccount, PSNAccount, SteamAccount, XboxAccount
+from . import matching, psn, steam, xbox
+from .models import ExternalTitle, ImportedTitle, PlatformAccount, PSNAccount, SteamAccount, XboxAccount
 
 User = get_user_model()
 
@@ -674,3 +676,206 @@ class LinkDialogTests(TestCase):
         self.assertRedirects(response, profile_url)
         response = self.client.post(reverse("platform_remove", args=["gog"]), {"next": "https://evil.example/"})
         self.assertRedirects(response, f"{reverse('edit_profile')}#plataformas", fetch_redirect_response=False)
+
+
+def psn_import(user, titles, account_id="111"):
+    """Importa de PlayStation con Sony simulado: token, perfil y la lista de juegos jugados."""
+    with mock.patch.multiple(
+        psn,
+        access_token=mock.Mock(return_value="tok"),
+        profile=mock.Mock(return_value={"account_id": account_id, "online_id": "AnaPSN", "avatar": ""}),
+        played_games=mock.Mock(return_value=titles),
+    ):
+        return psn.import_library(user, NPSSO)
+
+
+@override_settings(IGDB_CLIENT_ID="", IGDB_CLIENT_SECRET="")
+class ImportedTitleTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.other = User.objects.create_user("luis", "luis@example.com", "x")
+        ps2 = Platform.objects.create(name="PlayStation 2", slug="ps2")
+        ps4 = Platform.objects.create(name="PlayStation 4", slug="ps4")
+        # Dos juegos con el mismo nombre: el de PS2 es más popular, pero en PS4 solo puede ser el de 2018.
+        cls.gow_2005 = Game.objects.create(name="God of War", slug="god-of-war-2005", popularity=900)
+        cls.gow_2005.platforms.set([ps2])
+        cls.gow_2018 = Game.objects.create(name="God of War", slug="god-of-war", popularity=500)
+        cls.gow_2018.platforms.set([ps4])
+        cls.hades = Game.objects.create(name="Hades", slug="hades")
+
+    def title(self, name, duration="PT2H", title_id=None, **kwargs):
+        """Juego de PSN con su titleId (por defecto, sacado del nombre)."""
+        return {**psn_title(name, duration, **kwargs), "titleId": title_id or name.upper().replace(" ", "_")}
+
+    def test_remakes_are_told_apart_by_platform(self):
+        psn_import(self.user, [self.title("God of War", "PT30H")])
+        entry = LibraryEntry.objects.get(user=self.user)
+        self.assertEqual((entry.game, entry.psn_playtime_minutes), (self.gow_2018, 1800))
+
+    def test_titles_are_saved_and_reused_without_searching_again(self):
+        result = psn_import(self.user, [self.title("Hades"), self.title("Juego Raro")])
+        self.assertEqual(result["unmatched"], 1)
+        hades = ExternalTitle.objects.get(external_id="HADES")
+        self.assertEqual((hades.platform, hades.game, hades.source), ("psn", self.hades, "auto"))
+        self.assertEqual(ImportedTitle.objects.get(user=self.user, title=hades).minutes, 120)
+        # La segunda vez solo se busca el que seguía sin juego.
+        with mock.patch.object(psn, "match_by_name", return_value={}) as search:
+            psn_import(self.user, [self.title("Hades", "PT3H"), self.title("Juego Raro")])
+        self.assertEqual(list(search.call_args.args[0]), ["JUEGO_RARO"])
+        self.assertEqual(LibraryEntry.objects.get(user=self.user, game=self.hades).psn_playtime_minutes, 180)
+
+    def test_unmatched_title_is_assigned_by_hand_for_everyone(self):
+        psn_import(self.user, [self.title("Hades Edición Rara", "PT4H")])
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("imported_titles"))
+        self.assertContains(response, "Hades Edición Rara")
+        imported = ImportedTitle.objects.get(user=self.user)
+        response = self.client.get(reverse("imported_titles"), {"titulo": imported.pk, "q": "hades"})
+        self.assertContains(response, "Es este")
+
+        response = self.client.post(
+            reverse("imported_title_assign", args=[imported.pk]), {"game": self.hades.pk}, follow=True
+        )
+        self.assertContains(response, "es ahora Hades")
+        entry = LibraryEntry.objects.get(user=self.user, game=self.hades)
+        self.assertEqual((entry.psn_playtime_minutes, entry.status), (240, LibraryEntry.Status.PLAYED))
+        title = imported.title
+        title.refresh_from_db()
+        self.assertEqual((title.source, title.assigned_by), ("user", self.user))
+        # Otro usuario con el mismo título lo recibe ya emparejado.
+        with mock.patch.object(psn, "match_by_name", return_value={}) as search:
+            psn_import(self.other, [self.title("Hades Edición Rara", "PT1H")], account_id="222")
+        search.assert_not_called()
+        self.assertTrue(LibraryEntry.objects.filter(user=self.other, game=self.hades).exists())
+
+    def test_wrong_match_moves_hours_and_drops_the_untouched_game(self):
+        psn_import(self.user, [self.title("Hades", "PT5H")])
+        imported = ImportedTitle.objects.get(user=self.user)
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("imported_titles"), {"juego": self.hades.pk})
+        self.assertContains(response, "¿No es Hades?")
+        self.client.post(reverse("imported_title_assign", args=[imported.pk]), {"game": self.gow_2018.pk})
+        self.assertFalse(LibraryEntry.objects.filter(user=self.user, game=self.hades).exists())
+        self.assertEqual(LibraryEntry.objects.get(user=self.user, game=self.gow_2018).psn_playtime_minutes, 300)
+
+    def test_a_correction_by_someone_else_moves_hours_on_the_next_import(self):
+        psn_import(self.other, [self.title("Hades", "PT2H")], account_id="222")
+        psn_import(self.user, [self.title("Hades", "PT5H")])
+        matching.reassign(ImportedTitle.objects.get(user=self.other), self.gow_2018, self.other)
+        psn_import(self.user, [self.title("Hades", "PT6H")])
+        self.assertIsNone(LibraryEntry.objects.get(user=self.user, game=self.hades).psn_playtime_minutes)
+        self.assertEqual(LibraryEntry.objects.get(user=self.user, game=self.gow_2018).psn_playtime_minutes, 360)
+
+    def test_hours_from_before_the_titles_existed_are_kept(self):
+        # Importado antes de que se guardaran los títulos: no hay nada que diga que esté mal emparejado.
+        LibraryEntry.objects.create(user=self.user, game=self.gow_2005, psn_playtime_minutes=0)
+        psn_import(self.user, [self.title("Hades")])
+        self.assertEqual(LibraryEntry.objects.get(user=self.user, game=self.gow_2005).psn_playtime_minutes, 0)
+
+    def test_wrong_match_keeps_a_rated_game_without_its_hours(self):
+        psn_import(self.user, [self.title("Hades", "PT5H")])
+        LibraryEntry.objects.filter(user=self.user, game=self.hades).update(rating=4)
+        imported = ImportedTitle.objects.get(user=self.user)
+        result = matching.reassign(imported, self.gow_2018, self.user)
+        self.assertFalse(result["removed"])
+        self.assertIsNone(LibraryEntry.objects.get(user=self.user, game=self.hades).psn_playtime_minutes)
+
+    def test_locked_titles_and_other_users_titles_cannot_be_changed(self):
+        psn_import(self.user, [self.title("Hades")])
+        imported = ImportedTitle.objects.get(user=self.user)
+        ExternalTitle.objects.update(locked=True)
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("imported_title_assign", args=[imported.pk]), {"game": self.gow_2018.pk}, follow=True
+        )
+        self.assertContains(response, "ya no se puede cambiar")
+        self.assertEqual(ExternalTitle.objects.get().game, self.hades)
+        self.client.force_login(self.other)
+        response = self.client.post(reverse("imported_title_assign", args=[imported.pk]), {"game": ""})
+        self.assertEqual(response.status_code, 404)
+
+    def test_hidden_titles_leave_the_list(self):
+        psn_import(self.user, [self.title("Herramienta Rara")])
+        imported = ImportedTitle.objects.get(user=self.user)
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(reverse("profile", args=["ana"])), "1 juego importado sin emparejar")
+        response = self.client.post(reverse("imported_title_hide", args=[imported.pk]), {"hidden": "1"}, follow=True)
+        self.assertContains(response, "Has ocultado")
+        self.assertNotContains(self.client.get(reverse("imported_titles")), "Herramienta Rara")
+        self.assertContains(self.client.get(reverse("imported_titles"), {"ocultos": "1"}), "Herramienta Rara")
+        self.assertNotContains(self.client.get(reverse("profile", args=["ana"])), "sin emparejar")
+
+    def test_widget_offers_to_review_only_imported_games(self):
+        self.client.force_login(self.user)
+        LibraryEntry.objects.create(user=self.user, game=self.gow_2005)
+        self.assertNotContains(self.client.get(self.gow_2005.get_absolute_url()), "¿No es este el juego")
+        psn_import(self.user, [self.title("Hades")])
+        self.assertContains(self.client.get(self.hades.get_absolute_url()), "¿No es este el juego")
+
+
+@override_settings(STEAM_API_KEY="key", IGDB_CLIENT_ID="", IGDB_CLIENT_SECRET="")
+class SyncLibrariesTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.portal = Game.objects.create(name="Portal 2", slug="portal-2", steam_app_id=620)
+        cls.users = {}
+        for name in ("ana", "luis", "eva", "sin_auto"):
+            user = User.objects.create_user(name, f"{name}@example.com", "x")
+            SteamAccount.objects.create(user=user, steam_id=str(76561197960287930 + len(cls.users)))
+            cls.users[name] = user
+        cls.users["sin_auto"].profile.auto_sync = False
+        cls.users["sin_auto"].profile.save()
+        # Eva sincronizó a mano hace una hora: no hace falta repetirlo esta noche.
+        SteamAccount.objects.filter(user=cls.users["eva"]).update(synced_at=timezone.now() - timedelta(hours=1))
+
+    def run_sync(self, owned, **options):
+        """Lanza sync_libraries sin pausas con Steam simulado (owned es el side_effect de owned_games)."""
+        out = io.StringIO()
+        with mock.patch.object(steam, "owned_games", side_effect=owned), \
+                mock.patch.object(steam, "player_summary", return_value={}):
+            call_command("sync_libraries", pause=0, stdout=out, stderr=io.StringIO(), **options)
+        return out.getvalue()
+
+    def test_syncs_only_users_with_auto_sync_and_not_synced_recently(self):
+        out = self.run_sync(lambda steam_id: [{"appid": 620, "playtime_forever": 90}])
+        synced = set(LibraryEntry.objects.values_list("user__username", flat=True))
+        self.assertEqual(synced, {"ana", "luis"})
+        self.assertIn("2 bibliotecas sincronizadas", out)
+        self.assertIsNotNone(User.objects.get(username="ana").profile.auto_synced_at)
+
+    def test_one_failing_user_does_not_stop_the_rest(self):
+        ana_id = self.users["ana"].steam_accounts.get().steam_id
+
+        def owned(steam_id):
+            """Steam falla con Ana y responde con los demás."""
+            if steam_id == ana_id:
+                raise steam.SteamError("caído")
+            return [{"appid": 620, "playtime_forever": 90}]
+
+        with self.assertLogs("accounts.management.commands.sync_libraries", "ERROR"):
+            out = self.run_sync(owned)
+        self.assertIn("1 bibliotecas sincronizadas, 1 con error", out)
+        self.assertTrue(LibraryEntry.objects.filter(user=self.users["luis"]).exists())
+
+    def test_user_option_forces_one_user(self):
+        self.run_sync(lambda steam_id: [{"appid": 620, "playtime_forever": 90}], user="sin_auto")
+        self.assertEqual(list(LibraryEntry.objects.values_list("user__username", flat=True)), ["sin_auto"])
+        with self.assertRaises(CommandError):
+            self.run_sync(lambda steam_id: [], user="nadie")
+
+    @override_settings(STEAM_API_KEY="")
+    def test_without_steam_key_it_fails_and_nightly_still_runs_prices(self):
+        with self.assertRaisesMessage(CommandError, "sync_libraries"), \
+                mock.patch("games.management.commands.update_prices.Command.handle", return_value=None) as prices:
+            call_command("nightly", stdout=io.StringIO(), stderr=io.StringIO())
+        prices.assert_called_once()
+
+    def test_toggle_from_the_steam_panel(self):
+        user = self.users["ana"]
+        self.client.force_login(user)
+        self.assertContains(self.client.get(reverse("edit_profile")), "Se sincroniza sola cada noche")
+        self.client.post(reverse("steam_auto_sync"), {"auto_sync": "0"})
+        user.profile.refresh_from_db()
+        self.assertFalse(user.profile.auto_sync)
+        self.assertContains(self.client.get(reverse("edit_profile")), "Sincronización nocturna desactivada")

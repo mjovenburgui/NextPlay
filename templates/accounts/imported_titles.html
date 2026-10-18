@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}{% if game %}Revisar {{ game.name }}{% else %}Juegos sin emparejar{% endif %} · NextPlay{% endblock %}
+
+{% block content %}
+  <section class="panel panel-wide">
+    {% if game %}
+      <h1>¿No es {{ game.name }}?</h1>
+      <p class="muted">Estos títulos importados han llevado a <a href="{{ game.get_absolute_url }}">{{ game.name }}</a>. Si no es el juego que jugaste (pasa con remakes que se llaman igual), busca el correcto: tus horas pasarán a él y la corrección servirá para todos.</p>
+    {% else %}
+      <h1>{% if hidden %}Títulos ocultos{% else %}Juegos sin emparejar{% endif %}</h1>
+      <p class="muted">{% if hidden %}Títulos que quitaste de la lista: vuelve a mostrarlos si alguno sí era un juego.{% else %}Juegos importados de Steam, PlayStation o Xbox que no encontramos en el catálogo. Busca cada uno para añadirlo a tu biblioteca con sus horas; la corrección servirá también a los demás jugadores. Oculta los que no sean juegos (herramientas, demos, apps).{% endif %}</p>
+      <nav class="tabs tabs-sub" aria-label="Títulos">
+        <a class="tab{% if not hidden %} is-active{% endif %}" href="{% url 'imported_titles' %}">Sin emparejar</a>
+        <a class="tab{% if hidden %} is-active{% endif %}" href="?ocultos=1">Ocultos <span>{{ hidden_count }}</span></a>
+      </nav>
+    {% endif %}
+
+    <ul class="imported-list">
+      {% for row in rows %}
+        <li class="imported{% if row == selected %} is-selected{% endif %}" id="titulo-{{ row.pk }}">
+          <div class="imported-head">
+            <span class="pill pill-{{ row.title.platform }}">{{ row.title.get_platform_display }}</span>
+            <div class="imported-name">
+              <strong>{{ row.title.name }}</strong>
+              <p class="help">{% if row.minutes %}{{ row.hours|floatformat:"-1" }} h jugadas{% else %}Sin horas{% endif %}{% if row.last_played %} · última partida {{ row.last_played|date:"j M Y" }}{% endif %}{% if row.title.locked %} · revisado por un administrador{% endif %}</p>
+            </div>
+            {% if not row.title.locked or user.is_staff %}
+              {% if row != selected %}<a class="btn btn-small" href="?{% if game %}juego={{ game.pk }}&{% elif hidden %}ocultos=1&{% endif %}titulo={{ row.pk }}#titulo-{{ row.pk }}">Buscar juego</a>{% endif %}
+              {% if not game %}
+                <form action="{% url 'imported_title_hide' row.pk %}" method="post">
+                  {% csrf_token %}<input type="hidden" name="next" value="{{ back }}">
+                  <button class="link small" type="submit" name="hidden" value="{% if hidden %}0{% else %}1{% endif %}">{% if hidden %}Mostrar{% else %}Ocultar{% endif %}</button>
+                </form>
+              {% endif %}
+            {% endif %}
+          </div>
+
+          {% if row == selected %}
+            <form class="imported-search" method="get" action="#titulo-{{ row.pk }}">
+              {% if game %}<input type="hidden" name="juego" value="{{ game.pk }}">{% elif hidden %}<input type="hidden" name="ocultos" value="1">{% endif %}
+              <input type="hidden" name="titulo" value="{{ row.pk }}">
+              <input type="search" name="q" value="{{ search }}" aria-label="Nombre del juego">
+              <button class="btn" type="submit">Buscar</button>
+            </form>
+            {% if results %}
+              <ul class="candidates">
+                {% for candidate in results %}
+                  <li class="candidate">
+                    <span class="review-thumb" aria-hidden="true">{% if candidate.cover_url %}<img src="{{ candidate.cover_url }}" alt="" loading="lazy">{% endif %}</span>
+                    <div>
+                      <strong>{{ candidate.name }}</strong>{% if candidate.release_year %} <span class="muted">({{ candidate.release_year }})</span>{% endif %}
+                      <p class="help">{% for platform in candidate.platforms.all %}{{ platform.short_name }}{% if not forloop.last %} · {% endif %}{% empty %}Plataformas desconocidas{% endfor %}</p>
+                    </div>
+                    {% if candidate == game %}
+                      <span class="muted small">El actual</span>
+                    {% else %}
+                      <form action="{% url 'imported_title_assign' row.pk %}" method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="game" value="{{ candidate.pk }}">
+                        <input type="hidden" name="next" value="{% if game %}{{ candidate.get_absolute_url }}{% else %}{{ back }}{% endif %}">
+                        <button class="btn btn-primary btn-small" type="submit">Es este</button>
+                      </form>
+                    {% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="help">No hay ningún juego con ese nombre. Prueba con menos palabras o con el nombre en inglés.</p>
+            {% endif %}
+            {% if game %}
+              <form action="{% url 'imported_title_assign' row.pk %}" method="post">
+                {% csrf_token %}<input type="hidden" name="game" value=""><input type="hidden" name="next" value="{% url 'imported_titles' %}">
+                <button class="link small" type="submit">No está en el catálogo: dejarlo sin emparejar</button>
+              </form>
+            {% endif %}
+          {% endif %}
+        </li>
+      {% empty %}
+        <li class="empty">
+          {% if game %}Ningún título importado lleva a este juego.{% elif hidden %}No has ocultado ningún título.{% else %}Todo emparejado: no queda ningún juego importado sin encontrar.{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endblock %}

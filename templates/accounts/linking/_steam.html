@@ -23,6 +23,14 @@
         <button class="btn btn-primary" type="submit">Sincronizar {% if accounts|length > 1 %}las {{ accounts|length }} cuentas{% else %}juegos{% endif %}</button>
       </form>
       {% if accounts|length > 1 %}<p class="help">Si un juego está en varias cuentas, se suman sus horas.</p>{% endif %}
+      <form action="{% url 'steam_auto_sync' %}" method="post">
+        {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+        {% if profile.auto_sync %}
+          <p class="help">Se sincroniza sola cada noche{% if profile.auto_synced_at %} (la última, hace {{ profile.auto_synced_at|timesince }}){% endif %}. <button class="link small" type="submit" name="auto_sync" value="0">Desactivar</button></p>
+        {% else %}
+          <p class="help">Sincronización nocturna desactivada. <button class="link small" type="submit" name="auto_sync" value="1">Activar</button></p>
+        {% endif %}
+      </form>
     {% else %}
       <p class="help">La importación de juegos no está disponible: falta configurar STEAM_API_KEY.</p>
     {% endif %}

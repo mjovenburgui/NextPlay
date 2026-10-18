@@ -12,7 +12,9 @@ from django.utils import timezone
 
 from games import igdb
 from games.models import Game
-from library.models import LibraryEntry
+
+from .matching import add_title, save_titles, update_library
+from .models import ExternalTitle
 
 OPENID_URL = "https://steamcommunity.com/openid/login"
 OPENID_NS = "http://specs.openid.net/auth/2.0"
@@ -167,8 +169,9 @@ def import_library(user, include_unplayed=False):
     horas y se toma la última partida más reciente. Los nuevos entran como «Jugando» si se jugaron en
     los últimos 14 días y como «Jugado» si no; los que ya tenía conservan su estado y solo se les
     actualizan las horas. Con include_unplayed también entran los que nunca ha abierto, como
-    «Pendiente». Las cuentas que no dejan ver sus juegos se saltan; si no deja ninguna, lanza
-    SteamPrivateError.
+    «Pendiente». Cada app queda guardada como título importado, así que las que no se encuentren se
+    pueden emparejar a mano. Las cuentas que no dejan ver sus juegos se saltan; si no deja ninguna,
+    lanza SteamPrivateError.
 
     Devuelve un dict con cuántos juegos se han añadido («added»), actualizado («updated») y no se han
     encontrado en el catálogo («unmatched»), y los nombres de las cuentas privadas («private»).
@@ -184,38 +187,26 @@ def import_library(user, include_unplayed=False):
         raise SteamPrivateError("Ninguna cuenta de Steam deja ver sus juegos.")
     if not include_unplayed:
         owned = [game for game in owned if game.get("playtime_forever")]
-    app_ids = list(dict.fromkeys(game["appid"] for game in owned if game.get("appid")))
 
-    matches = _match_games(app_ids)
-    # Minutos y última partida por juego, sumando todas las cuentas y apps que lleven a él.
-    totals = {}
+    titles = {}
     for data in owned:
-        game = matches.get(data.get("appid"))
-        if game is None:
-            continue
-        minutes, last_played = totals.get(game, (0, None))
-        played_at = _played_at(data)
-        if played_at and (last_played is None or played_at > last_played):
-            last_played = played_at
-        totals[game] = (minutes + (data.get("playtime_forever") or 0), last_played)
+        if data.get("appid"):
+            add_title(
+                titles, data["appid"], data.get("name") or f"App {data['appid']}",
+                data.get("playtime_forever"), _played_at(data),
+            )
 
-    existing = {entry.game_id: entry for entry in LibraryEntry.objects.filter(user=user, game__in=list(totals))}
-    added = updated = 0
+    def auto_match(ids):
+        """Busca por su ID de app de Steam los títulos que aún no tienen juego."""
+        return {str(app_id): game for app_id, game in _match_games([int(i) for i in ids]).items()}
+
+    games = save_titles(user, ExternalTitle.Platform.STEAM, titles, auto_match)
     with transaction.atomic():
-        for game, (minutes, last_played) in totals.items():
-            entry = existing.get(game.id)
-            if entry is None:
-                LibraryEntry.objects.create(
-                    user=user, game=game, status=LibraryEntry.imported_status(minutes, last_played),
-                    steam_playtime_minutes=minutes, steam_last_played=last_played,
-                )
-                added += 1
-            elif entry.update_import("steam", minutes, last_played):
-                updated += 1
+        added, updated = update_library(user, ExternalTitle.Platform.STEAM)
         user.steam_accounts.exclude(pk__in=[account.pk for account in private]).update(synced_at=timezone.now())
     return {
         "added": added,
         "updated": updated,
-        "unmatched": len(app_ids) - len(matches),
+        "unmatched": sum(1 for game in games.values() if game is None),
         "private": [account.name for account in private],
     }

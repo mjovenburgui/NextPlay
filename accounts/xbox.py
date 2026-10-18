@@ -14,10 +14,8 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from library.models import LibraryEntry
-
-from .matching import clean_name, match_by_name, normalize
-from .models import PlatformAccount, XboxAccount
+from .matching import add_title, clean_name, match_by_name, normalize, save_titles, update_library
+from .models import ExternalTitle, PlatformAccount, XboxAccount
 
 AUTHORIZE_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize"
 TOKEN_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
@@ -34,6 +32,14 @@ XSTS_ERRORS = {
     2148916233: "Esa cuenta Microsoft no tiene perfil de Xbox. Entra una vez en xbox.com para crearlo.",
     2148916235: "Xbox Live no está disponible en el país de tu cuenta.",
     2148916238: "Es una cuenta infantil: un adulto tiene que añadirla a una familia de Microsoft.",
+}
+# Plataforma de IGDB de cada dispositivo del historial, para desempatar juegos que se llaman igual (remakes).
+DEVICE_PLATFORMS = {
+    "Xbox360": "Xbox 360",
+    "XboxOne": "Xbox One",
+    "XboxSeries": "Xbox Series X|S",
+    "PC": "PC (Microsoft Windows)",
+    "Win32": "PC (Microsoft Windows)",
 }
 
 
@@ -176,11 +182,12 @@ def minutes_played(xuid, auth, title_ids):
 def import_library(user, code, redirect_uri):
     """Vincula (o actualiza) la cuenta de Xbox del inicio de sesión e importa sus juegos con los minutos jugados.
 
-    Los juegos se emparejan con el catálogo por nombre. Los nuevos entran como «Jugando» si se jugaron
-    en los últimos 14 días y como «Jugado» si no; los que ya tenía conservan su estado (salvo
-    «Pendiente», que pasa a jugado si hay horas) y se les actualizan los minutos de Xbox. Si el usuario
-    tenía puesto a mano un gamertag en «Otras plataformas», se quita porque ya está la cuenta verificada.
-    Lanza ValueError si esa cuenta de Xbox ya es de otro usuario.
+    Los juegos se emparejan con el catálogo por nombre (y por los dispositivos en los que se jugaron).
+    Los nuevos entran como «Jugando» si se jugaron en los últimos 14 días y como «Jugado» si no; los
+    que ya tenía conservan su estado (salvo «Pendiente», que pasa a jugado si hay horas) y se les
+    actualizan los minutos de Xbox. Si el usuario tenía puesto a mano un gamertag en «Otras
+    plataformas», se quita porque ya está la cuenta verificada. Lanza ValueError si esa cuenta de Xbox
+    ya es de otro usuario.
 
     Devuelve un dict con la cuenta («account») y cuántos juegos se han añadido («added»), actualizado
     («updated») y no se han encontrado en el catálogo («unmatched»).
@@ -188,33 +195,26 @@ def import_library(user, code, redirect_uri):
     xbl = xbox_tokens(code, redirect_uri)
     if XboxAccount.objects.filter(xuid=xbl["xuid"]).exclude(user=user).exists():
         raise ValueError("Esa cuenta de Xbox ya está vinculada a otro usuario.")
-    titles = played_titles(xbl["xuid"], xbl["auth"])
-    minutes = minutes_played(xbl["xuid"], xbl["auth"], [str(t["titleId"]) for t in titles if t.get("titleId")])
+    played = played_titles(xbl["xuid"], xbl["auth"])
+    minutes = minutes_played(xbl["xuid"], xbl["auth"], [str(t["titleId"]) for t in played if t.get("titleId")])
 
-    # Minutos y última partida por nombre limpio (un juego puede venir dos veces: Xbox y PC).
-    totals = {}
-    for title in titles:
+    titles = {}
+    for title in played:
         name = clean_name(title.get("name"))
         if not name:
             continue
-        key = normalize(name)
-        total, last_played, _ = totals.get(key, (0, None, name))
-        played_at = parse_datetime((title.get("titleHistory") or {}).get("lastTimePlayed") or "")
-        if played_at and (last_played is None or played_at > last_played):
-            last_played = played_at
-        totals[key] = (total + minutes.get(str(title.get("titleId")), 0), last_played, name)
+        title_id = str(title.get("titleId") or "")
+        add_title(
+            titles, title_id or f"name:{normalize(name)}", name, minutes.get(title_id, 0),
+            parse_datetime((title.get("titleHistory") or {}).get("lastTimePlayed") or ""),
+            [DEVICE_PLATFORMS[d] for d in title.get("devices") or [] if d in DEVICE_PLATFORMS],
+        )
 
-    matches = match_by_name([name for _, _, name in totals.values()])
-    per_game = {}
-    for key, (total, last_played, _) in totals.items():
-        game = matches.get(key)
-        if game is None:
-            continue
-        old_total, old_last = per_game.get(game, (0, None))
-        per_game[game] = (old_total + total, max((d for d in (old_last, last_played) if d), default=None))
+    def auto_match(ids):
+        """Busca por nombre (y plataforma) los títulos que aún no tienen juego."""
+        return match_by_name({i: (titles[i]["name"], titles[i]["platforms"]) for i in ids})
 
-    existing = {entry.game_id: entry for entry in LibraryEntry.objects.filter(user=user, game__in=list(per_game))}
-    added = updated = 0
+    games = save_titles(user, ExternalTitle.Platform.XBOX, titles, auto_match)
     with transaction.atomic():
         account, _ = XboxAccount.objects.update_or_create(
             user=user,
@@ -226,19 +226,7 @@ def import_library(user, code, redirect_uri):
             },
         )
         PlatformAccount.objects.filter(user=user, platform=PlatformAccount.Platform.XBOX).delete()
-        for game, (total, last_played) in per_game.items():
-            entry = existing.get(game.id)
-            if entry is None:
-                # El historial solo trae juegos abiertos alguna vez: nunca entran como «Pendiente».
-                status = LibraryEntry.imported_status(total, last_played)
-                if status == LibraryEntry.Status.BACKLOG:
-                    status = LibraryEntry.Status.PLAYED
-                LibraryEntry.objects.create(
-                    user=user, game=game, status=status,
-                    xbox_playtime_minutes=total, xbox_last_played=last_played,
-                )
-                added += 1
-            elif entry.update_import("xbox", total, last_played):
-                updated += 1
-    unmatched = sum(1 for key in totals if key not in matches)
+        # El historial solo trae juegos abiertos alguna vez: nunca entran como «Pendiente».
+        added, updated = update_library(user, ExternalTitle.Platform.XBOX, opened_only=True)
+    unmatched = sum(1 for game in games.values() if game is None)
     return {"account": account, "added": added, "updated": updated, "unmatched": unmatched}

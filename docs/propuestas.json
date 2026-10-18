@@ -1,53 +1,106 @@
 [
   {
-    "titulo": "Saber qué juegos están en Game Pass",
+    "titulo": "Sacar .env del repositorio y cambiar las claves",
     "fecha": "2026-10-17",
     "estado": "pendiente",
-    "tipo": "Funcionalidad",
-    "resumen": "Marcar con una insignia los juegos que están en Game Pass (consola y PC), avisar de los que salen pronto y poder filtrar el pendiente por «está en Game Pass».",
-    "motivo": "Los IDs de producto de Microsoft ya se guardan (xbox_product_ids) para los precios de Xbox, así que cruzarlos con el catálogo de Game Pass cuesta poco. A quien paga la suscripción le dice qué puede jugar sin comprar nada.",
+    "prioridad": "alta",
+    "tipo": "Seguridad",
+    "resumen": "Dejar de versionar el archivo .env para que las claves (IGDB, IsThereAnyDeal, Steam...) no acaben en GitHub.",
+    "motivo": ".gitignore incluye .env, pero el archivo se subió en el commit «Create .env» y git lo sigue versionando. Cualquier clave que se ponga ahí se sube con el siguiente commit.",
     "pasos": [
-      "Leer cada día las colecciones del catálogo público de Game Pass (catalog.gamepass.com), que devuelven IDs de producto de Microsoft.",
-      "Guardar en cada juego si está en Game Pass de consola, de PC o en EA Play, y si está en «sale pronto».",
-      "Insignia en las tarjetas y en la ficha, y filtro en el catálogo y en la biblioteca.",
-      "Aviso en el perfil: «3 juegos de tu pendiente salen de Game Pass este mes»."
-    ],
-    "notas": "Es una API sin documentar, como la de la tienda de Xbox que ya se usa, y podría cambiar. PS Plus no tiene ninguna fuente fiable, así que quedaría fuera."
-  },
-  {
-    "titulo": "Directos de Twitch en la ficha del juego",
-    "fecha": "2026-10-17",
-    "estado": "pendiente",
-    "tipo": "Funcionalidad",
-    "resumen": "Mostrar en la ficha los directos en español que hay ahora mismo de ese juego, con el número de espectadores y un enlace a Twitch.",
-    "motivo": "Las credenciales de IGDB son las de una aplicación de Twitch, así que sirven también para su API sin pedir ninguna clave nueva. Da vida a la ficha y ayuda a decidir si un juego te va a gustar.",
-    "pasos": [
-      "Pedir a la API de Twitch (Helix) el ID de categoría del juego a partir de su ID de IGDB y guardarlo.",
-      "Pedir los directos de esa categoría filtrando por idioma (español primero) y quedarse con los 3 o 4 con más espectadores.",
-      "Guardar la respuesta en caché unos minutos para no llamar a Twitch en cada visita.",
-      "Bloque «En directo ahora» en la ficha, oculto si no hay directos."
+      "git rm --cached .env para que git deje de versionarlo sin borrarlo del ordenador.",
+      "Commit del cambio; a partir de ahí .gitignore lo ignora de verdad.",
+      "Cambiar en cada servicio las claves que ya se subieron (están en el historial de git aunque se quite el archivo).",
+      "Mantener .env.example con los nombres de las variables y sin valores."
     ],
     "notas": ""
   },
   {
-    "titulo": "Precios de Nintendo eShop y PlayStation Store",
+    "titulo": "Borrar la cuenta, descargar mis datos y privacidad (RGPD)",
     "fecha": "2026-10-17",
     "estado": "pendiente",
-    "tipo": "Funcionalidad",
-    "resumen": "Añadir los precios de la eShop de Nintendo y de la tienda de PlayStation en la ficha, igual que ya se hace con PC y Xbox.",
-    "motivo": "El README dice que para PlayStation y Nintendo no hay fuente de precios y que la ficha solo enlaza a una búsqueda en su tienda. Nintendo sí tiene una API de precios pública, aunque no esté documentada.",
+    "prioridad": "alta",
+    "tipo": "Legal",
+    "resumen": "Botones para borrar la cuenta y para descargar todos tus datos, más una página de privacidad que explique qué se guarda de cada plataforma.",
+    "motivo": "Ahora no hay forma de borrar la cuenta ni de exportar los datos, y el RGPD obliga a ofrecer las dos cosas antes de abrir la web al público en España.",
     "pasos": [
-      "Nintendo: buscar el NSUID de cada juego con la API de búsqueda de Nintendo Europa y emparejarlo por nombre.",
-      "Pedir el precio y el descuento con la API de precios de la eShop (api.ec.nintendo.com) para ES.",
-      "PlayStation (experimental): leer el precio de la API que usa la web de PlayStation Store.",
-      "Mostrarlos como dos tiendas más en la ficha y meterlos en update_prices."
+      "«Borrar mi cuenta» en Editar perfil, con confirmación de contraseña; borra biblioteca, reseñas y cuentas vinculadas.",
+      "«Descargar mis datos» en JSON o CSV: perfil, biblioteca, valoraciones, reseñas y cuentas vinculadas.",
+      "Página de privacidad: qué se guarda (IDs de Steam, PSN y Xbox; el NPSSO no se guarda), a qué servicios se llama (IGDB, IsThereAnyDeal, Steam, Sony, Microsoft) y cómo pedir el borrado.",
+      "Enlaces en el pie de página."
     ],
-    "notas": "Las dos son sin documentar, como la de Xbox. La de PlayStation es la más frágil; la de Nintendo la usan desde hace años muchas webs de ofertas."
+    "notas": "Si solo se usan las cookies de sesión y CSRF no hace falta banner de cookies; si algún día se añaden analíticas, sí."
+  },
+  {
+    "titulo": "Importar juegos y horas de Xbox",
+    "fecha": "2026-10-17",
+    "estado": "en curso",
+    "prioridad": "alta",
+    "tipo": "Funcionalidad",
+    "resumen": "Vincular cuentas de Xbox (cuenta Microsoft) e importar sus juegos con los minutos jugados, igual que con Steam.",
+    "motivo": "Después de Steam, Xbox es la única plataforma que permite hacerlo de forma fiable: el usuario inicia sesión con su cuenta Microsoft y se puede leer su historial de juegos y estadísticas.",
+    "pasos": [
+      "Registrar una aplicación gratuita en Azure (o pedir una clave de OpenXBL, más sencillo) y guardar sus credenciales en el .env.",
+      "Inicio de sesión con cuenta Microsoft (OAuth) y obtención del token de Xbox Live del usuario.",
+      "Modelo XboxAccount (usuario, XUID único, gamertag, avatar), con varias cuentas por usuario como en Steam.",
+      "Leer el historial de juegos y los minutos jugados, y emparejar con el catálogo vía IGDB (que guarda los IDs de Microsoft Store).",
+      "Sumar las horas con las de Steam cuando un juego está en las dos plataformas."
+    ],
+    "notas": "Algunos juegos antiguos o de Xbox 360 no tienen estadística de minutos jugados; entrarían sin horas. Programada el 17/10/2026 con la vía oficial (aplicación de Azure + XboxLive.signin), sin guardar tokens. El 18/10/2026 pasó a guardar cada título en la tabla de títulos importados y a desempatar por los dispositivos en los que se jugó. Falta crear la aplicación de Azure (pasos en el README), poner XBOX_CLIENT_ID y XBOX_CLIENT_SECRET en el .env y probarla con una cuenta real."
+  },
+  {
+    "titulo": "Sincronización automática de la biblioteca",
+    "fecha": "2026-10-17",
+    "estado": "en curso",
+    "prioridad": "alta",
+    "tipo": "Infraestructura",
+    "resumen": "Que la biblioteca de Steam se actualice sola cada noche (horas y juegos nuevos) y que update_prices se programe de verdad, sin tener que pulsar nada.",
+    "motivo": "Ahora todo es manual: el botón de sincronizar y el comando de precios. Las alertas de precio, Game Pass y los logros necesitan tareas que se ejecuten solas.",
+    "pasos": [
+      "Comando sync_libraries que recorra las cuentas de Steam vinculadas.",
+      "Programar las tareas: cron del servidor o un planificador de Django (django-q2, Celery beat).",
+      "Repartir las llamadas a lo largo de la noche para no pasar los límites de Steam e IGDB.",
+      "Mostrar en el perfil la fecha de la última sincronización automática y un interruptor para desactivarla."
+    ],
+    "notas": "Xbox solo se podría si se guarda cifrado el token de refresco, que ahora no se guarda a propósito. PlayStation no se puede sin guardar el NPSSO, y se decidió no guardarlo. Hecha el 18/10/2026 con cron (sin Celery ni django-q): comandos sync_libraries (pausa entre usuarios, salta a los sincronizados en las últimas 12 h, un fallo no para a los demás) y nightly (Steam y después precios), interruptor y fecha de la última sincronización en el panel de Steam. Probada con una cuenta real de Steam. Falta programarla de verdad: cron en el servidor o Programador de tareas de Windows (instrucciones en el README)."
+  },
+  {
+    "titulo": "Revisar los juegos que no se emparejaron al importar",
+    "fecha": "2026-10-17",
+    "estado": "hecha",
+    "tipo": "Funcionalidad",
+    "resumen": "Una página con los juegos importados que no se encontraron en el catálogo (o que se emparejaron mal) para asignarlos a mano, y que esa corrección sirva para todos los usuarios.",
+    "motivo": "Steam solo avisa de cuántos no se encontraron y PlayStation y Xbox emparejan por nombre quedándose con el más popular, lo que falla con remakes que se llaman igual (God of War de 2005 y de 2018, Resident Evil 4, Dead Space...).",
+    "pasos": [
+      "Modelo ExternalTitle (plataforma, ID externo, nombre, juego) donde se guarda cada título importado, emparejado o no.",
+      "Al importar, mirar primero esa tabla antes de buscar por nombre.",
+      "Página «Juegos sin emparejar» con un buscador para asignar cada uno, y botón «Este no es mi juego» en la biblioteca.",
+      "Las asignaciones de un usuario se aplican a los demás; el admin puede revisarlas y bloquear las malas.",
+      "Para remakes, desempatar por plataforma (un juego de PS5 no puede ser el de PS2)."
+    ],
+    "notas": "Hecha el 18/10/2026: modelos ExternalTitle e ImportedTitle, página /cuenta/juegos-importados/ con buscador (catálogo y, si salen pocos, IGDB), «¿No es este el juego que jugaste?» en la ficha, ocultar herramientas y demos, admin para revisar, corregir al momento y bloquear, y desempate de remakes por plataforma (PS4/PS5 en PlayStation, dispositivos en Xbox). Las correcciones de un usuario llegan a los demás en su próxima importación; las del admin, al momento."
+  },
+  {
+    "titulo": "Lista de deseos con alertas de precio",
+    "fecha": "2026-10-17",
+    "estado": "pendiente",
+    "prioridad": "alta",
+    "tipo": "Funcionalidad",
+    "resumen": "Marcar juegos como «Lo quiero» y recibir un aviso (en la web y por correo) cuando bajen de un precio o lleguen a su mínimo histórico.",
+    "motivo": "Ya se guardan precios de varias tiendas y el mínimo histórico cada día con update_prices; falta sacarle partido para el usuario.",
+    "pasos": [
+      "Nuevo estado «Lo quiero» en la biblioteca o modelo Wishlist aparte con precio objetivo opcional.",
+      "Al terminar update_prices, comparar con las listas de deseos y crear avisos para los que crucen el umbral o igualen el mínimo histórico.",
+      "Icono de notificaciones en la cabecera y correo opcional (ya está configurado el envío para recuperar contraseña).",
+      "Página «Mi lista de deseos» ordenable por descuento."
+    ],
+    "notas": "Solo funciona en PC y Xbox, que es donde hay fuente de precios; en PlayStation y Nintendo se mostraría sin alerta. Ya estaba planeada antes de proponerla."
   },
   {
     "titulo": "Historial de precios y «¿compro ahora o espero?»",
     "fecha": "2026-10-17",
     "estado": "pendiente",
+    "prioridad": "alta",
     "tipo": "Funcionalidad",
     "resumen": "Una gráfica con la evolución del precio en PC y un veredicto sencillo: «está en su mínimo histórico», «buen precio» o «suele bajar más, espera».",
     "motivo": "Ahora solo se muestra el mínimo histórico. IsThereAnyDeal también da el historial completo de precios con la misma clave que ya se usa.",
@@ -60,39 +113,27 @@
     "notas": "Solo funciona en PC, que es de donde viene el historial."
   },
   {
-    "titulo": "Juegos gratis para quedártelos",
+    "titulo": "Seguir a otros jugadores y feed de actividad",
     "fecha": "2026-10-17",
     "estado": "pendiente",
+    "prioridad": "alta",
     "tipo": "Funcionalidad",
-    "resumen": "Una sección con los juegos que se pueden reclamar gratis ahora mismo (el semanal de Epic, regalos de GOG o Steam) y cuándo dejan de estarlo.",
-    "motivo": "Es contenido que se renueva solo cada semana y hace volver a la web. Epic tiene un endpoint público de promociones y IsThereAnyDeal marca las ofertas al 100 %.",
+    "resumen": "Poder seguir a otros usuarios y ver en la portada lo que hacen: juegos que empiezan o terminan, valoraciones y reseñas nuevas.",
+    "motivo": "NextPlay se presenta como red social, pero ahora mismo no hay ninguna relación entre usuarios. Es la pieza que convierte la biblioteca personal en comunidad.",
     "pasos": [
-      "Leer las promociones gratuitas de Epic para España y las ofertas al 100 % de IsThereAnyDeal.",
-      "Emparejarlas con el catálogo (Epic por nombre; IsThereAnyDeal ya trae el juego).",
-      "Bloque en el catálogo con la cuenta atrás de cada una.",
-      "Si existe la lista de deseos, avisar cuando un juego deseado se regala."
+      "Modelo Follow (seguidor, seguido, fecha) con restricción única y sin poder seguirse a uno mismo.",
+      "Botón Seguir / Dejar de seguir en el perfil (HTMX) y contadores de seguidores y seguidos.",
+      "Modelo Activity (usuario, tipo, juego, fecha) que se crea al cambiar de estado, valorar o reseñar; las importaciones masivas de Steam/PSN/Xbox se agrupan en una sola actividad («importó 129 juegos»).",
+      "Página de feed con la actividad de la gente que sigues, paginada, respetando los perfiles privados.",
+      "Tests de visibilidad y de agrupación."
     ],
-    "notas": ""
-  },
-  {
-    "titulo": "Steam Deck, parches y «jugando ahora»",
-    "fecha": "2026-10-17",
-    "estado": "pendiente",
-    "tipo": "Funcionalidad",
-    "resumen": "Con el ID de Steam y la clave que ya hay: compatibilidad con Steam Deck y Linux en la ficha, las últimas noticias y parches de los juegos que estás jugando y un indicador «jugando ahora» en el perfil.",
-    "motivo": "Son tres datos que Steam da casi gratis y que ahora no se aprovechan. La importación ya llama a GetPlayerSummaries, que también dice a qué está jugando el usuario en ese momento.",
-    "pasos": [
-      "Steam Deck: leer el estado de verificación de Valve (verificado, jugable, no compatible) y la nota de ProtonDB para Linux; filtro «jugable en Deck» en el pendiente.",
-      "Parches: bloque «Novedades de tus juegos» con las últimas noticias de los juegos en Jugando (GetNewsForApp, sin clave).",
-      "Jugando ahora: al abrir un perfil con Steam vinculado, mostrar «Jugando a X ahora» si Steam lo indica, con caché de un par de minutos.",
-      "Guardar en caché las tres cosas para no saturar la API."
-    ],
-    "notas": "Los endpoints de Steam Deck y ProtonDB no están documentados. «Jugando ahora» solo funciona si el perfil de Steam es público."
+    "notas": "Las insignias de PSN, Switch, Epic... del perfil encajan aquí: sirven para añadir como amigo en la plataforma a quien sigues. Ya estaba planeada antes de proponerla."
   },
   {
     "titulo": "Ficha del juego más completa",
     "fecha": "2026-10-17",
     "estado": "pendiente",
+    "prioridad": "alta",
     "tipo": "Funcionalidad",
     "resumen": "Traer más datos de IGDB a la ficha: tráiler, capturas, estudio y editora, edad PEGI, modos de juego (cooperativo, online, pantalla partida), DLC y la saga con tu progreso («has jugado 3 de 9»).",
     "motivo": "La ficha solo tiene carátula, resumen, géneros y plataformas; IGDB da todo lo demás en la misma consulta y varias ideas (buscar grupo, «qué juego esta noche») necesitan los modos de juego.",
@@ -106,144 +147,136 @@
     "notas": ""
   },
   {
-    "titulo": "Revisar los juegos que no se emparejaron al importar",
-    "fecha": "2026-10-17",
+    "titulo": "Quitar DLC y actualizaciones de las búsquedas en IGDB",
+    "fecha": "2026-10-18",
     "estado": "pendiente",
+    "prioridad": "media",
     "tipo": "Funcionalidad",
-    "resumen": "Una página con los juegos importados que no se encontraron en el catálogo (o que se emparejaron mal) para asignarlos a mano, y que esa corrección sirva para todos los usuarios.",
-    "motivo": "Steam solo avisa de cuántos no se encontraron y PlayStation y Xbox emparejan por nombre quedándose con el más popular, lo que falla con remakes que se llaman igual (God of War de 2005 y de 2018, Resident Evil 4, Dead Space...).",
+    "resumen": "Que al buscar en IGDB (desde el catálogo o al emparejar un juego importado) solo entren juegos completos, remakes, remasters y ediciones ampliadas, no DLC, trajes ni «Title Update».",
+    "motivo": "Buscando «Monster Hunter Wilds» para emparejar un título de Steam entraron al catálogo una docena de trajes y actualizaciones del juego. Ensucian el catálogo, la búsqueda y las recomendaciones futuras.",
     "pasos": [
-      "Modelo ExternalTitle (plataforma, ID externo, nombre, juego) donde se guarda cada título importado, emparejado o no.",
-      "Al importar, mirar primero esa tabla antes de buscar por nombre.",
-      "Página «Juegos sin emparejar» con un buscador para asignar cada uno, y botón «Este no es mi juego» en la biblioteca.",
-      "Las asignaciones de un usuario se aplican a los demás; el admin puede revisarlas y bloquear las malas.",
-      "Para remakes, desempatar por plataforma (un juego de PS5 no puede ser el de PS2)."
+      "Pedir a IGDB el campo game_type (antes category) en las búsquedas.",
+      "Filtrar en la consulta los tipos de juego principal, remake, remaster, juego ampliado y port.",
+      "Comando para borrar del catálogo los DLC ya importados que no estén en ninguna biblioteca."
     ],
     "notas": ""
   },
   {
-    "titulo": "Sincronización automática de la biblioteca",
+    "titulo": "Duración estimada de los juegos",
     "fecha": "2026-10-17",
     "estado": "pendiente",
-    "tipo": "Infraestructura",
-    "resumen": "Que la biblioteca de Steam se actualice sola cada noche (horas y juegos nuevos) y que update_prices se programe de verdad, sin tener que pulsar nada.",
-    "motivo": "Ahora todo es manual: el botón de sincronizar y el comando de precios. Las alertas de precio, Game Pass y los logros necesitan tareas que se ejecuten solas.",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Mostrar en la ficha cuánto se tarda en terminar un juego (historia, historia + extras, 100 %) y cuánto le falta al usuario según sus horas.",
+    "motivo": "Ayuda a decidir qué jugar del pendiente y combina bien con las horas importadas y con las recomendaciones.",
     "pasos": [
-      "Comando sync_libraries que recorra las cuentas de Steam vinculadas.",
-      "Programar las tareas: cron del servidor o un planificador de Django (django-q2, Celery beat).",
-      "Repartir las llamadas a lo largo de la noche para no pasar los límites de Steam e IGDB.",
-      "Mostrar en el perfil la fecha de la última sincronización automática y un interruptor para desactivarla."
+      "Importar los tiempos de IGDB (endpoint game_time_to_beats), que es oficial y ya tenemos credenciales.",
+      "Calcular con las horas de la comunidad de NextPlay los tiempos de quienes lo marcaron como Completado.",
+      "Filtro del catálogo y del pendiente por duración («menos de 10 horas»)."
     ],
-    "notas": "Xbox solo se podría si se guarda cifrado el token de refresco, que ahora no se guarda a propósito. PlayStation no se puede sin guardar el NPSSO, y se decidió no guardarlo."
+    "notas": "Ya estaba planeada antes de proponerla."
   },
   {
-    "titulo": "Colección física con escáner de código de barras",
+    "titulo": "Recomendaciones «Qué jugar después»",
     "fecha": "2026-10-17",
     "estado": "pendiente",
+    "prioridad": "media",
     "tipo": "Funcionalidad",
-    "resumen": "Apuntar en qué plataforma y formato tienes cada juego (físico, digital, suscripción) y añadir juegos físicos escaneando el código de barras de la caja con el móvil.",
-    "motivo": "Nintendo Switch no tiene ninguna forma de importar la biblioteca y mucha gente tiene colección física. Además, la biblioteca no guarda en qué plataforma tienes cada juego.",
+    "resumen": "Sugerir juegos del catálogo y de la propia lista de pendientes según lo que el usuario ha valorado alto y más horas ha jugado.",
+    "motivo": "Encaja con el nombre de la app (NextPlay) y aprovecha el backlog importado, que en cuentas reales suele tener cientos de juegos sin empezar.",
     "pasos": [
-      "Campos nuevos en la biblioteca: plataforma, formato, edición y, opcional, precio pagado.",
-      "Página de escaneo para móvil con la API BarcodeDetector del navegador (y una librería de respaldo para iPhone, que no la tiene).",
-      "Tabla compartida de códigos de barras: la primera persona que escanea un juego elige cuál es y a partir de ahí sale solo para todos.",
-      "Contador de la colección por plataforma en el perfil."
+      "Primera versión simple: puntuar juegos por géneros y plataformas en común con los mejor valorados del usuario, más nota de la crítica.",
+      "Bloque «Elige de tu pendiente» que escoge entre los juegos en Pendiente con un botón de «otro».",
+      "Más adelante, filtrado colaborativo: «a quien le gustó X también le gustó Y» con las valoraciones de la comunidad.",
+      "Excluir los que ya están completados o abandonados."
     ],
-    "notas": ""
+    "notas": "IGDB también devuelve similar_games para cada juego; importarlo daría recomendaciones decentes sin algoritmo propio. Ya estaba planeada antes de proponerla."
   },
   {
-    "titulo": "Encontrar a tus amigos de Steam y Xbox en NextPlay",
+    "titulo": "Listas personalizadas de juegos",
     "fecha": "2026-10-17",
     "estado": "pendiente",
+    "prioridad": "media",
     "tipo": "Funcionalidad",
-    "resumen": "Al vincular Steam o Xbox, sugerir seguir a tus amigos de esas plataformas que ya están en NextPlay, y un enlace para invitar a los que no.",
-    "motivo": "Una red social nueva está vacía al principio. Las cuentas vinculadas permiten saber quién es amigo de quién sin que el usuario busque a nadie.",
+    "resumen": "Que cada usuario cree listas con nombre y descripción («Mejores metroidvanias», «Para jugar en pareja»), ordenadas y públicas o privadas.",
+    "motivo": "El README ya promete listas y aún no existen. Son el contenido que más se comparte en webs como Letterboxd o Backloggd.",
     "pasos": [
-      "Steam: leer la lista de amigos de cada cuenta vinculada (GetFriendList, si es pública) y cruzarla con las cuentas de Steam de NextPlay.",
-      "Xbox: leer los amigos en el momento de vincular, mientras se tiene el token.",
-      "Pantalla «Tus amigos ya están aquí» con botón de seguir a todos.",
-      "Enlace de invitación personal."
+      "Modelos GameList (usuario, título, descripción, pública) y GameListItem (lista, juego, posición, nota).",
+      "Crear, editar y reordenar desde el perfil (arrastrar con HTMX o botones subir/bajar).",
+      "Botón «Añadir a una lista» en la ficha del juego.",
+      "Mostrar en la ficha en qué listas públicas aparece el juego."
     ],
-    "notas": "Depende de la propuesta de seguir a otros jugadores."
+    "notas": "Ya estaba planeada antes de proponerla."
   },
   {
-    "titulo": "Ranking personal por duelos",
+    "titulo": "Estadísticas del perfil y resumen anual",
     "fecha": "2026-10-17",
     "estado": "pendiente",
+    "prioridad": "media",
     "tipo": "Funcionalidad",
-    "resumen": "Un juego rápido de «¿cuál te gustó más?» entre dos juegos que has jugado, que va construyendo tu top personal de verdad.",
-    "motivo": "Con estrellas de 1 a 5 casi todo acaba en 4 o 5 y no se puede ordenar. Comparar de dos en dos es más fácil y engancha.",
+    "resumen": "Una pestaña de estadísticas en el perfil (horas totales por plataforma, géneros favoritos, juegos completados por año, nota media) y un «Wrapped» anual compartible.",
+    "motivo": "Con las horas importadas de Steam, PlayStation y Xbox hay datos de sobra y casi ninguna web los junta todos. Es muy vistoso y anima a vincular cuentas.",
     "pasos": [
-      "Página de duelos con dos juegos de tu biblioteca (completados o jugados) y un botón «saltar».",
-      "Puntuación tipo Elo por usuario y juego, que elige los duelos más útiles (juegos con puntuación parecida).",
-      "Tu top 10 en el perfil, ordenado por esa puntuación.",
-      "Más adelante, usar estas preferencias en las recomendaciones."
+      "Consultas agregadas sobre LibraryEntry: minutos por plataforma, por género y por estado.",
+      "Gráficas sencillas en la plantilla (SVG o una librería ligera).",
+      "Página de resumen del año con los juegos más jugados y una imagen para compartir.",
+      "Respetar el perfil privado."
     ],
-    "notas": ""
+    "notas": "Para «completados por año» haría falta guardar la fecha en que un juego pasa a Completado; ahora solo hay updated_at. Ya estaba planeada antes de proponerla."
   },
   {
-    "titulo": "Etiquetas de la comunidad y «¿Qué juego esta noche?»",
+    "titulo": "Saber qué juegos están en Game Pass",
     "fecha": "2026-10-17",
     "estado": "pendiente",
+    "prioridad": "media",
     "tipo": "Funcionalidad",
-    "resumen": "Que quien ha jugado un juego le ponga etiquetas como «relajante», «difícil», «para ratos cortos» o «buena historia», y un buscador rápido por tiempo, compañía y ánimo.",
-    "motivo": "Los géneros de IGDB («Aventura», «RPG») no dicen cómo se siente un juego. Las etiquetas de la comunidad sí, y permiten buscar por situación y no por categoría.",
+    "resumen": "Marcar con una insignia los juegos que están en Game Pass (consola y PC), avisar de los que salen pronto y poder filtrar el pendiente por «está en Game Pass».",
+    "motivo": "Los IDs de producto de Microsoft ya se guardan (xbox_product_ids) para los precios de Xbox, así que cruzarlos con el catálogo de Game Pass cuesta poco. A quien paga la suscripción le dice qué puede jugar sin comprar nada.",
     "pasos": [
-      "Lista cerrada de etiquetas (ánimo, dificultad, duración de sesión, accesibilidad, cooperativo local...).",
-      "Votarlas solo si el juego está en tu biblioteca y no está en Pendiente.",
-      "Mostrar las más votadas en la ficha y filtrar por ellas en el catálogo.",
-      "Formulario «¿Qué juego esta noche?»: cuánto tiempo tienes, solo o acompañado y qué te apetece; busca primero en tu propia biblioteca."
+      "Leer cada día las colecciones del catálogo público de Game Pass (catalog.gamepass.com), que devuelven IDs de producto de Microsoft.",
+      "Guardar en cada juego si está en Game Pass de consola, de PC o en EA Play, y si está en «sale pronto».",
+      "Insignia en las tarjetas y en la ficha, y filtro en el catálogo y en la biblioteca.",
+      "Aviso en el perfil: «3 juegos de tu pendiente salen de Game Pass este mes»."
     ],
-    "notas": ""
+    "notas": "Es una API sin documentar, como la de la tienda de Xbox que ya se usa, y podría cambiar. PS Plus no tiene ninguna fuente fiable, así que quedaría fuera."
   },
   {
-    "titulo": "Buscar grupo para jugar",
+    "titulo": "Importar logros y trofeos",
     "fecha": "2026-10-17",
     "estado": "pendiente",
+    "prioridad": "media",
     "tipo": "Funcionalidad",
-    "resumen": "Publicar «busco gente para X en PS5 esta noche» en los juegos multijugador, con tu PSN ID, gamertag o código de amigo ya puesto.",
-    "motivo": "Los usuarios ya guardan sus IDs de PlayStation, Xbox, Switch, Epic y Battle.net, pero ahora solo se ven como insignias. Esto les da un uso real.",
+    "resumen": "Traer el porcentaje de logros de Steam, trofeos de PlayStation y logros de Xbox y mostrarlo en la biblioteca y el perfil (platinos, 100 %).",
+    "motivo": "Las tres integraciones ya están hechas y sus APIs dan los logros con poco trabajo extra; es de lo que más presumen los jugadores.",
     "pasos": [
-      "Modelo LFGPost (usuario, juego, plataforma, cuándo, idioma, micrófono, texto) que caduca a las pocas horas.",
-      "Solo en juegos con modos multijugador (necesita los datos de la ficha más completa).",
-      "Página de búsquedas activas filtrable por juego y plataforma, y aviso a quien tiene el juego en su biblioteca.",
-      "Botón de denunciar y límite de publicaciones por usuario."
+      "Steam: GetPlayerAchievements por juego (más lento: una llamada por juego, hacerlo en segundo plano).",
+      "PlayStation: la lista de títulos de trofeos ya trae progreso y platino.",
+      "Xbox: endpoint de logros por título.",
+      "Campo de progreso en LibraryEntry e insignia de platino / 100 % en las tarjetas."
     ],
-    "notas": ""
+    "notas": "Conviene antes tener tareas en segundo plano (Celery o django-q) porque la sincronización de Steam sería larga. Ya estaba planeada antes de proponerla."
   },
   {
-    "titulo": "Joyas ocultas y juegos en los que la comunidad discrepa",
+    "titulo": "Me gusta y comentarios en las reseñas",
     "fecha": "2026-10-17",
     "estado": "pendiente",
+    "prioridad": "media",
     "tipo": "Funcionalidad",
-    "resumen": "Una página de descubrimiento con los juegos poco populares que la comunidad valora muy alto, y otra con los que más difieren entre la nota de la crítica y la de los jugadores.",
-    "motivo": "Usa solo datos que ya existen (nota de la crítica, valoración de la comunidad y popularidad), así que es barato y da contenido que no ofrece IGDB.",
+    "resumen": "Reaccionar a las reseñas con «me gusta», comentarlas y ordenar las de la ficha por las más útiles.",
+    "motivo": "Las reseñas ya existen, pero no hay forma de interactuar con ellas; es la interacción social más barata de añadir.",
     "pasos": [
-      "Consulta con un mínimo de valoraciones para que no salgan juegos con un solo voto.",
-      "Comparar la nota de la crítica (0-100) con la de la comunidad pasada a la misma escala.",
-      "Dos listados en el catálogo: «Joyas ocultas» y «La comunidad no está de acuerdo»."
+      "Modelo ReviewLike (usuario, entrada de biblioteca) y contador en la reseña.",
+      "Comentarios cortos con moderación básica (borrar los propios y que el autor pueda borrar los de su reseña).",
+      "Orden de reseñas en la ficha: más útiles / más recientes.",
+      "Botón de denunciar reseña para el admin."
     ],
-    "notas": "Tiene más sentido cuando haya bastantes usuarios valorando."
-  },
-  {
-    "titulo": "Retos del año y control del pendiente",
-    "fecha": "2026-10-17",
-    "estado": "pendiente",
-    "tipo": "Funcionalidad",
-    "resumen": "Ponerte un reto («terminar 20 juegos en 2027») con su barra de progreso, ver cuánto vale tu pendiente al precio de hoy y repasar los juegos que llevan meses en «Jugando» sin tocarse.",
-    "motivo": "Las importaciones llenan el pendiente con cientos de juegos y dejan en «Jugando» juegos que ya no juegas. Un reto y un poco de vergüenza («tu pendiente vale 1.240 €») animan a terminarlos.",
-    "pasos": [
-      "Modelo de reto anual por usuario y barra de progreso en el perfil.",
-      "Guardar la fecha en que un juego pasa a Completado (ahora solo hay updated_at).",
-      "Valor del pendiente sumando el mejor precio actual de cada juego.",
-      "Asistente «Revisa tu biblioteca» con los juegos en Jugando sin partidas en 6 meses (las fechas de la última partida ya se importan) para pasarlos a Abandonado o Pendiente."
-    ],
-    "notas": "Con la duración estimada de los juegos se podría añadir «a tu ritmo terminarías el pendiente en N años»."
+    "notas": "Ya estaba planeada antes de proponerla."
   },
   {
     "titulo": "Vistas previas al compartir y tarjeta para incrustar",
     "fecha": "2026-10-17",
     "estado": "pendiente",
+    "prioridad": "media",
     "tipo": "Funcionalidad",
     "resumen": "Que al pegar un enlace de NextPlay en WhatsApp, Discord o X salga una tarjeta con la carátula, y una imagen de tu perfil que se actualiza sola para ponerla en foros, Twitch o GitHub.",
     "motivo": "Ahora la cabecera solo tiene título y descripción, así que los enlaces compartidos salen sin imagen. Cada enlace compartido es publicidad gratis.",
@@ -259,6 +292,7 @@
     "titulo": "Entrar con Steam o con cuenta Microsoft",
     "fecha": "2026-10-17",
     "estado": "pendiente",
+    "prioridad": "media",
     "tipo": "Funcionalidad",
     "resumen": "Poder crear la cuenta e iniciar sesión con Steam o con Microsoft, reutilizando los inicios de sesión que ya se usan para vincular esas cuentas.",
     "motivo": "Registrarse con correo y contraseña es la parte que más gente abandona, y los flujos de Steam (OpenID) y Microsoft (OAuth) ya están programados.",
@@ -271,155 +305,193 @@
     "notas": "No unir cuentas automáticamente por correo sin verificarlo, porque permitiría entrar en la cuenta de otro."
   },
   {
-    "titulo": "Borrar la cuenta, descargar mis datos y privacidad (RGPD)",
+    "titulo": "Juegos gratis para quedártelos",
     "fecha": "2026-10-17",
     "estado": "pendiente",
-    "tipo": "Legal",
-    "resumen": "Botones para borrar la cuenta y para descargar todos tus datos, más una página de privacidad que explique qué se guarda de cada plataforma.",
-    "motivo": "Ahora no hay forma de borrar la cuenta ni de exportar los datos, y el RGPD obliga a ofrecer las dos cosas antes de abrir la web al público en España.",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Una sección con los juegos que se pueden reclamar gratis ahora mismo (el semanal de Epic, regalos de GOG o Steam) y cuándo dejan de estarlo.",
+    "motivo": "Es contenido que se renueva solo cada semana y hace volver a la web. Epic tiene un endpoint público de promociones y IsThereAnyDeal marca las ofertas al 100 %.",
     "pasos": [
-      "«Borrar mi cuenta» en Editar perfil, con confirmación de contraseña; borra biblioteca, reseñas y cuentas vinculadas.",
-      "«Descargar mis datos» en JSON o CSV: perfil, biblioteca, valoraciones, reseñas y cuentas vinculadas.",
-      "Página de privacidad: qué se guarda (IDs de Steam, PSN y Xbox; el NPSSO no se guarda), a qué servicios se llama (IGDB, IsThereAnyDeal, Steam, Sony, Microsoft) y cómo pedir el borrado.",
-      "Enlaces en el pie de página."
+      "Leer las promociones gratuitas de Epic para España y las ofertas al 100 % de IsThereAnyDeal.",
+      "Emparejarlas con el catálogo (Epic por nombre; IsThereAnyDeal ya trae el juego).",
+      "Bloque en el catálogo con la cuenta atrás de cada una.",
+      "Si existe la lista de deseos, avisar cuando un juego deseado se regala."
     ],
-    "notas": "Si solo se usan las cookies de sesión y CSRF no hace falta banner de cookies; si algún día se añaden analíticas, sí."
+    "notas": ""
   },
   {
-    "titulo": "Seguir a otros jugadores y feed de actividad",
+    "titulo": "Steam Deck, parches y «jugando ahora»",
     "fecha": "2026-10-17",
     "estado": "pendiente",
+    "prioridad": "media",
     "tipo": "Funcionalidad",
-    "resumen": "Poder seguir a otros usuarios y ver en la portada lo que hacen: juegos que empiezan o terminan, valoraciones y reseñas nuevas.",
-    "motivo": "NextPlay se presenta como red social, pero ahora mismo no hay ninguna relación entre usuarios. Es la pieza que convierte la biblioteca personal en comunidad.",
+    "resumen": "Con el ID de Steam y la clave que ya hay: compatibilidad con Steam Deck y Linux en la ficha, las últimas noticias y parches de los juegos que estás jugando y un indicador «jugando ahora» en el perfil.",
+    "motivo": "Son tres datos que Steam da casi gratis y que ahora no se aprovechan. La importación ya llama a GetPlayerSummaries, que también dice a qué está jugando el usuario en ese momento.",
     "pasos": [
-      "Modelo Follow (seguidor, seguido, fecha) con restricción única y sin poder seguirse a uno mismo.",
-      "Botón Seguir / Dejar de seguir en el perfil (HTMX) y contadores de seguidores y seguidos.",
-      "Modelo Activity (usuario, tipo, juego, fecha) que se crea al cambiar de estado, valorar o reseñar; las importaciones masivas de Steam/PSN/Xbox se agrupan en una sola actividad («importó 129 juegos»).",
-      "Página de feed con la actividad de la gente que sigues, paginada, respetando los perfiles privados.",
-      "Tests de visibilidad y de agrupación."
+      "Steam Deck: leer el estado de verificación de Valve (verificado, jugable, no compatible) y la nota de ProtonDB para Linux; filtro «jugable en Deck» en el pendiente.",
+      "Parches: bloque «Novedades de tus juegos» con las últimas noticias de los juegos en Jugando (GetNewsForApp, sin clave).",
+      "Jugando ahora: al abrir un perfil con Steam vinculado, mostrar «Jugando a X ahora» si Steam lo indica, con caché de un par de minutos.",
+      "Guardar en caché las tres cosas para no saturar la API."
     ],
-    "notas": "Las insignias de PSN, Switch, Epic... del perfil encajan aquí: sirven para añadir como amigo en la plataforma a quien sigues. Ya estaba planeada antes de proponerla."
+    "notas": "Los endpoints de Steam Deck y ProtonDB no están documentados. «Jugando ahora» solo funciona si el perfil de Steam es público."
   },
   {
-    "titulo": "Lista de deseos con alertas de precio",
+    "titulo": "Encontrar a tus amigos de Steam y Xbox en NextPlay",
     "fecha": "2026-10-17",
     "estado": "pendiente",
+    "prioridad": "media",
     "tipo": "Funcionalidad",
-    "resumen": "Marcar juegos como «Lo quiero» y recibir un aviso (en la web y por correo) cuando bajen de un precio o lleguen a su mínimo histórico.",
-    "motivo": "Ya se guardan precios de varias tiendas y el mínimo histórico cada día con update_prices; falta sacarle partido para el usuario.",
+    "resumen": "Al vincular Steam o Xbox, sugerir seguir a tus amigos de esas plataformas que ya están en NextPlay, y un enlace para invitar a los que no.",
+    "motivo": "Una red social nueva está vacía al principio. Las cuentas vinculadas permiten saber quién es amigo de quién sin que el usuario busque a nadie.",
     "pasos": [
-      "Nuevo estado «Lo quiero» en la biblioteca o modelo Wishlist aparte con precio objetivo opcional.",
-      "Al terminar update_prices, comparar con las listas de deseos y crear avisos para los que crucen el umbral o igualen el mínimo histórico.",
-      "Icono de notificaciones en la cabecera y correo opcional (ya está configurado el envío para recuperar contraseña).",
-      "Página «Mi lista de deseos» ordenable por descuento."
+      "Steam: leer la lista de amigos de cada cuenta vinculada (GetFriendList, si es pública) y cruzarla con las cuentas de Steam de NextPlay.",
+      "Xbox: leer los amigos en el momento de vincular, mientras se tiene el token.",
+      "Pantalla «Tus amigos ya están aquí» con botón de seguir a todos.",
+      "Enlace de invitación personal."
     ],
-    "notas": "Solo funciona en PC y Xbox, que es donde hay fuente de precios; en PlayStation y Nintendo se mostraría sin alerta. Ya estaba planeada antes de proponerla."
+    "notas": "Depende de la propuesta de seguir a otros jugadores."
   },
   {
-    "titulo": "Estadísticas del perfil y resumen anual",
+    "titulo": "Precios de Nintendo eShop y PlayStation Store",
     "fecha": "2026-10-17",
     "estado": "pendiente",
+    "prioridad": "media",
     "tipo": "Funcionalidad",
-    "resumen": "Una pestaña de estadísticas en el perfil (horas totales por plataforma, géneros favoritos, juegos completados por año, nota media) y un «Wrapped» anual compartible.",
-    "motivo": "Con las horas importadas de Steam, PlayStation y Xbox hay datos de sobra y casi ninguna web los junta todos. Es muy vistoso y anima a vincular cuentas.",
+    "resumen": "Añadir los precios de la eShop de Nintendo y de la tienda de PlayStation en la ficha, igual que ya se hace con PC y Xbox.",
+    "motivo": "El README dice que para PlayStation y Nintendo no hay fuente de precios y que la ficha solo enlaza a una búsqueda en su tienda. Nintendo sí tiene una API de precios pública, aunque no esté documentada.",
     "pasos": [
-      "Consultas agregadas sobre LibraryEntry: minutos por plataforma, por género y por estado.",
-      "Gráficas sencillas en la plantilla (SVG o una librería ligera).",
-      "Página de resumen del año con los juegos más jugados y una imagen para compartir.",
-      "Respetar el perfil privado."
+      "Nintendo: buscar el NSUID de cada juego con la API de búsqueda de Nintendo Europa y emparejarlo por nombre.",
+      "Pedir el precio y el descuento con la API de precios de la eShop (api.ec.nintendo.com) para ES.",
+      "PlayStation (experimental): leer el precio de la API que usa la web de PlayStation Store.",
+      "Mostrarlos como dos tiendas más en la ficha y meterlos en update_prices."
     ],
-    "notas": "Para «completados por año» haría falta guardar la fecha en que un juego pasa a Completado; ahora solo hay updated_at. Ya estaba planeada antes de proponerla."
+    "notas": "Las dos son sin documentar, como la de Xbox. La de PlayStation es la más frágil; la de Nintendo la usan desde hace años muchas webs de ofertas."
   },
   {
-    "titulo": "Listas personalizadas de juegos",
+    "titulo": "Retos del año y control del pendiente",
     "fecha": "2026-10-17",
     "estado": "pendiente",
+    "prioridad": "baja",
     "tipo": "Funcionalidad",
-    "resumen": "Que cada usuario cree listas con nombre y descripción («Mejores metroidvanias», «Para jugar en pareja»), ordenadas y públicas o privadas.",
-    "motivo": "El README ya promete listas y aún no existen. Son el contenido que más se comparte en webs como Letterboxd o Backloggd.",
+    "resumen": "Ponerte un reto («terminar 20 juegos en 2027») con su barra de progreso, ver cuánto vale tu pendiente al precio de hoy y repasar los juegos que llevan meses en «Jugando» sin tocarse.",
+    "motivo": "Las importaciones llenan el pendiente con cientos de juegos y dejan en «Jugando» juegos que ya no juegas. Un reto y un poco de vergüenza («tu pendiente vale 1.240 €») animan a terminarlos.",
     "pasos": [
-      "Modelos GameList (usuario, título, descripción, pública) y GameListItem (lista, juego, posición, nota).",
-      "Crear, editar y reordenar desde el perfil (arrastrar con HTMX o botones subir/bajar).",
-      "Botón «Añadir a una lista» en la ficha del juego.",
-      "Mostrar en la ficha en qué listas públicas aparece el juego."
+      "Modelo de reto anual por usuario y barra de progreso en el perfil.",
+      "Guardar la fecha en que un juego pasa a Completado (ahora solo hay updated_at).",
+      "Valor del pendiente sumando el mejor precio actual de cada juego.",
+      "Asistente «Revisa tu biblioteca» con los juegos en Jugando sin partidas en 6 meses (las fechas de la última partida ya se importan) para pasarlos a Abandonado o Pendiente."
     ],
-    "notas": "Ya estaba planeada antes de proponerla."
+    "notas": "Con la duración estimada de los juegos se podría añadir «a tu ritmo terminarías el pendiente en N años»."
   },
   {
-    "titulo": "Me gusta y comentarios en las reseñas",
+    "titulo": "Etiquetas de la comunidad y «¿Qué juego esta noche?»",
     "fecha": "2026-10-17",
     "estado": "pendiente",
+    "prioridad": "baja",
     "tipo": "Funcionalidad",
-    "resumen": "Reaccionar a las reseñas con «me gusta», comentarlas y ordenar las de la ficha por las más útiles.",
-    "motivo": "Las reseñas ya existen, pero no hay forma de interactuar con ellas; es la interacción social más barata de añadir.",
+    "resumen": "Que quien ha jugado un juego le ponga etiquetas como «relajante», «difícil», «para ratos cortos» o «buena historia», y un buscador rápido por tiempo, compañía y ánimo.",
+    "motivo": "Los géneros de IGDB («Aventura», «RPG») no dicen cómo se siente un juego. Las etiquetas de la comunidad sí, y permiten buscar por situación y no por categoría.",
     "pasos": [
-      "Modelo ReviewLike (usuario, entrada de biblioteca) y contador en la reseña.",
-      "Comentarios cortos con moderación básica (borrar los propios y que el autor pueda borrar los de su reseña).",
-      "Orden de reseñas en la ficha: más útiles / más recientes.",
-      "Botón de denunciar reseña para el admin."
+      "Lista cerrada de etiquetas (ánimo, dificultad, duración de sesión, accesibilidad, cooperativo local...).",
+      "Votarlas solo si el juego está en tu biblioteca y no está en Pendiente.",
+      "Mostrar las más votadas en la ficha y filtrar por ellas en el catálogo.",
+      "Formulario «¿Qué juego esta noche?»: cuánto tiempo tienes, solo o acompañado y qué te apetece; busca primero en tu propia biblioteca."
     ],
-    "notas": "Ya estaba planeada antes de proponerla."
+    "notas": ""
   },
   {
-    "titulo": "Recomendaciones «Qué jugar después»",
+    "titulo": "Ranking personal por duelos",
     "fecha": "2026-10-17",
     "estado": "pendiente",
+    "prioridad": "baja",
     "tipo": "Funcionalidad",
-    "resumen": "Sugerir juegos del catálogo y de la propia lista de pendientes según lo que el usuario ha valorado alto y más horas ha jugado.",
-    "motivo": "Encaja con el nombre de la app (NextPlay) y aprovecha el backlog importado, que en cuentas reales suele tener cientos de juegos sin empezar.",
+    "resumen": "Un juego rápido de «¿cuál te gustó más?» entre dos juegos que has jugado, que va construyendo tu top personal de verdad.",
+    "motivo": "Con estrellas de 1 a 5 casi todo acaba en 4 o 5 y no se puede ordenar. Comparar de dos en dos es más fácil y engancha.",
     "pasos": [
-      "Primera versión simple: puntuar juegos por géneros y plataformas en común con los mejor valorados del usuario, más nota de la crítica.",
-      "Bloque «Elige de tu pendiente» que escoge entre los juegos en Pendiente con un botón de «otro».",
-      "Más adelante, filtrado colaborativo: «a quien le gustó X también le gustó Y» con las valoraciones de la comunidad.",
-      "Excluir los que ya están completados o abandonados."
+      "Página de duelos con dos juegos de tu biblioteca (completados o jugados) y un botón «saltar».",
+      "Puntuación tipo Elo por usuario y juego, que elige los duelos más útiles (juegos con puntuación parecida).",
+      "Tu top 10 en el perfil, ordenado por esa puntuación.",
+      "Más adelante, usar estas preferencias en las recomendaciones."
     ],
-    "notas": "IGDB también devuelve similar_games para cada juego; importarlo daría recomendaciones decentes sin algoritmo propio. Ya estaba planeada antes de proponerla."
+    "notas": ""
   },
   {
-    "titulo": "Duración estimada de los juegos",
+    "titulo": "Directos de Twitch en la ficha del juego",
     "fecha": "2026-10-17",
     "estado": "pendiente",
+    "prioridad": "baja",
     "tipo": "Funcionalidad",
-    "resumen": "Mostrar en la ficha cuánto se tarda en terminar un juego (historia, historia + extras, 100 %) y cuánto le falta al usuario según sus horas.",
-    "motivo": "Ayuda a decidir qué jugar del pendiente y combina bien con las horas importadas y con las recomendaciones.",
+    "resumen": "Mostrar en la ficha los directos en español que hay ahora mismo de ese juego, con el número de espectadores y un enlace a Twitch.",
+    "motivo": "Las credenciales de IGDB son las de una aplicación de Twitch, así que sirven también para su API sin pedir ninguna clave nueva. Da vida a la ficha y ayuda a decidir si un juego te va a gustar.",
     "pasos": [
-      "Importar los tiempos de IGDB (endpoint game_time_to_beats), que es oficial y ya tenemos credenciales.",
-      "Calcular con las horas de la comunidad de NextPlay los tiempos de quienes lo marcaron como Completado.",
-      "Filtro del catálogo y del pendiente por duración («menos de 10 horas»)."
+      "Pedir a la API de Twitch (Helix) el ID de categoría del juego a partir de su ID de IGDB y guardarlo.",
+      "Pedir los directos de esa categoría filtrando por idioma (español primero) y quedarse con los 3 o 4 con más espectadores.",
+      "Guardar la respuesta en caché unos minutos para no llamar a Twitch en cada visita.",
+      "Bloque «En directo ahora» en la ficha, oculto si no hay directos."
     ],
-    "notas": "Ya estaba planeada antes de proponerla."
+    "notas": ""
   },
   {
-    "titulo": "Importar logros y trofeos",
+    "titulo": "Buscar grupo para jugar",
     "fecha": "2026-10-17",
     "estado": "pendiente",
+    "prioridad": "baja",
     "tipo": "Funcionalidad",
-    "resumen": "Traer el porcentaje de logros de Steam, trofeos de PlayStation y logros de Xbox y mostrarlo en la biblioteca y el perfil (platinos, 100 %).",
-    "motivo": "Las tres integraciones ya están hechas y sus APIs dan los logros con poco trabajo extra; es de lo que más presumen los jugadores.",
+    "resumen": "Publicar «busco gente para X en PS5 esta noche» en los juegos multijugador, con tu PSN ID, gamertag o código de amigo ya puesto.",
+    "motivo": "Los usuarios ya guardan sus IDs de PlayStation, Xbox, Switch, Epic y Battle.net, pero ahora solo se ven como insignias. Esto les da un uso real.",
     "pasos": [
-      "Steam: GetPlayerAchievements por juego (más lento: una llamada por juego, hacerlo en segundo plano).",
-      "PlayStation: la lista de títulos de trofeos ya trae progreso y platino.",
-      "Xbox: endpoint de logros por título.",
-      "Campo de progreso en LibraryEntry e insignia de platino / 100 % en las tarjetas."
+      "Modelo LFGPost (usuario, juego, plataforma, cuándo, idioma, micrófono, texto) que caduca a las pocas horas.",
+      "Solo en juegos con modos multijugador (necesita los datos de la ficha más completa).",
+      "Página de búsquedas activas filtrable por juego y plataforma, y aviso a quien tiene el juego en su biblioteca.",
+      "Botón de denunciar y límite de publicaciones por usuario."
     ],
-    "notas": "Conviene antes tener tareas en segundo plano (Celery o django-q) porque la sincronización de Steam sería larga. Ya estaba planeada antes de proponerla."
+    "notas": ""
   },
   {
-    "titulo": "Importar juegos y horas de Xbox",
+    "titulo": "Joyas ocultas y juegos en los que la comunidad discrepa",
     "fecha": "2026-10-17",
-    "estado": "en curso",
+    "estado": "pendiente",
+    "prioridad": "baja",
     "tipo": "Funcionalidad",
-    "resumen": "Vincular cuentas de Xbox (cuenta Microsoft) e importar sus juegos con los minutos jugados, igual que con Steam.",
-    "motivo": "Después de Steam, Xbox es la única plataforma que permite hacerlo de forma fiable: el usuario inicia sesión con su cuenta Microsoft y se puede leer su historial de juegos y estadísticas.",
+    "resumen": "Una página de descubrimiento con los juegos poco populares que la comunidad valora muy alto, y otra con los que más difieren entre la nota de la crítica y la de los jugadores.",
+    "motivo": "Usa solo datos que ya existen (nota de la crítica, valoración de la comunidad y popularidad), así que es barato y da contenido que no ofrece IGDB.",
     "pasos": [
-      "Registrar una aplicación gratuita en Azure (o pedir una clave de OpenXBL, más sencillo) y guardar sus credenciales en el .env.",
-      "Inicio de sesión con cuenta Microsoft (OAuth) y obtención del token de Xbox Live del usuario.",
-      "Modelo XboxAccount (usuario, XUID único, gamertag, avatar), con varias cuentas por usuario como en Steam.",
-      "Leer el historial de juegos y los minutos jugados, y emparejar con el catálogo vía IGDB (que guarda los IDs de Microsoft Store).",
-      "Sumar las horas con las de Steam cuando un juego está en las dos plataformas."
+      "Consulta con un mínimo de valoraciones para que no salgan juegos con un solo voto.",
+      "Comparar la nota de la crítica (0-100) con la de la comunidad pasada a la misma escala.",
+      "Dos listados en el catálogo: «Joyas ocultas» y «La comunidad no está de acuerdo»."
     ],
-    "notas": "Algunos juegos antiguos o de Xbox 360 no tienen estadística de minutos jugados; entrarían sin horas. Programada el 17/10/2026 con la vía oficial (aplicación de Azure + XboxLive.signin), sin guardar tokens y emparejando por nombre; falta probarla con una cuenta real cuando estén XBOX_CLIENT_ID y XBOX_CLIENT_SECRET."
+    "notas": "Tiene más sentido cuando haya bastantes usuarios valorando."
+  },
+  {
+    "titulo": "Colección física con escáner de código de barras",
+    "fecha": "2026-10-17",
+    "estado": "pendiente",
+    "prioridad": "baja",
+    "tipo": "Funcionalidad",
+    "resumen": "Apuntar en qué plataforma y formato tienes cada juego (físico, digital, suscripción) y añadir juegos físicos escaneando el código de barras de la caja con el móvil.",
+    "motivo": "Nintendo Switch no tiene ninguna forma de importar la biblioteca y mucha gente tiene colección física. Además, la biblioteca no guarda en qué plataforma tienes cada juego.",
+    "pasos": [
+      "Campos nuevos en la biblioteca: plataforma, formato, edición y, opcional, precio pagado.",
+      "Página de escaneo para móvil con la API BarcodeDetector del navegador (y una librería de respaldo para iPhone, que no la tiene).",
+      "Tabla compartida de códigos de barras: la primera persona que escanea un juego elige cuál es y a partir de ahí sale solo para todos.",
+      "Contador de la colección por plataforma en el perfil."
+    ],
+    "notas": ""
+  },
+  {
+    "titulo": "Traducir al español los comentarios antiguos en inglés",
+    "fecha": "2026-10-17",
+    "estado": "pendiente",
+    "prioridad": "baja",
+    "tipo": "Documentación",
+    "resumen": "Pasar al español los comentarios sueltos (#) del código que ya existía antes de esta sesión.",
+    "motivo": "Todo el código nuevo se comenta en español, pero los comentarios del código anterior (modelos, IGDB, precios...) siguen en inglés.",
+    "pasos": [
+      "Recorrer accounts, games, library y config y traducir los comentarios # y de plantillas.",
+      "No tocar las docstrings, que ya están en español."
+    ],
+    "notas": ""
   },
   {
     "titulo": "Vincular otras plataformas sin importar (PSN, Switch, Epic, GOG, Battle.net)",
@@ -466,33 +538,5 @@
       "Una insignia por cuenta en el perfil y tests nuevos."
     ],
     "notas": "No hace falta una API key por usuario: la clave de Steam es de NextPlay y sirve para leer cualquier cuenta con los «Detalles del juego» públicos. Hecha el 17/10/2026: hasta 5 cuentas por usuario; la sincronización es conjunta (no por cuenta) para que las horas sumadas cuadren, y las cuentas privadas se saltan avisando."
-  },
-  {
-    "titulo": "Sacar .env del repositorio y cambiar las claves",
-    "fecha": "2026-10-17",
-    "estado": "pendiente",
-    "tipo": "Seguridad",
-    "resumen": "Dejar de versionar el archivo .env para que las claves (IGDB, IsThereAnyDeal, Steam...) no acaben en GitHub.",
-    "motivo": ".gitignore incluye .env, pero el archivo se subió en el commit «Create .env» y git lo sigue versionando. Cualquier clave que se ponga ahí se sube con el siguiente commit.",
-    "pasos": [
-      "git rm --cached .env para que git deje de versionarlo sin borrarlo del ordenador.",
-      "Commit del cambio; a partir de ahí .gitignore lo ignora de verdad.",
-      "Cambiar en cada servicio las claves que ya se subieron (están en el historial de git aunque se quite el archivo).",
-      "Mantener .env.example con los nombres de las variables y sin valores."
-    ],
-    "notas": ""
-  },
-  {
-    "titulo": "Traducir al español los comentarios antiguos en inglés",
-    "fecha": "2026-10-17",
-    "estado": "pendiente",
-    "tipo": "Documentación",
-    "resumen": "Pasar al español los comentarios sueltos (#) del código que ya existía antes de esta sesión.",
-    "motivo": "Todo el código nuevo se comenta en español, pero los comentarios del código anterior (modelos, IGDB, precios...) siguen en inglés.",
-    "pasos": [
-      "Recorrer accounts, games, library y config y traducir los comentarios # y de plantillas.",
-      "No tocar las docstrings, que ya están en español."
-    ],
-    "notas": ""
   }
 ]

@@ -10,17 +10,18 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.defaultfilters import pluralize
 from django.urls import reverse
+from django.utils.html import format_html
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from games import igdb
 
-from games.models import Genre
+from games.models import Game, Genre
 from library.models import LibraryEntry
 
-from . import psn, steam, xbox
+from . import matching, psn, steam, xbox
 from .forms import PlatformAccountForm, ProfileForm, SignupForm
-from .models import PlatformAccount, PSNAccount, SteamAccount, XboxAccount
+from .models import ImportedTitle, PlatformAccount, PSNAccount, SteamAccount, XboxAccount
 
 User = get_user_model()
 STEAM_STATE_KEY = "steam_openid_state"
@@ -111,6 +112,10 @@ def profile(request, username):
             "reviews": reviews,
             "stats": _profile_stats(owner, entries, counts),
             "is_owner": request.user == owner,
+            "unmatched_count": (
+                owner.imported_titles.filter(title__game__isnull=True, hidden=False).count()
+                if request.user == owner else 0
+            ),
             **(linking_context() if request.user == owner else {}),
         },
     )
@@ -195,14 +200,23 @@ def _report_import(request, result):
     text = f"Steam: {result['added']} juego{pluralize(result['added'])} añadido{pluralize(result['added'])}"
     if result["updated"]:
         text += f", {result['updated']} con horas actualizadas"
-    if result["unmatched"]:
-        text += f". {result['unmatched']} no se encontraron en el catálogo (herramientas, demos…)"
-    messages.success(request, text + ".")
+    messages.success(request, _with_unmatched(text, result["unmatched"]))
     if result["private"]:
         messages.error(
             request,
             f"No se pudieron leer los juegos de {', '.join(result['private'])}. {STEAM_PRIVATE_HINT}",
         )
+
+
+def _with_unmatched(text, unmatched):
+    """Mensaje de resultado de una importación, con el aviso de los juegos no encontrados y un enlace para
+    emparejarlos a mano (HTML seguro: el texto se escapa)."""
+    if not unmatched:
+        return f"{text}."
+    return format_html(
+        '{}. {} no se encontraron en el catálogo: <a href="{}">empareja a mano los que sean juegos</a>.',
+        text, unmatched, reverse("imported_titles"),
+    )
 
 
 def _import_steam(request, include_unplayed=False):
@@ -293,6 +307,20 @@ def steam_import(request):
 
 @require_POST
 @login_required
+def steam_auto_sync(request):
+    """Activa (auto_sync=1) o desactiva la sincronización nocturna de la biblioteca de Steam del usuario."""
+    profile = request.user.profile
+    profile.auto_sync = request.POST.get("auto_sync") == "1"
+    profile.save(update_fields=["auto_sync"])
+    if profile.auto_sync:
+        messages.success(request, "Tu biblioteca de Steam se sincronizará sola cada noche.")
+    else:
+        messages.success(request, "Sincronización nocturna desactivada: Steam solo se importará cuando lo pidas.")
+    return _back(request, f"{reverse('edit_profile')}#steam")
+
+
+@require_POST
+@login_required
 def steam_unlink(request, account_id):
     """Desvincula una cuenta de Steam del usuario; los juegos importados se quedan en su biblioteca.
 
@@ -341,9 +369,7 @@ def psn_sync(request):
     text = f"PlayStation ({result['account'].name}): {added} juego{pluralize(added)} añadido{pluralize(added)}"
     if updated:
         text += f", {updated} con horas actualizadas"
-    if result["unmatched"]:
-        text += f". {result['unmatched']} no se encontraron en el catálogo"
-    messages.success(request, text + ".")
+    messages.success(request, _with_unmatched(text, result["unmatched"]))
     return redirect("profile", username=request.user.username)
 
 
@@ -437,9 +463,7 @@ def xbox_callback(request):
     text = f"Xbox ({result['account'].name}): {added} juego{pluralize(added)} añadido{pluralize(added)}"
     if updated:
         text += f", {updated} con horas actualizadas"
-    if result["unmatched"]:
-        text += f". {result['unmatched']} no se encontraron en el catálogo"
-    messages.success(request, text + ".")
+    messages.success(request, _with_unmatched(text, result["unmatched"]))
     return redirect("profile", username=request.user.username)
 
 
@@ -450,3 +474,102 @@ def xbox_unlink(request):
     XboxAccount.objects.filter(user=request.user).delete()
     messages.success(request, "Cuenta de Xbox desvinculada. Tus juegos importados siguen en tu biblioteca.")
     return _back(request, f"{reverse('edit_profile')}#xbox")
+
+
+# Resultados como máximo al buscar el juego de un título importado; si en el catálogo salen menos de
+# IMPORTED_SEARCH_IGDB_BELOW, también se busca en IGDB.
+IMPORTED_SEARCH_RESULTS = 12
+IMPORTED_SEARCH_IGDB_BELOW = 5
+
+
+def _search_games(query):
+    """Juegos del catálogo cuyo nombre contiene query, de más a menos popular, completando con IGDB si salen pocos."""
+    games = list(Game.objects.filter(name__icontains=query).prefetch_related("platforms")[:IMPORTED_SEARCH_RESULTS])
+    if len(games) < IMPORTED_SEARCH_IGDB_BELOW and igdb.is_configured():
+        try:
+            found = igdb.upsert_games(igdb.IGDBClient().search(query, limit=IMPORTED_SEARCH_RESULTS))
+        except igdb.IGDBError:
+            logger.exception("Falló la búsqueda en IGDB de «%s»", query)
+            found = []
+        games += [game for game in found if game not in games]
+    return games[:IMPORTED_SEARCH_RESULTS]
+
+
+@login_required
+def imported_titles(request):
+    """Juegos importados para revisar a mano.
+
+    Sin parámetros, los títulos de Steam, PlayStation o Xbox del usuario que no se encontraron en el
+    catálogo (con ?ocultos=1, los que ocultó). Con ?juego=<id>, los que han llevado a ese juego de su
+    biblioteca, para corregirlo si no es el que jugó. Con ?titulo=<id>&q= busca candidatos para ese
+    título (por defecto, por su nombre).
+    """
+    rows = request.user.imported_titles.select_related("title__game")
+    game, hidden = None, request.GET.get("ocultos") == "1"
+    if request.GET.get("juego", "").isdigit():
+        game = get_object_or_404(Game, pk=request.GET["juego"])
+        rows = rows.filter(title__game=game)
+        back = f"{request.path}?juego={game.pk}"
+    else:
+        rows = rows.filter(title__game__isnull=True, hidden=hidden)
+        back = f"{request.path}?ocultos=1" if hidden else request.path
+    rows = list(rows)
+
+    selected = None
+    if request.GET.get("titulo", "").isdigit():
+        selected = next((row for row in rows if row.pk == int(request.GET["titulo"])), None)
+    search = (request.GET.get("q") or "").strip() or (selected.title.name if selected else "")
+    return render(
+        request,
+        "accounts/imported_titles.html",
+        {
+            "rows": rows,
+            "game": game,
+            "hidden": hidden,
+            "back": back,
+            "selected": selected,
+            # «search» y no «query»: query es la caja de búsqueda del catálogo en la cabecera.
+            "search": search,
+            "results": _search_games(search) if selected and search else [],
+            "hidden_count": request.user.imported_titles.filter(title__game__isnull=True, hidden=True).count(),
+        },
+    )
+
+
+@require_POST
+@login_required
+def imported_title_assign(request, pk):
+    """Asigna a un título importado del usuario el juego elegido (o ninguno si «game» llega vacío).
+
+    La corrección sirve para todos los usuarios con ese título y sus horas pasan al juego nuevo en su
+    biblioteca. Responde 404 si el título no es suyo o el juego no existe.
+    """
+    imported = get_object_or_404(ImportedTitle.objects.select_related("title"), pk=pk, user=request.user)
+    game_id = request.POST.get("game", "")
+    game = get_object_or_404(Game, pk=game_id) if game_id.isdigit() else None
+    try:
+        result = matching.reassign(imported, game, request.user)
+    except PermissionError as exc:
+        messages.error(request, str(exc))
+        return _back(request, reverse("imported_titles"))
+    name = imported.title.name
+    if game is None:
+        messages.success(request, f"«{name}» queda sin emparejar.")
+    else:
+        text = f"«{name}» es ahora {game.name}, también para quien lo importe después"
+        if result["removed"]:
+            text += "; el juego anterior se ha quitado de tu biblioteca"
+        messages.success(request, text + ".")
+    return _back(request, reverse("imported_titles"))
+
+
+@require_POST
+@login_required
+def imported_title_hide(request, pk):
+    """Oculta (hidden=1) un título sin emparejar del usuario —herramientas, demos, apps— o lo vuelve a mostrar."""
+    imported = get_object_or_404(ImportedTitle.objects.select_related("title"), pk=pk, user=request.user)
+    imported.hidden = request.POST.get("hidden") == "1"
+    imported.save(update_fields=["hidden"])
+    verb = "ocultado" if imported.hidden else "vuelto a mostrar"
+    messages.success(request, f"Has {verb} «{imported.title.name}».")
+    return _back(request, reverse("imported_titles"))
