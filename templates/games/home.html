@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block container_class %} container-wide{% endblock %}
+
+{% block content %}
+  <div class="layout-3">
+    {# Columna izquierda: tu resumen y tu menú, o la bienvenida si no hay sesión. #}
+    <aside class="col-left">
+      {% if user.is_authenticated %}
+        {% with profile=user.profile %}
+          <section class="card-box me-card">
+            <a class="me-head" href="{% url 'profile' user.username %}">
+              {% include "accounts/_avatar.html" with size="md" %}
+              <span>
+                <strong>{{ profile.name }}</strong>
+                <span class="muted small">@{{ user.username }}</span>
+              </span>
+            </a>
+            {% if profile.bio %}<p class="me-bio">{{ profile.bio|truncatechars:90 }}</p>{% endif %}
+            <dl class="me-stats">
+              <div><dt>Juegos</dt><dd>{{ summary.games }}</dd></div>
+              <div><dt>Completados</dt><dd>{{ summary.completed }}</dd></div>
+              <div><dt>Reseñas</dt><dd>{{ summary.reviews }}</dd></div>
+            </dl>
+          </section>
+          <nav class="card-box side-menu" aria-label="Tu cuenta">
+            <a class="is-active" href="{% url 'home' %}">{% include "_icon.html" with name="home" %} Inicio</a>
+            <a href="{% url 'profile' user.username %}">{% include "_icon.html" with name="library" %} Mi biblioteca</a>
+            <a href="{% url 'library:wishlist' %}">{% include "_icon.html" with name="heart" %} Lista de deseos</a>
+            <a href="{% url 'notifications' %}">{% include "_icon.html" with name="bell" %} Avisos{% if unread_notifications %} <span class="count">{{ unread_notifications }}</span>{% endif %}</a>
+            <a href="{% url 'edit_profile' %}">{% include "_icon.html" with name="settings" %} Editar perfil</a>
+          </nav>
+        {% endwith %}
+      {% else %}
+        <section class="card-box welcome">
+          <span class="brand-mark brand-mark-lg" aria-hidden="true">N</span>
+          <h2>Tu vida gamer, en un solo lugar</h2>
+          <p class="muted">Importa tus juegos de Steam, Xbox y PlayStation con sus horas, valora, reseña y entérate cuando bajan de precio.</p>
+          <a class="btn btn-primary btn-block" href="{% url 'signup' %}">Crear cuenta</a>
+          <a class="btn btn-block" href="{% url 'login' %}">Entrar</a>
+        </section>
+      {% endif %}
+    </aside>
+
+    <div class="col-main">
+      {% if user.is_authenticated %}
+        <section class="card-box">
+          <header class="box-head">
+            <h2>Sigues jugando</h2>
+            <a href="{% url 'profile' user.username %}?estado=playing">Ver todos {% include "_icon.html" with name="arrow" %}</a>
+          </header>
+          {% if playing %}
+            <ul class="playing">
+              {% for entry in playing %}
+                <li>
+                  <a class="playing-item" href="{{ entry.game.get_absolute_url }}">
+                    <span class="thumb">{% if entry.game.cover_url %}<img src="{{ entry.game.cover_url }}" alt="" loading="lazy">{% endif %}</span>
+                    <span class="playing-info">
+                      <strong>{{ entry.game.name }}</strong>
+                      <span class="muted small">{% if entry.playtime_hours %}{{ entry.playtime_hours|floatformat:"-1" }} h jugadas{% else %}Jugando{% endif %}</span>
+                    </span>
+                    {% include "_icon.html" with name="chevron" %}
+                  </a>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="muted small box-empty">Marca un juego como «Jugando» en su ficha y aparecerá aquí.</p>
+          {% endif %}
+        </section>
+      {% endif %}
+
+      <section class="card-box">
+        <header class="box-head">
+          <h2>Populares</h2>
+          <a href="{% url 'games:catalog' %}">Ver catálogo {% include "_icon.html" with name="arrow" %}</a>
+        </header>
+        {% if popular %}
+          <div class="grid grid-compact">
+            {% for game in popular %}{% include "games/_card.html" with status=game.library_status %}{% endfor %}
+          </div>
+        {% else %}
+          <p class="muted small box-empty">El catálogo está vacío: importa juegos de IGDB con <code>import_igdb</code>.</p>
+        {% endif %}
+      </section>
+
+      <section class="card-box">
+        <header class="box-head"><h2>Últimas reseñas</h2></header>
+        {% for entry in recent_reviews %}
+          {% include "library/_feed_review.html" %}
+        {% empty %}
+          <p class="muted small box-empty">Todavía no hay reseñas. Abre un juego de tu biblioteca y cuenta qué te parece.</p>
+        {% endfor %}
+      </section>
+    </div>
+
+    <aside class="col-right">
+      {% include "games/_trending.html" %}
+      {% if genres %}
+        <section class="card-box">
+          <header class="box-head"><h2>{% include "_icon.html" with name="tag" %} Géneros</h2></header>
+          <div class="chips chips-tight">
+            {% for genre in genres %}<a class="chip" href="{% url 'games:catalog' %}?genero={{ genre.slug }}">{{ genre.name }}</a>{% endfor %}
+          </div>
+        </section>
+      {% endif %}
+    </aside>
+  </div>
+{% endblock %}

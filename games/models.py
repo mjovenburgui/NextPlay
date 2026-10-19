@@ -2,6 +2,39 @@ from urllib.parse import quote
 
 from django.db import models
 from django.urls import reverse
+from django.utils.text import slugify
+
+# Nombres en español de los géneros de IGDB, por su slug: IGDB solo los da en inglés.
+GENRE_NAMES_ES = {
+    "adventure": "Aventura",
+    "arcade": "Arcade",
+    "card-and-board-game": "Cartas y tablero",
+    "fighting": "Lucha",
+    "hack-and-slash-beat-em-up": "Hack and slash / Beat 'em up",
+    "indie": "Indie",
+    "moba": "MOBA",
+    "music": "Música",
+    "pinball": "Pinball",
+    "platform": "Plataformas",
+    "point-and-click": "Aventura gráfica",
+    "puzzle": "Puzles",
+    "quiz-trivia": "Preguntas y trivial",
+    "racing": "Carreras",
+    "real-time-strategy-rts": "Estrategia en tiempo real",
+    "role-playing-rpg": "Rol (RPG)",
+    "shooter": "Disparos",
+    "simulator": "Simulación",
+    "sport": "Deportes",
+    "strategy": "Estrategia",
+    "tactical": "Táctico",
+    "turn-based-strategy-tbs": "Estrategia por turnos",
+    "visual-novel": "Novela visual",
+}
+
+
+def spanish_genre_name(name, slug=""):
+    """Nombre en español de un género de IGDB; si no está en GENRE_NAMES_ES, el original."""
+    return GENRE_NAMES_ES.get(slug or slugify(name), name)
 
 
 class Genre(models.Model):

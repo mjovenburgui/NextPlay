@@ -3,8 +3,11 @@
 {% block title %}{% if query %}«{{ query }}» · {% endif %}Juegos · NextPlay{% endblock %}
 
 {% block content %}
-  <div class="page-head">
-    <h1>{% if query %}Resultados para «{{ query }}»{% else %}Catálogo{% endif %}</h1>
+  <div class="page-head catalog-head">
+    <div>
+      <h1>{% if query %}Resultados para «{{ query }}»{% else %}Catálogo{% endif %}</h1>
+      <p class="muted small">{{ page.paginator.count }} juego{{ page.paginator.count|pluralize }}{% if active_genre or active_platform %} · <a href="{% url 'games:catalog' %}{% if query %}?q={{ query|urlencode }}{% endif %}">Quitar filtros</a>{% endif %}</p>
+    </div>
     <form class="filters" method="get">
       {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
       <select name="genero" aria-label="Género" onchange="this.form.submit()">
@@ -24,10 +27,12 @@
   </div>
 
   {% if page.object_list %}
+    <div class="card-box">
     <div class="grid">
       {% for game in page.object_list %}
         {% include "games/_card.html" with status=game.library_status %}
       {% endfor %}
+    </div>
     </div>
 
     {% if page.has_other_pages %}

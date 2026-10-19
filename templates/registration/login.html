@@ -3,8 +3,10 @@
 {% block title %}Entrar · NextPlay{% endblock %}
 
 {% block content %}
-  <section class="panel">
+  <section class="panel auth-panel">
+    <span class="brand-mark brand-mark-lg" aria-hidden="true">N</span>
     <h1>Entrar</h1>
+    <p class="muted small auth-sub">Vuelve a tu biblioteca, tus reseñas y tus avisos.</p>
     <form method="post">
       {% include "_form.html" %}
       <input type="hidden" name="next" value="{{ next }}">

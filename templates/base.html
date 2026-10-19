@@ -8,34 +8,54 @@
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
   <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
 </head>
-<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+{% with section=request.resolver_match.url_name %}
+<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'{% if user.is_authenticated %} class="has-tabbar"{% endif %}>
   <header class="topbar">
-    <a class="brand" href="{% url 'home' %}">Next<span>Play</span></a>
-    <form class="search" action="{% url 'games:catalog' %}" method="get" role="search">
-      <input type="search" name="q" value="{{ query|default:'' }}" placeholder="Buscar juegos…" aria-label="Buscar juegos">
-    </form>
-    <nav class="nav">
-      <a href="{% url 'games:catalog' %}">Juegos</a>
+    <a class="brand" href="{% url 'home' %}" aria-label="NextPlay, inicio">
+      <span class="brand-mark" aria-hidden="true">N</span><span class="brand-name">Next<span>Play</span></span>
+    </a>
+    <nav class="mainnav" aria-label="Principal">
+      <a class="{% if section == 'home' %}is-active{% endif %}" href="{% url 'home' %}">{% include "_icon.html" with name="home" %} Inicio</a>
+      <a class="{% if section == 'catalog' or section == 'detail' %}is-active{% endif %}" href="{% url 'games:catalog' %}">{% include "_icon.html" with name="games" %} Juegos</a>
       {% if user.is_authenticated %}
-        <a href="{% url 'library:wishlist' %}">Deseos</a>
-        <a class="bell{% if unread_notifications %} has-unread{% endif %}" href="{% url 'notifications' %}"
-           aria-label="Avisos{% if unread_notifications %} ({{ unread_notifications }} sin leer){% endif %}" title="Avisos">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6v-5a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"/></svg>
-          {% if unread_notifications %}<span class="bell-count">{{ unread_notifications }}</span>{% endif %}
-        </a>
-        <a href="{% url 'profile' user.username %}">Mi perfil</a>
-        <form action="{% url 'logout' %}" method="post">
-          {% csrf_token %}
-          <button class="link" type="submit">Salir</button>
-        </form>
-      {% else %}
-        <a href="{% url 'login' %}">Entrar</a>
-        <a class="btn btn-primary" href="{% url 'signup' %}">Crear cuenta</a>
+        <a class="{% if section == 'wishlist' %}is-active{% endif %}" href="{% url 'library:wishlist' %}">{% include "_icon.html" with name="heart" %} Deseos</a>
       {% endif %}
     </nav>
+    <form class="search" action="{% url 'games:catalog' %}" method="get" role="search">
+      {% include "_icon.html" with name="search" %}
+      <input type="search" name="q" value="{{ query|default:'' }}" placeholder="Buscar juegos…" aria-label="Buscar juegos">
+    </form>
+    <div class="nav">
+      {% if user.is_authenticated %}
+        <a class="bell{% if unread_notifications %} has-unread{% endif %}" href="{% url 'notifications' %}"
+           aria-label="Avisos{% if unread_notifications %} ({{ unread_notifications }} sin leer){% endif %}" title="Avisos">
+          {% include "_icon.html" with name="bell" %}
+          {% if unread_notifications %}<span class="bell-count">{{ unread_notifications }}</span>{% endif %}
+        </a>
+        {# Menú de la cuenta: un <details> que se abre al pulsar el avatar, sin JavaScript. #}
+        <details class="account-menu">
+          <summary aria-label="Tu cuenta">
+            {% include "accounts/_avatar.html" with profile=user.profile size="sm" %}
+          </summary>
+          <div class="account-menu-panel">
+            <p class="account-menu-id"><strong>{{ user.profile.name }}</strong><span class="muted small">@{{ user.username }}</span></p>
+            <a href="{% url 'profile' user.username %}">{% include "_icon.html" with name="user" %} Mi perfil</a>
+            <a href="{% url 'library:wishlist' %}">{% include "_icon.html" with name="heart" %} Lista de deseos</a>
+            <a href="{% url 'edit_profile' %}">{% include "_icon.html" with name="settings" %} Editar perfil</a>
+            <form action="{% url 'logout' %}" method="post">
+              {% csrf_token %}
+              <button type="submit">{% include "_icon.html" with name="logout" %} Salir</button>
+            </form>
+          </div>
+        </details>
+      {% else %}
+        <a class="nav-login" href="{% url 'login' %}">Entrar</a>
+        <a class="btn btn-primary" href="{% url 'signup' %}">Crear cuenta</a>
+      {% endif %}
+    </div>
   </header>
 
-  <main class="container">
+  <main class="container{% block container_class %}{% endblock %}">
     {% for message in messages %}
       <p class="flash flash-{{ message.tags }}">{{ message }}</p>
     {% endfor %}
@@ -45,5 +65,24 @@
   <footer class="footer">
     <p>NextPlay · Datos de juegos de <a href="https://www.igdb.com" rel="noopener">IGDB</a></p>
   </footer>
+
+  {% if user.is_authenticated %}
+    {# Barra inferior en el móvil, como en una app. #}
+    <nav class="tabbar" aria-label="Principal (móvil)">
+      <a class="{% if section == 'home' %}is-active{% endif %}" href="{% url 'home' %}">{% include "_icon.html" with name="home" %}<span>Inicio</span></a>
+      <a class="{% if section == 'catalog' or section == 'detail' %}is-active{% endif %}" href="{% url 'games:catalog' %}">{% include "_icon.html" with name="games" %}<span>Juegos</span></a>
+      <a class="{% if section == 'wishlist' %}is-active{% endif %}" href="{% url 'library:wishlist' %}">{% include "_icon.html" with name="heart" %}<span>Deseos</span></a>
+      <a class="{% if section == 'notifications' %}is-active{% endif %}" href="{% url 'notifications' %}">{% include "_icon.html" with name="bell" %}<span>Avisos</span></a>
+      <a class="{% if section == 'profile' or section == 'edit_profile' %}is-active{% endif %}" href="{% url 'profile' user.username %}">{% include "_icon.html" with name="user" %}<span>Perfil</span></a>
+    </nav>
+    <script>
+      // Cierra el menú de la cuenta al pulsar fuera de él.
+      document.addEventListener("click", function (event) {
+        var menu = document.querySelector(".account-menu[open]");
+        if (menu && !menu.contains(event.target)) menu.removeAttribute("open");
+      });
+    </script>
+  {% endif %}
 </body>
+{% endwith %}
 </html>

@@ -3,7 +3,7 @@ from datetime import date
 from django.core.management.base import BaseCommand
 from django.utils.text import slugify
 
-from games.models import Game, Genre, Platform
+from games.models import Game, Genre, Platform, spanish_genre_name
 
 PLATFORMS = {
     "PC": "PC (Microsoft Windows)",
@@ -50,7 +50,8 @@ class Command(BaseCommand):
                 continue
             created += 1
             game.genres.set(
-                Genre.objects.get_or_create(slug=slugify(g), defaults={"name": g})[0] for g in genre_names
+                Genre.objects.get_or_create(slug=slugify(g), defaults={"name": spanish_genre_name(g)})[0]
+                for g in genre_names
             )
             game.platforms.set(
                 Platform.objects.get_or_create(

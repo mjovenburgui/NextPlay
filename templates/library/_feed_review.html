@@ -1,0 +1,25 @@
+{# Reseña en la portada, como una publicación: autor, juego, estrellas y texto recortado. Necesita entry. #}
+<article class="feed-item">
+  <header class="feed-head">
+    {% include "accounts/_avatar.html" with profile=entry.user.profile size="sm" %}
+    <div class="feed-meta">
+      <p><a class="feed-author" href="{{ entry.user.profile.get_absolute_url }}">{{ entry.user.profile.name }}</a>
+        <span class="muted small">· hace {{ entry.reviewed_at|timesince }}</span></p>
+      <p class="feed-game small">{% include "_icon.html" with name="games" %} <a href="{{ entry.game.get_absolute_url }}">{{ entry.game.name }}</a></p>
+    </div>
+    {% if entry.rating %}<span class="review-stars" aria-label="{{ entry.rating }} de 5 estrellas">{% for value in entry.RATING_STARS %}<span class="{% if value <= entry.rating %}on{% endif %}">★</span>{% endfor %}</span>{% endif %}
+  </header>
+  <div class="feed-body">
+    {% if entry.review_has_spoilers %}
+      <details class="spoiler">
+        <summary>Contiene spoilers · Mostrar reseña</summary>
+        <p class="review-text">{{ entry.review|truncatechars:320|linebreaksbr }}</p>
+      </details>
+    {% else %}
+      <p class="review-text">{{ entry.review|truncatechars:320|linebreaksbr }}</p>
+    {% endif %}
+    <a class="feed-cover" href="{{ entry.game.get_absolute_url }}#resenas" aria-label="Ver las reseñas de {{ entry.game.name }}">
+      {% if entry.game.cover_url %}<img src="{{ entry.game.cover_url }}" alt="" loading="lazy">{% endif %}
+    </a>
+  </div>
+</article>

@@ -3,8 +3,10 @@
 {% block title %}Crear cuenta · NextPlay{% endblock %}
 
 {% block content %}
-  <section class="panel">
+  <section class="panel auth-panel">
+    <span class="brand-mark brand-mark-lg" aria-hidden="true">N</span>
     <h1>Crear cuenta</h1>
+    <p class="muted small auth-sub">Importa tus juegos, valóralos y entérate de cuándo bajan de precio.</p>
     <form method="post">
       {% include "_form.html" %}
       <button class="btn btn-primary" type="submit">Crear cuenta</button>

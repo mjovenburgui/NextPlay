@@ -1,0 +1,24 @@
+{# Juegos en tendencia (trending_games): los que más gente ha añadido a su biblioteca este mes. #}
+<section class="card-box">
+  <header class="box-head">
+    <h2 class="flame">{% include "_icon.html" with name="flame" %} En tendencia</h2>
+    <a href="{% url 'games:catalog' %}">Ver todos {% include "_icon.html" with name="arrow" %}</a>
+  </header>
+  <ol class="trending">
+    {% for game in trending %}
+      <li>
+        <a class="trending-item" href="{{ game.get_absolute_url }}">
+          <span class="thumb">{% if game.cover_url %}<img src="{{ game.cover_url }}" alt="" loading="lazy">{% endif %}</span>
+          <span class="trending-info">
+            <strong>{{ game.name }}</strong>
+            <span class="muted small">{{ game.genres.all.0.name|default:"" }}</span>
+            <span class="trending-players small">{% include "_icon.html" with name="user" %} {{ game.players }} jugador{{ game.players|pluralize:"es" }}</span>
+          </span>
+          <span class="trending-rank">{{ forloop.counter }}</span>
+        </a>
+      </li>
+    {% empty %}
+      <li class="muted small">Aún no hay juegos en el catálogo.</li>
+    {% endfor %}
+  </ol>
+</section>

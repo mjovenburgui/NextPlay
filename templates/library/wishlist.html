@@ -5,7 +5,7 @@
 {% block content %}
   <section class="panel panel-wide">
     <div class="page-head">
-      <h1>Lista de deseos</h1>
+      <h1>{% include "_icon.html" with name="heart" %} Lista de deseos</h1>
       {% if rows|length > 1 %}
         <form class="sort" method="get">
           <label class="muted small" for="orden">Ordenar</label>

@@ -38,6 +38,7 @@ class UpsertGamesTests(TestCase):
         self.assertEqual(game.popularity, 2500)
         self.assertIn("co39vc", game.cover_url)
         self.assertEqual(game.genres.get().slug, "role-playing-rpg")
+        self.assertEqual(game.genres.get().name, "Rol (RPG)")
         self.assertEqual(game.platforms.get().abbreviation, "PC")
 
     def test_is_idempotent_and_updates_fields(self):
@@ -172,8 +173,32 @@ class CatalogTests(TestCase):
         cls.celeste.platforms.add(switch)
 
     def test_lists_games_by_popularity(self):
-        response = self.client.get(reverse("home"))
+        response = self.client.get(reverse("games:catalog"))
         self.assertEqual(list(response.context["page"].object_list), [self.hades, self.celeste])
+
+    def test_home_shows_popular_and_trending(self):
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.context["popular"], [self.hades, self.celeste])
+        self.assertContains(response, "Crear cuenta")
+        # Celeste está en más bibliotecas este mes, así que va primero en tendencia aunque sea menos popular.
+        for name in ("ana", "luis"):
+            user = User.objects.create_user(name, f"{name}@example.com", "x")
+            LibraryEntry.objects.create(user=user, game=self.celeste)
+        self.assertEqual([g.name for g in self.client.get(reverse("home")).context["trending"]], ["Celeste", "Hades"])
+
+    def test_home_shows_your_summary_and_private_reviews_stay_hidden(self):
+        ana = User.objects.create_user("ana", "ana@example.com", "x")
+        luis = User.objects.create_user("luis", "luis@example.com", "x")
+        luis.profile.is_public = False
+        luis.profile.save()
+        LibraryEntry.objects.create(user=ana, game=self.hades, status=LibraryEntry.Status.PLAYING, review="Genial", reviewed_at=timezone.now())
+        LibraryEntry.objects.create(user=luis, game=self.celeste, review="Secreta", reviewed_at=timezone.now())
+        self.client.force_login(ana)
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.context["summary"], {"games": 1, "completed": 0, "reviews": 1})
+        self.assertEqual([e.game for e in response.context["playing"]], [self.hades])
+        self.assertContains(response, "Genial")
+        self.assertNotContains(response, "Secreta")
 
     def test_search_and_filters(self):
         url = reverse("games:catalog")
