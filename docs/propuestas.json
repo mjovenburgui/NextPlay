@@ -128,6 +128,40 @@
     "notas": "Las insignias de PSN, Switch, Epic... del perfil encajan aquí: sirven para añadir como amigo en la plataforma a quien sigues. Ya estaba planeada antes de proponerla."
   },
   {
+    "titulo": "Rediseño de toda la web con aspecto de red social",
+    "fecha": "2026-10-19",
+    "estado": "en curso",
+    "prioridad": "alta",
+    "tipo": "Diseño",
+    "resumen": "Llevar a todas las páginas el estilo de las maquetas del usuario: cabecera con Inicio / Descubrir / Videojuegos, tres columnas en escritorio (tu perfil y menú, contenido, juegos en tendencia) y tarjetas oscuras con acentos violeta.",
+    "motivo": "Las páginas actuales son funcionales pero sencillas; el usuario quiere que NextPlay se vea como una red social de jugadores, empezando por Editar perfil, que ya se ha rediseñado.",
+    "pasos": [
+      "Editar perfil: índice lateral, vista previa del perfil, interruptores, tiendas en fichas y cuentas en tarjetas por plataforma.",
+      "Cabecera nueva y estructura de tres columnas reutilizable en base.html.",
+      "Portada y catálogo, ficha del juego, perfil, lista de deseos, avisos y pantallas de acceso.",
+      "Versión móvil con barra de navegación inferior.",
+      "Solo se muestran datos reales: los huecos de publicaciones, seguidores o guardados se rellenan cuando existan esas funciones."
+    ],
+    "notas": "Propuesta por el usuario con maquetas de móvil y escritorio. Se hace antes que las publicaciones para que estas nazcan ya con el diseño nuevo."
+  },
+  {
+    "titulo": "Publicaciones con imágenes asociadas a un juego",
+    "fecha": "2026-10-19",
+    "estado": "pendiente",
+    "prioridad": "alta",
+    "tipo": "Funcionalidad",
+    "resumen": "Que el usuario publique además de reseñar: texto con hasta 4 imágenes, asociado opcionalmente a un juego, con marca de spoiler y visibilidad, y que salga en la portada, en la ficha del juego (pestaña Comunidad) y en su perfil.",
+    "motivo": "Ahora solo se puede reseñar un juego de la biblioteca; las publicaciones libres (capturas, momentos, opiniones) son lo que da vida a una red social y lo que muestran las maquetas.",
+    "pasos": [
+      "Modelo Post (autor, texto de hasta 2000 caracteres, juego opcional, spoiler, visibilidad, fecha) y PostImage con Pillow, límite de tamaño y de 4 imágenes; MEDIA_ROOT en local y almacenamiento aparte en producción.",
+      "Caja «¿Qué estás jugando?» en la portada y página Crear publicación con buscador de juego.",
+      "Publicaciones en la portada, en la pestaña Comunidad de la ficha y en la pestaña Publicaciones del perfil, respetando perfiles privados y spoilers.",
+      "Me gusta y comentarios (reutilizable para las reseñas) y guardar publicaciones.",
+      "Borrar las propias y denunciar para el admin; tests de visibilidad y de subida de imágenes."
+    ],
+    "notas": "Propuesta por el usuario. Con «Seguir a otros jugadores» la portada tendrá las pestañas Siguiendo y Descubrir de la maqueta."
+  },
+  {
     "titulo": "Ficha del juego más completa",
     "fecha": "2026-10-17",
     "estado": "pendiente",

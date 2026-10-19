@@ -1,10 +1,13 @@
 import logging
+from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.http import urlencode
 from django.views.decorators.http import require_POST
 
@@ -15,11 +18,63 @@ from . import history, igdb, prices
 from .models import Game, GamePrice, Genre, Platform
 
 PAGE_SIZE = 24
+TRENDING_DAYS = 30
 logger = logging.getLogger(__name__)
 
 
+def trending_games(limit=5):
+    """Los juegos que más gente ha añadido a su biblioteca en los últimos TRENDING_DAYS días.
+
+    Cada juego trae players (cuántos lo tienen en total) y recent (cuántos lo añadieron en ese tiempo).
+    Si no llegan a limit, se completa con los más populares de IGDB.
+    """
+    since = timezone.now() - timedelta(days=TRENDING_DAYS)
+    games = Game.objects.prefetch_related("genres").annotate(
+        players=Count("library_entries", distinct=True),
+        recent=Count("library_entries", filter=Q(library_entries__created_at__gte=since), distinct=True),
+    )
+    trending = list(games.filter(recent__gt=0).order_by("-recent", "-players", "-popularity")[:limit])
+    if len(trending) < limit:
+        trending += games.exclude(id__in=[g.id for g in trending]).order_by("-popularity", "name")[: limit - len(trending)]
+    return trending
+
+
+def home(request):
+    """Portada: tu resumen y tu menú a la izquierda; lo que estás jugando, los juegos populares y las
+    últimas reseñas en el centro; los juegos en tendencia a la derecha."""
+    playing = summary = None
+    statuses = {}
+    if request.user.is_authenticated:
+        library = LibraryEntry.objects.filter(user=request.user)
+        summary = library.aggregate(
+            games=Count("id"),
+            completed=Count("id", filter=Q(status=LibraryEntry.Status.COMPLETED)),
+            reviews=Count("id", filter=~Q(review="")),
+        )
+        playing = library.filter(status=LibraryEntry.Status.PLAYING).select_related("game").order_by("-updated_at")[:4]
+    popular = list(Game.objects.order_by("-popularity", "name")[:12])
+    if request.user.is_authenticated:
+        entries = LibraryEntry.objects.filter(user=request.user, game__in=popular)
+        statuses = {entry.game_id: entry.get_status_display() for entry in entries}
+    for game in popular:
+        game.library_status = statuses.get(game.id, "")
+    reviews = LibraryEntry.objects.reviews_visible_to(request.user)[:5]
+    return render(
+        request,
+        "games/home.html",
+        {
+            "summary": summary,
+            "playing": playing,
+            "popular": popular,
+            "recent_reviews": reviews,
+            "trending": trending_games(),
+            "genres": Genre.objects.annotate(n=Count("games")).filter(n__gt=0).order_by("-n")[:10],
+        },
+    )
+
+
 def catalog(request):
-    """Catálogo de juegos, que también es la portada.
+    """Catálogo de juegos.
 
     Filtra por nombre (?q=), género (?genero=) y plataforma (?plataforma=) y pagina de 24 en 24.
     Si hay sesión, marca en cada tarjeta el estado del juego en la biblioteca del usuario. Ofrece

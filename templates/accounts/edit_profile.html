@@ -3,49 +3,158 @@
 {% block title %}Editar perfil · NextPlay{% endblock %}
 
 {% block content %}
-  <section class="panel">
-    <h1>Editar perfil</h1>
-    <form method="post">
-      {% include "_form.html" %}
-      <button class="btn btn-primary" type="submit">Guardar</button>
-      <a class="btn" href="{% url 'profile' user.username %}">Cancelar</a>
-    </form>
-  </section>
+  <header class="page-head settings-head">
+    <div>
+      <h1>Editar perfil</h1>
+      <p class="muted">Cómo te ven los demás, qué tiendas te interesan y de dónde se importan tus juegos.</p>
+    </div>
+    <a class="btn" href="{% url 'profile' user.username %}">Ver mi perfil</a>
+  </header>
 
-  <section class="panel steam-panel" id="tiendas">
-    <h2>Tiendas en las que compras</h2>
-    {% if shop_choices %}
-      <form action="{% url 'shops_update' %}" method="post">
-        {% csrf_token %}
-        <p class="help">NextPlay solo te enseñará precios, historial y avisos de las que marques (en cada ficha puedes ver todas un momento). Sin ninguna marcada, se ven todas.</p>
-        <div class="shop-choices">
-          {% for shop_id, name, checked in shop_choices %}
-            <label class="check"><input type="checkbox" name="shops" value="{{ shop_id }}"{% if checked %} checked{% endif %}> {{ name }}</label>
-          {% endfor %}
+  <div class="settings">
+    <nav class="settings-nav" aria-label="Secciones">
+      <a href="#perfil">Perfil</a>
+      <a href="#tiendas">Tiendas</a>
+      <a href="#cuentas">Cuentas vinculadas</a>
+    </nav>
+
+    <div class="settings-body">
+      <section class="settings-card" id="perfil">
+        {# Vista previa de la cabecera del perfil; el nombre cambia mientras se escribe. #}
+        <div class="settings-preview" aria-hidden="true">
+          <div class="profile-banner"></div>
+          <div class="settings-preview-id">
+            {% include "accounts/_avatar.html" with size="lg" %}
+            <div>
+              <strong id="preview-name" data-fallback="{{ user.username }}">{{ profile.name }}</strong>
+              <p class="muted small">@{{ user.username }}</p>
+            </div>
+          </div>
         </div>
-        <button class="btn btn-primary" type="submit">Guardar tiendas</button>
-      </form>
-    {% else %}
-      <p class="help">Aún no hay precios en el catálogo para elegir tiendas.</p>
-    {% endif %}
-  </section>
 
-  <section class="panel steam-panel" id="steam">
-    <h2>{% include "games/shop_icons/steam.svg" %} Cuentas de Steam</h2>
-    {% include "accounts/linking/_steam.html" %}
-  </section>
-  <section class="panel steam-panel xbox-panel" id="xbox">
-    <h2>{% include "games/shop_icons/xbox.svg" %} Xbox</h2>
-    {% include "accounts/linking/_xbox.html" %}
-  </section>
+        <form method="post" class="settings-form">
+          {% csrf_token %}
+          {{ form.non_field_errors }}
+          <h2>Perfil</h2>
+          <div class="field{% if form.display_name.errors %} has-error{% endif %}">
+            <label for="{{ form.display_name.id_for_label }}">Nombre visible</label>
+            {{ form.display_name }}
+            <p class="help">Si lo dejas vacío se usa tu usuario, @{{ user.username }}.</p>
+            {{ form.display_name.errors }}
+          </div>
+          <div class="field{% if form.bio.errors %} has-error{% endif %}">
+            <label for="{{ form.bio.id_for_label }}">Biografía</label>
+            {{ form.bio }}
+            <p class="help field-foot"><span>Qué juegas, qué buscas, dónde encontrarte.</span> <span id="bio-count"></span></p>
+            {{ form.bio.errors }}
+          </div>
 
-  <section class="panel steam-panel psn-panel" id="psn">
-    <h2>{% include "games/shop_icons/playstation.svg" %} PlayStation <span class="pill">Experimental</span></h2>
-    {% include "accounts/linking/_psn.html" %}
-  </section>
+          <h2>Privacidad y avisos</h2>
+          {% for field in form %}{% if field.widget_type == "checkbox" %}
+            <label class="switch-row" for="{{ field.id_for_label }}">
+              <span>
+                <strong>{{ field.label|capfirst }}</strong>
+                {% if field.help_text %}<span class="help">{{ field.help_text }}</span>{% endif %}
+              </span>
+              <span class="switch">{{ field }}</span>
+            </label>
+            {{ field.errors }}
+          {% endif %}{% endfor %}
 
-  <section class="panel steam-panel platforms-panel" id="plataformas">
-    <h2>Otras plataformas</h2>
-    {% include "accounts/linking/_platforms.html" %}
-  </section>
+          <div class="settings-actions">
+            <a class="btn" href="{% url 'profile' user.username %}">Cancelar</a>
+            <button class="btn btn-primary" type="submit">Guardar cambios</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="settings-card" id="tiendas">
+        <h2>Tiendas en las que compras</h2>
+        {% if shop_choices %}
+          <p class="help">NextPlay solo te enseñará precios, historial y avisos de las que marques (en cada ficha puedes ver todas un momento). Sin ninguna marcada, se ven todas.</p>
+          <form action="{% url 'shops_update' %}" method="post">
+            {% csrf_token %}
+            <div class="shop-choices">
+              {% for shop_id, name, checked in shop_choices %}
+                <label class="shop-choice"><input type="checkbox" name="shops" value="{{ shop_id }}"{% if checked %} checked{% endif %}> {{ name }}</label>
+              {% endfor %}
+            </div>
+            <div class="settings-actions">
+              <button class="btn btn-primary" type="submit">Guardar tiendas</button>
+            </div>
+          </form>
+        {% else %}
+          <p class="help">Aún no hay precios en el catálogo para elegir tiendas.</p>
+        {% endif %}
+      </section>
+
+      <section class="settings-card" id="cuentas">
+        <h2>Cuentas vinculadas</h2>
+        <p class="help">Importa tus juegos y horas desde Steam, Xbox y PlayStation, o muestra en tu perfil tus cuentas de otras plataformas.</p>
+
+        <div class="platform-cards">
+          <section class="link-block platform-card platform-steam" id="steam">
+            <h3>{% include "games/shop_icons/steam.svg" %} Steam
+              <span class="link-status">{% with n=profile.steam_accounts|length %}{% if n %}{{ n }} cuenta{{ n|pluralize }}{% else %}Sin vincular{% endif %}{% endwith %}</span>
+            </h3>
+            {% include "accounts/linking/_steam.html" %}
+          </section>
+
+          <section class="link-block platform-card platform-xbox" id="xbox">
+            <h3>{% include "games/shop_icons/xbox.svg" %} Xbox
+              <span class="link-status">{% if profile.xbox %}{{ profile.xbox.name }}{% else %}Sin vincular{% endif %}</span>
+            </h3>
+            {% include "accounts/linking/_xbox.html" %}
+          </section>
+
+          <section class="link-block platform-card platform-psn" id="psn">
+            <h3>{% include "games/shop_icons/playstation.svg" %} PlayStation <span class="pill">Experimental</span>
+              <span class="link-status">{% if profile.psn %}{{ profile.psn.name }}{% else %}Sin vincular{% endif %}</span>
+            </h3>
+            <details class="link-details"{% if not profile.psn %} open{% endif %}>
+              <summary>{% if profile.psn %}Sincronizar o desvincular{% else %}Cómo vincularla{% endif %}</summary>
+              {% include "accounts/linking/_psn.html" %}
+            </details>
+          </section>
+
+          <section class="link-block platform-card" id="plataformas">
+            <h3>Otras plataformas
+              <span class="link-status">{% with n=profile.platforms|length %}{% if n %}{{ n }} añadida{{ n|pluralize }}{% else %}Ninguna{% endif %}{% endwith %}</span>
+            </h3>
+            {% include "accounts/linking/_platforms.html" %}
+          </section>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      // Vista previa del nombre y contador de caracteres de la biografía.
+      var name = document.getElementById("{{ form.display_name.id_for_label }}");
+      var preview = document.getElementById("preview-name");
+      name.addEventListener("input", function () {
+        preview.textContent = name.value.trim() || preview.dataset.fallback;
+      });
+      var bio = document.getElementById("{{ form.bio.id_for_label }}");
+      var count = document.getElementById("bio-count");
+      function updateCount() {
+        count.textContent = bio.value.length + " / " + bio.maxLength;
+      }
+      bio.addEventListener("input", updateCount);
+      updateCount();
+
+      // Marca en el índice lateral la sección que se está viendo.
+      var links = document.querySelectorAll(".settings-nav a");
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          links.forEach(function (link) {
+            link.classList.toggle("is-active", link.hash === "#" + entry.target.id);
+          });
+        });
+      }, { rootMargin: "-30% 0px -60% 0px" });
+      document.querySelectorAll(".settings-card").forEach(function (card) { observer.observe(card); });
+    })();
+  </script>
 {% endblock %}

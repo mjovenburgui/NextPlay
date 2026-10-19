@@ -4,6 +4,8 @@
 {% block description %}{{ game.summary|default:game.name|truncatechars:155 }}{% endblock %}
 
 {% block content %}
+  {# Fondo de cabecera: la carátula ampliada y desenfocada, fundida con el fondo de la página. #}
+  <div class="game-hero" aria-hidden="true">{% if game.cover_url %}<img src="{{ game.cover_url }}" alt="">{% endif %}</div>
   <article class="game">
     <aside class="game-side">
       <div class="cover cover-lg">

@@ -11,7 +11,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils.text import slugify
 
-from .models import Game, GamePrice, Genre, Platform
+from .models import Game, GamePrice, Genre, Platform, spanish_genre_name
 
 TOKEN_URL = "https://id.twitch.tv/oauth2/token"
 API_URL = "https://api.igdb.com/v4"
@@ -306,7 +306,7 @@ def upsert_games(payload):
         game_genres = []
         for item in data.get("genres") or []:
             if item["id"] not in genres:
-                genres[item["id"]] = _upsert_ref(Genre, item)
+                genres[item["id"]] = _upsert_ref(Genre, item, name=spanish_genre_name(item["name"], item.get("slug")))
             game_genres.append(genres[item["id"]])
         game.genres.set(game_genres)
 
