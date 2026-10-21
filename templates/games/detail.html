@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}{{ game.name }} · NextPlay{% endblock %}
-{% block description %}{{ game.summary|default:game.name|truncatechars:155 }}{% endblock %}
+{% block description %}{{ game.summary_es|default:game.summary|default:game.name|truncatechars:155 }}{% endblock %}
 
 {% block content %}
   {# Fondo de cabecera: la carátula ampliada y desenfocada, fundida con el fondo de la página. #}
@@ -34,6 +34,7 @@
 
     <div class="game-body">
       <h1>{{ game.name }}</h1>
+      {% if game.spain_name %}<p class="name-es">En España: <strong>{{ game.spain_name }}</strong></p>{% endif %}
       {% if game.first_release_date %}
         <p class="muted">{{ game.first_release_date|date:"j \d\e F \d\e Y" }}</p>
       {% endif %}
@@ -46,16 +47,50 @@
           <a class="chip chip-alt" href="{% url 'games:catalog' %}?plataforma={{ platform.slug }}">{{ platform.short_name }}</a>
         {% endfor %}
       </div>
+      {% include "games/_spanish.html" %}
 
       {% if user.is_authenticated %}
         {% include "library/_widget.html" %}
+        {% include "accounts/_favorite.html" %}
       {% else %}
         <p class="widget">
           <a href="{% url 'login' %}?next={{ request.path|urlencode }}">Inicia sesión</a> para añadirlo a tu biblioteca.
         </p>
       {% endif %}
 
-      {% if game.summary %}<p class="summary">{{ game.summary }}</p>{% endif %}
+      {# Sinopsis en español de Steam o de la tienda de Xbox; si no hay, la de IGDB, que está en inglés. #}
+      {% if game.summary_es %}
+        <p class="summary">{{ game.summary_es }}</p>
+        <p class="help summary-source">Sinopsis de {% if game.summary_es_source == "xbox" %}la tienda de Xbox{% else %}Steam{% endif %}.</p>
+        {% if game.summary %}
+          <details class="summary-original">
+            <summary>Descripción de IGDB (en inglés)</summary>
+            <p class="summary" lang="en">{{ game.summary }}</p>
+          </details>
+        {% endif %}
+      {% elif game.summary %}
+        <p class="summary" lang="en">{{ game.summary }}</p>
+        <p class="help summary-source"><span class="pill pill-en">En inglés</span> Aún no tenemos su sinopsis en español.</p>
+      {% endif %}
+
+      {% with rows=game.language_rows %}{% if rows %}
+        <details class="languages">
+          <summary>Idiomas <span class="muted">({{ rows|length }})</span></summary>
+          <table class="language-table">
+            <thead><tr><th scope="col">Idioma</th><th scope="col">Voces</th><th scope="col">Textos</th></tr></thead>
+            <tbody>
+              {% for name, audio, text in rows %}
+                <tr{% if name|slice:":7" == "Español" %} class="is-spanish"{% endif %}>
+                  <th scope="row">{{ name }}</th>
+                  <td>{% if audio %}<span class="lang-check" aria-label="Sí">✓</span>{% else %}<span class="muted" aria-label="No">–</span>{% endif %}</td>
+                  <td>{% if text %}<span class="lang-check" aria-label="Sí">✓</span>{% else %}<span class="muted" aria-label="No">–</span>{% endif %}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <p class="help">Datos de {{ game.language_sources|join:" y " }}. «Textos» es la interfaz o los subtítulos.</p>
+        </details>
+      {% endif %}{% endwith %}
 
       <section class="widget">
         <p class="widget-label">

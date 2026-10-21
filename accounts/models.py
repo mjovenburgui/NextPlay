@@ -1,9 +1,63 @@
 import re
+from urllib.parse import urlparse
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.urls import reverse
+
+from games.models import igdb_image_url
+
+# Color de los perfiles que no eligen otro (el violeta de NextPlay) y paleta que se ofrece en Editar perfil.
+DEFAULT_ACCENT = "#9d5cff"
+ACCENT_PRESETS = [
+    ("#9d5cff", "Violeta"), ("#4f8bff", "Azul"), ("#22e0f0", "Cian"), ("#3fbf3f", "Verde"),
+    ("#ffc84a", "Oro"), ("#ff8a3d", "Naranja"), ("#ff4d5e", "Rojo"), ("#ff4fa3", "Rosa"), ("#e6e8f5", "Blanco"),
+]
+HEX_COLOR = re.compile(r"^#[0-9a-f]{6}$")
+
+# Secciones del escaparate del perfil, en su orden por defecto: (clave, nombre).
+SECTIONS = [
+    ("favoritos", "Juegos favoritos"),
+    ("jugando", "Jugando ahora"),
+    ("resena", "Reseña destacada"),
+    ("estadisticas", "Estadísticas"),
+    ("generos", "Géneros que más juega"),
+]
+
+# Redes sociales que se pueden enseñar en el perfil: clave → (nombre, expresión que debe cumplir el usuario,
+# URL del perfil o vacía si la red no tiene páginas públicas). La web personal va aparte, con la clave «web».
+SOCIAL_LINKS = {
+    "twitch": ("Twitch", r"^[A-Za-z0-9_]{3,25}$", "https://www.twitch.tv/{}"),
+    "youtube": ("YouTube", r"^[A-Za-z0-9._-]{3,30}$", "https://www.youtube.com/@{}"),
+    "x": ("X", r"^[A-Za-z0-9_]{1,15}$", "https://x.com/{}"),
+    "bluesky": ("Bluesky", r"^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$", "https://bsky.app/profile/{}"),
+    "instagram": ("Instagram", r"^[A-Za-z0-9._]{1,30}$", "https://www.instagram.com/{}/"),
+    "tiktok": ("TikTok", r"^[A-Za-z0-9._]{2,24}$", "https://www.tiktok.com/@{}"),
+    "discord": ("Discord", r"^[a-z0-9_.]{2,32}$", ""),
+}
+
+
+def normalize_handle(network, value):
+    """Limpia el usuario de una red social tal como lo escribe la gente.
+
+    Quita los espacios y la @ del principio y, si pega la URL de su perfil, se queda con el usuario
+    (en Bluesky, lo que va después de /profile/). El usuario de Discord se pasa a minúsculas.
+    """
+    value = (value or "").strip()
+    if value.lower().startswith(("http://", "https://")):
+        segments = [segment for segment in urlparse(value).path.split("/") if segment]
+        if network == "bluesky" and segments[:1] == ["profile"]:
+            segments = segments[1:]
+        value = segments[0] if segments else ""
+    value = value.removeprefix("@")
+    return value.lower() if network == "discord" else value
+
+
+def profile_upload_to(instance, filename):
+    """Ruta de las imágenes de un perfil: perfiles/<id del usuario>/<nombre aleatorio que pone accounts.images>."""
+    return f"perfiles/{instance.user_id}/{filename}"
 
 
 class User(AbstractUser):
@@ -12,6 +66,33 @@ class User(AbstractUser):
 
 
 class Profile(models.Model):
+    class AvatarSource(models.TextChoices):
+        AUTO = "auto", "Automática: la tuya si la subes; si no, la de Steam, PlayStation o Xbox"
+        UPLOAD = "upload", "La que he subido"
+        STEAM = "steam", "La de Steam"
+        PSN = "psn", "La de PlayStation"
+        XBOX = "xbox", "La de Xbox"
+        INITIAL = "initial", "Solo mi inicial"
+
+    class AvatarShape(models.TextChoices):
+        CIRCLE = "circle", "Redonda"
+        ROUNDED = "rounded", "Redondeada"
+        HEXAGON = "hexagon", "Hexágono"
+
+    class BannerMode(models.TextChoices):
+        GRADIENT = "gradient", "Degradado con el color del perfil"
+        IMAGE = "image", "Una imagen mía"
+        GAME = "game", "El arte de un juego"
+
+    class BackgroundMode(models.TextChoices):
+        NONE = "none", "Sin fondo"
+        BANNER = "banner", "La imagen de la cabecera"
+        IMAGE = "image", "Una imagen mía"
+
+    class Layout(models.TextChoices):
+        CLASSIC = "classic", "Clásica: foto a la izquierda"
+        CENTERED = "centered", "Centrada"
+
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
     display_name = models.CharField("nombre visible", max_length=50, blank=True)
     bio = models.TextField("biografía", max_length=300, blank=True)
@@ -30,6 +111,44 @@ class Profile(models.Model):
         default=True,
         help_text="Cuando un juego de tu lista de deseos baje de tu precio o llegue a su mínimo histórico.",
     )
+    # Personalización. Las imágenes llegan ya tratadas por accounts.images (recortadas, en WebP y sin EXIF).
+    status_emoji = models.CharField("emoji del estado", max_length=16, blank=True)
+    status_text = models.CharField("estado", max_length=80, blank=True)
+    pronouns = models.CharField("pronombres", max_length=30, blank=True)
+    location = models.CharField("ubicación", max_length=60, blank=True)
+    avatar = models.ImageField("foto de perfil", upload_to=profile_upload_to, blank=True)
+    avatar_source = models.CharField(
+        "foto que se enseña", max_length=10, choices=AvatarSource.choices, default=AvatarSource.AUTO
+    )
+    avatar_shape = models.CharField(
+        "forma de la foto", max_length=10, choices=AvatarShape.choices, default=AvatarShape.CIRCLE
+    )
+    banner = models.ImageField("imagen de la cabecera", upload_to=profile_upload_to, blank=True)
+    banner_mode = models.CharField("cabecera", max_length=10, choices=BannerMode.choices, default=BannerMode.GRADIENT)
+    banner_game = models.ForeignKey(
+        "games.Game", on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+        verbose_name="juego de la cabecera",
+    )
+    # ID de imagen de IGDB (arte o captura) del juego de la cabecera; vacío = su portada, desenfocada.
+    banner_art = models.CharField("imagen del juego", max_length=40, blank=True)
+    background = models.ImageField("imagen de fondo", upload_to=profile_upload_to, blank=True)
+    background_mode = models.CharField(
+        "fondo de la página", max_length=10, choices=BackgroundMode.choices, default=BackgroundMode.NONE
+    )
+    background_dim = models.PositiveSmallIntegerField(
+        "oscurecer el fondo", default=60, validators=[MinValueValidator(0), MaxValueValidator(90)],
+        help_text="Tanto por ciento: cuanto más oscuro, mejor se lee el texto encima.",
+    )
+    accent_color = models.CharField("color del perfil", max_length=7, blank=True)
+    layout = models.CharField("diseño de la cabecera", max_length=10, choices=Layout.choices, default=Layout.CLASSIC)
+    # Usuario de cada red de SOCIAL_LINKS y, con la clave «web», la URL de su web: {"twitch": "usuario", ...}.
+    links = models.JSONField("redes sociales", default=dict, blank=True)
+    pinned_review = models.ForeignKey(
+        "library.LibraryEntry", on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+        verbose_name="reseña destacada",
+    )
+    # Orden y visibilidad del escaparate: [[clave de SECTIONS, visible], ...]. Vacía = el orden por defecto.
+    sections = models.JSONField("secciones del perfil", default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -88,12 +207,141 @@ class Profile(models.Model):
 
     @property
     def avatar_url(self):
-        """Avatar del perfil: el de Steam, si no el de PlayStation, si no el de Xbox; vacío para usar la inicial."""
-        return (
-            self.steam_avatar
-            or (self.psn.avatar if self.psn else "")
-            or (self.xbox.avatar if self.xbox else "")
-        )
+        """Foto del perfil según avatar_source: la subida o la de Steam, PlayStation o Xbox; vacía para la inicial.
+
+        En automático (o si la elegida ya no existe, p. ej. porque desvinculó la cuenta) prueba por orden
+        la subida, la de Steam, la de PlayStation y la de Xbox. Cada una se mira solo si hace falta.
+        """
+        if self.avatar_source == self.AvatarSource.INITIAL:
+            return ""
+        options = {
+            self.AvatarSource.UPLOAD: lambda: self.avatar.url if self.avatar else "",
+            self.AvatarSource.STEAM: lambda: self.steam_avatar,
+            self.AvatarSource.PSN: lambda: self.psn.avatar if self.psn else "",
+            self.AvatarSource.XBOX: lambda: self.xbox.avatar if self.xbox else "",
+        }
+        chosen = options.get(self.avatar_source)
+        if chosen and (url := chosen()):
+            return url
+        return next((url for get in options.values() if (url := get())), "")
+
+    @property
+    def accent(self):
+        """Color del perfil en hexadecimal; el violeta de NextPlay si no ha elegido otro."""
+        return self.accent_color if HEX_COLOR.match(self.accent_color or "") else DEFAULT_ACCENT
+
+    @property
+    def accent_rgb(self):
+        """El color del perfil como «r, g, b», para usarlo con transparencia en el CSS: rgba(var(--accent-rgb), .3)."""
+        return ", ".join(str(int(self.accent[i:i + 2], 16)) for i in (1, 3, 5))
+
+    @property
+    def accent_text(self):
+        """Color del texto encima del color del perfil: blanco, como en el resto de la web, salvo en los
+        colores claros (contraste con el blanco por debajo de 3:1, el mínimo de WCAG para texto en
+        negrita), que llevan texto casi negro."""
+
+        def linear(channel):
+            """Canal sRGB (0-255) en luz lineal, como pide la fórmula de luminancia de WCAG."""
+            value = channel / 255
+            return value / 12.92 if value <= 0.03928 else ((value + 0.055) / 1.055) ** 2.4
+
+        r, g, b = (linear(int(self.accent[i:i + 2], 16)) for i in (1, 3, 5))
+        luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        return "#ffffff" if 1.05 / (luminance + 0.05) >= 3 else "#0b0d18"
+
+    @property
+    def banner_url(self):
+        """Imagen de la cabecera según banner_mode, o vacía para el degradado con el color del perfil.
+
+        Con un juego usa el arte de IGDB elegido o, si no hay, su portada (que se enseña desenfocada).
+        """
+        if self.banner_mode == self.BannerMode.IMAGE and self.banner:
+            return self.banner.url
+        if self.banner_mode == self.BannerMode.GAME and self.banner_game_id:
+            return igdb_image_url(self.banner_art or self.banner_game.cover_image_id, "t_1080p")
+        return ""
+
+    @property
+    def banner_blurred(self):
+        """Indica si la cabecera es la portada de un juego: es vertical y se desenfoca para que no se vea pixelada."""
+        return self.banner_mode == self.BannerMode.GAME and bool(self.banner_game_id) and not self.banner_art
+
+    @property
+    def background_url(self):
+        """Imagen de fondo de la página del perfil según background_mode, o vacía si no tiene."""
+        if self.background_mode == self.BackgroundMode.BANNER:
+            return self.banner_url
+        if self.background_mode == self.BackgroundMode.IMAGE and self.background:
+            return self.background.url
+        return ""
+
+    @property
+    def background_blurred(self):
+        """Indica si el fondo es la portada de un juego (la de la cabecera) y hay que desenfocarlo."""
+        return self.background_mode == self.BackgroundMode.BANNER and self.banner_blurred
+
+    @property
+    def background_dim_ratio(self):
+        """Lo que se oscurece el fondo como número entre 0 y 1 con punto decimal, para el CSS."""
+        return f"{self.background_dim / 100:.2f}"
+
+    @property
+    def section_layout(self):
+        """Secciones del escaparate en el orden elegido: [(clave, nombre, visible)].
+
+        Las que no estén en sections (nuevas o nunca configuradas) van al final y visibles; las claves
+        que ya no existen o repetidas se ignoran.
+        """
+        names = dict(SECTIONS)
+        layout, seen = [], set()
+        for item in self.sections or []:
+            if isinstance(item, (list, tuple)) and len(item) == 2 and item[0] in names and item[0] not in seen:
+                layout.append((item[0], names[item[0]], bool(item[1])))
+                seen.add(item[0])
+        return layout + [(key, name, True) for key, name in SECTIONS if key not in seen]
+
+    @property
+    def visible_sections(self):
+        """Claves de las secciones del escaparate que se enseñan, en su orden."""
+        return [key for key, _, visible in self.section_layout if visible]
+
+    @property
+    def social_links(self):
+        """Redes del perfil para enseñarlas: [(clave, nombre, usuario o dominio, URL o vacía)].
+
+        Van en el orden de SOCIAL_LINKS y la web personal al final, con su dominio como texto.
+        """
+        links = self.links or {}
+        result = [
+            (key, name, links[key], url.format(links[key]) if url else "")
+            for key, (name, _, url) in SOCIAL_LINKS.items()
+            if links.get(key)
+        ]
+        if links.get("web"):
+            result.append(("web", "Web", urlparse(links["web"]).netloc.removeprefix("www."), links["web"]))
+        return result
+
+
+class FavoriteGame(models.Model):
+    """Juego que el usuario enseña en «Juegos favoritos» de su perfil; como mucho MAX_PER_USER, en el orden que elija."""
+
+    MAX_PER_USER = 5
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="favorite_games")
+    game = models.ForeignKey("games.Game", on_delete=models.CASCADE, related_name="+", verbose_name="juego")
+    position = models.PositiveSmallIntegerField("posición", default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["position", "id"]
+        constraints = [models.UniqueConstraint(fields=["user", "game"], name="unique_favorite_game_per_user")]
+        verbose_name = "juego favorito"
+        verbose_name_plural = "juegos favoritos"
+
+    def __str__(self):
+        """Texto en el admin: «usuario · juego»."""
+        return f"{self.user} · {self.game}"
 
 
 class SteamAccount(models.Model):

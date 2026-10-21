@@ -3,3 +3,4 @@ dj-database-url>=2.3
 python-dotenv>=1.0
 requests>=2.32
 psycopg[binary]>=3.2
+Pillow>=11.0

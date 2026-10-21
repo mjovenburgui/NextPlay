@@ -61,6 +61,8 @@ cover/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+# Imágenes que suben los usuarios (MEDIA_ROOT)
+media/
 
 # Flask stuff:
 instance/

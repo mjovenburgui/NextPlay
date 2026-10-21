@@ -6,8 +6,13 @@
   <section class="panel panel-wide">
     <div class="page-head">
       <h1>{% include "_icon.html" with name="heart" %} Lista de deseos</h1>
-      {% if rows|length > 1 %}
+      {% if total > 1 %}
         <form class="sort" method="get">
+          <label class="muted small" for="idioma">Idioma</label>
+          <select id="idioma" name="idioma" onchange="this.form.submit()">
+            <option value="">Cualquiera</option>
+            {% for value, label in language_filters %}<option value="{{ value }}"{% if active_language == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
           <label class="muted small" for="orden">Ordenar</label>
           <select id="orden" name="orden" onchange="this.form.submit()">
             <option value="">Añadidos hace menos</option>
@@ -51,7 +56,11 @@
           </li>
         {% endwith %}
       {% empty %}
-        <li class="empty">Tu lista está vacía. En la ficha de un juego pulsa «Lo quiero» para que te avisemos cuando baje de precio.</li>
+        {% if active_language %}
+          <li class="empty">Ningún juego de tu lista cumple ese filtro de idioma. <a href="?{% if active_sort %}orden={{ active_sort }}{% endif %}">Ver todos</a></li>
+        {% else %}
+          <li class="empty">Tu lista está vacía. En la ficha de un juego pulsa «Lo quiero» para que te avisemos cuando baje de precio.</li>
+        {% endif %}
       {% endfor %}
     </ul>
   </section>

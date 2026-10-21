@@ -1,0 +1,12 @@
+{# Botón «Añadir a mis favoritos» de la ficha del juego; HTMX lo cambia en su sitio. Necesita game, is_favorite, favorites_count, max_favorites y favorite_error. #}
+<div class="favorite" id="favorite-toggle">
+  <form action="{% url 'favorite_toggle' game.id %}" method="post"
+        hx-post="{% url 'favorite_toggle' game.id %}" hx-target="#favorite-toggle" hx-swap="outerHTML">
+    {% csrf_token %}
+    <button class="btn favorite-btn{% if is_favorite %} is-active{% endif %}" type="submit" aria-pressed="{% if is_favorite %}true{% else %}false{% endif %}">
+      {% include "_icon.html" with name="award" %} {% if is_favorite %}En tus favoritos{% else %}Añadir a mis favoritos{% endif %}
+    </button>
+  </form>
+  <span class="muted small">{{ favorites_count }} de {{ max_favorites }} en <a href="{% url 'profile' user.username %}">tu perfil</a></span>
+  {% if favorite_error %}<p class="errorlist">{{ favorite_error }}</p>{% endif %}
+</div>

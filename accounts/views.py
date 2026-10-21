@@ -6,6 +6,8 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth import get_user_model, login
 from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
+from django.db.models import Max, Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.defaultfilters import pluralize
@@ -17,12 +19,15 @@ from django.views.decorators.http import require_POST
 
 from games import igdb
 
-from games.models import Game, Genre, known_shops
+from games.models import LANGUAGE_FILTERS, Game, Genre, igdb_image_url, known_shops, language_filter
 from library.models import LibraryEntry
 
 from . import matching, psn, steam, xbox
 from .forms import PlatformAccountForm, ProfileForm, SignupForm
-from .models import ImportedTitle, PlatformAccount, PSNAccount, SteamAccount, XboxAccount
+from .models import (
+    ACCENT_PRESETS, SECTIONS, FavoriteGame, ImportedTitle, PlatformAccount, Profile, PSNAccount, SteamAccount,
+    XboxAccount,
+)
 
 User = get_user_model()
 STEAM_STATE_KEY = "steam_openid_state"
@@ -57,14 +62,16 @@ def signup(request):
 
 
 def profile(request, username):
-    """Perfil público de un usuario: cabecera con estadísticas, su biblioteca y sus reseñas.
+    """Perfil público de un usuario: cabecera personalizada, escaparate, su biblioteca y sus reseñas.
 
-    La biblioteca tiene pestañas por estado (Jugando, Completado...) con su contador y se filtra con
-    ?estado=; se ordena con ?orden= (recientes, nota, horas o nombre). Con ?vista=resenas muestra sus
+    El escaparate (favoritos, lo que está jugando, reseña destacada, estadísticas y géneros) sale en el
+    orden y con las secciones que haya elegido. La biblioteca tiene pestañas por estado (Jugando,
+    Completado...) con su contador y se filtra con ?estado= y por idioma con ?idioma= (voces o textos en
+    castellano); se ordena con ?orden= (recientes, nota, horas o nombre). Con ?vista=resenas muestra sus
     reseñas en vez de la biblioteca. Un perfil privado da 404 a cualquiera que no sea su dueño.
     """
     owner = get_object_or_404(
-        User.objects.select_related("profile", "psn_account", "xbox_account").prefetch_related(
+        User.objects.select_related("profile", "profile__banner_game", "psn_account", "xbox_account").prefetch_related(
             "steam_accounts", "platform_accounts"
         ),
         username=username,
@@ -93,6 +100,15 @@ def profile(request, username):
     if sort:
         shown = sorted(shown, key=PROFILE_SORTS[sort][1])
 
+    language = request.GET.get("idioma", "")
+    if language not in LANGUAGE_FILTERS:
+        language = ""
+    if language:
+        allowed = set(
+            Game.objects.filter(language_filter(language), pk__in={e.game_id for e in shown}).values_list("pk", flat=True)
+        )
+        shown = [e for e in shown if e.game_id in allowed]
+
     reviews = [e for e in entries if e.review]
     reviews.sort(key=lambda e: e.reviewed_at, reverse=True)
     view = "resenas" if request.GET.get("vista") == "resenas" else ""
@@ -109,8 +125,18 @@ def profile(request, username):
             "active_status": status,
             "sorts": [(value, label) for value, (label, _) in PROFILE_SORTS.items()],
             "active_sort": sort,
+            "language_filters": LANGUAGE_FILTERS.items(),
+            "active_language": language,
+            # Orden e idioma elegidos, para no perderlos al cambiar de pestaña de estado.
+            "keep_qs": urlencode({k: v for k, v in (("orden", sort), ("idioma", language)) if v}),
             "view": view,
             "reviews": reviews,
+            # El escaparate solo va en la vista principal: al filtrar u ordenar, la biblioteca sube.
+            "show_showcase": not (status or sort or view or language),
+            "favorites": list(owner.favorite_games.select_related("game")),
+            "max_favorites": FavoriteGame.MAX_PER_USER,
+            "playing": [e for e in entries if e.status == LibraryEntry.Status.PLAYING][:PLAYING_SHOWN],
+            "pinned": next((e for e in reviews if e.pk == owner.profile.pinned_review_id), None),
             "stats": _profile_stats(owner, entries, counts),
             "is_owner": request.user == owner,
             "unmatched_count": (
@@ -121,6 +147,9 @@ def profile(request, username):
         },
     )
 
+
+# Juegos que se enseñan en la sección «Jugando ahora» del escaparate del perfil.
+PLAYING_SHOWN = 6
 
 # Valor de ?orden= → (etiqueta, clave de orden). Los juegos sin nota o sin horas jugadas van al final.
 PROFILE_SORTS = {
@@ -151,21 +180,138 @@ def _profile_stats(owner, entries, counts):
 
 @login_required
 def edit_profile(request):
-    """Formulario para que el usuario con sesión cambie su nombre visible, biografía y privacidad."""
-    form = ProfileForm(request.POST or None, instance=request.user.profile)
-    if request.method == "POST" and form.is_valid():
-        form.save()
-        messages.success(request, "Perfil actualizado.")
-        return redirect("profile", username=request.user.username)
-    chosen = set(request.user.profile.shops)
+    """Editar perfil: datos, apariencia (foto, cabecera, fondo, color y diseño), escaparate, redes y privacidad.
+
+    El formulario trabaja con una copia del perfil para que, si no es válido, la vista previa y la
+    cabecera de la página sigan enseñando lo guardado. Las tiendas y las cuentas vinculadas tienen
+    sus propios formularios en la misma página.
+    """
+    profile = request.user.profile
+    form = ProfileForm(
+        request.POST or None, request.FILES or None, instance=Profile.objects.get(pk=profile.pk), user=request.user
+    )
+    if request.method == "POST":
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Perfil actualizado.")
+            return redirect("profile", username=request.user.username)
+        messages.error(request, "No se ha guardado: revisa los campos marcados en rojo.")
+    chosen = set(profile.shops)
     return render(
         request,
         "accounts/edit_profile.html",
         {
             "form": form,
-            "profile": request.user.profile,
+            "profile": profile,
+            "favorites": form.favorites,
+            "max_favorites": FavoriteGame.MAX_PER_USER,
+            "accent_presets": ACCENT_PRESETS,
+            "sections": _posted_sections(form) or profile.section_layout,
             "shop_choices": [(shop_id, name, shop_id in chosen) for shop_id, name in known_shops()],
             **linking_context(),
+        },
+    )
+
+
+def _posted_sections(form):
+    """Secciones tal como venían en un envío no válido (orden y visibles), para no perder lo que movió; [] si no hay."""
+    if not form.is_bound or "secciones" not in form.data:
+        return []
+    names = dict(SECTIONS)
+    visible = set(form.data.getlist("secciones_visibles"))
+    keys = [key for key in dict.fromkeys(form.data.getlist("secciones")) if key in names]
+    return [(key, names[key], key in visible) for key in keys]
+
+
+def favorite_context(user, game, error=""):
+    """Variables del botón «Añadir a mis favoritos» de la ficha de game para user."""
+    favorites = list(user.favorite_games.values_list("game_id", flat=True))
+    return {
+        "is_favorite": game.pk in favorites,
+        "favorites_count": len(favorites),
+        "max_favorites": FavoriteGame.MAX_PER_USER,
+        "favorite_error": error,
+    }
+
+
+@require_POST
+@login_required
+def favorite_toggle(request, game_id):
+    """Añade el juego a los favoritos del perfil del usuario o lo quita si ya estaba.
+
+    Como mucho FavoriteGame.MAX_PER_USER: con el cupo lleno avisa de que quite alguno. Los nuevos van al
+    final. Con HTMX devuelve el botón actualizado; si no, vuelve a la ficha del juego.
+    """
+    game = get_object_or_404(Game, pk=game_id)
+    favorites = request.user.favorite_games
+    error = ""
+    removed, _ = favorites.filter(game=game).delete()
+    if not removed:
+        if favorites.count() >= FavoriteGame.MAX_PER_USER:
+            error = f"Ya tienes {FavoriteGame.MAX_PER_USER} favoritos: quita alguno en Editar perfil › Escaparate."
+        else:
+            last = favorites.aggregate(last=Max("position"))["last"]
+            FavoriteGame.objects.create(user=request.user, game=game, position=0 if last is None else last + 1)
+    if request.headers.get("HX-Request"):
+        return render(request, "accounts/_favorite.html", {"game": game, **favorite_context(request.user, game, error)})
+    if error:
+        messages.error(request, error)
+    return redirect(game)
+
+
+# Horas que se guardan en caché las imágenes de IGDB de cada juego para las cabeceras.
+ARTS_CACHE_HOURS = 24
+
+
+def game_arts(game):
+    """Imágenes apaisadas de IGDB (arte y capturas) de un juego para la cabecera: [{"id", "thumb", "full"}].
+
+    «thumb» es la miniatura para elegirla y «full», el tamaño con el que se ve en la cabecera.
+
+    Se guardan un día en caché. Lista vacía si no hay juego, el juego no viene de IGDB, IGDB no está
+    configurado o no responde.
+    """
+    if game is None or not game.igdb_id or not igdb.is_configured():
+        return []
+    key = f"igdb:arts:{game.igdb_id}"
+    ids = cache.get(key)
+    if ids is None:
+        try:
+            ids = igdb.IGDBClient().artworks(game.igdb_id)
+        except igdb.IGDBError:
+            logger.exception("No se pudieron pedir a IGDB las imágenes de %s", game.slug)
+            return []
+        cache.set(key, ids, ARTS_CACHE_HOURS * 3600)
+    return [
+        {"id": image_id, "thumb": igdb_image_url(image_id, "t_screenshot_med"), "full": igdb_image_url(image_id, "t_1080p")}
+        for image_id in ids
+    ]
+
+
+@login_required
+def banner_arts(request):
+    """Opciones de imagen para la cabecera con el juego elegido en Editar perfil (fragmento HTML).
+
+    El formulario lo pide con HTMX al cargar y al cambiar de juego (?banner_game=). Solo vale con juegos
+    de la biblioteca del usuario o con el que ya tiene en la cabecera.
+    """
+    profile = request.user.profile
+    game_id = request.GET.get("banner_game", "")
+    game = None
+    if game_id.isdigit():
+        game = Game.objects.filter(
+            Q(library_entries__user=request.user) | Q(pk=profile.banner_game_id or 0), pk=int(game_id)
+        ).first()
+    selected = profile.banner_art if game is not None and game.pk == profile.banner_game_id else ""
+    return render(
+        request,
+        "accounts/_banner_arts.html",
+        {
+            "game": game,
+            "arts": game_arts(game),
+            "selected": selected,
+            "cover_full": igdb_image_url(game.cover_image_id, "t_1080p") if game else "",
+            "igdb_configured": igdb.is_configured(),
         },
     )
 

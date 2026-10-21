@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from games.models import Game
+from games.models import LANGUAGE_FILTERS, Game, language_filter
 
 from .forms import ReviewForm
 from .models import LibraryEntry, WishlistItem
@@ -187,8 +187,14 @@ WISHLIST_SORTS = {
 def wishlist(request):
     """Lista de deseos del usuario con el mejor precio de hoy de cada juego (en sus tiendas, si las ha
     elegido), su mínimo histórico y si está por debajo de su límite. Se ordena con ?orden= (recientes
-    por defecto, descuento, precio o nombre)."""
+    por defecto, descuento, precio o nombre) y se filtra por idioma con ?idioma= (ver LANGUAGE_FILTERS)."""
     wishes = WishlistItem.objects.filter(user=request.user).select_related("game").prefetch_related("game__prices")
+    total = wishes.count()
+    language = request.GET.get("idioma", "")
+    if language in LANGUAGE_FILTERS:
+        wishes = wishes.filter(language_filter(language, prefix="game__"))
+    else:
+        language = ""
     owned = set(
         LibraryEntry.objects.filter(user=request.user, game__wishlisted_by__user=request.user)
         .values_list("game_id", flat=True)
@@ -212,6 +218,9 @@ def wishlist(request):
         sort = ""
     return render(request, "library/wishlist.html", {
         "rows": rows,
+        "total": total,
         "sorts": [(value, label) for value, (label, _) in WISHLIST_SORTS.items()],
         "active_sort": sort,
+        "language_filters": LANGUAGE_FILTERS.items(),
+        "active_language": language,
     })

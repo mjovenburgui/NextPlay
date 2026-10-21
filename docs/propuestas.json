@@ -32,6 +32,94 @@
     "notas": "Si solo se usan las cookies de sesión y CSRF no hace falta banner de cookies; si algún día se añaden analíticas, sí."
   },
   {
+    "titulo": "Perfil muy personalizable: foto, cabecera, fondo, colores y escaparate",
+    "fecha": "2026-10-21",
+    "estado": "hecha",
+    "prioridad": "alta",
+    "tipo": "Funcionalidad",
+    "resumen": "Que cada usuario deje su perfil a su gusto: foto de perfil propia, cabecera con una imagen o con el arte de un juego, fondo de página, color del perfil, diseño de la cabecera, forma de la foto, estado con emoji, pronombres, ubicación, redes sociales, juegos favoritos, reseña destacada y qué secciones se ven y en qué orden.",
+    "motivo": "El usuario quiere un perfil muchísimo más personalizable que el de Backloggd. Ahora en NextPlay solo se cambian el nombre visible y la biografía, y la foto sale de Steam, PlayStation o Xbox.",
+    "pasos": [
+      "Subida de imágenes con Pillow: se comprueban, se recortan, se pasan a WebP y se les quitan los datos EXIF (por ejemplo, la ubicación de las fotos del móvil).",
+      "Foto de perfil propia o elegir cuál se enseña (la subida, Steam, PlayStation, Xbox o solo la inicial) y su forma (redonda, redondeada o hexágono).",
+      "Cabecera con una imagen subida o con el arte de un juego de la biblioteca (artworks y capturas de IGDB).",
+      "Fondo de la página del perfil (ninguno, el de la cabecera o una imagen propia) con un control para oscurecerlo.",
+      "Color del perfil (paleta o el que quieras) y diseño de la cabecera (clásico o centrado).",
+      "Estado con emoji, pronombres, ubicación y enlaces a Twitch, YouTube, X, Bluesky, Instagram, TikTok, Discord y una web.",
+      "Escaparate: hasta 5 juegos favoritos (se marcan desde la ficha del juego), reseña destacada y orden y visibilidad de las secciones.",
+      "Vista previa en directo en Editar perfil."
+    ],
+    "notas": "Las imágenes se guardan en MEDIA_ROOT; en producción habrá que servirlas aparte o con un almacenamiento externo (por ejemplo, S3). Hecha el 21/10/2026 (aún sin commit): modelo FavoriteGame y campos nuevos en Profile, accounts/images.py, Editar perfil con vista previa en directo, selector de imágenes de IGDB con HTMX, botón de favoritos en la ficha, escaparate en el perfil (solo en su vista principal) y 27 tests nuevos. Probada en el navegador con la cuenta tester, también en móvil."
+  },
+  {
+    "titulo": "Reseñas completas: medias estrellas, una por partida y página propia",
+    "fecha": "2026-10-21",
+    "estado": "pendiente",
+    "prioridad": "alta",
+    "tipo": "Funcionalidad",
+    "resumen": "Llevar las reseñas al nivel de las de Backloggd sin copiar su diseño: valoraciones con medias estrellas, varias reseñas del mismo juego (una por partida o rejugada) con plataforma y fechas, una página propia para enlazar cada reseña, texto con formato (negrita, cursiva, enlaces y spoilers dentro del texto) y borradores.",
+    "motivo": "Al usuario le parece que la parte de reseñas de Backloggd es la mejor. Ahora en NextPlay hay una sola reseña por juego y usuario dentro de la biblioteca, con estrellas enteras del 1 al 5, y solo se lee en la ficha y en el perfil.",
+    "pasos": [
+      "Valoración en medias estrellas (de 0,5 a 5), guardada como un número del 1 al 10 para no perder precisión; las notas que ya hay se multiplican por 2 en la migración.",
+      "Modelo de reseña aparte de LibraryEntry (usuario, juego, partida, plataforma, fechas de inicio y fin, horas, texto y spoilers) para poder reseñar un mismo juego varias veces.",
+      "Página propia de cada reseña (/u/<usuario>/resena/<id>/) con su juego, la valoración y, más adelante, sus me gusta y comentarios.",
+      "Formato sencillo y seguro: negrita, cursiva, enlaces y ||spoilers|| dentro del texto, sin permitir HTML.",
+      "Guardar como borrador antes de publicarla.",
+      "Mejoras propias: las horas con las que se escribió y los spoilers según tu progreso (ver «Reseñas con horas verificadas y spoilers según tu progreso»)."
+    ],
+    "notas": "Las reseñas son un patrón común (Letterboxd, Goodreads, Steam): se pueden hacer igual de completas con un diseño y unos textos propios. Va junto con «Me gusta y comentarios en las reseñas»."
+  },
+  {
+    "titulo": "Me gusta y comentarios en las reseñas",
+    "fecha": "2026-10-17",
+    "estado": "pendiente",
+    "prioridad": "alta",
+    "tipo": "Funcionalidad",
+    "resumen": "Reaccionar a las reseñas con «me gusta», comentarlas y ordenar las de la ficha por las más útiles.",
+    "motivo": "Las reseñas ya existen, pero no hay forma de interactuar con ellas; es la interacción social más barata de añadir.",
+    "pasos": [
+      "Modelo ReviewLike (usuario, entrada de biblioteca) y contador en la reseña.",
+      "Comentarios cortos con moderación básica (borrar los propios y que el autor pueda borrar los de su reseña).",
+      "Orden de reseñas en la ficha: más útiles / más recientes.",
+      "Botón de denunciar reseña para el admin."
+    ],
+    "notas": "Ya estaba planeada antes de proponerla. 21/10/2026: sube a alta porque el usuario quiere unas reseñas al nivel de las de Backloggd."
+  },
+  {
+    "titulo": "Listas personalizadas de juegos",
+    "fecha": "2026-10-17",
+    "estado": "pendiente",
+    "prioridad": "alta",
+    "tipo": "Funcionalidad",
+    "resumen": "Que cada usuario cree listas con nombre y descripción («Mejores metroidvanias», «Para jugar en pareja»), ordenadas y públicas o privadas.",
+    "motivo": "El README ya promete listas y aún no existen. Son el contenido que más se comparte en webs como Letterboxd o Backloggd.",
+    "pasos": [
+      "Modelos GameList (usuario, título, descripción, pública) y GameListItem (lista, juego, posición, nota).",
+      "Crear, editar y reordenar desde el perfil (arrastrar con HTMX o botones subir/bajar).",
+      "Botón «Añadir a una lista» en la ficha del juego.",
+      "Mostrar en la ficha en qué listas públicas aparece el juego.",
+      "Mejoras sobre Backloggd: el progreso de quien la mira («has jugado 7 de 20»), modo tier list (S, A, B, C…), listas colaborativas con otros usuarios y portada en mosaico con las carátulas."
+    ],
+    "notas": "Ya estaba planeada antes de proponerla. 21/10/2026: sube a alta porque el usuario las quiere ya."
+  },
+  {
+    "titulo": "Retos: crea los tuyos y únete a los de otros",
+    "fecha": "2026-10-21",
+    "estado": "pendiente",
+    "prioridad": "alta",
+    "tipo": "Funcionalidad",
+    "resumen": "Que cualquiera cree un reto («Termina 5 juegos de terror en octubre», «Pásate todos los Souls», «20 juegos en 2027») con sus reglas y fechas, que otros se unan y que el progreso se cuente solo con la biblioteca de cada uno.",
+    "motivo": "El usuario quiere retos además de listas. Backloggd no tiene retos, y en NextPlay el progreso puede ir solo porque los estados y las horas ya se importan de Steam, PlayStation y Xbox.",
+    "pasos": [
+      "Modelo de reto (creador, título, descripción, fechas, público o privado) con tres tipos: una lista de juegos concreta, un número de juegos que cumplan un filtro (género, plataforma o año) o un número de horas.",
+      "Unirse a un reto y barra de progreso calculada con la biblioteca: cuenta lo que se completa entre las fechas del reto.",
+      "Guardar la fecha en que un juego pasa a Completado (ahora solo hay updated_at), que también necesitan las estadísticas.",
+      "Insignia en el perfil al terminarlo y sección «Retos» en el escaparate del perfil.",
+      "Página de retos con los más populares y los de la gente a la que sigues."
+    ],
+    "notas": "El reto anual de «Retos del año y control del pendiente» pasa a ser un tipo más de este; lo del valor del pendiente y el asistente siguen allí."
+  },
+  {
     "titulo": "Importar juegos y horas de Xbox",
     "fecha": "2026-10-17",
     "estado": "en curso",
@@ -63,6 +151,24 @@
       "Mostrar en el perfil la fecha de la última sincronización automática y un interruptor para desactivarla."
     ],
     "notas": "Xbox solo se podría si se guarda cifrado el token de refresco, que ahora no se guarda a propósito. PlayStation no se puede sin guardar el NPSSO, y se decidió no guardarlo. Hecha el 18/10/2026 con cron (sin Celery ni django-q): comandos sync_libraries (pausa entre usuarios, salta a los sincronizados en las últimas 12 h, un fallo no para a los demás) y nightly (Steam y después precios), interruptor y fecha de la última sincronización en el panel de Steam. Probada con una cuenta real de Steam. Falta programarla de verdad: cron en el servidor o Programador de tareas de Windows (instrucciones en el README)."
+  },
+  {
+    "titulo": "Diario de partidas que se escribe solo",
+    "fecha": "2026-10-21",
+    "estado": "pendiente",
+    "prioridad": "alta",
+    "tipo": "Funcionalidad",
+    "resumen": "Guardar en cada sincronización cuánto ha subido el tiempo de cada juego para tener, sin apuntar nada, un diario de partidas: calendario de días jugados, horas por semana y cuándo empezaste y dejaste cada juego.",
+    "motivo": "El diario (Journal) es la función estrella de Backloggd, pero allí cada partida se apunta a mano. NextPlay ya recibe cada noche los minutos y la última partida de Steam, pero solo guarda el total y lo sobrescribe (ImportedTitle.minutes), así que cada noche se pierde un día de historial que después no se puede reconstruir. Además daría las fechas de inicio y de fin que les faltan a «Estadísticas del perfil y resumen anual» y a «Retos del año y control del pendiente».",
+    "pasos": [
+      "Modelo de sesión (usuario, juego, plataforma, día y minutos). En save_titles, antes de sobrescribir los minutos de ImportedTitle, apuntar la diferencia si han subido, con el día de la última partida.",
+      "Primera y última partida de cada juego de la biblioteca, sacadas de las sesiones.",
+      "Calendario de actividad (mapa de calor) en el perfil y línea temporal en la ficha: «empezado el 3 de marzo · 14 sesiones · la última hace 2 días».",
+      "Estados sugeridos solos: un juego en «Jugando» que lleva semanas sin sesiones propone pasar a «Jugado» o «Abandonado», y uno que vuelve a tener sesiones, a «Jugando».",
+      "PlayStation y Xbox también dejan sus sesiones en cada sincronización a mano, aunque más espaciadas.",
+      "Respetar el perfil privado y dejar ocultar el diario aunque el perfil sea público."
+    ],
+    "notas": "Conviene hacer ya el paso 1 aunque el resto espere: el historial que no se guarda no se recupera. Steam solo da el total y la última partida, así que una «sesión» es lo jugado entre dos sincronizaciones. Si algún día se guarda cifrado el token de refresco de Microsoft (ahora no se guarda a propósito), las sesiones de Xbox también serían diarias. Backloggd tiene en su hoja de ruta cambiar los estados según la actividad («Auto Log Organizing») y no lo ha hecho."
   },
   {
     "titulo": "Revisar los juegos que no se emparejaron al importar",
@@ -174,9 +280,47 @@
       "Modelos para compañías y sagas, y campos para PEGI y modos de juego.",
       "Tráiler de YouTube que solo se carga al pulsar (para no meter la página de YouTube en cada visita) y galería de capturas.",
       "Páginas de estudio y de saga con tu progreso en ella.",
-      "Volver a importar los juegos existentes."
+      "Volver a importar los juegos existentes.",
+      "Más campos que IGDB ya da (comprobado con The Witcher 3): storyline, themes, player_perspectives, keywords, game_engines, websites, alternative_names, release_dates por plataforma y región, game_status, game_type, ports, remakes, standalone_expansions, bundles y rating (la nota de los usuarios de IGDB).",
+      "Usar un arte o una captura apaisada de IGDB como fondo de la cabecera de la ficha en vez de la portada desenfocada (Backloggd pone una captura arriba).",
+      "Enlace «Ver en IGDB» con el campo url, como el «More on IGDB» de Backloggd."
     ],
-    "notas": ""
+    "notas": "21/10/2026: comparada con la ficha de Backloggd, que también sale de IGDB: enseña estudio y editora, una captura arriba, resumen, fecha, géneros, plataformas y pestañas de DLC, actualizaciones, ediciones, saga y mods. De The Witcher 3, IGDB da 16 artes, 12 capturas, 17 vídeos, 7 clasificaciones de edad, 48 idiomas, 16 webs y 82 palabras clave, así que la ficha puede quedar más completa que la suya. Pedirlo todo en cada importación hace las respuestas mucho más grandes: mejor traer lo extra al abrir la ficha (con caché) y por la noche para los más populares."
+  },
+  {
+    "titulo": "Fichas en castellano: doblaje, subtítulos y sinopsis en español",
+    "fecha": "2026-10-21",
+    "estado": "hecha",
+    "prioridad": "alta",
+    "tipo": "Funcionalidad",
+    "resumen": "Enseñar en cada juego si tiene voces, textos o subtítulos en castellano (o solo en español de Latinoamérica), poner la sinopsis en español, encontrar los juegos por su nombre en España y filtrar el catálogo y el pendiente por «doblado al castellano».",
+    "motivo": "Backloggd está en inglés y elegir el idioma de las reseñas sigue pendiente en su hoja de ruta. NextPlay ya enseña los precios de la tienda española, pero la sinopsis de la ficha sale de IGDB en inglés y la pregunta más típica del jugador de aquí, «¿viene doblado?», no la contesta ningún tracker. Los datos salen de fuentes que ya se usan: IGDB, Steam y la tienda de Microsoft.",
+    "pasos": [
+      "Pedir a IGDB language_supports (idioma y tipo: voces, subtítulos o interfaz) en GAME_FIELDS; distingue el español de España del de México.",
+      "Completar con Steam en los juegos con steam_app_id: appdetails con l=spanish trae supported_languages, que marca con un asterisco los idiomas con voces.",
+      "Sinopsis en español: la descripción corta de Steam en español o la de la tienda de Microsoft, que fetch_products ya pide en es-ES aunque ahora solo lee el precio. Si no hay ninguna, la de IGDB con la etiqueta «en inglés».",
+      "Nombres de España (los de Nintendo cambian mucho) desde los nombres alternativos de IGDB, para que el buscador también los encuentre.",
+      "Insignias en la ficha («Voces en castellano», «Textos en español», «Solo en inglés») y filtro en el catálogo, la biblioteca y la lista de deseos.",
+      "Portadas de aquí: game_localizations de IGDB trae nombre y portada por región (también Europa), como las portadas personalizadas de Backloggd; usar la europea por defecto y dejar elegir región en el perfil."
+    ],
+    "notas": "Se puede hacer en la misma reimportación que «Ficha del juego más completa». La API appdetails de Steam admite pocas peticiones seguidas (unas 200 cada 5 minutos): pedirla en la importación o en la tarea nocturna, nunca al abrir la ficha. Hecha el 21/10/2026 (aún sin commit): games/spanish.py, comando localize_games (también en nightly, 200 juegos por noche, con reintentos si Steam corta la conexión), etiquetas y tabla de idiomas en la ficha, sinopsis de Steam o de Xbox con la de IGDB plegada, nombre en España, portada europea cuando IGDB la tiene, filtro ?idioma= en el catálogo, la biblioteca y la lista de deseos, y el buscador encuentra los nombres alternativos (siglas como «tw3» o «gta 5»). En el catálogo local: 2175 juegos revisados en IGDB, 496 con voces en castellano y 1383 con textos en castellano; sinopsis en español de los 154 más populares (137 de Steam y 17 de la tienda de Xbox). El resto lo irá completando nightly (o localize_games --limit N de una vez). No hecho: elegir en el perfil la región de las portadas (aporta poco: solo unos 1 de cada 9 juegos tienen portada europea en IGDB)."
+  },
+  {
+    "titulo": "Catálogo con filtros y orden al nivel de Backloggd (y más)",
+    "fecha": "2026-10-21",
+    "estado": "pendiente",
+    "prioridad": "alta",
+    "tipo": "Funcionalidad",
+    "resumen": "Que el catálogo se pueda ordenar y filtrar como en Backloggd (año, si ya ha salido, tipo de juego, nota, juegos de nicho…) y además por cosas que solo tiene NextPlay: precio, rebajas, idioma y lo que tienes en tu biblioteca.",
+    "motivo": "Backloggd deja ordenar por popularidad, título, tendencia, fecha de salida, nota, tiempo medio de juego y tiempo medio para terminar (en los dos sentidos) y filtrar por tipo (juego principal, DLC, remake, remaster, port, mod…), año, lanzados o próximos, género, plataforma, nota y «popular o de nicho». El catálogo de NextPlay solo filtra por texto, género y plataforma y siempre ordena por popularidad.",
+    "pasos": [
+      "Guardar de IGDB game_type y game_status (ver «Quitar DLC y actualizaciones de las búsquedas en IGDB») para filtrar por tipo y por lanzados o próximos.",
+      "Filtros nuevos: año o década, lanzado o próximo, tipo de juego, nota mínima (de la crítica o de la comunidad) y popular o de nicho (con la popularidad que ya se guarda).",
+      "Órdenes nuevos, en los dos sentidos: título, fecha de salida, nota, tendencia (lo más añadido en los últimos 30 días, como en Inicio) y duración (cuando esté «Duración estimada de los juegos»).",
+      "Filtros que Backloggd no puede tener: precio máximo, rebajado ahora, en su mínimo histórico, doblado al castellano y «no lo tengo» o «está en mi pendiente».",
+      "Filtros con HTMX que cambian la URL, para poder compartir una búsqueda («RPG de 2015 por menos de 10 €»)."
+    ],
+    "notas": "Los filtros de idioma y de Game Pass dependen de «Fichas en castellano» y de «Saber qué juegos están en Game Pass»."
   },
   {
     "titulo": "Quitar DLC y actualizaciones de las búsquedas en IGDB",
@@ -192,6 +336,124 @@
       "Comando para borrar del catálogo los DLC ya importados que no estén en ninguna biblioteca."
     ],
     "notas": ""
+  },
+  {
+    "titulo": "Contadores y reparto de valoraciones en la ficha",
+    "fecha": "2026-10-21",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Enseñar en la ficha de cada juego cuánta gente de NextPlay lo ha jugado, lo está jugando, lo tiene pendiente, lo quiere y lo ha valorado, con una gráfica de barras del reparto de las notas, como hace Backloggd.",
+    "motivo": "Backloggd pone en cada ficha las partidas, los que lo juegan, los pendientes, los deseados, las valoraciones, las listas, las reseñas y los me gusta, más un histograma de notas. NextPlay ya tiene esos datos (estados de la biblioteca, lista de deseos y valoraciones) pero solo enseña la media.",
+    "pasos": [
+      "Una consulta agrupada por estado sobre LibraryEntry del juego y el número de WishlistItem.",
+      "Histograma de valoraciones de 1 a 5 (o de 0,5 a 5 cuando estén las medias estrellas de «Reseñas completas») en el recuadro de la comunidad.",
+      "Cada contador enlaza a quién lo juega o lo quiere, respetando los perfiles privados.",
+      "Guardar los contadores unos minutos en caché en los juegos muy populares."
+    ],
+    "notas": "Con pocos usuarios las cifras serán pequeñas; se puede enseñar el histograma solo a partir de un mínimo de valoraciones."
+  },
+  {
+    "titulo": "Ediciones agrupadas bajo su juego (GOTY, Complete, Definitive…)",
+    "fecha": "2026-10-21",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Que las ediciones de un juego no salgan como juegos sueltos sino dentro de la ficha del juego principal, con un selector de edición para las estadísticas y las reseñas, como hace Backloggd.",
+    "motivo": "En la biblioteca de la cuenta de prueba sale «Batman: Arkham Asylum - Game of the Year Edition» como un juego aparte, porque Steam vende esa edición con su propio ID; en IGDB es una edición (version_parent) de «Batman: Arkham Asylum», así que sus valoraciones y reseñas no se juntan con las del juego. Backloggd las agrupa («Game Editions Combining») y deja ver las estadísticas de todas las versiones o de una.",
+    "pasos": [
+      "Guardar en Game el juego del que es edición (version_parent de IGDB) y el nombre de la edición (version_title).",
+      "Al importar de Steam, PlayStation o Xbox, apuntar las horas de una edición en la entrada del juego principal, guardando en qué edición se jugó.",
+      "En la ficha del juego principal, la lista de ediciones con su precio (ver «¿Qué edición compro?») y un selector «todas las versiones o una edición» para los contadores y las reseñas.",
+      "Redirigir la ficha de una edición a la del juego principal con esa edición elegida.",
+      "Comando para fusionar las entradas de biblioteca que ya están repetidas por ediciones."
+    ],
+    "notas": "Los remasters y remakes son juegos distintos en IGDB (BioShock Remastered es un remaster con parent_game BioShock) y deben seguir separados: solo se juntan las ediciones. Ojo: IGDB marca algunas reediciones como bundle sin version_parent (GTA V Enhanced), que seguirán necesitando el ID manual."
+  },
+  {
+    "titulo": "Próximos lanzamientos: fechas por plataforma y aviso cuando sale",
+    "fecha": "2026-10-21",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Guardar las fechas de salida de cada plataforma y región, enseñar en Inicio los próximos lanzamientos de tu lista de deseos y avisarte el día que sale un juego que quieres, con su precio de salida.",
+    "motivo": "Backloggd tiene en su portada «Coming Soon» con los juegos deseados y un filtro de próximos lanzamientos. NextPlay solo guarda first_release_date, así que no sabe cuándo sale un juego en cada consola ni si está en acceso anticipado o cancelado.",
+    "pasos": [
+      "Importar release_dates de IGDB (fecha, plataforma, región y estado: alfa, beta, acceso anticipado o lanzamiento) y game_status (cancelado, retirado…).",
+      "Ficha: fechas de salida por plataforma, con la de Europa primero, y etiquetas «Acceso anticipado» o «Cancelado».",
+      "Inicio: «Próximamente» con los juegos de tu lista de deseos que salen en los próximos 90 días y los más esperados según IGDB (hypes).",
+      "Aviso en la campana el día que sale un juego de tu lista, con su precio en tus tiendas (aprovechando los avisos de precio que ya existen).",
+      "Actualizar cada noche las fechas de los juegos que aún no han salido."
+    ],
+    "notas": "IGDB cambia a menudo las fechas de los juegos que no han salido: por eso hay que refrescarlas cada noche."
+  },
+  {
+    "titulo": "¿Cuánta gente lo termina? Tasa de finalización con los logros de Steam",
+    "fecha": "2026-10-21",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Mostrar en la ficha qué parte de los jugadores llega al final del juego («lo termina el 31 % de quienes lo empiezan»), sacado del porcentaje mundial de jugadores de Steam que tienen el logro de los créditos.",
+    "motivo": "Backloggd solo sabe lo que apunta su gente. Valve publica sin clave el porcentaje de jugadores que tiene cada logro, así que con el steam_app_id que ya guarda NextPlay se puede dar un dato real de millones de jugadores que funciona desde el primer día, aunque haya pocos usuarios. Es lo que más pesa antes de empezar un juego largo y combina con «Duración estimada de los juegos».",
+    "pasos": [
+      "Leer GetGlobalAchievementPercentagesForApp (sin clave) y GetSchemaForGame con l=spanish (con la STEAM_API_KEY que ya hay) de los juegos con ID de Steam, en la tarea nocturna y como mucho una vez por semana.",
+      "Elegir el logro del final: primero por reglas (logros ocultos con palabras como «créditos», «final» o «complete the story») y después que un administrador o la comunidad lo confirme o lo corrija, igual que con los juegos importados (emparejado por, bloqueado).",
+      "Dividir entre el porcentaje del primer logro de la historia para dar «de los que lo empiezan, lo termina el X %», porque no todos los que lo tienen llegan a abrirlo.",
+      "En la ficha: «Lo termina el 31 % · el logro más difícil lo tiene el 4 %», junto a la nota y la duración. En el catálogo y el pendiente, poder ordenar por los que más gente termina.",
+      "Con los logros del usuario (propuesta «Importar logros y trofeos»), proponer marcarlo como Completado cuando consigue el logro del final, con su fecha."
+    ],
+    "notas": "Los juegos sin final (multijugador, sandbox) o sin logro de créditos se quedan sin dato. Solo cuenta a jugadores de Steam, pero es una muestra enorme."
+  },
+  {
+    "titulo": "Reseñas con horas verificadas y spoilers según tu progreso",
+    "fecha": "2026-10-21",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Que cada reseña diga con cuántas horas se escribió y de qué plataforma salen, poder ver solo las de quien lo ha jugado de verdad o lo ha terminado, y plegar las que van más adelante que tú en el juego.",
+    "motivo": "En Backloggd cualquiera puede valorar un juego sin haberlo jugado. En NextPlay las horas que salen en las reseñas ya vienen de las importaciones, pero son las de hoy y no las de cuando se escribió, y no se puede filtrar por ellas. Es una confianza que Backloggd no puede dar porque no conoce las horas reales.",
+    "pasos": [
+      "Guardar en LibraryEntry las horas que tenía al publicar o editar la reseña y enseñar «escrita a las 12 h · ahora lleva 80 h».",
+      "Logo de la plataforma de la que vienen las horas (Steam, PlayStation o Xbox) como sello de horas verificadas.",
+      "Filtros en la ficha: «Todas», «Más de 10 h» y «Lo han terminado», y una nota de la comunidad solo con quienes tienen horas.",
+      "Spoilers según tu progreso: si llevas 5 h, las reseñas escritas con muchas más horas que tú salen plegadas («escrita a las 60 h: puede contar lo que te queda»).",
+      "Aviso al autor cuando ha jugado mucho más desde su reseña: «llevas 40 h más, ¿la actualizas?»."
+    ],
+    "notas": "El plegado por progreso sirve también para «Publicaciones con imágenes asociadas a un juego». Backloggd tiene pendiente en su hoja de ruta marcar spoilers dentro del texto; aquí sería automático."
+  },
+  {
+    "titulo": "¿A qué jugamos? Juegos en común con tus amigos",
+    "fecha": "2026-10-21",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Elegir de 2 a 4 personas y ver los juegos multijugador que tenéis todos (en cualquier plataforma), cuáles son cooperativos y cuánto le cuesta hoy a quien le falte.",
+    "motivo": "Es la pregunta de cada grupo de amigos y Backloggd no puede contestarla porque no sabe qué juegos tiene cada uno. NextPlay ya importa las bibliotecas de Steam, PlayStation y Xbox y tiene los precios de cada tienda. Además, el resultado se comparte en el grupo de Discord o de WhatsApp, así que trae gente nueva.",
+    "pasos": [
+      "Guardar también los juegos de Steam que se tienen sin abrir (ImportedTitle con 0 minutos) aunque no entren en la biblioteca, para saber todo lo que tiene cada uno.",
+      "Importar de IGDB multiplayer_modes (online, local, cooperativo, pantalla partida y jugadores máximos), que ya está en «Ficha del juego más completa».",
+      "Página «¿A qué jugamos?»: eliges amigos (o escribes sus usuarios) y salen tres grupos: lo tenéis todos, le falta a alguien (con su mejor precio en sus tiendas) y gratuitos.",
+      "Tener en cuenta la plataforma: si uno lo tiene en PS5 y otro en PC, solo vale si hay juego cruzado (la categoría de Steam de multijugador multiplataforma, cuando se sepa).",
+      "Enlace para compartir el resultado con la carátula de cada juego."
+    ],
+    "notas": "Encaja con «Seguir a otros jugadores y feed de actividad» y «Encontrar a tus amigos de Steam y Xbox en NextPlay», pero puede empezar con nombres de usuario. Con perfiles privados, solo si su dueño lo acepta."
+  },
+  {
+    "titulo": "Importar Nintendo Switch con capturas de la app Nintendo Store",
+    "fecha": "2026-10-21",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Subir capturas de la «Actividad de juego» de la app Nintendo Store del móvil y que NextPlay lea los juegos, la primera y la última partida y el tiempo de cada día, para importarlos como los de Steam, PlayStation y Xbox.",
+    "motivo": "Switch es la única gran consola que NextPlay no puede importar (Nintendo no tiene API) y en España es de las que más se juega. La app Nintendo Store enseña la actividad por juego y por día, pero no deja copiarla ni exportarla, así que leer las capturas es la única vía (Seth Larson lo hizo con OCR en diciembre de 2025). Backloggd no importa ninguna plataforma.",
+    "pasos": [
+      "Página para subir varias capturas desde el móvil; las imágenes se borran después de leerlas.",
+      "Leer cada captura con un modelo de visión (o con OCR, como EasyOCR): nombre del juego, primera y última partida y las sesiones de cada día.",
+      "Emparejar con match_by_name y las plataformas «Nintendo Switch» y «Nintendo Switch 2», y guardarlo como ExternalTitle de una plataforma nueva para que las correcciones sirvan a todos.",
+      "Pantalla de revisión antes de guardar: lo leído, el juego emparejado y un buscador para corregirlo.",
+      "Las sesiones por día van directas al «Diario de partidas que se escribe solo»; volver a subir capturas solo añade lo nuevo."
+    ],
+    "notas": "Con OCR fallan sobre todo los títulos que salen como logo; un modelo de visión (p. ej. Claude) o comparar con los juegos de Switch del catálogo lo resuelve. La app no da tiempos de menos de 15 minutos («unos minutos»). Completa a «Colección física con escáner de código de barras», que añade los juegos pero no las horas."
   },
   {
     "titulo": "Duración estimada de los juegos",
@@ -223,22 +485,6 @@
       "Excluir los que ya están completados o abandonados."
     ],
     "notas": "IGDB también devuelve similar_games para cada juego; importarlo daría recomendaciones decentes sin algoritmo propio. Ya estaba planeada antes de proponerla."
-  },
-  {
-    "titulo": "Listas personalizadas de juegos",
-    "fecha": "2026-10-17",
-    "estado": "pendiente",
-    "prioridad": "media",
-    "tipo": "Funcionalidad",
-    "resumen": "Que cada usuario cree listas con nombre y descripción («Mejores metroidvanias», «Para jugar en pareja»), ordenadas y públicas o privadas.",
-    "motivo": "El README ya promete listas y aún no existen. Son el contenido que más se comparte en webs como Letterboxd o Backloggd.",
-    "pasos": [
-      "Modelos GameList (usuario, título, descripción, pública) y GameListItem (lista, juego, posición, nota).",
-      "Crear, editar y reordenar desde el perfil (arrastrar con HTMX o botones subir/bajar).",
-      "Botón «Añadir a una lista» en la ficha del juego.",
-      "Mostrar en la ficha en qué listas públicas aparece el juego."
-    ],
-    "notas": "Ya estaba planeada antes de proponerla."
   },
   {
     "titulo": "Estadísticas del perfil y resumen anual",
@@ -287,22 +533,6 @@
       "Campo de progreso en LibraryEntry e insignia de platino / 100 % en las tarjetas."
     ],
     "notas": "Conviene antes tener tareas en segundo plano (Celery o django-q) porque la sincronización de Steam sería larga. Ya estaba planeada antes de proponerla."
-  },
-  {
-    "titulo": "Me gusta y comentarios en las reseñas",
-    "fecha": "2026-10-17",
-    "estado": "pendiente",
-    "prioridad": "media",
-    "tipo": "Funcionalidad",
-    "resumen": "Reaccionar a las reseñas con «me gusta», comentarlas y ordenar las de la ficha por las más útiles.",
-    "motivo": "Las reseñas ya existen, pero no hay forma de interactuar con ellas; es la interacción social más barata de añadir.",
-    "pasos": [
-      "Modelo ReviewLike (usuario, entrada de biblioteca) y contador en la reseña.",
-      "Comentarios cortos con moderación básica (borrar los propios y que el autor pueda borrar los de su reseña).",
-      "Orden de reseñas en la ficha: más útiles / más recientes.",
-      "Botón de denunciar reseña para el admin."
-    ],
-    "notas": "Ya estaba planeada antes de proponerla."
   },
   {
     "titulo": "Vistas previas al compartir y tarjeta para incrustar",
@@ -401,6 +631,75 @@
     "notas": "Las dos son sin documentar, como la de Xbox. La de PlayStation es la más frágil; la de Nintendo la usan desde hace años muchas webs de ofertas."
   },
   {
+    "titulo": "¿Cuándo bajará? Próxima rebaja prevista en el veredicto",
+    "fecha": "2026-10-21",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Cuando el veredicto dice «suele bajar más: espera», decir hasta cuándo y a cuánto: «en las rebajas de invierno de Steam del año pasado bajó a 9,99 €; empiezan dentro de 12 días».",
+    "motivo": "El veredicto de ahora dice que esperes pero no cuánto, y sin una fecha la gente acaba comprando. NextPlay ya guarda dos años de historial por tienda (Game.price_history); cruzarlo con el calendario de rebajas de las tiendas no lo hace Backloggd, que no tiene precios, ni casi ningún comparador.",
+    "pasos": [
+      "Tabla de rebajas (nombre, tienda y fechas) que rellena un administrador con el calendario que publica Valve y los anuncios de Epic, GOG y Xbox.",
+      "En history.py, buscar a cuánto estuvo el juego en la misma rebaja del año anterior y cada cuánto se rebaja fuerte (días entre rebajas).",
+      "Veredicto con fecha: «Espera a las rebajas de invierno: el año pasado bajó a 9,99 €» o «se rebaja más o menos cada 3 meses; la última fue hace 80 días».",
+      "En la lista de deseos, aviso unos días antes: «4 juegos de tu lista bajaron en las rebajas que empiezan el jueves».",
+      "Avisar también cuando un juego de la lista entra en un bundle (IsThereAnyDeal también los da)."
+    ],
+    "notas": "Es una estimación con lo que pasó otros años, no una promesa: el texto tiene que decirlo así."
+  },
+  {
+    "titulo": "Importar Epic, GOG, EA y Battle.net con Playnite, y CSV de otros trackers",
+    "fecha": "2026-10-21",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Importar las horas de las tiendas sin API (Epic, GOG, EA, Ubisoft, Battle.net, Amazon…) desde la exportación de Playnite, el lanzador que las junta todas, y aceptar el CSV de otros trackers para que quien llega se traiga su historial.",
+    "motivo": "De Epic, GOG y Battle.net NextPlay solo guarda el nombre de usuario (en «Otras plataformas»), porque no dan las horas. Playnite ya las lee en el PC del usuario y se pueden exportar. Y quien viene de otro tracker no quiere empezar de cero: Backloggd no tiene importación ni exportación (las dos siguen en su hoja de ruta), así que NextPlay llegaría antes.",
+    "pasos": [
+      "Aceptar el CSV de la extensión de exportación de Playnite (nombre, tienda de origen, plataforma, tiempo jugado, última actividad y estado).",
+      "Emparejar con match_by_name y guardar cada tienda como plataforma nueva de ExternalTitle («epic», «gog»…), aprovechando todo el sistema de correcciones.",
+      "Pasar el estado de Playnite (Completado, Abandonado, Jugando…) solo a los juegos nuevos, sin pisar lo que haya puesto el usuario.",
+      "Importador de CSV genérico con un paso para decir qué columna es cada cosa, para los trackers que exportan (Grouvee y otros).",
+      "Más adelante, una extensión de Playnite propia que sincronice sola con un token personal del usuario."
+    ],
+    "notas": "Comprobar las columnas exactas antes de empezar: en el foro de Playnite recomiendan la extensión Library Exporter Advanced. No leer la web de Backloggd para importar (es frágil y seguramente va contra sus condiciones); si saca su exportación a CSV, aceptarla el primer día."
+  },
+  {
+    "titulo": "Importar la lista de deseos de Steam",
+    "fecha": "2026-10-21",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Un botón (y una pregunta al vincular Steam) que trae a «Lo quiero» todos los juegos de la lista de deseos de Steam, para que desde el primer minuto el usuario sepa cuáles están en su mínimo histórico o más baratos en otra tienda y reciba los avisos.",
+    "motivo": "Es la forma más rápida de que alguien nuevo vea lo que vale NextPlay aunque todavía no haya comunidad: Steam solo avisa de sus propias rebajas, y NextPlay compara todas las tiendas, sabe el mínimo histórico y dice si conviene esperar. Probado el 21/10/2026: la API de Steam devuelve la lista sin clave (93 juegos de la cuenta vinculada en local, con appid, fecha y prioridad).",
+    "pasos": [
+      "Leer IWishlistService/GetWishlist de cada cuenta de Steam vinculada (no necesita la STEAM_API_KEY).",
+      "Emparejar los appid con _match_games de accounts/steam.py, que ya busca en el catálogo y, si falta, en IGDB; crear los WishlistItem que no existan, sin los juegos que ya están en la biblioteca.",
+      "Guardar la prioridad de Steam y la fecha en que se añadió, para poder ordenar la lista de deseos igual que en Steam.",
+      "Pedir en ese momento los precios de los juegos importados (update_prices solo con ellos), sin esperar a la noche, y enseñar un resumen: «de tus 93 deseados, 12 están hoy en su mínimo histórico y 5 son más baratos fuera de Steam».",
+      "Opción para volver a importarla cada noche junto a la biblioteca, recordando los que el usuario haya quitado para no volver a añadirlos."
+    ],
+    "notas": "Es una API sin documentar, como otras que ya se usan, y solo funciona si el perfil deja ver sus detalles de juego (igual que la biblioteca). Conviene tenerla antes de las rebajas de invierno de Steam (del 17 de diciembre al 4 de enero). 21/10/2026: aparcada; de momento el usuario prefiere centrarse en el perfil, las listas, los retos y las reseñas."
+  },
+  {
+    "titulo": "Publicar NextPlay y abrir una beta antes de las rebajas de invierno",
+    "fecha": "2026-10-21",
+    "estado": "pendiente",
+    "prioridad": "baja",
+    "tipo": "Lanzamiento",
+    "resumen": "Poner NextPlay en internet con su dominio, abrir una beta cerrada con 10 o 20 personas y llegar a las rebajas de invierno de Steam (del 17 de diciembre al 4 de enero) con gente usándola.",
+    "motivo": "El objetivo es que la use gente y crezca, y ahora solo funciona en local: no hay servidor de aplicaciones (gunicorn), con DEBUG apagado Django no sirve los estáticos, los correos (recuperar la contraseña y avisos de precio) salen por la consola y la tarea nocturna no está programada. Las rebajas de invierno son el mejor momento para enseñar lo que Backloggd no tiene: precios, mínimos históricos y avisos de la lista de deseos.",
+    "pasos": [
+      "Antes de dejar entrar a nadie: sacar el .env del repositorio y cambiar las claves, la parte del RGPD y un botón para denunciar reseñas y bloquear usuarios (estaba en el corte 4 del README).",
+      "Producción: gunicorn y whitenoise, PostgreSQL, un servidor en la UE, dominio con HTTPS, un proveedor de correo de verdad, copias de seguridad de la base de datos y aviso por correo de los errores (ADMINS).",
+      "Poner la dirección pública en la URI de vuelta de la aplicación de Azure, en el realm de Steam, en SITE_URL y en DJANGO_ALLOWED_HOSTS, y programar nightly con cron.",
+      "Beta cerrada con 10 o 20 conocidos y un canal de Discord para que cuenten fallos y qué echan en falta.",
+      "Medir lo justo: cuántos vinculan alguna plataforma y cuántos vuelven la semana siguiente.",
+      "Con la beta estable, enseñarla en comunidades de videojuegos en español (subreddits, servidores de Discord, Mediavida) con algo que se pueda compartir: la tarjeta del perfil o «¿A qué jugamos?»."
+    ],
+    "notas": "Primera meta realista: 50 personas que vuelvan cada semana. La importación de PlayStation usa una API no oficial: dejarla marcada como experimental. Si algún día se monetiza (anuncios o enlaces de afiliado), revisar antes las condiciones de uso comercial de IGDB e IsThereAnyDeal. 21/10/2026: aparcada; de momento el usuario prefiere centrarse en el perfil, las listas, los retos y las reseñas."
+  },
+  {
     "titulo": "Retos del año y control del pendiente",
     "fecha": "2026-10-17",
     "estado": "pendiente",
@@ -496,6 +795,22 @@
     "notas": "Tiene más sentido cuando haya bastantes usuarios valorando."
   },
   {
+    "titulo": "Cuándo se abandona, si mejora con las horas y cuánto sale la hora",
+    "fecha": "2026-10-21",
+    "estado": "pendiente",
+    "prioridad": "baja",
+    "tipo": "Funcionalidad",
+    "resumen": "Con las horas importadas de los usuarios, enseñar en la ficha a cuántas horas se suele abandonar un juego, si la nota sube con las horas («a quien pasa de las 10 h le gusta mucho más») y cuánto sale cada hora al precio de hoy.",
+    "motivo": "Son datos que solo tiene quien conoce las horas reales de su comunidad; Backloggd solo hace medias de lo que la gente apunta a mano (desde octubre de 2025). Responden a dudas típicas antes de comprar o de dejar un juego: «¿mejora luego?» y «¿vale lo que cuesta?».",
+    "pasos": [
+      "Por juego, mediana de horas de quienes lo tienen en «Abandonado» (y, con el diario, de quienes llevan meses sin tocarlo).",
+      "Nota media por tramos de horas (menos de 2 h, de 2 a 10 h y más de 10 h) para el «¿mejora con las horas?».",
+      "Precio por hora: mejor precio de hoy entre la mediana de horas de quienes lo han jugado («sale a 0,40 € la hora»).",
+      "En la biblioteca, cuánto te ha salido a ti la hora si apuntas lo que pagaste (el campo de precio pagado de «Colección física con escáner de código de barras»)."
+    ],
+    "notas": "Necesita bastantes usuarios por juego: enseñarlo solo a partir de unos 20. La mediana de horas de quienes lo completan ya está en «Duración estimada de los juegos»."
+  },
+  {
     "titulo": "Colección física con escáner de código de barras",
     "fecha": "2026-10-17",
     "estado": "pendiente",
@@ -510,6 +825,21 @@
       "Contador de la colección por plataforma en el perfil."
     ],
     "notas": ""
+  },
+  {
+    "titulo": "¿Qué edición compro? Precios de cada edición y remaster",
+    "fecha": "2026-10-21",
+    "estado": "pendiente",
+    "prioridad": "baja",
+    "tipo": "Funcionalidad",
+    "resumen": "Comparar en la ficha el precio de cada edición y remaster que se vende («la Edición completa con los dos DLC cuesta 3 € más») y avisar si ya tienes otra versión del juego.",
+    "motivo": "NextPlay ya guarda las ediciones y remasters de IGDB con sus IDs de tienda (store_alternatives), pero solo los usa cuando el original no se vende. Backloggd junta las ediciones en una ficha sin precios, y qué versión comprar es una de las dudas más típicas en rebajas.",
+    "pasos": [
+      "En update_prices, pedir los precios de todas las ediciones y no solo de la primera que tenga ofertas (al menos en los juegos más populares).",
+      "Bloque «Ediciones» en la ficha con el mejor precio de cada una y la diferencia con la estándar.",
+      "Si el usuario ya tiene el juego y existe un remaster, decirlo: «tienes el original; el remaster está a 19,99 €»."
+    ],
+    "notas": "Multiplica las llamadas a IsThereAnyDeal de los juegos con ediciones: limitarlo o pedirlo al abrir la ficha, como el historial."
   },
   {
     "titulo": "Traducir al español los comentarios antiguos en inglés",

@@ -1,0 +1,21 @@
+{# Etiquetas de español de un juego: si está doblado al castellano y si tiene textos en español. Necesita game; sin idiomas conocidos no pinta nada. #}
+{% if game.spanish_text %}
+  <div class="spanish-badges">
+    {% if game.spanish_text == "no" %}
+      <span class="lang-badge lang-no">{% include "_icon.html" with name="text" %} Sin español</span>
+    {% else %}
+      {% if game.spanish_audio == "es" %}
+        <span class="lang-badge lang-yes">{% include "_icon.html" with name="voice" %} Voces en castellano</span>
+      {% elif game.spanish_audio == "latam" %}
+        <span class="lang-badge lang-mid">{% include "_icon.html" with name="voice" %} Voces en español latino</span>
+      {% else %}
+        <span class="lang-badge lang-muted">{% include "_icon.html" with name="voice" %} Sin doblaje al español</span>
+      {% endif %}
+      {% if game.spanish_text == "es" %}
+        <span class="lang-badge lang-yes">{% include "_icon.html" with name="text" %} Textos en castellano</span>
+      {% else %}
+        <span class="lang-badge lang-mid">{% include "_icon.html" with name="text" %} Textos en español latino</span>
+      {% endif %}
+    {% endif %}
+  </div>
+{% endif %}

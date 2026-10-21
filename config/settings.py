@@ -94,6 +94,11 @@ STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# Imágenes que suben los usuarios (foto, cabecera y fondo del perfil). En local las sirve Django con
+# DEBUG; en producción tiene que servirlas el servidor web o un almacenamiento externo.
+MEDIA_URL = "media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Password reset mails are printed to the console until a real provider is configured.
