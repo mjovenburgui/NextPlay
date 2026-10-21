@@ -103,6 +103,19 @@ mal emparejados (remakes que se llaman igual). La corrección sirve para todos l
 próxima importación. En `/admin/` › Títulos importados se revisan las correcciones («emparejado por:
 Usuario»), se corrigen al momento para todos y se pueden bloquear.
 
+## Perfil personalizable
+
+En Editar perfil cada usuario elige su foto (subida o la de Steam, PlayStation o Xbox) y su forma, la
+cabecera (degradado, una imagen suya o el arte de un juego de su biblioteca sacado de IGDB), el fondo de
+la página y cuánto se oscurece, el color del perfil, el diseño de la cabecera, un estado con emoji,
+pronombres, ubicación y sus redes sociales. En el escaparate van hasta 5 juegos favoritos (se marcan con
+«Añadir a mis favoritos» en la ficha), una reseña destacada y las secciones que quiera en el orden que
+quiera. Todo tiene vista previa en directo.
+
+Las imágenes se tratan con Pillow (`accounts/images.py`): se recortan, se pasan a WebP y pierden los
+datos EXIF. Se guardan en `media/` (`MEDIA_ROOT`), que en local sirve Django; en producción hay que
+servir esa carpeta desde el servidor web o usar un almacenamiento externo.
+
 ## Tareas de cada noche
 
 `nightly` sincroniza la biblioteca de Steam de quien tenga activada la sincronización nocturna (se

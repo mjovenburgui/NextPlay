@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.utils.http import urlencode
 from django.views.decorators.http import require_POST
 
+from accounts.views import favorite_context
 from library.models import LibraryEntry, WishlistItem
 from library.views import review_context
 
@@ -120,7 +121,7 @@ def catalog(request):
 
 def detail(request, slug):
     """Ficha de un juego: datos, nota de la crítica, valoración de la comunidad, widget de biblioteca,
-    precios y reseñas.
+    botón de favoritos del perfil, precios y reseñas.
 
     Los precios llegan ya repartidos por Game.price_groups(); store_searches() da los enlaces de
     búsqueda a las tiendas de consola sin precio. Si el usuario ha elegido sus tiendas solo se enseñan
@@ -159,6 +160,7 @@ def detail(request, slug):
             "store_searches": game.store_searches(),
             "community": game.community_rating(),
             **review_context(game, entry, request.user),
+            **(favorite_context(request.user, game) if request.user.is_authenticated else {}),
         },
     )
 

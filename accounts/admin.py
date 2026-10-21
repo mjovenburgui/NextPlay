@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 
 from .matching import update_library
 from .models import (
-    ExternalTitle, Notification, PlatformAccount, Profile, PSNAccount, SteamAccount, User, XboxAccount,
+    ExternalTitle, FavoriteGame, Notification, PlatformAccount, Profile, PSNAccount, SteamAccount, User, XboxAccount,
 )
 
 admin.site.register(User, UserAdmin)
@@ -14,6 +14,15 @@ class ProfileAdmin(admin.ModelAdmin):
     list_display = ("user", "display_name", "is_public", "auto_sync", "auto_synced_at", "created_at")
     list_filter = ("is_public", "auto_sync")
     search_fields = ("user__username", "display_name")
+    # Con miles de juegos y reseñas, un desplegable con todos sería eterno.
+    raw_id_fields = ("banner_game", "pinned_review")
+
+
+@admin.register(FavoriteGame)
+class FavoriteGameAdmin(admin.ModelAdmin):
+    list_display = ("user", "game", "position", "created_at")
+    search_fields = ("user__username", "game__name")
+    raw_id_fields = ("user", "game")
 
 
 @admin.register(SteamAccount)

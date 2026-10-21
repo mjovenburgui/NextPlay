@@ -1,0 +1,25 @@
+{# Imágenes para la cabecera con el juego elegido; Editar perfil las pide con HTMX. Necesita game, arts, selected, cover_full e igdb_configured. #}
+{# data-full es la imagen en grande para la vista previa; la portada lleva data-blur porque se enseña desenfocada. #}
+<div class="banner-arts" id="banner-arts">
+  {% if game %}
+    <div class="art-options" role="radiogroup" aria-label="Imagen de {{ game.name }} para la cabecera">
+      <label class="art-option">
+        <input type="radio" name="banner_art" value="" data-full="{{ cover_full }}" data-blur="1"{% if not selected %} checked{% endif %}>
+        <span class="art-thumb art-thumb-cover">{% if game.cover_url %}<img src="{{ game.cover_url }}" alt="" loading="lazy">{% endif %}</span>
+        <span class="art-label">Portada</span>
+      </label>
+      {% for art in arts %}
+        <label class="art-option">
+          <input type="radio" name="banner_art" value="{{ art.id }}" data-full="{{ art.full }}"{% if art.id == selected %} checked{% endif %}>
+          <span class="art-thumb"><img src="{{ art.thumb }}" alt="" loading="lazy"></span>
+          <span class="art-label">Imagen {{ forloop.counter }}</span>
+        </label>
+      {% endfor %}
+    </div>
+    {% if not arts %}
+      <p class="help">{% if igdb_configured %}IGDB no tiene más imágenes de este juego{% else %}Sin IGDB configurado no se pueden traer más imágenes{% endif %}: se usará su portada, desenfocada.</p>
+    {% endif %}
+  {% else %}
+    <p class="help">Elige un juego para ver sus imágenes.</p>
+  {% endif %}
+</div>

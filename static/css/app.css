@@ -177,7 +177,8 @@ h1 { font-size: 1.6rem; margin: 0 0 .25rem; line-height: 1.2; }
 .tabbar { display: none; }
 
 /* Controls */
-input:not([type=checkbox]), select, textarea {
+/* Un solo :not() con lista: pesa lo mismo que input:not([type=checkbox]) y no pisa reglas como la del buscador. */
+input:not([type=checkbox], [type=radio], [type=range], [type=color]), select, textarea {
   width: 100%;
   padding: .55rem .75rem;
   background: var(--surface);
@@ -689,4 +690,190 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   .game-hero { height: 220px; margin-bottom: -200px; margin-top: -1.5rem; }
   .game-body h1 { margin-top: .5rem; font-size: 1.8rem; }
   .cover-lg { margin: 0 auto; }
+}
+
+/* Perfil personalizable: color propio, fondo de página, cabecera con imagen, forma de la foto y escaparate */
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* Los bloques que se enseñan según una opción (data-show-when) se ocultan aunque su clase les dé display. */
+[data-show-when][hidden] { display: none !important; }
+
+/* Dentro del perfil (y de su vista previa) --violet es el color que eligió su dueño y --accent-rgb, ese color en «r, g, b». */
+.profile-page, .profile-preview { --accent-rgb: 157, 92, 255; --accent-text: #fff; }
+.profile-page { position: relative; }
+.profile-page .avatar-lg, .profile-preview .avatar-lg { box-shadow: 0 0 0 2px var(--violet), 0 0 26px rgba(var(--accent-rgb), .55); }
+.profile-page .tab.is-active { color: var(--violet); }
+.profile-page .chip { color: var(--text); border-color: var(--violet); background: rgba(var(--accent-rgb), .12); }
+.profile-page .stats div { background: linear-gradient(160deg, var(--surface-2), rgba(var(--accent-rgb), .12)); }
+.profile-page .card:hover .cover { box-shadow: 0 0 18px rgba(var(--accent-rgb), .4); }
+.profile-page .btn-link-accounts { background: var(--violet); color: var(--accent-text); box-shadow: 0 0 16px rgba(var(--accent-rgb), .35); }
+.profile-page .review.is-own { border-color: rgba(var(--accent-rgb), .6); }
+.profile-page .own-tag { background: var(--violet); color: var(--accent-text); }
+
+/* Cabecera: la imagen elegida (o la portada desenfocada) encima de un degradado con el color del perfil. */
+.profile-banner { position: relative; overflow: hidden; }
+.profile-page .profile-banner, .profile-preview .profile-banner {
+  background:
+    radial-gradient(circle at 15% 120%, rgba(var(--accent-rgb), .6), transparent 55%),
+    radial-gradient(circle at 85% -20%, rgba(34, 224, 240, .3), transparent 55%),
+    linear-gradient(120deg, #1b1440, rgba(var(--accent-rgb), .35) 45%, #0b2740);
+}
+.profile-page .profile-banner { height: 190px; }
+.profile-banner img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.profile-banner.is-blurred img { filter: blur(18px) saturate(1.3); transform: scale(1.25); opacity: .85; }
+.profile-main, .settings-preview-id { position: relative; z-index: 1; }
+
+/* Fondo de la página: fijo detrás de todo y oscurecido con --dim (de 0 a 0,9). */
+.profile-backdrop { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.profile-backdrop img { width: 100%; height: 100%; object-fit: cover; }
+.profile-backdrop.is-blurred img { filter: blur(30px) saturate(1.3); transform: scale(1.15); }
+.profile-backdrop::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(7, 9, 18, var(--dim)), rgba(7, 9, 18, calc(var(--dim) + .15))); }
+
+/* Diseño centrado de la cabecera. */
+.profile-layout-centered .profile-main { flex-direction: column; align-items: center; text-align: center; margin-top: -64px; }
+.profile-layout-centered .profile-id { flex: none; width: 100%; }
+.profile-layout-centered .profile-meta, .profile-layout-centered .steam-badges,
+.profile-layout-centered .social-links, .profile-layout-centered .profile-actions { justify-content: center; }
+.profile-layout-centered .bio { margin-left: auto; margin-right: auto; text-align: center; }
+.profile-preview.profile-layout-centered .settings-preview-id { flex-direction: column; align-items: center; text-align: center; margin-top: -56px; }
+
+/* Formas de la foto (también las muestras de Editar perfil). */
+.avatar-shape-rounded { border-radius: 24%; }
+.avatar-shape-hexagon { border-radius: 0; border: 0; box-shadow: none !important; clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%); }
+
+/* Estado, datos y redes debajo del nombre. */
+.profile-id .profile-status, .settings-preview .profile-status { margin: .15rem 0 .25rem; font-size: .98rem; color: #dfe2f5; }
+.profile-status-emoji { margin-right: .4rem; }
+.profile-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .15rem .75rem; }
+.profile-meta .icon { width: 1rem; height: 1rem; vertical-align: -.15rem; }
+.social-links { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .45rem !important; }
+.social-link { display: inline-flex; align-items: center; gap: .35rem; padding: .15rem .65rem; background: rgba(var(--accent-rgb), .1); border: 1px solid var(--border); border-radius: 999px; color: var(--text); font-size: .82rem; }
+.social-link .icon { width: .95rem; height: .95rem; color: var(--violet); }
+a.social-link:hover { border-color: var(--violet); text-decoration: none; }
+.social-twitch strong { color: #b48cff; }
+.social-youtube strong { color: #ff6b63; }
+.social-bluesky strong { color: #5aa6ff; }
+.social-instagram strong { color: #ff6fae; }
+.social-tiktok strong { color: #4ff2ec; }
+.social-discord strong { color: #9aa8ff; }
+
+/* Escaparate: secciones entre la cabecera y la biblioteca. */
+.showcase { margin-bottom: 1.5rem; }
+.showcase .box-head h2 .icon, .showcase-title .icon { color: var(--violet); }
+.showcase-title { display: flex; align-items: center; gap: .5rem; margin: 0 0 .6rem; font-size: 1.05rem; }
+.showcase-review .review { margin: 0; }
+.stats.showcase, .top-genres.showcase { margin-top: 0; }
+.favorites { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1rem; margin: 0; padding: .5rem 0 0 .5rem; list-style: none; counter-reset: favorito; }
+.favorites li { position: relative; min-width: 0; counter-increment: favorito; }
+/* Número de cada favorito en una esquina, con el color del perfil. */
+.favorites li::before {
+  content: counter(favorito); position: absolute; top: -.55rem; left: -.55rem; z-index: 1;
+  display: grid; place-items: center; width: 1.65rem; height: 1.65rem; border-radius: 50%;
+  background: var(--violet); color: var(--accent-text); font-size: .8rem; font-weight: 800;
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), .55);
+}
+@media (max-width: 640px) {
+  .favorites { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* Botón «Añadir a mis favoritos» de la ficha del juego. */
+.favorite { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem .75rem; margin: -.5rem 0 1.25rem; }
+.favorite form { margin: 0; }
+.favorite-btn { display: inline-flex; align-items: center; gap: .45rem; border-radius: 999px; }
+.favorite-btn .icon { width: 1.1rem; height: 1.1rem; color: var(--gold); }
+.favorite-btn.is-active { border-color: var(--gold); background: rgba(255, 200, 74, .12); color: #ffe3a3; }
+.favorite .errorlist { flex-basis: 100%; margin: 0; }
+
+/* Editar perfil: un formulario largo con la barra de guardar siempre a mano. */
+.settings-stack { display: flex; flex-direction: column; gap: 1.5rem; }
+.settings-card h3 { margin: 1.6rem 0 .6rem; font-size: 1rem; }
+.settings-card h3 .muted { font-weight: 400; font-size: .9rem; }
+.settings-card h2 + .help + h3 { margin-top: 1.1rem; }
+.settings-card fieldset { min-width: 0; margin: 0 0 1rem; padding: 0; border: 0; }
+.settings-card legend { margin-bottom: .45rem; padding: 0; font-weight: 600; font-size: .9rem; }
+.settings-savebar {
+  position: sticky; bottom: 0; z-index: 5; display: flex; justify-content: flex-end; gap: .5rem;
+  padding: .85rem 1rem; background: rgba(14, 18, 34, .94); backdrop-filter: blur(10px);
+  border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 -10px 30px rgba(0, 0, 0, .35);
+}
+.field-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 0 1rem; }
+.status-row-input { display: flex; gap: .5rem; }
+.status-row-input .emoji-input { flex: none; width: 4.25rem; padding: .4rem .5rem; font-size: 1.2rem; text-align: center; }
+.quick-emojis { display: flex; flex-wrap: wrap; gap: .3rem; margin: .5rem 0 0; }
+.quick-emojis button { padding: .2rem .5rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font: inherit; font-size: 1.05rem; cursor: pointer; }
+.quick-emojis button:hover { border-color: var(--violet); }
+.quick-emojis button:last-child { font-size: .8rem; color: var(--muted); }
+.settings-preview .profile-status { font-size: .9rem; }
+
+/* Subida de imágenes: miniatura y controles. */
+.upload-row { display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1rem; }
+.upload-preview { flex: none; display: grid; place-items: center; overflow: hidden; background: var(--surface-2); border: 1px dashed var(--border); color: var(--muted); }
+.upload-preview img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.upload-preview-avatar { width: 84px; height: 84px; border-radius: 50%; }
+.upload-preview-banner { width: 168px; aspect-ratio: 3 / 1; border-radius: 10px; }
+.upload-controls { flex: 1; min-width: 0; }
+.upload-controls > label:first-child { display: block; margin-bottom: .3rem; font-weight: 600; font-size: .9rem; }
+.upload-controls .check { display: flex; align-items: center; gap: .45rem; margin-top: .5rem; cursor: pointer; }
+input[type=file] { padding: .35rem; font-size: .85rem; }
+input[type=file]::file-selector-button {
+  margin-right: .75rem; padding: .35rem .8rem; background: var(--surface-3); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer;
+}
+input[type=file]::file-selector-button:hover { border-color: var(--violet); }
+@media (max-width: 640px) {
+  .upload-row { flex-direction: column; }
+}
+
+/* Opciones de tipo radio dibujadas como filas o fichas. */
+.choice-list { display: flex; flex-direction: column; gap: .35rem; }
+.choice-row { display: flex; align-items: center; gap: .6rem; padding: .5rem .75rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; font-size: .92rem; cursor: pointer; }
+.choice-chips { display: flex; flex-wrap: wrap; gap: .5rem; }
+.choice-chip { display: inline-flex; align-items: center; gap: .5rem; padding: .45rem .85rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; font-size: .9rem; cursor: pointer; }
+.choice-row:has(input:checked), .choice-chip:has(input:checked) { border-color: var(--violet); background: rgba(157, 92, 255, .16); color: #fff; }
+.choice-row:has(input:focus-visible), .choice-chip:has(input:focus-visible) { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.choice-row input, .choice-chip input { margin: 0; accent-color: var(--violet); }
+.shape-sample { width: 1.1rem; height: 1.1rem; border-radius: 50%; background: linear-gradient(135deg, var(--violet), var(--pink)); }
+
+/* Paleta de colores del perfil. */
+.swatches { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.swatch { width: 2.1rem; height: 2.1rem; padding: 0; background: var(--swatch); border: 2px solid rgba(255, 255, 255, .15); border-radius: 50%; cursor: pointer; transition: transform .12s, box-shadow .12s; }
+.swatch:hover { transform: scale(1.08); }
+.swatch.is-active { border-color: #fff; box-shadow: 0 0 0 3px var(--swatch), 0 0 16px var(--swatch); }
+.swatch:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+.swatch-custom { display: inline-flex; align-items: center; gap: .45rem; margin-left: .25rem; color: var(--muted); font-size: .85rem; cursor: pointer; }
+input[type=color] { width: 2.6rem; height: 2.2rem; padding: .15rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+input[type=range] { width: 100%; accent-color: var(--violet); }
+#dim-value { margin-left: .35rem; font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Imágenes del juego para la cabecera. */
+.banner-arts { margin-top: .75rem; }
+.art-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .6rem; }
+.art-option { position: relative; display: flex; flex-direction: column; gap: .3rem; cursor: pointer; }
+.art-option input { position: absolute; opacity: 0; }
+.art-thumb { display: block; aspect-ratio: 16 / 9; overflow: hidden; background: var(--surface-2); border: 2px solid var(--border); border-radius: 10px; transition: border-color .15s, box-shadow .15s; }
+.art-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.art-thumb-cover img { filter: blur(6px) saturate(1.2); transform: scale(1.15); }
+.art-option:hover .art-thumb { border-color: rgba(157, 92, 255, .6); }
+.art-option input:checked + .art-thumb { border-color: var(--violet); box-shadow: 0 0 14px rgba(157, 92, 255, .45); }
+.art-option input:focus-visible + .art-thumb { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.art-label { color: var(--muted); font-size: .8rem; }
+
+/* Listas que se ordenan con los botones de subir y bajar (favoritos y secciones). */
+.reorder-list { margin: 0 0 1rem; padding: 0; list-style: none; }
+.reorder-item { display: flex; align-items: center; gap: .75rem; padding: .5rem .6rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; }
+.reorder-item + .reorder-item { margin-top: .4rem; }
+.reorder-item .thumb { width: 36px; }
+.reorder-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reorder-toggle { display: flex; align-items: center; gap: .65rem; cursor: pointer; }
+.reorder-actions { display: flex; flex: none; align-items: center; gap: .3rem; }
+.reorder-actions .check { display: inline-flex; align-items: center; gap: .3rem; margin-left: .35rem; color: var(--muted); cursor: pointer; }
+.reorder-item:first-child [data-move="up"], .reorder-item:last-child [data-move="down"] { opacity: .35; }
+.icon-btn { display: inline-grid; place-items: center; width: 2rem; height: 2rem; padding: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); cursor: pointer; }
+.icon-btn:hover { border-color: var(--violet); }
+.icon-btn .icon { width: 1rem; height: 1rem; }
+.icon-btn:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.links-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 0 1rem; margin-top: 1rem; }
+@media (max-width: 760px) {
+  /* Por encima de la barra inferior del móvil. */
+  .settings-savebar { bottom: calc(64px + env(safe-area-inset-bottom)); }
+  .profile-page .profile-banner { height: 140px; }
 }

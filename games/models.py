@@ -37,6 +37,14 @@ def spanish_genre_name(name, slug=""):
     return GENRE_NAMES_ES.get(slug or slugify(name), name)
 
 
+IGDB_IMAGE_URL = "https://images.igdb.com/igdb/image/upload/{size}/{image_id}.jpg"
+
+
+def igdb_image_url(image_id, size="t_cover_big"):
+    """URL de una imagen del CDN de IGDB (portada, arte o captura) en ese tamaño; vacía si no hay imagen."""
+    return IGDB_IMAGE_URL.format(size=size, image_id=image_id) if image_id else ""
+
+
 class Genre(models.Model):
     igdb_id = models.PositiveIntegerField(unique=True, null=True, blank=True)
     name = models.CharField(max_length=100)
@@ -136,9 +144,7 @@ class Game(models.Model):
     @property
     def cover_url(self):
         """URL de la portada en el CDN de IGDB, o cadena vacía si el juego no tiene portada."""
-        if not self.cover_image_id:
-            return ""
-        return f"https://images.igdb.com/igdb/image/upload/t_cover_big/{self.cover_image_id}.jpg"
+        return igdb_image_url(self.cover_image_id)
 
     @property
     def release_year(self):

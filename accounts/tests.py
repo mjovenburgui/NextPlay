@@ -1,20 +1,30 @@
 import io
 import json
+import shutil
+import tempfile
 import time
 from datetime import timedelta
 from unittest import mock
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
+from django.core.exceptions import ValidationError
+from django.core.files.storage import default_storage
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import CommandError, call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from PIL import Image
 
+from games import igdb
 from games.models import Game, Platform
 from library.models import LibraryEntry
 
-from . import matching, psn, steam, xbox
-from .models import ExternalTitle, ImportedTitle, PlatformAccount, PSNAccount, SteamAccount, XboxAccount
+from . import images, matching, psn, steam, xbox
+from .models import (
+    ExternalTitle, FavoriteGame, ImportedTitle, PlatformAccount, Profile, PSNAccount, SteamAccount, XboxAccount,
+)
 
 User = get_user_model()
 
@@ -879,3 +889,295 @@ class SyncLibrariesTests(TestCase):
         user.profile.refresh_from_db()
         self.assertFalse(user.profile.auto_sync)
         self.assertContains(self.client.get(reverse("edit_profile")), "Sincronización nocturna desactivada")
+
+
+def image_upload(name="foto.jpg", size=(800, 600), fmt="JPEG", orientation=None):
+    """Imagen de prueba lista para subir. Con orientation lleva EXIF como las fotos del móvil (marca y giro)."""
+    buffer = io.BytesIO()
+    extra = {}
+    if orientation:
+        exif = Image.Exif()
+        exif[0x010F] = "Movil de prueba"  # Make
+        exif[0x0112] = orientation  # Orientation
+        extra["exif"] = exif
+    Image.new("RGB", size, (200, 30, 90)).save(buffer, fmt, **extra)
+    return SimpleUploadedFile(name, buffer.getvalue(), content_type=f"image/{fmt.lower()}")
+
+
+# Carpeta temporal para las imágenes que suben los tests (se borra al terminar la clase).
+TEST_MEDIA = tempfile.mkdtemp(prefix="nextplay-media-")
+
+
+@override_settings(MEDIA_ROOT=TEST_MEDIA)
+class ProfileCustomizationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.other = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.games = [Game.objects.create(name=f"Juego {i}", slug=f"juego-{i}", cover_image_id=f"co{i}") for i in range(7)]
+        for game in cls.games[:3]:
+            LibraryEntry.objects.create(user=cls.user, game=game, status=LibraryEntry.Status.PLAYING)
+
+    @classmethod
+    def tearDownClass(cls):
+        """Borra las imágenes que han subido los tests."""
+        super().tearDownClass()
+        shutil.rmtree(TEST_MEDIA, ignore_errors=True)
+
+    def setUp(self):
+        self.client.force_login(self.user)
+        cache.clear()
+
+    def post_profile(self, **data):
+        """Envía Editar perfil con los datos dados (perfil público salvo que se diga otra cosa)."""
+        return self.client.post(reverse("edit_profile"), {"is_public": "on", **data})
+
+    def profile(self):
+        """El perfil de ana tal como está guardado ahora."""
+        return Profile.objects.get(user=self.user)
+
+    def test_avatar_is_cropped_converted_and_loses_exif(self):
+        response = self.post_profile(avatar=image_upload(orientation=1))
+        self.assertRedirects(response, reverse("profile", args=["ana"]))
+        avatar = self.profile().avatar
+        self.assertTrue(avatar.name.startswith(f"perfiles/{self.user.pk}/avatar-"))
+        self.assertTrue(avatar.name.endswith(".webp"))
+        with Image.open(avatar.path) as saved:
+            self.assertEqual((saved.format, saved.size), ("WEBP", (400, 400)))
+            self.assertEqual(len(saved.getexif()), 0)
+
+    def test_background_follows_exif_orientation_and_keeps_its_ratio(self):
+        # Orientación 6: la foto está tumbada y hay que girarla 90°.
+        self.post_profile(background_mode="image", background=image_upload(size=(800, 600), orientation=6))
+        with Image.open(self.profile().background.path) as saved:
+            self.assertEqual(saved.size, (600, 800))
+
+    def test_rejects_files_that_are_not_images(self):
+        response = self.post_profile(avatar=SimpleUploadedFile("foto.png", b"no soy una imagen", "image/png"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["form"].errors["avatar"])
+        self.assertFalse(self.profile().avatar)
+
+    def test_rejects_too_heavy_images(self):
+        upload = SimpleUploadedFile("enorme.jpg", b"x" * (5 * 1024 * 1024 + 1), "image/jpeg")
+        with self.assertRaisesMessage(ValidationError, "el máximo son 5 MB"):
+            images.process(upload, "avatar")
+
+    def test_replaced_and_removed_images_are_deleted_from_disk(self):
+        self.post_profile(avatar=image_upload())
+        first = self.profile().avatar.name
+        self.post_profile(avatar=image_upload())
+        second = self.profile().avatar.name
+        self.assertNotEqual(first, second)
+        self.assertFalse(default_storage.exists(first))
+        self.assertTrue(default_storage.exists(second))
+        self.post_profile(**{"avatar-clear": "on"})
+        self.assertFalse(self.profile().avatar)
+        self.assertFalse(default_storage.exists(second))
+
+    def test_deleting_the_user_deletes_their_images(self):
+        user = User.objects.create_user("eva", "eva@example.com", "x")
+        self.client.force_login(user)
+        self.post_profile(avatar=image_upload())
+        name = Profile.objects.get(user=user).avatar.name
+        user.delete()
+        self.assertFalse(default_storage.exists(name))
+
+    def test_avatar_source(self):
+        response = self.client.get(reverse("edit_profile"))
+        sources = [value for value, _ in response.context["form"].fields["avatar_source"].choices]
+        # Sin cuentas vinculadas no se ofrecen sus fotos.
+        self.assertEqual(sources, ["auto", "upload", "initial"])
+        self.post_profile(avatar=image_upload(), avatar_source="initial")
+        self.assertEqual(self.profile().avatar_url, "")
+        self.post_profile(avatar_source="auto")
+        self.assertTrue(self.profile().avatar_url.endswith(".webp"))
+
+    def test_steam_avatar_can_be_chosen_over_the_uploaded_one(self):
+        SteamAccount.objects.create(user=self.user, steam_id="76561197960287930", avatar="https://steam/a.jpg")
+        self.post_profile(avatar=image_upload(), avatar_source="steam")
+        self.assertEqual(self.profile().avatar_url, "https://steam/a.jpg")
+
+    def test_accent_color(self):
+        self.post_profile(accent_color="#22E0F0")
+        self.assertEqual(self.profile().accent_color, "#22e0f0")
+        self.assertContains(self.client.get(reverse("profile", args=["ana"])), "--violet: #22e0f0;")
+        response = self.post_profile(accent_color="rojo")
+        self.assertTrue(response.context["form"].errors["accent_color"])
+        # El violeta de siempre se guarda vacío: si cambia el de la web, cambia también en el perfil.
+        self.post_profile(accent_color="#9d5cff")
+        self.assertEqual(self.profile().accent_color, "")
+
+    def test_text_on_the_accent_color_is_readable(self):
+        self.assertEqual(Profile(accent_color="").accent_text, "#ffffff")
+        self.assertEqual(Profile(accent_color="#ffc84a").accent_text, "#0b0d18")
+        self.assertEqual(Profile(accent_color="#ffc84a").accent_rgb, "255, 200, 74")
+
+    def test_status_pronouns_location_and_background_on_the_profile(self):
+        self.post_profile(
+            status_emoji="🎮", status_text="Platineando Bloodborne", pronouns="elle", location="Madrid",
+            background_mode="image", background=image_upload(), background_dim="40", layout="centered",
+            avatar_shape="hexagon",
+        )
+        response = self.client.get(reverse("profile", args=["ana"]))
+        for text in ("🎮", "Platineando Bloodborne", "elle", "Madrid", "--dim: 0.40", "profile-layout-centered",
+                     "avatar-shape-hexagon"):
+            self.assertContains(response, text)
+
+    def test_fields_missing_from_the_post_keep_their_value(self):
+        self.post_profile(layout="centered", avatar_shape="rounded", background_dim="30")
+        self.post_profile(display_name="Ana")
+        profile = self.profile()
+        self.assertEqual((profile.display_name, profile.layout, profile.avatar_shape, profile.background_dim),
+                         ("Ana", "centered", "rounded", 30))
+
+    def test_social_links_are_normalized(self):
+        self.post_profile(
+            link_twitch="@Ana_Juega", link_x="https://x.com/ana_x", link_bluesky="https://bsky.app/profile/ana.bsky.social",
+            link_discord="Ana.Discord", link_web="ana.dev",
+        )
+        self.assertEqual(self.profile().links, {
+            "twitch": "Ana_Juega", "x": "ana_x", "bluesky": "ana.bsky.social", "discord": "ana.discord",
+            "web": "https://ana.dev",
+        })
+        response = self.client.get(reverse("profile", args=["ana"]))
+        for url in ("https://www.twitch.tv/Ana_Juega", "https://x.com/ana_x", "https://bsky.app/profile/ana.bsky.social",
+                    "https://ana.dev"):
+            self.assertContains(response, f'href="{url}"')
+        self.assertContains(response, "ana.discord")
+
+    def test_invalid_social_links_are_rejected(self):
+        response = self.post_profile(link_twitch="no vale!", link_web="ftp://ana.dev")
+        errors = response.context["form"].errors
+        self.assertIn("link_twitch", errors)
+        self.assertIn("link_web", errors)
+        self.assertEqual(self.profile().links, {})
+
+    def test_sections_order_and_visibility(self):
+        FavoriteGame.objects.create(user=self.user, game=self.games[0])
+        self.post_profile(
+            secciones=["estadisticas", "favoritos", "jugando", "resena", "generos"],
+            secciones_visibles=["estadisticas", "jugando"],
+        )
+        profile = self.profile()
+        self.assertEqual(profile.visible_sections, ["estadisticas", "jugando"])
+        self.assertEqual(profile.sections[1], ["favoritos", False])
+        content = self.client.get(reverse("profile", args=["ana"])).content.decode()
+        self.assertNotIn("Juegos favoritos", content)
+        self.assertLess(content.index("Completados"), content.index("Jugando ahora"))
+
+    def test_section_layout_ignores_unknown_and_repeated_keys(self):
+        profile = Profile(sections=[["no-existe", True], "basura", ["jugando", False], ["jugando", True]])
+        layout = profile.section_layout
+        self.assertEqual(layout[0], ("jugando", "Jugando ahora", False))
+        self.assertEqual([key for key, _, _ in layout[1:]], ["favoritos", "resena", "estadisticas", "generos"])
+
+    def test_showcase_is_only_on_the_main_view(self):
+        url = reverse("profile", args=["ana"])
+        self.assertContains(self.client.get(url), "Jugando ahora")
+        self.assertNotContains(self.client.get(url, {"estado": "playing"}), "Jugando ahora")
+        self.assertNotContains(self.client.get(url, {"vista": "resenas"}), "Jugando ahora")
+
+    def test_favorites_toggle_with_limit(self):
+        for game in self.games[:5]:
+            self.client.post(reverse("favorite_toggle", args=[game.pk]))
+        self.assertEqual(
+            list(self.user.favorite_games.values_list("game_id", flat=True)), [g.pk for g in self.games[:5]]
+        )
+        response = self.client.post(reverse("favorite_toggle", args=[self.games[5].pk]), HTTP_HX_REQUEST="true")
+        self.assertContains(response, "Ya tienes 5 favoritos")
+        self.assertEqual(self.user.favorite_games.count(), 5)
+        response = self.client.post(reverse("favorite_toggle", args=[self.games[0].pk]), HTTP_HX_REQUEST="true")
+        self.assertContains(response, "Añadir a mis favoritos")
+        self.assertEqual(self.user.favorite_games.count(), 4)
+
+    def test_game_page_shows_the_favorite_button(self):
+        response = self.client.get(self.games[0].get_absolute_url())
+        self.assertContains(response, "Añadir a mis favoritos")
+        self.assertContains(response, "0 de 5")
+
+    def test_reorder_and_remove_favorites_from_edit_profile(self):
+        for position, game in enumerate(self.games[:4]):
+            FavoriteGame.objects.create(user=self.user, game=game, position=position)
+        g0, g1, g2, g3 = (game.pk for game in self.games[:4])
+        self.post_profile(favoritos=[g2, g0, g3], quitar_favoritos=[g3])
+        self.assertEqual(list(self.user.favorite_games.values_list("game_id", flat=True)), [g2, g0, g1])
+        content = self.client.get(reverse("profile", args=["ana"])).content.decode()
+        positions = [content.index(f"Juego {i}</p>") for i in (2, 0, 1)]
+        self.assertEqual(positions, sorted(positions))
+
+    def test_pinned_review_must_be_one_of_your_reviews(self):
+        own = LibraryEntry.objects.filter(user=self.user, game=self.games[0]).get()
+        own.review, own.reviewed_at = "Me ha encantado.", timezone.now()
+        own.save()
+        theirs = LibraryEntry.objects.create(
+            user=self.other, game=self.games[1], review="Del otro.", reviewed_at=timezone.now()
+        )
+        response = self.post_profile(pinned_review=theirs.pk)
+        self.assertIn("pinned_review", response.context["form"].errors)
+        self.post_profile(pinned_review=own.pk)
+        response = self.client.get(reverse("profile", args=["ana"]))
+        self.assertContains(response, "Reseña destacada")
+        self.assertContains(response, "Me ha encantado.")
+
+    def test_banner_from_a_game_of_the_library(self):
+        game = self.games[0]
+        self.post_profile(banner_mode="game", banner_game=game.pk)
+        profile = self.profile()
+        self.assertEqual(profile.banner_url, "https://images.igdb.com/igdb/image/upload/t_1080p/co0.jpg")
+        self.assertTrue(profile.banner_blurred)
+        self.post_profile(banner_mode="game", banner_game=game.pk, banner_art="ar5l8")
+        profile = self.profile()
+        self.assertEqual(profile.banner_url, "https://images.igdb.com/igdb/image/upload/t_1080p/ar5l8.jpg")
+        self.assertFalse(profile.banner_blurred)
+        # Al cambiar de juego sin elegir imagen, la del juego anterior no vale: se usa la portada del nuevo.
+        self.post_profile(banner_mode="game", banner_game=self.games[1].pk, banner_art="ar5l8")
+        self.assertEqual(self.profile().banner_art, "")
+
+    def test_banner_errors(self):
+        errors = self.post_profile(banner_mode="game", banner_game=self.games[6].pk).context["form"].errors
+        self.assertIn("banner_game", errors)  # no está en su biblioteca
+        errors = self.post_profile(banner_mode="game", banner_game=self.games[0].pk, banner_art="<script>").context["form"].errors
+        self.assertIn("banner_art", errors)
+        errors = self.post_profile(banner_mode="image").context["form"].errors
+        self.assertIn("banner", errors)
+        errors = self.post_profile(background_mode="image").context["form"].errors
+        self.assertIn("background", errors)
+
+    def test_uploaded_banner_and_background_from_banner(self):
+        self.post_profile(banner_mode="image", banner=image_upload(size=(2000, 1000)), background_mode="banner")
+        profile = self.profile()
+        with Image.open(profile.banner.path) as saved:
+            self.assertEqual(saved.size, (1500, 500))
+        self.assertEqual(profile.background_url, profile.banner_url)
+        self.assertContains(self.client.get(reverse("profile", args=["ana"])), "profile-backdrop")
+
+    @override_settings(IGDB_CLIENT_ID="", IGDB_CLIENT_SECRET="")
+    def test_banner_arts_without_igdb(self):
+        response = self.client.get(reverse("banner_arts"), {"banner_game": self.games[0].pk})
+        self.assertContains(response, "Portada")
+        self.assertContains(response, "Sin IGDB configurado")
+        response = self.client.get(reverse("banner_arts"), {"banner_game": self.games[6].pk})
+        self.assertContains(response, "Elige un juego")
+        response = self.client.get(reverse("banner_arts"), {"banner_game": "abc"})
+        self.assertContains(response, "Elige un juego")
+
+    def test_banner_arts_from_igdb_are_cached(self):
+        game = self.games[0]
+        game.igdb_id = 1942
+        game.save()
+        with mock.patch.object(igdb, "is_configured", return_value=True), \
+                mock.patch.object(igdb.IGDBClient, "__init__", return_value=None), \
+                mock.patch.object(igdb.IGDBClient, "artworks", return_value=["ar1", "sc2"]) as artworks:
+            for _ in range(2):
+                response = self.client.get(reverse("banner_arts"), {"banner_game": game.pk})
+        self.assertContains(response, "t_screenshot_med/ar1.jpg")
+        self.assertContains(response, 'value="sc2"')
+        artworks.assert_called_once_with(1942)
+
+    def test_igdb_artworks_fills_with_screenshots(self):
+        client = igdb.IGDBClient("id", "secret")
+        answers = [[{"image_id": "ar1"}], [{"image_id": "sc1"}, {"image_id": "sc2"}]]
+        with mock.patch.object(igdb.IGDBClient, "query", side_effect=answers) as query:
+            self.assertEqual(client.artworks(1942, limit=3), ["ar1", "sc1", "sc2"])
+        self.assertIn("where game = 1942; limit 2;", query.call_args_list[1].args[1])

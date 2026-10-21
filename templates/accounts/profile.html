@@ -5,119 +5,201 @@
 
 {% block content %}
   {% with profile=owner.profile %}
-  <section class="profile-hero">
-    <div class="profile-banner" aria-hidden="true"></div>
-    <div class="profile-main">
-      {% include "accounts/_avatar.html" with size="lg" %}
-      <div class="profile-id">
-        <h1>{{ profile.name }}</h1>
-        <p class="muted">
-          @{{ owner.username }} · En NextPlay desde {{ profile.created_at|date:"F Y" }}
-          {% if not profile.is_public %}<span class="pill">Perfil privado</span>{% endif %}
-        </p>
-        {% if profile.steam_accounts or profile.psn or profile.xbox or profile.platforms %}
-          <p class="steam-badges">
-            {% for account in profile.steam_accounts %}
-              <a class="steam-badge" href="{{ account.url }}" target="_blank" rel="noopener">
-                {% include "games/shop_icons/steam.svg" %} {{ account.name }}
-              </a>
-            {% endfor %}
-            {% if profile.xbox %}
-              <a class="steam-badge xbox-badge"{% if profile.xbox.url %} href="{{ profile.xbox.url }}" target="_blank" rel="noopener"{% endif %}>
-                {% include "games/shop_icons/xbox.svg" %} {{ profile.xbox.name }}
-              </a>
-            {% endif %}
-            {% if profile.psn %}
-              <a class="steam-badge psn-badge"{% if profile.psn.url %} href="{{ profile.psn.url }}" target="_blank" rel="noopener"{% endif %}>
-                {% include "games/shop_icons/playstation.svg" %} {{ profile.psn.name }}
-              </a>
-            {% endif %}
-            {% for account in profile.platforms %}
-              {# Sin enlace salvo GOG: el resto de plataformas no tienen perfil público en la web. #}
-              <a class="steam-badge platform-badge"{% if account.url %} href="{{ account.url }}" target="_blank" rel="noopener"{% endif %}
-                 title="{{ account.get_platform_display }}: {{ account.handle }}">
-                {% include account.logo_template %} {{ account.handle }}
-              </a>
-            {% endfor %}
+  {# Todo el perfil lleva el color que eligió su dueño: sustituye al violeta de la web dentro de este bloque. #}
+  <div class="profile-page profile-layout-{{ profile.layout }}" style="--violet: {{ profile.accent }}; --accent-rgb: {{ profile.accent_rgb }}; --accent-text: {{ profile.accent_text }};">
+    {% if profile.background_url %}
+      {# Fondo elegido: ocupa toda la ventana detrás del contenido y se oscurece para que se lea el texto. #}
+      <div class="profile-backdrop{% if profile.background_blurred %} is-blurred{% endif %}" style="--dim: {{ profile.background_dim_ratio }};" aria-hidden="true">
+        <img src="{{ profile.background_url }}" alt="">
+      </div>
+    {% endif %}
+
+    <section class="profile-hero">
+      <div class="profile-banner{% if profile.banner_blurred %} is-blurred{% endif %}" aria-hidden="true">
+        {% if profile.banner_url %}<img src="{{ profile.banner_url }}" alt="">{% endif %}
+      </div>
+      <div class="profile-main">
+        {% include "accounts/_avatar.html" with size="lg" %}
+        <div class="profile-id">
+          <h1>{{ profile.name }}</h1>
+          {% if profile.status_emoji or profile.status_text %}
+            <p class="profile-status">{% if profile.status_emoji %}<span class="profile-status-emoji" aria-hidden="true">{{ profile.status_emoji }}</span>{% endif %}{{ profile.status_text }}</p>
+          {% endif %}
+          <p class="muted profile-meta">
+            <span>@{{ owner.username }}</span>
+            {% if profile.pronouns %}<span>{{ profile.pronouns }}</span>{% endif %}
+            {% if profile.location %}<span>{% include "_icon.html" with name="pin-map" %} {{ profile.location }}</span>{% endif %}
+            <span>En NextPlay desde {{ profile.created_at|date:"F Y" }}</span>
+            {% if not profile.is_public %}<span class="pill">Perfil privado</span>{% endif %}
           </p>
+          {% if profile.steam_accounts or profile.psn or profile.xbox or profile.platforms %}
+            <p class="steam-badges">
+              {% for account in profile.steam_accounts %}
+                <a class="steam-badge" href="{{ account.url }}" target="_blank" rel="noopener">
+                  {% include "games/shop_icons/steam.svg" %} {{ account.name }}
+                </a>
+              {% endfor %}
+              {% if profile.xbox %}
+                <a class="steam-badge xbox-badge"{% if profile.xbox.url %} href="{{ profile.xbox.url }}" target="_blank" rel="noopener"{% endif %}>
+                  {% include "games/shop_icons/xbox.svg" %} {{ profile.xbox.name }}
+                </a>
+              {% endif %}
+              {% if profile.psn %}
+                <a class="steam-badge psn-badge"{% if profile.psn.url %} href="{{ profile.psn.url }}" target="_blank" rel="noopener"{% endif %}>
+                  {% include "games/shop_icons/playstation.svg" %} {{ profile.psn.name }}
+                </a>
+              {% endif %}
+              {% for account in profile.platforms %}
+                {# Sin enlace salvo GOG: el resto de plataformas no tienen perfil público en la web. #}
+                <a class="steam-badge platform-badge"{% if account.url %} href="{{ account.url }}" target="_blank" rel="noopener"{% endif %}
+                   title="{{ account.get_platform_display }}: {{ account.handle }}">
+                  {% include account.logo_template %} {{ account.handle }}
+                </a>
+              {% endfor %}
+            </p>
+          {% endif %}
+          {% if profile.social_links %}
+            <p class="social-links">
+              {% for key, name, handle, url in profile.social_links %}
+                {% if url %}
+                  <a class="social-link social-{{ key }}" href="{{ url }}" target="_blank" rel="noopener nofollow ugc">{% include "_icon.html" with name="link" %} <strong>{{ name }}</strong> {{ handle }}</a>
+                {% else %}
+                  {# Discord no tiene páginas de perfil: solo se enseña el usuario. #}
+                  <span class="social-link social-{{ key }}"><strong>{{ name }}</strong> {{ handle }}</span>
+                {% endif %}
+              {% endfor %}
+            </p>
+          {% endif %}
+        </div>
+        {% if is_owner %}
+          <div class="profile-actions">
+            <a class="btn" href="{% url 'edit_profile' %}">Editar perfil</a>
+            <button class="btn btn-link-accounts" type="button" data-open-dialog="link-dialog" aria-haspopup="dialog">Vincular cuentas</button>
+          </div>
         {% endif %}
       </div>
-      {% if is_owner %}
-        <div class="profile-actions">
-          <a class="btn" href="{% url 'edit_profile' %}">Editar perfil</a>
-          <button class="btn btn-link-accounts" type="button" data-open-dialog="link-dialog" aria-haspopup="dialog">Vincular cuentas</button>
-        </div>
+      {% if profile.bio %}<p class="bio">{{ profile.bio|linebreaksbr }}</p>{% endif %}
+      {% if unmatched_count %}
+        <p class="unmatched-note"><a href="{% url 'imported_titles' %}">{{ unmatched_count }} juego{{ unmatched_count|pluralize }} importado{{ unmatched_count|pluralize }} sin emparejar</a> <span class="muted">· búscalos para añadirlos con sus horas</span></p>
       {% endif %}
-    </div>
-    {% if profile.bio %}<p class="bio">{{ profile.bio|linebreaksbr }}</p>{% endif %}
-
-    <dl class="stats">
-      <div><dt>Juegos</dt><dd>{{ stats.games }}</dd></div>
-      <div><dt>Completados</dt><dd>{{ stats.completed }}</dd></div>
-      {% if stats.hours %}<div><dt>Horas jugadas</dt><dd>{{ stats.hours }}</dd></div>{% endif %}
-      <div><dt>Nota media</dt><dd>{% if stats.average_rating %}<span class="gold">★</span> {{ stats.average_rating|floatformat:1 }}{% else %}–{% endif %}</dd></div>
-      <div><dt>Reseñas</dt><dd>{{ stats.reviews }}</dd></div>
-    </dl>
-    {% if unmatched_count %}
-      <p class="unmatched-note"><a href="{% url 'imported_titles' %}">{{ unmatched_count }} juego{{ unmatched_count|pluralize }} importado{{ unmatched_count|pluralize }} sin emparejar</a> <span class="muted">· búscalos para añadirlos con sus horas</span></p>
-    {% endif %}
-    {% if stats.top_genres %}
-      <p class="top-genres"><span class="muted small">Le gusta:</span>
-        {% for genre in stats.top_genres %}<span class="chip">{{ genre }}</span>{% endfor %}
-      </p>
-    {% endif %}
-  </section>
+    </section>
     {% if is_owner %}{% include "accounts/linking/_dialog.html" with next=request.path %}{% endif %}
-  {% endwith %}
 
-  <nav class="tabs tabs-main" aria-label="Secciones del perfil">
-    <a class="tab{% if not view %} is-active{% endif %}" href="{% url 'profile' owner.username %}">Biblioteca <span>{{ total }}</span></a>
-    <a class="tab{% if view == 'resenas' %} is-active{% endif %}" href="?vista=resenas">Reseñas <span>{{ reviews|length }}</span></a>
-  </nav>
+    {# Escaparate: las secciones que ha elegido el dueño, en su orden (Editar perfil › Escaparate). Solo en la vista principal. #}
+    {% if show_showcase %}{% for key in profile.visible_sections %}
+      {% if key == "favoritos" %}
+        {% if favorites or is_owner %}
+          <section class="card-box showcase">
+            <header class="box-head">
+              <h2>{% include "_icon.html" with name="award" %} Juegos favoritos</h2>
+              {% if is_owner and favorites %}<a href="{% url 'edit_profile' %}#escaparate">Ordenar</a>{% endif %}
+            </header>
+            {% if favorites %}
+              <ol class="favorites">
+                {% for favorite in favorites %}<li>{% include "games/_card.html" with game=favorite.game status="" %}</li>{% endfor %}
+              </ol>
+            {% else %}
+              <p class="muted small box-empty">Elige hasta {{ max_favorites }} juegos con «Añadir a mis favoritos» en su ficha.</p>
+            {% endif %}
+          </section>
+        {% endif %}
+      {% elif key == "jugando" %}
+        {% if playing %}
+          <section class="card-box showcase">
+            <header class="box-head">
+              <h2>Jugando ahora</h2>
+              <a href="?estado=playing">Ver todos {% include "_icon.html" with name="arrow" %}</a>
+            </header>
+            <ul class="playing">
+              {% for entry in playing %}
+                <li>
+                  <a class="playing-item" href="{{ entry.game.get_absolute_url }}">
+                    <span class="thumb">{% if entry.game.cover_url %}<img src="{{ entry.game.cover_url }}" alt="" loading="lazy">{% endif %}</span>
+                    <span class="playing-info">
+                      <strong>{{ entry.game.name }}</strong>
+                      <span class="muted small">{% if entry.playtime_hours %}{{ entry.playtime_hours|floatformat:"-1" }} h jugadas{% else %}Jugando{% endif %}</span>
+                    </span>
+                    {% include "_icon.html" with name="chevron" %}
+                  </a>
+                </li>
+              {% endfor %}
+            </ul>
+          </section>
+        {% endif %}
+      {% elif key == "resena" %}
+        {% if pinned %}
+          <section class="showcase showcase-review">
+            <h2 class="showcase-title">{% include "_icon.html" with name="pin" %} Reseña destacada</h2>
+            {% include "library/_review.html" with entry=pinned show_game=True %}
+          </section>
+        {% endif %}
+      {% elif key == "estadisticas" %}
+        <dl class="stats showcase">
+          <div><dt>Juegos</dt><dd>{{ stats.games }}</dd></div>
+          <div><dt>Completados</dt><dd>{{ stats.completed }}</dd></div>
+          {% if stats.hours %}<div><dt>Horas jugadas</dt><dd>{{ stats.hours }}</dd></div>{% endif %}
+          <div><dt>Nota media</dt><dd>{% if stats.average_rating %}<span class="gold">★</span> {{ stats.average_rating|floatformat:1 }}{% else %}–{% endif %}</dd></div>
+          <div><dt>Reseñas</dt><dd>{{ stats.reviews }}</dd></div>
+        </dl>
+      {% elif key == "generos" %}
+        {% if stats.top_genres %}
+          <p class="top-genres showcase"><span class="muted small">Le gusta:</span>
+            {% for genre in stats.top_genres %}<span class="chip">{{ genre }}</span>{% endfor %}
+          </p>
+        {% endif %}
+      {% endif %}
+    {% endfor %}{% endif %}
 
-  {% if view == "resenas" %}
-    {% for entry in reviews %}
-      {% include "library/_review.html" with show_game=True %}
-    {% empty %}
-      <p class="empty">
-        {% if is_owner %}Aún no has escrito reseñas. Abre un juego de tu biblioteca y cuéntanos qué te parece.{% else %}{{ owner.profile.name }} aún no ha escrito reseñas.{% endif %}
-      </p>
-    {% endfor %}
-  {% else %}
-    <div class="library-bar">
-      <nav class="tabs tabs-sub" aria-label="Estados de la biblioteca">
-        <a class="tab{% if not active_status %} is-active{% endif %}" href="?{% if active_sort %}orden={{ active_sort }}{% endif %}">Todos <span>{{ total }}</span></a>
-        {% for value, label, count in tabs %}
-          <a class="tab{% if active_status == value %} is-active{% endif %}" href="?estado={{ value }}{% if active_sort %}&orden={{ active_sort }}{% endif %}">{{ label }} <span>{{ count }}</span></a>
-        {% endfor %}
-      </nav>
-      <form class="sort" method="get">
-        {% if active_status %}<input type="hidden" name="estado" value="{{ active_status }}">{% endif %}
-        <label class="muted small" for="orden">Ordenar</label>
-        <select id="orden" name="orden" onchange="this.form.submit()">
-          <option value="">Recientes</option>
-          {% for value, label in sorts %}<option value="{{ value }}"{% if active_sort == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
-        </select>
-        <noscript><button class="btn" type="submit">Aplicar</button></noscript>
-      </form>
-    </div>
+    <nav class="tabs tabs-main" aria-label="Secciones del perfil">
+      <a class="tab{% if not view %} is-active{% endif %}" href="{% url 'profile' owner.username %}">Biblioteca <span>{{ total }}</span></a>
+      <a class="tab{% if view == 'resenas' %} is-active{% endif %}" href="?vista=resenas">Reseñas <span>{{ reviews|length }}</span></a>
+    </nav>
 
-    {% if entries %}
-      <div class="grid">
-        {% for entry in entries %}
-          {% if active_status %}
-            {% include "games/_card.html" with game=entry.game status="" %}
-          {% else %}
-            {% include "games/_card.html" with game=entry.game status=entry.get_status_display %}
-          {% endif %}
-        {% endfor %}
-      </div>
-    {% elif is_owner and not total %}
-      <div class="empty">
-        <p>Tu biblioteca está vacía. <a href="{% url 'games:catalog' %}">Explora el catálogo</a> y añade tus juegos{% if not owner.profile.steam_linked %}, o vincula tu cuenta de Steam para importar los que ya has jugado{% endif %}.</p>
-      </div>
+    {% if view == "resenas" %}
+      {% for entry in reviews %}
+        {% include "library/_review.html" with show_game=True %}
+      {% empty %}
+        <p class="empty">
+          {% if is_owner %}Aún no has escrito reseñas. Abre un juego de tu biblioteca y cuéntanos qué te parece.{% else %}{{ profile.name }} aún no ha escrito reseñas.{% endif %}
+        </p>
+      {% endfor %}
     {% else %}
-      <p class="empty">No hay juegos en esta sección.</p>
+      <div class="library-bar">
+        <nav class="tabs tabs-sub" aria-label="Estados de la biblioteca">
+          <a class="tab{% if not active_status %} is-active{% endif %}" href="?{% if active_sort %}orden={{ active_sort }}{% endif %}">Todos <span>{{ total }}</span></a>
+          {% for value, label, count in tabs %}
+            <a class="tab{% if active_status == value %} is-active{% endif %}" href="?estado={{ value }}{% if active_sort %}&orden={{ active_sort }}{% endif %}">{{ label }} <span>{{ count }}</span></a>
+          {% endfor %}
+        </nav>
+        <form class="sort" method="get">
+          {% if active_status %}<input type="hidden" name="estado" value="{{ active_status }}">{% endif %}
+          <label class="muted small" for="orden">Ordenar</label>
+          <select id="orden" name="orden" onchange="this.form.submit()">
+            <option value="">Recientes</option>
+            {% for value, label in sorts %}<option value="{{ value }}"{% if active_sort == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+          <noscript><button class="btn" type="submit">Aplicar</button></noscript>
+        </form>
+      </div>
+
+      {% if entries %}
+        <div class="grid">
+          {% for entry in entries %}
+            {% if active_status %}
+              {% include "games/_card.html" with game=entry.game status="" %}
+            {% else %}
+              {% include "games/_card.html" with game=entry.game status=entry.get_status_display %}
+            {% endif %}
+          {% endfor %}
+        </div>
+      {% elif is_owner and not total %}
+        <div class="empty">
+          <p>Tu biblioteca está vacía. <a href="{% url 'games:catalog' %}">Explora el catálogo</a> y añade tus juegos{% if not profile.steam_linked %}, o vincula tu cuenta de Steam para importar los que ya has jugado{% endif %}.</p>
+        </div>
+      {% else %}
+        <p class="empty">No hay juegos en esta sección.</p>
+      {% endif %}
     {% endif %}
-  {% endif %}
+  </div>
+  {% endwith %}
 {% endblock %}

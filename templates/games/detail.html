@@ -49,6 +49,7 @@
 
       {% if user.is_authenticated %}
         {% include "library/_widget.html" %}
+        {% include "accounts/_favorite.html" %}
       {% else %}
         <p class="widget">
           <a href="{% url 'login' %}?next={{ request.path|urlencode }}">Inicia sesión</a> para añadirlo a tu biblioteca.

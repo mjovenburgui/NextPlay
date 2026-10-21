@@ -158,6 +158,21 @@ class IGDBClient:
             )
         return self._with_editions(games)
 
+    def artworks(self, igdb_id, limit=8):
+        """IDs de imagen del arte promocional de un juego y, si no llegan a limit, de sus capturas.
+
+        Son imágenes apaisadas que sirven de cabecera o de fondo del perfil (la portada es vertical).
+        """
+        images = []
+        for endpoint in ("artworks", "screenshots"):
+            if len(images) >= limit:
+                break
+            found = self.query(
+                endpoint, f"fields image_id; where game = {int(igdb_id)}; limit {limit - len(images)};"
+            )
+            images += [item["image_id"] for item in found if item.get("image_id")]
+        return images
+
     def _with_editions(self, games):
         """Añade a cada juego sus ediciones (GOTY, Definitive...) en la clave «editions», para tener sus IDs de tienda."""
         if not games:

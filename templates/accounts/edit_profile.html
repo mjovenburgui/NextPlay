@@ -14,33 +14,67 @@
   <div class="settings">
     <nav class="settings-nav" aria-label="Secciones">
       <a href="#perfil">Perfil</a>
+      <a href="#apariencia">Apariencia</a>
+      <a href="#escaparate">Escaparate</a>
+      <a href="#redes">Redes sociales</a>
+      <a href="#privacidad">Privacidad</a>
       <a href="#tiendas">Tiendas</a>
       <a href="#cuentas">Cuentas vinculadas</a>
     </nav>
 
     <div class="settings-body">
-      <section class="settings-card" id="perfil">
-        {# Vista previa de la cabecera del perfil; el nombre cambia mientras se escribe. #}
-        <div class="settings-preview" aria-hidden="true">
-          <div class="profile-banner"></div>
-          <div class="settings-preview-id">
-            {% include "accounts/_avatar.html" with size="lg" %}
-            <div>
-              <strong id="preview-name" data-fallback="{{ user.username }}">{{ profile.name }}</strong>
-              <p class="muted small">@{{ user.username }}</p>
+      {# Un solo formulario para perfil, apariencia, escaparate, redes y privacidad; tiendas y cuentas van aparte. #}
+      <form method="post" enctype="multipart/form-data" class="settings-stack" id="profile-form">
+        {% csrf_token %}
+
+        <section class="settings-card" id="perfil">
+          {# Vista previa en directo de la cabecera: el JavaScript del final la cambia según lo que se elige abajo. #}
+          <div class="settings-preview profile-preview profile-layout-{{ profile.layout }}" id="profile-preview"
+               style="--violet: {{ profile.accent }}; --accent-rgb: {{ profile.accent_rgb }}; --accent-text: {{ profile.accent_text }};" aria-hidden="true">
+            <div class="profile-banner{% if profile.banner_blurred %} is-blurred{% endif %}" id="preview-banner">
+              {% if profile.banner_url %}<img src="{{ profile.banner_url }}" alt="">{% endif %}
+            </div>
+            <div class="settings-preview-id">
+              <span id="preview-avatar">{% include "accounts/_avatar.html" with size="lg" %}</span>
+              <div>
+                <strong id="preview-name" data-fallback="{{ user.username }}">{{ profile.name }}</strong>
+                <p class="profile-status" id="preview-status"{% if not profile.status_emoji and not profile.status_text %} hidden{% endif %}>{{ profile.status_emoji }} {{ profile.status_text }}</p>
+                <p class="muted small">@{{ user.username }}</p>
+              </div>
             </div>
           </div>
-        </div>
 
-        <form method="post" class="settings-form">
-          {% csrf_token %}
-          {{ form.non_field_errors }}
           <h2>Perfil</h2>
+          {{ form.non_field_errors }}
           <div class="field{% if form.display_name.errors %} has-error{% endif %}">
             <label for="{{ form.display_name.id_for_label }}">Nombre visible</label>
             {{ form.display_name }}
             <p class="help">Si lo dejas vacío se usa tu usuario, @{{ user.username }}.</p>
             {{ form.display_name.errors }}
+          </div>
+          <div class="field{% if form.status_text.errors or form.status_emoji.errors %} has-error{% endif %}">
+            <label for="{{ form.status_text.id_for_label }}">Estado</label>
+            <div class="status-row-input">
+              {{ form.status_emoji }}
+              {{ form.status_text }}
+            </div>
+            <p class="quick-emojis" aria-label="Emojis rápidos">
+              <button type="button" data-emoji="🎮">🎮</button><button type="button" data-emoji="🏆">🏆</button><button type="button" data-emoji="🔥">🔥</button><button type="button" data-emoji="👾">👾</button><button type="button" data-emoji="🕹️">🕹️</button><button type="button" data-emoji="💀">💀</button><button type="button" data-emoji="😴">😴</button><button type="button" data-emoji="📚">📚</button><button type="button" data-emoji="✨">✨</button><button type="button" data-emoji="">Sin emoji</button>
+            </p>
+            <p class="help">Lo que estás haciendo ahora: sale debajo de tu nombre.</p>
+            {{ form.status_emoji.errors }}{{ form.status_text.errors }}
+          </div>
+          <div class="field-pair">
+            <div class="field{% if form.pronouns.errors %} has-error{% endif %}">
+              <label for="{{ form.pronouns.id_for_label }}">Pronombres <span class="muted">(opcional)</span></label>
+              {{ form.pronouns }}
+              {{ form.pronouns.errors }}
+            </div>
+            <div class="field{% if form.location.errors %} has-error{% endif %}">
+              <label for="{{ form.location.id_for_label }}">Ubicación <span class="muted">(opcional)</span></label>
+              {{ form.location }}
+              {{ form.location.errors }}
+            </div>
           </div>
           <div class="field{% if form.bio.errors %} has-error{% endif %}">
             <label for="{{ form.bio.id_for_label }}">Biografía</label>
@@ -48,7 +82,185 @@
             <p class="help field-foot"><span>Qué juegas, qué buscas, dónde encontrarte.</span> <span id="bio-count"></span></p>
             {{ form.bio.errors }}
           </div>
+        </section>
 
+        <section class="settings-card" id="apariencia">
+          <h2>Apariencia</h2>
+          <p class="help">Tu foto, la cabecera, el fondo y el color de tu perfil. Las imágenes se recortan solas y se les quitan los datos ocultos (como la ubicación de las fotos del móvil).</p>
+
+          <h3>Foto de perfil</h3>
+          <div class="upload-row{% if form.avatar.errors %} has-error{% endif %}">
+            <span class="upload-preview upload-preview-avatar" id="avatar-upload-preview">
+              {% if profile.avatar %}<img src="{{ profile.avatar.url }}" alt="">{% else %}{% include "_icon.html" with name="user" %}{% endif %}
+            </span>
+            <div class="upload-controls">
+              <label for="{{ form.avatar.id_for_label }}">Subir una foto</label>
+              <input type="file" name="avatar" id="{{ form.avatar.id_for_label }}" accept="image/png,image/jpeg,image/webp,image/gif">
+              {% if profile.avatar %}<label class="check small"><input type="checkbox" name="avatar-clear"> Quitar la foto subida</label>{% endif %}
+              <p class="help">JPG, PNG, WebP o GIF de hasta 5 MB. Se recorta en cuadrado.</p>
+              {{ form.avatar.errors }}
+            </div>
+          </div>
+          <fieldset class="field">
+            <legend>Qué foto se enseña</legend>
+            <div class="choice-list">
+              {% for radio in form.avatar_source %}<label class="choice-row">{{ radio.tag }} {{ radio.choice_label }}</label>{% endfor %}
+            </div>
+          </fieldset>
+          <fieldset class="field">
+            <legend>Forma de la foto</legend>
+            <div class="choice-chips">
+              {% for radio in form.avatar_shape %}
+                <label class="choice-chip">{{ radio.tag }} <span class="shape-sample avatar-shape-{{ radio.data.value }}" aria-hidden="true"></span> {{ radio.choice_label }}</label>
+              {% endfor %}
+            </div>
+          </fieldset>
+
+          <h3>Cabecera</h3>
+          <fieldset class="field">
+            <legend class="visually-hidden">Tipo de cabecera</legend>
+            <div class="choice-chips">
+              {% for radio in form.banner_mode %}<label class="choice-chip">{{ radio.tag }} {{ radio.choice_label }}</label>{% endfor %}
+            </div>
+          </fieldset>
+          <div class="upload-row{% if form.banner.errors %} has-error{% endif %}" data-show-when="banner_mode=image">
+            <span class="upload-preview upload-preview-banner" id="banner-upload-preview">
+              {% if profile.banner %}<img src="{{ profile.banner.url }}" alt="">{% else %}{% include "_icon.html" with name="games" %}{% endif %}
+            </span>
+            <div class="upload-controls">
+              <label for="{{ form.banner.id_for_label }}">Subir una imagen</label>
+              <input type="file" name="banner" id="{{ form.banner.id_for_label }}" accept="image/png,image/jpeg,image/webp,image/gif">
+              {% if profile.banner %}<label class="check small"><input type="checkbox" name="banner-clear"> Quitar la imagen subida</label>{% endif %}
+              <p class="help">Apaisada, de hasta 8 MB. Se recorta a 1500 × 500.</p>
+              {{ form.banner.errors }}
+            </div>
+          </div>
+          <div class="field{% if form.banner_game.errors %} has-error{% endif %}" data-show-when="banner_mode=game">
+            <label for="{{ form.banner_game.id_for_label }}">Juego</label>
+            {{ form.banner_game }}
+            {{ form.banner_game.errors }}
+            {# Va antes de las opciones: si estas no llegan a cargar, se guarda la imagen que ya tenía. #}
+            {{ form.banner_art }}
+            {% if form.banner_game.value %}
+              <div id="banner-arts" hx-get="{% url 'banner_arts' %}?banner_game={{ form.banner_game.value }}" hx-trigger="load" hx-swap="outerHTML">
+                <p class="help">Cargando las imágenes del juego…</p>
+              </div>
+            {% else %}
+              {% include "accounts/_banner_arts.html" with game=None %}
+            {% endif %}
+            {{ form.banner_art.errors }}
+          </div>
+
+          <h3>Fondo de la página</h3>
+          <fieldset class="field">
+            <legend class="visually-hidden">Fondo de la página de tu perfil</legend>
+            <div class="choice-chips">
+              {% for radio in form.background_mode %}<label class="choice-chip">{{ radio.tag }} {{ radio.choice_label }}</label>{% endfor %}
+            </div>
+          </fieldset>
+          <div class="upload-row{% if form.background.errors %} has-error{% endif %}" data-show-when="background_mode=image">
+            <span class="upload-preview upload-preview-banner" id="background-upload-preview">
+              {% if profile.background %}<img src="{{ profile.background.url }}" alt="">{% else %}{% include "_icon.html" with name="games" %}{% endif %}
+            </span>
+            <div class="upload-controls">
+              <label for="{{ form.background.id_for_label }}">Subir una imagen</label>
+              <input type="file" name="background" id="{{ form.background.id_for_label }}" accept="image/png,image/jpeg,image/webp,image/gif">
+              {% if profile.background %}<label class="check small"><input type="checkbox" name="background-clear"> Quitar la imagen subida</label>{% endif %}
+              <p class="help">Hasta 8 MB. Se reduce a 1920 × 1200 como mucho.</p>
+              {{ form.background.errors }}
+            </div>
+          </div>
+          <div class="field" data-show-when="background_mode=banner,image">
+            <label for="{{ form.background_dim.id_for_label }}">Oscurecer el fondo <output id="dim-value" for="{{ form.background_dim.id_for_label }}">{{ form.background_dim.value }} %</output></label>
+            {{ form.background_dim }}
+            <p class="help">{{ form.background_dim.help_text }}</p>
+            {{ form.background_dim.errors }}
+          </div>
+
+          <h3>Color del perfil</h3>
+          <div class="field{% if form.accent_color.errors %} has-error{% endif %}">
+            <div class="swatches">
+              {% for value, name in accent_presets %}
+                <button type="button" class="swatch" style="--swatch: {{ value }};" data-color="{{ value }}" aria-label="{{ name }}" title="{{ name }}"></button>
+              {% endfor %}
+              <label class="swatch-custom" title="Otro color">{{ form.accent_color }} <span>Otro color</span></label>
+            </div>
+            <p class="help">Tiñe los botones, las pestañas, los brillos y el degradado de la cabecera de tu perfil.</p>
+            {{ form.accent_color.errors }}
+          </div>
+
+          <h3>Diseño de la cabecera</h3>
+          <div class="choice-chips">
+            {% for radio in form.layout %}<label class="choice-chip">{{ radio.tag }} {{ radio.choice_label }}</label>{% endfor %}
+          </div>
+        </section>
+
+        <section class="settings-card" id="escaparate">
+          <h2>Escaparate</h2>
+          <p class="help">Lo que se ve en tu perfil antes de la biblioteca.</p>
+
+          <h3>Juegos favoritos <span class="muted">· {{ favorites|length }} de {{ max_favorites }}</span></h3>
+          {% if favorites %}
+            <ol class="reorder-list">
+              {% for favorite in favorites %}
+                <li class="reorder-item">
+                  <input type="hidden" name="favoritos" value="{{ favorite.game_id }}">
+                  <span class="thumb">{% if favorite.game.cover_url %}<img src="{{ favorite.game.cover_url }}" alt="" loading="lazy">{% endif %}</span>
+                  <span class="reorder-name">{{ favorite.game.name }}</span>
+                  <span class="reorder-actions">
+                    <button type="button" class="icon-btn" data-move="up" aria-label="Subir {{ favorite.game.name }}">{% include "_icon.html" with name="up" %}</button>
+                    <button type="button" class="icon-btn" data-move="down" aria-label="Bajar {{ favorite.game.name }}">{% include "_icon.html" with name="down" %}</button>
+                    <label class="check small"><input type="checkbox" name="quitar_favoritos" value="{{ favorite.game_id }}"> Quitar</label>
+                  </span>
+                </li>
+              {% endfor %}
+            </ol>
+            {{ form.favoritos.errors }}{{ form.quitar_favoritos.errors }}
+          {% else %}
+            <p class="help">Aún no tienes favoritos: márcalos con «Añadir a mis favoritos» en la ficha de cada juego.</p>
+          {% endif %}
+
+          <div class="field{% if form.pinned_review.errors %} has-error{% endif %}">
+            <label for="{{ form.pinned_review.id_for_label }}">Reseña destacada</label>
+            {{ form.pinned_review }}
+            <p class="help">Sale fijada en tu perfil.{% if not form.pinned_review.field.queryset %} Primero escribe una reseña en la ficha de un juego de tu biblioteca.{% endif %}</p>
+            {{ form.pinned_review.errors }}
+          </div>
+
+          <h3>Secciones del perfil</h3>
+          <p class="help">Elige cuáles se ven y en qué orden.</p>
+          <ol class="reorder-list">
+            {% for key, name, visible in sections %}
+              <li class="reorder-item">
+                <input type="hidden" name="secciones" value="{{ key }}">
+                <label class="reorder-name reorder-toggle">
+                  <span class="switch"><input type="checkbox" name="secciones_visibles" value="{{ key }}"{% if visible %} checked{% endif %}></span>
+                  {{ name }}
+                </label>
+                <span class="reorder-actions">
+                  <button type="button" class="icon-btn" data-move="up" aria-label="Subir {{ name }}">{% include "_icon.html" with name="up" %}</button>
+                  <button type="button" class="icon-btn" data-move="down" aria-label="Bajar {{ name }}">{% include "_icon.html" with name="down" %}</button>
+                </span>
+              </li>
+            {% endfor %}
+          </ol>
+        </section>
+
+        <section class="settings-card" id="redes">
+          <h2>Redes sociales</h2>
+          <p class="help">Escribe tu usuario (con o sin @) o pega el enlace a tu perfil. Salen debajo de tu nombre.</p>
+          <div class="links-grid">
+            {% for field in form %}{% if field.name|slice:":5" == "link_" %}
+              <div class="field{% if field.errors %} has-error{% endif %}">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {{ field.errors }}
+              </div>
+            {% endif %}{% endfor %}
+          </div>
+        </section>
+
+        <section class="settings-card" id="privacidad">
           <h2>Privacidad y avisos</h2>
           {% for field in form %}{% if field.widget_type == "checkbox" %}
             <label class="switch-row" for="{{ field.id_for_label }}">
@@ -60,13 +272,13 @@
             </label>
             {{ field.errors }}
           {% endif %}{% endfor %}
+        </section>
 
-          <div class="settings-actions">
-            <a class="btn" href="{% url 'profile' user.username %}">Cancelar</a>
-            <button class="btn btn-primary" type="submit">Guardar cambios</button>
-          </div>
-        </form>
-      </section>
+        <div class="settings-savebar">
+          <a class="btn" href="{% url 'profile' user.username %}">Cancelar</a>
+          <button class="btn btn-primary" type="submit">Guardar cambios</button>
+        </div>
+      </form>
 
       <section class="settings-card" id="tiendas">
         <h2>Tiendas en las que compras</h2>
@@ -130,19 +342,193 @@
 
   <script>
     (function () {
+      var form = document.getElementById("profile-form");
+      var preview = document.getElementById("profile-preview");
+
       // Vista previa del nombre y contador de caracteres de la biografía.
       var name = document.getElementById("{{ form.display_name.id_for_label }}");
-      var preview = document.getElementById("preview-name");
-      name.addEventListener("input", function () {
-        preview.textContent = name.value.trim() || preview.dataset.fallback;
-      });
+      var previewName = document.getElementById("preview-name");
+      function updateName() {
+        previewName.textContent = name.value.trim() || previewName.dataset.fallback;
+      }
+      name.addEventListener("input", updateName);
       var bio = document.getElementById("{{ form.bio.id_for_label }}");
       var count = document.getElementById("bio-count");
       function updateCount() {
         count.textContent = bio.value.length + " / " + bio.maxLength;
       }
       bio.addEventListener("input", updateCount);
+
+      // Estado: el emoji y el texto, con los emojis rápidos.
+      var emoji = document.getElementById("{{ form.status_emoji.id_for_label }}");
+      var statusText = document.getElementById("{{ form.status_text.id_for_label }}");
+      var previewStatus = document.getElementById("preview-status");
+      function updateStatus() {
+        var text = (emoji.value.trim() + " " + statusText.value.trim()).trim();
+        previewStatus.textContent = text;
+        previewStatus.hidden = !text;
+      }
+      emoji.addEventListener("input", updateStatus);
+      statusText.addEventListener("input", updateStatus);
+      document.querySelectorAll("[data-emoji]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          emoji.value = button.dataset.emoji;
+          updateStatus();
+        });
+      });
+
+      // Color del perfil: la paleta rellena el selector y la vista previa cambia sus variables de CSS.
+      var color = document.getElementById("{{ form.accent_color.id_for_label }}");
+      var swatches = document.querySelectorAll(".swatch");
+      function textOn(r, g, b) {
+        // Blanco salvo en los colores claros, igual que Profile.accent_text.
+        var lum = [r, g, b].map(function (c) {
+          c = c / 255;
+          return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+        });
+        var l = 0.2126 * lum[0] + 0.7152 * lum[1] + 0.0722 * lum[2];
+        return 1.05 / (l + 0.05) >= 3 ? "#ffffff" : "#0b0d18";
+      }
+      function applyColor() {
+        var value = color.value.toLowerCase();
+        var r = parseInt(value.slice(1, 3), 16), g = parseInt(value.slice(3, 5), 16), b = parseInt(value.slice(5, 7), 16);
+        preview.style.setProperty("--violet", value);
+        preview.style.setProperty("--accent-rgb", r + ", " + g + ", " + b);
+        preview.style.setProperty("--accent-text", textOn(r, g, b));
+        swatches.forEach(function (swatch) {
+          swatch.classList.toggle("is-active", swatch.dataset.color === value);
+          swatch.setAttribute("aria-pressed", swatch.dataset.color === value ? "true" : "false");
+        });
+      }
+      color.addEventListener("input", applyColor);
+      swatches.forEach(function (swatch) {
+        swatch.addEventListener("click", function () {
+          color.value = swatch.dataset.color;
+          applyColor();
+        });
+      });
+
+      // Diseño de la cabecera y forma de la foto.
+      function checked(fieldName) {
+        var input = form.querySelector('input[name="' + fieldName + '"]:checked');
+        return input ? input.value : "";
+      }
+      function applyLayout() {
+        var layout = checked("layout");
+        if (!layout) return;
+        preview.className = preview.className.replace(/profile-layout-\S+/g, "").trim() + " profile-layout-" + layout;
+      }
+      function applyShape() {
+        var shape = checked("avatar_shape");
+        var avatar = preview.querySelector(".avatar");
+        if (!shape || !avatar) return;
+        avatar.className = avatar.className.replace(/avatar-shape-\S+/g, "").trim() + " avatar-shape-" + shape;
+      }
+
+      // Imágenes elegidas: se ven al momento en la vista previa, antes de guardar.
+      var previewBanner = document.getElementById("preview-banner");
+      function setBanner(url, blurred) {
+        previewBanner.innerHTML = "";
+        previewBanner.classList.toggle("is-blurred", Boolean(url && blurred));
+        if (!url) return;
+        var img = document.createElement("img");
+        img.src = url;
+        img.alt = "";
+        previewBanner.appendChild(img);
+      }
+      function showFile(input, target) {
+        var file = input.files && input.files[0];
+        if (!file) return "";
+        var url = URL.createObjectURL(file);
+        target.innerHTML = "";
+        var img = document.createElement("img");
+        img.src = url;
+        img.alt = "";
+        target.appendChild(img);
+        return url;
+      }
+      var avatarInput = document.getElementById("{{ form.avatar.id_for_label }}");
+      avatarInput.addEventListener("change", function () {
+        var url = showFile(avatarInput, document.getElementById("avatar-upload-preview"));
+        var avatar = preview.querySelector(".avatar");
+        if (url && avatar) {
+          avatar.innerHTML = "";
+          var img = document.createElement("img");
+          img.src = url;
+          img.alt = "";
+          avatar.appendChild(img);
+        }
+      });
+      var bannerInput = document.getElementById("{{ form.banner.id_for_label }}");
+      bannerInput.addEventListener("change", function () {
+        var url = showFile(bannerInput, document.getElementById("banner-upload-preview"));
+        if (url && checked("banner_mode") === "image") setBanner(url, false);
+      });
+      var backgroundInput = document.getElementById("{{ form.background.id_for_label }}");
+      backgroundInput.addEventListener("change", function () {
+        showFile(backgroundInput, document.getElementById("background-upload-preview"));
+      });
+      function applyBannerMode() {
+        var mode = checked("banner_mode");
+        if (mode === "gradient") {
+          setBanner("", false);
+        } else if (mode === "image") {
+          var img = document.querySelector("#banner-upload-preview img");
+          if (img) setBanner(img.src, false);
+        } else if (mode === "game") {
+          var art = form.querySelector('input[name="banner_art"][type="radio"]:checked');
+          if (art) setBanner(art.dataset.full, art.dataset.blur);
+        }
+      }
+
+      // Campos que solo tienen sentido con una opción concreta (p. ej. el juego, con la cabecera «de un juego»).
+      function syncConditional() {
+        form.querySelectorAll("[data-show-when]").forEach(function (element) {
+          var rule = element.dataset.showWhen.split("=");
+          element.hidden = rule[1].split(",").indexOf(checked(rule[0])) === -1;
+        });
+      }
+
+      form.addEventListener("change", function (event) {
+        var target = event.target;
+        if (target.name === "layout") applyLayout();
+        if (target.name === "avatar_shape") applyShape();
+        if (target.name === "banner_mode" || target.name === "banner_art") applyBannerMode();
+        syncConditional();
+      });
+      // Las imágenes del juego llegan con HTMX: al cargarlas, la vista previa enseña la elegida.
+      document.body.addEventListener("htmx:afterSettle", function () {
+        if (checked("banner_mode") === "game") applyBannerMode();
+      });
+
+      // Subir y bajar favoritos y secciones; el orden de la lista es el que se guarda.
+      form.addEventListener("click", function (event) {
+        var button = event.target.closest("[data-move]");
+        if (!button) return;
+        var item = button.closest("li");
+        if (button.dataset.move === "up" && item.previousElementSibling) {
+          item.parentNode.insertBefore(item, item.previousElementSibling);
+        } else if (button.dataset.move === "down" && item.nextElementSibling) {
+          item.parentNode.insertBefore(item.nextElementSibling, item);
+        }
+        button.focus();
+      });
+
+      // Porcentaje del oscurecido del fondo.
+      var dim = document.getElementById("{{ form.background_dim.id_for_label }}");
+      var dimValue = document.getElementById("dim-value");
+      dim.addEventListener("input", function () {
+        dimValue.textContent = dim.value + " %";
+      });
+
+      // Estado inicial: si la página vuelve con errores, la vista previa enseña lo que se había elegido.
+      updateName();
       updateCount();
+      updateStatus();
+      applyColor();
+      applyLayout();
+      applyShape();
+      syncConditional();
 
       // Marca en el índice lateral la sección que se está viendo.
       var links = document.querySelectorAll(".settings-nav a");
