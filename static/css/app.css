@@ -877,3 +877,32 @@ input[type=range] { width: 100%; accent-color: var(--violet); }
   .settings-savebar { bottom: calc(64px + env(safe-area-inset-bottom)); }
   .profile-page .profile-banner { height: 140px; }
 }
+
+/* Fichas en castellano: nombre en España, etiquetas de idioma, sinopsis y tabla de idiomas */
+.name-es { margin: -.1rem 0 .25rem; color: #c8cce3; }
+.name-es strong { color: var(--text); }
+.spanish-badges { display: flex; flex-wrap: wrap; gap: .4rem; margin: -.35rem 0 1rem; }
+.lang-badge {
+  display: inline-flex; align-items: center; gap: .35rem; padding: .25rem .7rem;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; font-size: .82rem; font-weight: 600;
+}
+.lang-badge .icon { width: 1rem; height: 1rem; }
+.lang-yes { background: rgba(34, 224, 240, .1); border-color: rgba(34, 224, 240, .55); color: #b5f6fb; }
+.lang-mid { background: rgba(255, 200, 74, .1); border-color: rgba(255, 200, 74, .55); color: #ffe3a3; }
+.lang-no { background: rgba(255, 79, 163, .1); border-color: rgba(255, 79, 163, .55); color: #ffc2de; }
+.lang-muted { color: var(--muted); }
+.summary-source { margin-top: -.5rem; }
+.pill-en { margin: 0 .35rem 0 0; }
+.summary-original summary, .languages summary { color: var(--cyan); font-size: .9rem; cursor: pointer; }
+.summary-original { margin: .25rem 0 1rem; }
+.summary-original .summary { margin-top: .5rem; color: #c8cce3; }
+.languages { margin: 0 0 1.25rem; padding: .75rem 1rem; background: rgba(14, 18, 34, .88); border: 1px solid var(--border); border-radius: var(--radius); }
+.languages[open] summary { margin-bottom: .6rem; }
+.language-table { width: 100%; max-width: 30rem; border-collapse: collapse; font-size: .9rem; }
+.language-table th, .language-table td { padding: .35rem .5rem; border-bottom: 1px solid var(--border); text-align: left; }
+.language-table thead th { color: var(--muted); font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+.language-table thead th + th, .language-table td { width: 5rem; text-align: center; }
+.language-table tbody th { font-weight: 500; }
+.language-table .is-spanish { background: rgba(157, 92, 255, .1); }
+.language-table .is-spanish th { color: #fff; font-weight: 700; }
+.lang-check { color: var(--cyan); font-weight: 800; }

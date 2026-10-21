@@ -45,6 +45,51 @@ def igdb_image_url(image_id, size="t_cover_big"):
     return IGDB_IMAGE_URL.format(size=size, image_id=image_id) if image_id else ""
 
 
+# Nombre en español de cada idioma, por el código que usan IGDB y games.spanish (los de Steam se traducen a él).
+LANGUAGE_NAMES_ES = {
+    "es-ES": "Español (España)", "es-MX": "Español (Latinoamérica)", "en-US": "Inglés", "en-GB": "Inglés (Reino Unido)",
+    "fr-FR": "Francés", "de-DE": "Alemán", "it-IT": "Italiano", "pt-PT": "Portugués (Portugal)",
+    "pt-BR": "Portugués (Brasil)", "ja-JP": "Japonés", "ko-KR": "Coreano", "zh-CN": "Chino simplificado",
+    "zh-TW": "Chino tradicional", "ru-RU": "Ruso", "pl-PL": "Polaco", "uk-UA": "Ucraniano", "cs-CZ": "Checo",
+    "hu-HU": "Húngaro", "tr-TR": "Turco", "ar": "Árabe", "nl-NL": "Neerlandés", "sv-SE": "Sueco", "da-DK": "Danés",
+    "fi-FI": "Finés", "nb-NO": "Noruego", "th-TH": "Tailandés", "vi-VN": "Vietnamita", "he-IL": "Hebreo",
+    "el-GR": "Griego", "ro-RO": "Rumano", "bg-BG": "Búlgaro", "id-ID": "Indonesio",
+}
+# Idiomas que van primero en la tabla de la ficha; el resto, por nombre.
+LANGUAGES_FIRST = ("es-ES", "es-MX", "en-US", "en-GB")
+
+
+class Spanish(models.TextChoices):
+    """Cuánto español tiene un juego en voces o en textos. Vacío = no se sabe (ninguna fuente da sus idiomas)."""
+
+    SPAIN = "es", "Castellano"
+    LATAM = "latam", "Español de Latinoamérica"
+    NONE = "no", "Sin español"
+
+
+# Filtro de idioma del catálogo, la biblioteca y la lista de deseos: valor de ?idioma= → etiqueta.
+LANGUAGE_FILTERS = {
+    "voces": "Voces en castellano",
+    "textos": "Textos en castellano",
+    "espanol": "Algo en español (también latino)",
+}
+
+
+def language_filter(key, prefix=""):
+    """Condición (Q) del filtro de idioma ?idioma=key, o None si key no es uno de LANGUAGE_FILTERS.
+
+    prefix va delante de los campos para filtrar desde otro modelo (p. ej. «game__» en la lista de
+    deseos). Con voces en castellano también se cuentan los textos: si está doblado, está traducido.
+    """
+    audio, text = f"{prefix}spanish_audio", f"{prefix}spanish_text"
+    spanish = [Spanish.SPAIN, Spanish.LATAM]
+    return {
+        "voces": models.Q(**{audio: Spanish.SPAIN}),
+        "textos": models.Q(**{text: Spanish.SPAIN}) | models.Q(**{audio: Spanish.SPAIN}),
+        "espanol": models.Q(**{f"{text}__in": spanish}) | models.Q(**{f"{audio}__in": spanish}),
+    }.get(key)
+
+
 class Genre(models.Model):
     igdb_id = models.PositiveIntegerField(unique=True, null=True, blank=True)
     name = models.CharField(max_length=100)
@@ -125,6 +170,24 @@ class Game(models.Model):
     # Historial de precios de PC por tienda (formato en games.history), de IsThereAnyDeal.
     price_history = models.JSONField(default=dict, blank=True)
     price_history_updated_at = models.DateTimeField(null=True, blank=True)
+    # Castellano (ver games.spanish). Idiomas de cada fuente por separado, para no perder los de una al
+    # actualizar la otra: {"igdb": {código: ["audio", "text"]}, "steam": {...}}; «text» = interfaz o subtítulos.
+    languages = models.JSONField(default=dict, blank=True)
+    # Resumen del español de languages para filtrar con una consulta normal (SQLite no busca dentro de un JSONField).
+    spanish_audio = models.CharField(
+        "voces en español", max_length=5, choices=Spanish.choices, blank=True, db_index=True
+    )
+    spanish_text = models.CharField(
+        "textos en español", max_length=5, choices=Spanish.choices, blank=True, db_index=True
+    )
+    name_es = models.CharField("nombre en España", max_length=255, blank=True)
+    # Otros nombres del juego en minúsculas (siglas, títulos de otros países...), para que el buscador los encuentre.
+    search_names = models.TextField("otros nombres", blank=True)
+    cover_eu_image_id = models.CharField("portada europea", max_length=64, blank=True)
+    summary_es = models.TextField("sinopsis en español", blank=True)
+    summary_es_source = models.CharField("de dónde sale la sinopsis", max_length=10, blank=True)
+    # Última vez que se pidieron a Steam y a Microsoft la sinopsis y los idiomas (comando localize_games).
+    localized_at = models.DateTimeField("textos de las tiendas pedidos", null=True, blank=True)
     genres = models.ManyToManyField(Genre, related_name="games", blank=True)
     platforms = models.ManyToManyField(Platform, related_name="games", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -143,8 +206,62 @@ class Game(models.Model):
 
     @property
     def cover_url(self):
-        """URL de la portada en el CDN de IGDB, o cadena vacía si el juego no tiene portada."""
-        return igdb_image_url(self.cover_image_id)
+        """URL de la portada en el CDN de IGDB (la europea si IGDB la tiene), o cadena vacía si no hay portada."""
+        return igdb_image_url(self.cover_eu_image_id or self.cover_image_id)
+
+    def merged_languages(self):
+        """Idiomas de todas las fuentes juntos: {código: {"audio", "text"}}. Si una fuente dice que tiene voces, las tiene."""
+        merged = {}
+        for source in (self.languages or {}).values():
+            for code, kinds in (source or {}).items():
+                merged.setdefault(code, set()).update(kinds)
+        return merged
+
+    def refresh_spanish(self):
+        """Recalcula spanish_audio y spanish_text con los idiomas de languages (sin guardar el juego).
+
+        Castellano si está el español de España, latino si solo está el de México y «sin español» si
+        hay idiomas pero ninguno es español; vacío si ninguna fuente da idiomas. Las voces cuentan
+        también como textos.
+        """
+        merged = self.merged_languages()
+
+        def level(kinds):
+            """Nivel de español con esos tipos de soporte (voces, o voces y textos)."""
+            if kinds & merged.get("es-ES", set()):
+                return Spanish.SPAIN
+            if kinds & merged.get("es-MX", set()):
+                return Spanish.LATAM
+            return Spanish.NONE if merged else ""
+
+        self.spanish_audio = level({"audio"})
+        self.spanish_text = level({"audio", "text"})
+
+    @property
+    def spain_name(self):
+        """Nombre con el que se vende en España si es distinto del original («Los Sims 4»); vacío si no."""
+        return self.name_es if self.name_es and self.name_es.casefold() != self.name.casefold() else ""
+
+    @property
+    def language_sources(self):
+        """Fuentes que han dado idiomas del juego, para citarlas en la ficha: p. ej. ["IGDB", "Steam"]."""
+        names = {"igdb": "IGDB", "steam": "Steam"}
+        return [names.get(source, source) for source, values in (self.languages or {}).items() if values]
+
+    @property
+    def language_rows(self):
+        """Idiomas para la tabla de la ficha: [(nombre en español, voces, textos)], con los españoles y el inglés primero."""
+        merged = self.merged_languages()
+
+        def order(code):
+            """Primero LANGUAGES_FIRST en su orden; después por nombre."""
+            first = LANGUAGES_FIRST.index(code) if code in LANGUAGES_FIRST else len(LANGUAGES_FIRST)
+            return first, LANGUAGE_NAMES_ES.get(code, code).casefold()
+
+        return [
+            (LANGUAGE_NAMES_ES.get(code, code), "audio" in merged[code], "text" in merged[code])
+            for code in sorted(merged, key=order)
+        ]
 
     @property
     def release_year(self):

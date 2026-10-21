@@ -10,9 +10,9 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from library.models import LibraryEntry
+from library.models import LibraryEntry, WishlistItem
 
-from . import history, igdb, prices, xbox
+from . import history, igdb, prices, spanish, xbox
 from .models import Game, GamePrice, Genre, Platform
 
 User = get_user_model()
@@ -772,4 +772,207 @@ class PreferredShopsTests(TestCase):
         self.user.profile.shops = [16]  # Epic
         self.user.profile.save()
         self.assertContains(self.client.get(self.game.get_absolute_url()), "Ninguna de tus tiendas lo vende")
+
+
+def igdb_language(code, support):
+    """Un language_supports de IGDB: idioma por su código y tipo (1 voces, 2 subtítulos, 3 interfaz)."""
+    return {"language": {"locale": code}, "language_support_type": support}
+
+
+# Hades tal como llega de IGDB con los campos de castellano.
+IGDB_HADES_ES = {
+    **IGDB_HADES,
+    "language_supports": [igdb_language("es-ES", 2), igdb_language("es-ES", 3), igdb_language("en-US", 1)],
+    "alternative_names": [
+        {"name": "Hades: La Batalla del Inframundo", "comment": "Spanish title"},
+        {"name": "HDS", "comment": "Acronym"},
+        {"name": "hades.exe", "comment": "Windows Executable"},
+    ],
+    "game_localizations": [{"region": 4, "name": "Hades", "cover": {"image_id": "coeu1"}}],
+}
+STEAM_LANGUAGES_HTML = (
+    "Inglés<strong>*</strong>, Español de España, Español de Hispanoamérica<strong>*</strong>, Klingon"
+    "<br><strong>*</strong>idiomas con localización de audio"
+)
+
+
+def steam_answer(app_id, languages=STEAM_LANGUAGES_HTML, summary="Un &quot;roguelike&quot; <b>infernal</b>."):
+    """Respuesta de appdetails de Steam (pedida en español) para una app."""
+    response = mock.Mock(status_code=200)
+    response.raise_for_status.return_value = None
+    response.json.return_value = {
+        str(app_id): {"success": True, "data": {"supported_languages": languages, "short_description": summary}}
+    }
+    return response
+
+
+class SpanishTests(TestCase):
+    """Fichas en castellano: idiomas, nombre en España, portada europea, sinopsis en español y filtros."""
+
+    def test_igdb_languages(self):
+        self.assertEqual(spanish.igdb_languages(IGDB_HADES_ES), {"es-ES": ["text"], "en-US": ["audio"]})
+
+    def test_steam_languages(self):
+        self.assertEqual(spanish.steam_languages(STEAM_LANGUAGES_HTML), {
+            "en-US": ["audio", "text"], "es-ES": ["text"], "es-MX": ["audio", "text"],
+        })
+
+    def test_spanish_levels(self):
+        cases = [
+            ({"igdb": {"es-ES": ["audio"]}}, ("es", "es")),
+            ({"igdb": {"es-MX": ["audio"], "es-ES": ["text"]}}, ("latam", "es")),
+            ({"igdb": {"en-US": ["audio", "text"]}}, ("no", "no")),
+            ({"igdb": {}}, ("", "")),
+            # Si una fuente dice que está doblado, lo está aunque la otra no lo diga.
+            ({"igdb": {"es-ES": ["text"]}, "steam": {"es-ES": ["audio", "text"]}}, ("es", "es")),
+        ]
+        for languages, expected in cases:
+            game = Game(name="X", slug="x", languages=languages)
+            game.refresh_spanish()
+            self.assertEqual((game.spanish_audio, game.spanish_text), expected, languages)
+
+    def test_names_and_european_cover(self):
+        name_es, search = spanish.spanish_names(IGDB_HADES_ES)
+        self.assertEqual(name_es, "Hades: La Batalla del Inframundo")
+        self.assertEqual(search, "hades: la batalla del inframundo | hds")
+        self.assertEqual(spanish.europe_cover(IGDB_HADES_ES), "coeu1")
+
+    def test_clean_text(self):
+        self.assertEqual(spanish.clean_text("&quot;Hola&quot;<br>adiós  <b>ya</b>"), '"Hola"\nadiós ya')
+
+    def test_import_from_igdb_saves_the_spanish_data(self):
+        igdb.upsert_games([IGDB_HADES_ES])
+        game = Game.objects.get(igdb_id=113112)
+        self.assertEqual((game.spanish_audio, game.spanish_text), ("no", "es"))
+        self.assertEqual(game.spain_name, "Hades: La Batalla del Inframundo")
+        self.assertIn("coeu1", game.cover_url)
+        # Volver a importar de IGDB no borra los idiomas que vinieron de Steam.
+        game.languages = {**game.languages, "steam": {"es-ES": ["audio", "text"]}}
+        game.save()
+        igdb.upsert_games([IGDB_HADES_ES])
+        game.refresh_from_db()
+        self.assertEqual(game.spanish_audio, "es")
+
+    def test_igdb_query_asks_for_the_spanish_fields(self):
+        self.assertIn("language_supports.language.locale", igdb.GAME_FIELDS)
+        self.assertIn("game_localizations.cover.image_id", igdb.GAME_FIELDS)
+
+    def test_steam_details_retries_when_steam_fails(self):
+        sleep = mock.Mock()
+        with mock.patch("games.spanish.requests.get", side_effect=[spanish.requests.ConnectionError("corte"), steam_answer(1)]):
+            languages, summary = spanish.steam_details(1, sleep=sleep)
+        self.assertEqual(summary, 'Un "roguelike" infernal.')
+        self.assertIn("es-MX", languages)
+        sleep.assert_called_once_with(spanish.RETRY_WAITS[0])
+        with mock.patch("games.spanish.requests.get", side_effect=spanish.requests.ConnectionError("corte")), \
+                self.assertRaises(spanish.StoreError):
+            spanish.steam_details(1, sleep=sleep)
+
+    def test_steam_details_of_an_unknown_app(self):
+        response = steam_answer(2)
+        response.json.return_value = {"2": {"success": False}}
+        with mock.patch("games.spanish.requests.get", return_value=response):
+            self.assertEqual(spanish.steam_details(2), ({}, ""))
+
+    def test_localize_games_from_steam_and_microsoft(self):
+        hades = Game.objects.create(name="Hades", slug="hades", steam_app_id=1145360, languages={"igdb": {}})
+        celeste = Game.objects.create(name="Celeste", slug="celeste", steam_app_id=504230)
+        halo = Game.objects.create(name="Halo", slug="halo", xbox_product_ids=["9NP1P1WFS0LB"])
+        sleep = mock.Mock()
+        answers = [steam_answer(1145360), steam_answer(504230, summary="")]
+        with mock.patch("games.spanish.requests.get", side_effect=answers), \
+                mock.patch("games.xbox.fetch_descriptions", return_value={"9NP1P1WFS0LB": "El Jefe Maestro vuelve."}) as fetch:
+            found = spanish.localize_games([hades, celeste, halo], pause=1.5, sleep=sleep)
+        self.assertEqual(found, {"steam": 1, "xbox": 1, "none": 1})
+        sleep.assert_called_once_with(1.5)  # una pausa entre las dos peticiones a Steam
+        fetch.assert_called_once_with(["9NP1P1WFS0LB"])
+        hades.refresh_from_db()
+        halo.refresh_from_db()
+        self.assertEqual((hades.summary_es, hades.summary_es_source), ('Un "roguelike" infernal.', "steam"))
+        self.assertEqual((hades.spanish_audio, hades.spanish_text), ("latam", "es"))
+        self.assertIsNotNone(hades.localized_at)
+        self.assertEqual((halo.summary_es, halo.summary_es_source), ("El Jefe Maestro vuelve.", "xbox"))
+
+    def test_localize_games_stops_when_steam_stops_answering(self):
+        hades = Game.objects.create(name="Hades", slug="hades", steam_app_id=1145360)
+        celeste = Game.objects.create(name="Celeste", slug="celeste", steam_app_id=504230)
+        with mock.patch("games.spanish.steam_details", side_effect=[({}, "Bien."), spanish.StoreError("429")]), \
+                self.assertRaises(spanish.StoreError):
+            spanish.localize_games([hades, celeste], sleep=mock.Mock())
+        hades.refresh_from_db()
+        celeste.refresh_from_db()
+        self.assertEqual(hades.summary_es, "Bien.")
+        self.assertIsNone(celeste.localized_at)  # se volverá a pedir
+
+    @override_settings(IGDB_CLIENT_ID="id", IGDB_CLIENT_SECRET="secret")
+    def test_command_fills_igdb_data_and_asks_the_stores(self):
+        done = Game.objects.create(name="Celeste", slug="celeste", igdb_id=1, languages={"igdb": {"es-ES": ["text"]}})
+        hades = Game.objects.create(name="Hades", slug="hades", igdb_id=113112, steam_app_id=1145360)
+        out = io.StringIO()
+        with mock.patch.object(igdb.IGDBClient, "spanish_data", return_value=[IGDB_HADES_ES]) as igdb_data, \
+                mock.patch("games.spanish.localize_games", return_value={"steam": 1, "xbox": 0, "none": 0}) as stores:
+            call_command("localize_games", stdout=out)
+        igdb_data.assert_called_once_with([113112])  # Celeste ya tenía sus datos de IGDB
+        self.assertEqual(stores.call_args.args[0], [hades])  # Celeste no está en ninguna tienda
+        hades.refresh_from_db()
+        self.assertEqual(hades.spanish_text, "es")
+        self.assertIn("1 con sinopsis de Steam", out.getvalue())
+        self.assertEqual(done.spanish_text, "")
+
+    def test_game_page_in_spanish(self):
+        game = Game.objects.create(
+            name="Hades", slug="hades", summary="A rogue-like dungeon crawler.", name_es="Hades: La Batalla",
+            summary_es="Desafía al dios de los muertos.", summary_es_source="steam",
+            languages={"igdb": {"es-ES": ["audio", "text"], "en-US": ["audio", "text"], "ja-JP": ["text"]}},
+        )
+        game.refresh_spanish()
+        game.save()
+        response = self.client.get(game.get_absolute_url())
+        for text in ("En España: <strong>Hades: La Batalla</strong>", "Voces en castellano", "Textos en castellano",
+                     "Desafía al dios de los muertos.", "Sinopsis de Steam", "Descripción de IGDB (en inglés)",
+                     "Idiomas <span class=\"muted\">(3)</span>", "Japonés"):
+            self.assertContains(response, text, html=False)
+        self.assertEqual([row[0] for row in game.language_rows], ["Español (España)", "Inglés", "Japonés"])
+
+    def test_game_page_without_spanish_data(self):
+        game = Game.objects.create(name="Indie", slug="indie", summary="Only in English.")
+        response = self.client.get(game.get_absolute_url())
+        self.assertContains(response, "En inglés")
+        self.assertNotContains(response, "spanish-badges")
+        game.languages = {"igdb": {"en-US": ["text"]}}
+        game.refresh_spanish()
+        game.save()
+        self.assertContains(self.client.get(game.get_absolute_url()), "Sin español")
+
+    def test_catalog_finds_spanish_and_other_names_and_filters_by_language(self):
+        sims = Game.objects.create(name="The Sims 4", slug="the-sims-4", name_es="Los Sims 4", spanish_audio="es", spanish_text="es")
+        gta = Game.objects.create(name="Grand Theft Auto V", slug="gta-v", search_names="gta v | gta 5", spanish_text="es", spanish_audio="no")
+        indie = Game.objects.create(name="Indie", slug="indie", spanish_text="latam", spanish_audio="no")
+        Game.objects.create(name="Sin datos", slug="sin-datos")
+        url = reverse("games:catalog")
+
+        def names(**params):
+            """Nombres de los juegos del catálogo con esos parámetros."""
+            return sorted(game.name for game in self.client.get(url, params).context["page"].object_list)
+
+        self.assertEqual(names(q="los sims"), [sims.name])
+        self.assertEqual(names(q="gta 5"), [gta.name])
+        self.assertEqual(names(idioma="voces"), [sims.name])
+        self.assertEqual(names(idioma="textos"), [gta.name, sims.name])
+        self.assertEqual(names(idioma="espanol"), [gta.name, indie.name, sims.name])
+        self.assertEqual(len(names(idioma="otra-cosa")), 4)
+
+    def test_wishlist_and_library_filter_by_language(self):
+        user = User.objects.create_user("ana", "ana@example.com", "x")
+        dubbed = Game.objects.create(name="Doblado", slug="doblado", spanish_audio="es", spanish_text="es")
+        english = Game.objects.create(name="En inglés", slug="en-ingles", spanish_audio="no", spanish_text="no")
+        for game in (dubbed, english):
+            WishlistItem.objects.create(user=user, game=game)
+            LibraryEntry.objects.create(user=user, game=game)
+        self.client.force_login(user)
+        rows = self.client.get(reverse("library:wishlist"), {"idioma": "voces"}).context["rows"]
+        self.assertEqual([row["wish"].game for row in rows], [dubbed])
+        response = self.client.get(reverse("profile", args=["ana"]), {"idioma": "voces"})
+        self.assertEqual([entry.game for entry in response.context["entries"]], [dubbed])
+        self.assertIn("idioma=voces", response.context["keep_qs"])
 

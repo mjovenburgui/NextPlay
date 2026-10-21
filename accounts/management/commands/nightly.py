@@ -4,12 +4,13 @@ from django.core.management.base import BaseCommand, CommandError
 
 class Command(BaseCommand):
     help = (
-        "Tareas de cada noche, en orden: sincroniza las bibliotecas de Steam (sync_libraries) y "
-        "actualiza los precios (update_prices). Es lo que hay que programar en cron o en el Programador de tareas."
+        "Tareas de cada noche, en orden: sincroniza las bibliotecas de Steam (sync_libraries), actualiza los "
+        "precios (update_prices) y completa los datos en castellano de los juegos (localize_games). Es lo que "
+        "hay que programar en cron o en el Programador de tareas."
     )
 
     # Comandos que se lanzan, en este orden.
-    TASKS = ("sync_libraries", "update_prices")
+    TASKS = ("sync_libraries", "update_prices", "localize_games")
 
     def handle(self, *args, **options):
         """Lanza cada tarea aunque falle la anterior y da error al final si alguna ha fallado."""

@@ -877,9 +877,11 @@ class SyncLibrariesTests(TestCase):
     @override_settings(STEAM_API_KEY="")
     def test_without_steam_key_it_fails_and_nightly_still_runs_prices(self):
         with self.assertRaisesMessage(CommandError, "sync_libraries"), \
-                mock.patch("games.management.commands.update_prices.Command.handle", return_value=None) as prices:
+                mock.patch("games.management.commands.update_prices.Command.handle", return_value=None) as prices, \
+                mock.patch("games.management.commands.localize_games.Command.handle", return_value=None) as spanish:
             call_command("nightly", stdout=io.StringIO(), stderr=io.StringIO())
         prices.assert_called_once()
+        spanish.assert_called_once()
 
     def test_toggle_from_the_steam_panel(self):
         user = self.users["ana"]

@@ -19,7 +19,7 @@ from django.views.decorators.http import require_POST
 
 from games import igdb
 
-from games.models import Game, Genre, igdb_image_url, known_shops
+from games.models import LANGUAGE_FILTERS, Game, Genre, igdb_image_url, known_shops, language_filter
 from library.models import LibraryEntry
 
 from . import matching, psn, steam, xbox
@@ -66,9 +66,9 @@ def profile(request, username):
 
     El escaparate (favoritos, lo que está jugando, reseña destacada, estadísticas y géneros) sale en el
     orden y con las secciones que haya elegido. La biblioteca tiene pestañas por estado (Jugando,
-    Completado...) con su contador y se filtra con ?estado=; se ordena con ?orden= (recientes, nota,
-    horas o nombre). Con ?vista=resenas muestra sus reseñas en vez de la biblioteca. Un perfil privado
-    da 404 a cualquiera que no sea su dueño.
+    Completado...) con su contador y se filtra con ?estado= y por idioma con ?idioma= (voces o textos en
+    castellano); se ordena con ?orden= (recientes, nota, horas o nombre). Con ?vista=resenas muestra sus
+    reseñas en vez de la biblioteca. Un perfil privado da 404 a cualquiera que no sea su dueño.
     """
     owner = get_object_or_404(
         User.objects.select_related("profile", "profile__banner_game", "psn_account", "xbox_account").prefetch_related(
@@ -100,6 +100,15 @@ def profile(request, username):
     if sort:
         shown = sorted(shown, key=PROFILE_SORTS[sort][1])
 
+    language = request.GET.get("idioma", "")
+    if language not in LANGUAGE_FILTERS:
+        language = ""
+    if language:
+        allowed = set(
+            Game.objects.filter(language_filter(language), pk__in={e.game_id for e in shown}).values_list("pk", flat=True)
+        )
+        shown = [e for e in shown if e.game_id in allowed]
+
     reviews = [e for e in entries if e.review]
     reviews.sort(key=lambda e: e.reviewed_at, reverse=True)
     view = "resenas" if request.GET.get("vista") == "resenas" else ""
@@ -116,10 +125,14 @@ def profile(request, username):
             "active_status": status,
             "sorts": [(value, label) for value, (label, _) in PROFILE_SORTS.items()],
             "active_sort": sort,
+            "language_filters": LANGUAGE_FILTERS.items(),
+            "active_language": language,
+            # Orden e idioma elegidos, para no perderlos al cambiar de pestaña de estado.
+            "keep_qs": urlencode({k: v for k, v in (("orden", sort), ("idioma", language)) if v}),
             "view": view,
             "reviews": reviews,
             # El escaparate solo va en la vista principal: al filtrar u ordenar, la biblioteca sube.
-            "show_showcase": not (status or sort or view),
+            "show_showcase": not (status or sort or view or language),
             "favorites": list(owner.favorite_games.select_related("game")),
             "max_favorites": FavoriteGame.MAX_PER_USER,
             "playing": [e for e in entries if e.status == LibraryEntry.Status.PLAYING][:PLAYING_SHOWN],

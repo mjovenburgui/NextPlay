@@ -6,7 +6,7 @@
   <div class="page-head catalog-head">
     <div>
       <h1>{% if query %}Resultados para «{{ query }}»{% else %}Catálogo{% endif %}</h1>
-      <p class="muted small">{{ page.paginator.count }} juego{{ page.paginator.count|pluralize }}{% if active_genre or active_platform %} · <a href="{% url 'games:catalog' %}{% if query %}?q={{ query|urlencode }}{% endif %}">Quitar filtros</a>{% endif %}</p>
+      <p class="muted small">{{ page.paginator.count }} juego{{ page.paginator.count|pluralize }}{% if active_genre or active_platform or active_language %} · <a href="{% url 'games:catalog' %}{% if query %}?q={{ query|urlencode }}{% endif %}">Quitar filtros</a>{% endif %}</p>
     </div>
     <form class="filters" method="get">
       {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
@@ -20,6 +20,12 @@
         <option value="">Todas las plataformas</option>
         {% for platform in platforms %}
           <option value="{{ platform.slug }}" {% if platform.slug == active_platform %}selected{% endif %}>{{ platform.name }}</option>
+        {% endfor %}
+      </select>
+      <select name="idioma" aria-label="Idioma" onchange="this.form.submit()">
+        <option value="">Cualquier idioma</option>
+        {% for value, label in language_filters %}
+          <option value="{{ value }}" {% if value == active_language %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
       <noscript><button class="btn" type="submit">Filtrar</button></noscript>

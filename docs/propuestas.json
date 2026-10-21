@@ -290,7 +290,7 @@
   {
     "titulo": "Fichas en castellano: doblaje, subtítulos y sinopsis en español",
     "fecha": "2026-10-21",
-    "estado": "pendiente",
+    "estado": "hecha",
     "prioridad": "alta",
     "tipo": "Funcionalidad",
     "resumen": "Enseñar en cada juego si tiene voces, textos o subtítulos en castellano (o solo en español de Latinoamérica), poner la sinopsis en español, encontrar los juegos por su nombre en España y filtrar el catálogo y el pendiente por «doblado al castellano».",
@@ -303,7 +303,7 @@
       "Insignias en la ficha («Voces en castellano», «Textos en español», «Solo en inglés») y filtro en el catálogo, la biblioteca y la lista de deseos.",
       "Portadas de aquí: game_localizations de IGDB trae nombre y portada por región (también Europa), como las portadas personalizadas de Backloggd; usar la europea por defecto y dejar elegir región en el perfil."
     ],
-    "notas": "Se puede hacer en la misma reimportación que «Ficha del juego más completa». La API appdetails de Steam admite pocas peticiones seguidas (unas 200 cada 5 minutos): pedirla en la importación o en la tarea nocturna, nunca al abrir la ficha."
+    "notas": "Se puede hacer en la misma reimportación que «Ficha del juego más completa». La API appdetails de Steam admite pocas peticiones seguidas (unas 200 cada 5 minutos): pedirla en la importación o en la tarea nocturna, nunca al abrir la ficha. Hecha el 21/10/2026 (aún sin commit): games/spanish.py, comando localize_games (también en nightly, 200 juegos por noche, con reintentos si Steam corta la conexión), etiquetas y tabla de idiomas en la ficha, sinopsis de Steam o de Xbox con la de IGDB plegada, nombre en España, portada europea cuando IGDB la tiene, filtro ?idioma= en el catálogo, la biblioteca y la lista de deseos, y el buscador encuentra los nombres alternativos (siglas como «tw3» o «gta 5»). En el catálogo local: 2175 juegos revisados en IGDB, 496 con voces en castellano y 1383 con textos en castellano; sinopsis en español de los 154 más populares (137 de Steam y 17 de la tienda de Xbox). El resto lo irá completando nightly (o localize_games --limit N de una vez). No hecho: elegir en el perfil la región de las portadas (aporta poco: solo unos 1 de cada 9 juegos tienen portada europea en IGDB)."
   },
   {
     "titulo": "Catálogo con filtros y orden al nivel de Backloggd (y más)",

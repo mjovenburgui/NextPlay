@@ -103,6 +103,24 @@ mal emparejados (remakes que se llaman igual). La corrección sirve para todos l
 próxima importación. En `/admin/` › Títulos importados se revisan las correcciones («emparejado por:
 Usuario»), se corrigen al momento para todos y se pueden bloquear.
 
+## Fichas en castellano
+
+Cada ficha dice si el juego tiene voces o textos en castellano (o solo en español latino), con una tabla
+de todos sus idiomas, el nombre con el que se vende en España si es distinto y la sinopsis en español.
+El catálogo, la biblioteca del perfil y la lista de deseos se filtran por idioma (`?idioma=voces`,
+`textos` o `espanol`), y el buscador encuentra los juegos también por su nombre en España y por sus
+otros nombres (siglas como «tw3» o «gta 5»).
+
+Los idiomas, los nombres y la portada europea vienen de IGDB al importar. La sinopsis y los idiomas de la
+tienda vienen de Steam (y, si no está en Steam, de la tienda de Microsoft) con el comando
+`localize_games`, que va con pausas porque Steam admite pocas peticiones; `nightly` lo lanza cada noche
+con los 200 más populares que falten:
+
+```bash
+.venv/Scripts/python manage.py localize_games --sin-tiendas   # solo IGDB, para los juegos ya importados
+.venv/Scripts/python manage.py localize_games --limit 500     # además, sinopsis de los 500 más populares
+```
+
 ## Perfil personalizable
 
 En Editar perfil cada usuario elige su foto (subida o la de Steam, PlayStation o Xbox) y su forma, la

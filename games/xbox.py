@@ -56,6 +56,35 @@ def fetch_products(product_ids):
     return found
 
 
+def fetch_descriptions(product_ids):
+    """Descripción en español de los productos de la tienda de Microsoft: {ID de producto: texto}.
+
+    Es la descripción corta o, si no tiene, el primer párrafo de la larga. Pide los productos de 20 en
+    20 en el idioma de la tienda (es-ES); los que no tienen descripción no aparecen.
+    """
+    found = {}
+    for start in range(0, len(product_ids), BATCH_SIZE):
+        batch = product_ids[start : start + BATCH_SIZE]
+        try:
+            response = requests.get(
+                CATALOG_URL,
+                params={"bigIds": ",".join(batch), "market": _market(), "languages": _locale()},
+                timeout=TIMEOUT,
+            )
+            response.raise_for_status()
+            products = response.json().get("Products") or []
+        except (requests.RequestException, ValueError) as exc:
+            raise XboxError(f"Error consultando la tienda de Xbox: {exc}") from exc
+        for product in products:
+            texts = (product.get("LocalizedProperties") or [{}])[0]
+            short = (texts.get("ShortDescription") or "").strip()
+            long_text = (texts.get("ProductDescription") or "").strip()
+            text = short or next((p.strip() for p in long_text.split("\n") if len(p.strip()) > 40), "")
+            if text:
+                found[product["ProductId"]] = text
+    return found
+
+
 def _console_offer(product):
     """Oferta de compra más barata de un producto que funciona en Xbox, o None si no hay.
 

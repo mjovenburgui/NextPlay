@@ -11,6 +11,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils.text import slugify
 
+from . import spanish
 from .models import Game, GamePrice, Genre, Platform, spanish_genre_name
 
 TOKEN_URL = "https://id.twitch.tv/oauth2/token"
@@ -29,7 +30,7 @@ GAME_FIELDS = (
     "fields name, slug, summary, first_release_date, total_rating_count, cover.image_id, "
     f"aggregated_rating, aggregated_rating_count, {STEAM_FIELDS}, "
     f"remasters.name, {STEAM_FIELDS.replace('external_games', 'remasters.external_games')}, "
-    "genres.name, genres.slug, platforms.name, platforms.abbreviation, platforms.slug;"
+    f"genres.name, genres.slug, platforms.name, platforms.abbreviation, platforms.slug, {spanish.SPANISH_FIELDS};"
 )
 
 
@@ -158,6 +159,20 @@ class IGDBClient:
             )
         return self._with_editions(games)
 
+    def spanish_data(self, igdb_ids):
+        """Solo los campos de castellano (idiomas, nombres y versiones regionales) de esos juegos de IGDB, en lotes.
+
+        Sirve para completar los juegos que se importaron antes de que se pidieran esos campos.
+        """
+        games = []
+        for start in range(0, len(igdb_ids), MAX_PAGE_SIZE):
+            ids = ",".join(str(game_id) for game_id in igdb_ids[start:start + MAX_PAGE_SIZE])
+            time.sleep(0.25)  # IGDB admite 4 peticiones por segundo
+            games += self.query(
+                "games", f"fields name, {spanish.SPANISH_FIELDS}; where id = ({ids}); limit {MAX_PAGE_SIZE};"
+            )
+        return games
+
     def artworks(self, igdb_id, limit=8):
         """IDs de imagen del arte promocional de un juego y, si no llegan a limit, de sus capturas.
 
@@ -272,7 +287,8 @@ def _xbox_product_ids(data):
 def upsert_games(payload):
     """Crea o actualiza los juegos locales a partir de los de IGDB y devuelve la lista de Game.
 
-    Guarda datos, nota, portada, IDs de tienda, géneros y plataformas. Aprovecha juegos de demo o
+    Guarda datos, nota, portada, IDs de tienda, géneros, plataformas y lo de castellano (idiomas,
+    nombre en España, otros nombres y portada europea, ver games.spanish). Aprovecha juegos de demo o
     creados a mano con el mismo nombre o slug en vez de duplicarlos. Si cambian los IDs de tienda,
     borra los precios de PC, que se buscaron con los IDs viejos. Todo va en una transacción.
     """
@@ -316,6 +332,7 @@ def upsert_games(payload):
         game.store_ids = store_ids
         game.store_alternatives = _store_alternatives(data, store_ids)
         game.xbox_product_ids = _xbox_product_ids(data)
+        spanish.apply_igdb(game, data)
         game.save()
 
         game_genres = []
