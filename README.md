@@ -128,10 +128,24 @@ cabecera (degradado, una imagen suya o el arte de un juego de su biblioteca saca
 la página y cuánto se oscurece, el color del perfil, el diseño de la cabecera, un estado con emoji,
 pronombres, ubicación y sus redes sociales. En el escaparate van hasta 5 juegos favoritos (se marcan con
 «Añadir a mis favoritos» en la ficha), una reseña destacada y las secciones que quiera en el orden que
-quiera. Todo tiene vista previa en directo.
+quiera.
 
-Las imágenes se tratan con Pillow (`accounts/images.py`): se recortan, se pasan a WebP y pierden los
-datos EXIF. Se guardan en `media/` (`MEDIA_ROOT`), que en local sirve Django; en producción hay que
+Mientras edita, al lado del formulario ve su perfil a la vez en un ordenador y en un móvil, tal como lo
+verán los demás y antes de guardar (en pantallas estrechas se abre con el botón «Vista previa»).
+`/cuenta/perfil/vista-previa/` pinta la página del perfil con lo que hay en el formulario sin guardar
+nada, y cada pantalla la enseña a su ancho real (1280 y 390 px), encogida para que quepa; las imágenes
+elegidas se ven sin subirlas.
+
+Cada imagen (foto, cabecera y fondo) tiene su encuadre: en Editar perfil se arrastra dentro de su marco
+para elegir qué parte se ve, con zoom, o se marca «Entera» para verla completa, encogida y con una copia
+suya desenfocada en el hueco. La cabecera y el fondo tienen dos marcos, el de un ordenador y el de un
+móvil, porque cada pantalla los corta distinto. El encuadre se guarda aparte (`Profile.avatar_x`,
+`avatar_y`, `avatar_zoom`, `avatar_fit` y los de la cabecera y el fondo) y se aplica con CSS al
+enseñarlas, así que se puede cambiar sin volver a subir la imagen.
+
+Las imágenes se tratan con Pillow (`accounts/images.py`): se reducen sin recortarlas, se pasan a WebP y
+pierden los datos EXIF. Si una es más grande de lo que se guarda o pesa más de lo permitido, el navegador
+la reduce antes de subirla. Se guardan en `media/` (`MEDIA_ROOT`), que en local sirve Django; en producción hay que
 servir esa carpeta desde el servidor web o usar un almacenamiento externo.
 
 ## Tareas de cada noche

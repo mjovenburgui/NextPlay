@@ -7,17 +7,19 @@
   {% with profile=owner.profile %}
   {# Todo el perfil lleva el color que eligió su dueño: sustituye al violeta de la web dentro de este bloque. #}
   <div class="profile-page profile-layout-{{ profile.layout }}" style="--violet: {{ profile.accent }}; --accent-rgb: {{ profile.accent_rgb }}; --accent-text: {{ profile.accent_text }};">
-    {% if profile.background_url %}
-      {# Fondo elegido: ocupa toda la ventana detrás del contenido y se oscurece para que se lea el texto. #}
-      <div class="profile-backdrop{% if profile.background_blurred %} is-blurred{% endif %}" style="--dim: {{ profile.background_dim_ratio }};" aria-hidden="true">
-        <img src="{{ profile.background_url }}" alt="">
+    {% with url=profile.background_url %}{% if url %}
+      {# Fondo elegido: ocupa toda la ventana detrás del contenido, con su encuadre, y se oscurece para que se lea el texto. #}
+      <div class="profile-backdrop{% if profile.background_blurred %} is-blurred{% endif %}{% if profile.background_fit %} is-fit{% endif %}" style="--dim: {{ profile.background_dim_ratio }}; {{ profile.background_framing }}" aria-hidden="true">
+        {% if profile.background_fit %}<img class="img-fill" src="{{ url }}" alt="">{% endif %}<img src="{{ url }}" alt="">
       </div>
-    {% endif %}
+    {% endif %}{% endwith %}
 
     <section class="profile-hero">
-      <div class="profile-banner{% if profile.banner_blurred %} is-blurred{% endif %}" aria-hidden="true">
-        {% if profile.banner_url %}<img src="{{ profile.banner_url }}" alt="">{% endif %}
-      </div>
+      {% with url=profile.banner_url %}
+        <div class="profile-banner{% if profile.banner_blurred %} is-blurred{% endif %}{% if url and profile.banner_fit %} is-fit{% endif %}"{% if url and profile.banner_framing %} style="{{ profile.banner_framing }}"{% endif %} aria-hidden="true">
+          {% if url %}{% if profile.banner_fit %}<img class="img-fill" src="{{ url }}" alt="">{% endif %}<img src="{{ url }}" alt="">{% endif %}
+        </div>
+      {% endwith %}
       <div class="profile-main">
         {% include "accounts/_avatar.html" with size="lg" %}
         <div class="profile-id">
@@ -171,15 +173,16 @@
             <a class="tab{% if active_status == value %} is-active{% endif %}" href="?estado={{ value }}{% if keep_qs %}&{{ keep_qs }}{% endif %}">{{ label }} <span>{{ count }}</span></a>
           {% endfor %}
         </nav>
+        {# En la vista previa de Editar perfil van sin onchange: su marco no ejecuta JavaScript y el navegador se quejaría. #}
         <form class="sort" method="get">
           {% if active_status %}<input type="hidden" name="estado" value="{{ active_status }}">{% endif %}
           <label class="muted small" for="idioma">Idioma</label>
-          <select id="idioma" name="idioma" onchange="this.form.submit()">
+          <select id="idioma" name="idioma"{% if not preview %} onchange="this.form.submit()"{% endif %}>
             <option value="">Cualquiera</option>
             {% for value, label in language_filters %}<option value="{{ value }}"{% if active_language == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
           </select>
           <label class="muted small" for="orden">Ordenar</label>
-          <select id="orden" name="orden" onchange="this.form.submit()">
+          <select id="orden" name="orden"{% if not preview %} onchange="this.form.submit()"{% endif %}>
             <option value="">Recientes</option>
             {% for value, label in sorts %}<option value="{{ value }}"{% if active_sort == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
           </select>

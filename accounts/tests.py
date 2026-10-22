@@ -21,7 +21,7 @@ from games import igdb
 from games.models import Game, Platform
 from library.models import LibraryEntry
 
-from . import images, matching, psn, steam, xbox
+from . import images, matching, psn, steam, views, xbox
 from .models import (
     ExternalTitle, FavoriteGame, ImportedTitle, PlatformAccount, Profile, PSNAccount, SteamAccount, XboxAccount,
 )
@@ -938,14 +938,15 @@ class ProfileCustomizationTests(TestCase):
         """El perfil de ana tal como está guardado ahora."""
         return Profile.objects.get(user=self.user)
 
-    def test_avatar_is_cropped_converted_and_loses_exif(self):
-        response = self.post_profile(avatar=image_upload(orientation=1))
+    def test_avatar_is_converted_and_loses_exif_but_is_not_cropped(self):
+        response = self.post_profile(avatar=image_upload(size=(1600, 900), orientation=1))
         self.assertRedirects(response, reverse("profile", args=["ana"]))
         avatar = self.profile().avatar
         self.assertTrue(avatar.name.startswith(f"perfiles/{self.user.pk}/avatar-"))
         self.assertTrue(avatar.name.endswith(".webp"))
         with Image.open(avatar.path) as saved:
-            self.assertEqual((saved.format, saved.size), ("WEBP", (400, 400)))
+            # Entera y reducida hasta caber en 800 × 800: la parte que se ve la elige el encuadre.
+            self.assertEqual((saved.format, saved.size), ("WEBP", (800, 450)))
             self.assertEqual(len(saved.getexif()), 0)
 
     def test_background_follows_exif_orientation_and_keeps_its_ratio(self):
@@ -1147,12 +1148,50 @@ class ProfileCustomizationTests(TestCase):
         self.assertIn("background", errors)
 
     def test_uploaded_banner_and_background_from_banner(self):
-        self.post_profile(banner_mode="image", banner=image_upload(size=(2000, 1000)), background_mode="banner")
+        self.post_profile(banner_mode="image", banner=image_upload(size=(3000, 1000)), background_mode="banner")
         profile = self.profile()
         with Image.open(profile.banner.path) as saved:
-            self.assertEqual(saved.size, (1500, 500))
+            self.assertEqual(saved.size, (2000, 667))
         self.assertEqual(profile.background_url, profile.banner_url)
         self.assertContains(self.client.get(reverse("profile", args=["ana"])), "profile-backdrop")
+
+    def test_framing_is_saved_and_drawn_on_the_profile(self):
+        self.post_profile(
+            avatar=image_upload(), avatar_x="30", avatar_y="20.5", avatar_zoom="150",
+            banner_mode="image", banner=image_upload(size=(1600, 900)), banner_fit="on",
+            background_mode="banner", background_x="0", background_y="100", background_zoom="200",
+        )
+        profile = self.profile()
+        self.assertEqual((profile.avatar_x, profile.avatar_y, profile.avatar_zoom), (30, 20.5, 150))
+        self.assertTrue(profile.banner_fit)
+        content = self.client.get(reverse("profile", args=["ana"])).content.decode()
+        self.assertIn('style="--focus-x: 30%; --focus-y: 20.5%; --zoom: 1.5;"', content)
+        self.assertIn("--focus-x: 0%; --focus-y: 100%; --zoom: 2;", content)
+        # La cabecera, entera: encima de una copia suya desenfocada que llena el hueco.
+        self.assertIn("profile-banner is-fit", content)
+        self.assertEqual(content.count('class="img-fill"'), 1)
+
+    def test_framing_values_are_checked(self):
+        errors = self.post_profile(avatar_x="150", banner_zoom="50", background_zoom="900").context["form"].errors
+        for name in ("avatar_x", "banner_zoom", "background_zoom"):
+            self.assertIn(name, errors)
+
+    def test_avatar_framing_only_applies_to_the_uploaded_photo(self):
+        self.assertEqual(self.profile().avatar_image, {})
+        self.post_profile(avatar=image_upload(), avatar_x="10", avatar_fit="on")
+        image = self.profile().avatar_image
+        self.assertEqual((image["framing"], image["fit"]), ("--focus-x: 10%; --focus-y: 50%; --zoom: 1;", True))
+        SteamAccount.objects.create(user=self.user, steam_id="76561197960287930", avatar="https://steam/a.jpg")
+        self.post_profile(avatar_source="steam", avatar_fit="on")
+        self.assertEqual(self.profile().avatar_image, {"url": "https://steam/a.jpg", "framing": "", "fit": False})
+
+    def test_edit_profile_has_a_framer_per_image(self):
+        response = self.client.get(reverse("edit_profile"))
+        for name in ("avatar", "banner", "background"):
+            self.assertContains(response, f'data-framer="{name}"')
+        # Las casillas de «Entera» no se cuelan entre los interruptores de privacidad.
+        privacy = response.content.decode().split('id="privacidad"')[1].split("</section>")[0]
+        self.assertEqual(privacy.count('class="switch-row"'), 2)
 
     @override_settings(IGDB_CLIENT_ID="", IGDB_CLIENT_SECRET="")
     def test_banner_arts_without_igdb(self):
@@ -1183,3 +1222,101 @@ class ProfileCustomizationTests(TestCase):
         with mock.patch.object(igdb.IGDBClient, "query", side_effect=answers) as query:
             self.assertEqual(client.artworks(1942, limit=3), ["ar1", "sc1", "sc2"])
         self.assertIn("where game = 1942; limit 2;", query.call_args_list[1].args[1])
+
+    def preview(self, **data):
+        """Pide la vista previa de Editar perfil con los datos dados (perfil público salvo que se diga otra cosa)."""
+        return self.client.post(reverse("profile_preview"), {"is_public": "on", **data})
+
+    def test_edit_profile_has_the_desktop_and_phone_preview(self):
+        response = self.client.get(reverse("edit_profile"))
+        self.assertContains(response, reverse("profile_preview"))
+        # En el panel de al lado y en la ventana ampliada.
+        self.assertContains(response, 'title="Tu perfil en un ordenador"', count=2)
+        self.assertContains(response, 'title="Tu perfil en un móvil"', count=2)
+
+    def test_preview_shows_the_changes_without_saving_them(self):
+        response = self.preview(
+            display_name="Ana Previa", status_text="Probando", accent_color="#22e0f0", layout="centered",
+            link_twitch="ana_juega",
+        )
+        for text in ("Ana Previa", "Probando", "--violet: #22e0f0;", "profile-layout-centered",
+                     "https://www.twitch.tv/ana_juega"):
+            self.assertContains(response, text)
+        profile = self.profile()
+        self.assertEqual((profile.display_name, profile.accent_color, profile.layout, profile.links), ("", "", "classic", {}))
+
+    def test_preview_is_what_others_see_and_cannot_be_used(self):
+        response = self.preview()
+        self.assertTrue(response.context["preview"])
+        self.assertNotContains(response, "Vincular cuentas")
+        self.assertContains(response, 'class="has-tabbar is-preview" inert')
+        # Sin JavaScript: el marco no lo ejecutaría y el navegador se quejaría de cada script.
+        self.assertNotContains(response, "<script")
+        self.assertNotContains(response, "onchange=")
+
+    def test_preview_keeps_saved_values_for_invalid_fields(self):
+        response = self.preview(display_name="Ana Previa", link_twitch="no vale!", accent_color="rojo")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ana Previa")
+        self.assertNotContains(response, "twitch.tv")
+        self.assertContains(response, "--violet: #9d5cff;")
+
+    def test_preview_shows_images_chosen_in_the_browser(self):
+        avatar, banner = "blob:http://testserver/7f9c-avatar", "blob:http://testserver/0a1b-banner"
+        response = self.preview(local_avatar=avatar, local_banner=banner, banner_mode="image", background_mode="banner")
+        self.assertContains(response, f'src="{avatar}"')
+        # La cabecera y, como el fondo es «la imagen de la cabecera», también el fondo de la página.
+        self.assertContains(response, f'src="{banner}"', count=2)
+        # Solo valen direcciones blob: del navegador.
+        response = self.preview(
+            local_avatar="javascript:alert(1)", local_banner="https://ejemplo.com/a.png", banner_mode="image"
+        )
+        self.assertNotContains(response, "javascript:")
+        self.assertNotContains(response, "ejemplo.com")
+
+    def test_preview_shows_the_framing(self):
+        response = self.preview(local_avatar="blob:http://testserver/a", avatar_x="25", avatar_fit="on")
+        self.assertContains(response, "--focus-x: 25%")
+        self.assertContains(response, 'class="img-fill" src="blob:http://testserver/a"')
+
+    def test_preview_follows_favorites_and_sections_of_the_form(self):
+        for position, game in enumerate(self.games[:3]):
+            FavoriteGame.objects.create(user=self.user, game=game, position=position)
+        g0, g1, g2 = (game.pk for game in self.games[:3])
+        response = self.preview(
+            favoritos=[g2, g0, g1], quitar_favoritos=[g1],
+            secciones=["favoritos", "jugando", "resena", "estadisticas", "generos"], secciones_visibles=["favoritos"],
+        )
+        favorites = response.content.decode().split('<ol class="favorites">')[1].split("</ol>")[0]
+        positions = [favorites.find(f"Juego {i}</p>") for i in (2, 0, 1)]
+        self.assertGreaterEqual(positions[0], 0)
+        self.assertLess(positions[0], positions[1])
+        self.assertEqual(positions[2], -1)
+        self.assertNotContains(response, "Jugando ahora")
+        # Nada se ha guardado.
+        self.assertEqual(list(self.user.favorite_games.values_list("game_id", flat=True)), [g0, g1, g2])
+        self.assertEqual(self.profile().sections, [])
+
+    def test_preview_cuts_the_library_but_not_the_stats(self):
+        with mock.patch.object(views, "PREVIEW_LIBRARY", 2):
+            response = self.preview()
+        self.assertEqual(len(response.context["entries"]), 2)
+        self.assertEqual(response.context["stats"]["games"], 3)
+
+    def test_private_profile_has_a_preview_too(self):
+        response = self.client.post(reverse("profile_preview"), {})
+        self.assertContains(response, "Perfil privado")
+
+    def test_preview_does_not_use_up_pending_messages(self):
+        for position, game in enumerate(self.games[:5]):
+            FavoriteGame.objects.create(user=self.user, game=game, position=position)
+        # Sin HTMX deja el aviso para la página siguiente.
+        self.client.post(reverse("favorite_toggle", args=[self.games[5].pk]))
+        self.assertNotContains(self.preview(), "Ya tienes 5 favoritos")
+        self.assertContains(self.client.get(reverse("edit_profile")), "Ya tienes 5 favoritos")
+
+    def test_preview_needs_login_and_post(self):
+        url = reverse("profile_preview")
+        self.assertEqual(self.client.get(url).status_code, 405)
+        self.client.logout()
+        self.assertRedirects(self.client.post(url), f"{reverse('login')}?next={url}")

@@ -1,5 +1,5 @@
-{# Una reseña. Con show_game=True (en el perfil) enlaza al juego; si no, muestra al autor. #}
-<article class="review{% if entry.user == user %} is-own{% endif %}">
+{# Una reseña. Con show_game=True (en el perfil) enlaza al juego; si no, muestra al autor. La vista previa del perfil (preview) la pinta como la ven los demás. #}
+<article class="review{% if entry.user == user and not preview %} is-own{% endif %}">
   <header class="review-head">
     {% if show_game %}
       <a class="review-thumb" href="{{ entry.game.get_absolute_url }}">

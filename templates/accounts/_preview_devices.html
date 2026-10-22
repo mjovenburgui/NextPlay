@@ -1,0 +1,25 @@
+{# Las dos pantallas de la vista previa de Editar perfil (en el panel lateral y en la ventana ampliada). #}
+{# Cada marco pinta el perfil a su ancho real (--w, en px) y el JavaScript de la página lo encoge hasta que cabe. #}
+{# sandbox sin allow-scripts: dentro no se ejecuta nada; allow-same-origin deja a la página cambiar su contenido. #}
+<div class="preview-devices">
+  <figure class="device device-desktop">
+    <div class="device-frame">
+      <div class="device-bar" aria-hidden="true">
+        <span></span><span></span><span></span>
+        <span class="device-url">{{ request.get_host }}{% url 'profile' user.username %}</span>
+      </div>
+      <div class="device-screen" style="--w: 1280; --h: 800;">
+        <iframe title="Tu perfil en un ordenador" sandbox="allow-same-origin" tabindex="-1"></iframe>
+      </div>
+    </div>
+    <figcaption>{% include "_icon.html" with name="monitor" %} Escritorio</figcaption>
+  </figure>
+  <figure class="device device-phone">
+    <div class="device-frame">
+      <div class="device-screen" style="--w: 390; --h: 844;">
+        <iframe title="Tu perfil en un móvil" sandbox="allow-same-origin" tabindex="-1"></iframe>
+      </div>
+    </div>
+    <figcaption>{% include "_icon.html" with name="phone" %} Móvil</figcaption>
+  </figure>
+</div>

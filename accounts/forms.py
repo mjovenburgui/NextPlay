@@ -11,7 +11,10 @@ from games.models import Game
 from library.models import LibraryEntry
 
 from . import images
-from .models import DEFAULT_ACCENT, HEX_COLOR, SECTIONS, SOCIAL_LINKS, FavoriteGame, PlatformAccount, Profile, normalize_handle
+from .models import (
+    DEFAULT_ACCENT, FRAME_ZOOM_MAX, HEX_COLOR, SECTIONS, SOCIAL_LINKS, FavoriteGame, PlatformAccount, Profile,
+    normalize_handle,
+)
 
 User = get_user_model()
 
@@ -19,6 +22,11 @@ User = get_user_model()
 IGDB_IMAGE_ID = re.compile(r"^[a-z0-9]{1,40}$")
 # Imágenes del perfil: campo → tipo de imagen en accounts.images.
 IMAGE_FIELDS = {"avatar": "avatar", "banner": "banner", "background": "background"}
+# Dirección blob: con la que el navegador enseña una imagen elegida y aún sin subir (solo vale en ese navegador).
+LOCAL_IMAGE = re.compile(r"^blob:https?://[^\s\"'<>]+$")
+# Campos del encuadre de cada imagen (Profile.avatar_x...): la posición la pone el editor de Editar perfil al
+# arrastrar la imagen (campos ocultos), el zoom es una barra y «entera», una casilla.
+FRAMING_FIELDS = tuple(f"{name}_{part}" for name in IMAGE_FIELDS for part in ("x", "y", "zoom", "fit"))
 
 
 class SignupForm(UserCreationForm):
@@ -44,7 +52,12 @@ class ProfileForm(forms.ModelForm):
     """
 
     # Campos con valor por defecto que pueden no venir en el envío: si faltan se deja lo que había.
-    OPTIONAL = ("avatar_source", "avatar_shape", "banner_mode", "background_mode", "background_dim", "layout")
+    OPTIONAL = (
+        "avatar_source", "avatar_shape", "banner_mode", "background_mode", "background_dim", "layout",
+        *(name for name in FRAMING_FIELDS if not name.endswith("_fit")),
+    )
+    # Interruptores de «Privacidad y avisos».
+    PRIVACY = ("is_public", "price_alert_emails")
 
     favoritos = forms.TypedMultipleChoiceField(coerce=int, required=False)
     quitar_favoritos = forms.TypedMultipleChoiceField(coerce=int, required=False)
@@ -57,9 +70,11 @@ class ProfileForm(forms.ModelForm):
             "display_name", "bio", "status_emoji", "status_text", "pronouns", "location",
             "avatar", "avatar_source", "avatar_shape", "banner_mode", "banner", "banner_game", "banner_art",
             "background_mode", "background", "background_dim", "accent_color", "layout", "pinned_review",
-            "is_public", "price_alert_emails",
+            "is_public", "price_alert_emails", *FRAMING_FIELDS,
         )
         widgets = {
+            **{f"{name}_{part}": forms.HiddenInput for name in IMAGE_FIELDS for part in ("x", "y")},
+            **{f"{name}_zoom": forms.NumberInput(attrs={"type": "range", "step": 5}) for name in IMAGE_FIELDS},
             "bio": forms.Textarea(attrs={"rows": 4}),
             "status_emoji": forms.TextInput(attrs={"placeholder": "🎮", "class": "emoji-input"}),
             "status_text": forms.TextInput(attrs={"placeholder": "Platineando Bloodborne"}),
@@ -90,6 +105,9 @@ class ProfileForm(forms.ModelForm):
         profile = self.instance
         for name in self.OPTIONAL:
             self.fields[name].required = False
+        for name in IMAGE_FIELDS:
+            # Límites de la barra del zoom (Django le pondría min="0" por ser un entero positivo).
+            self.fields[f"{name}_zoom"].widget.attrs.update({"min": 100, "max": FRAME_ZOOM_MAX})
 
         sources = {Profile.AvatarSource.AUTO, Profile.AvatarSource.UPLOAD, Profile.AvatarSource.INITIAL}
         if profile.steam_linked:
@@ -137,6 +155,11 @@ class ProfileForm(forms.ModelForm):
         )
         # Nombres de las imágenes guardadas, para borrarlas del disco si se sustituyen o se quitan.
         self._old_images = {name: getattr(profile, name).name for name in IMAGE_FIELDS}
+
+    @property
+    def privacy_fields(self):
+        """Los campos de «Privacidad y avisos», que la plantilla pinta como interruptores."""
+        return [self[name] for name in self.PRIVACY]
 
     def _clean_image(self, name):
         """Pasa la imagen nueva del campo name por accounts.images; sin imagen nueva deja lo que había (False = quitarla)."""
@@ -214,15 +237,38 @@ class ProfileForm(forms.ModelForm):
         favoritos (quitando los marcados).
         """
         profile = super().save(commit=False)
-        profile.links = self.cleaned_data.get("links", {})
-        if "secciones" in self.data:
-            visible = set(self.cleaned_data["secciones_visibles"])
-            profile.sections = [[key, key in visible] for key in dict.fromkeys(self.cleaned_data["secciones"])]
+        self._apply_extras(profile)
         if commit:
             profile.save()
             self._delete_replaced_images(profile)
             self._save_favorites()
         return profile
+
+    def preview(self):
+        """Perfil y favoritos tal como quedarían con lo enviado, para la vista previa de Editar perfil.
+
+        No guarda nada: valida el formulario y lo que no sea válido se queda como estaba. Las imágenes
+        nuevas no llegan, porque no se suben hasta guardar; en su lugar vienen en local_avatar,
+        local_banner y local_background las direcciones blob: con las que el navegador ya las enseña.
+        Devuelve (perfil sin guardar, favoritos en su nuevo orden).
+        """
+        self.is_valid()
+        profile = self.instance
+        self._apply_extras(profile)
+        profile.preview_images = {
+            name: url for name in IMAGE_FIELDS if LOCAL_IMAGE.match(url := self.data.get(f"local_{name}", ""))
+        }
+        return profile, self._favorite_changes()[1]
+
+    def _apply_extras(self, profile):
+        """Pone en profile lo que no se guarda campo a campo: las redes (en links) y el orden y la visibilidad de las secciones.
+
+        Si las secciones enviadas no son válidas, se dejan como estaban.
+        """
+        profile.links = self.cleaned_data.get("links", {})
+        sections, visible = self.cleaned_data.get("secciones"), self.cleaned_data.get("secciones_visibles")
+        if "secciones" in self.data and sections is not None and visible is not None:
+            profile.sections = [[key, key in visible] for key in dict.fromkeys(sections)]
 
     def _delete_replaced_images(self, profile):
         """Borra del disco las imágenes que tenía el perfil y ya no usa (sustituidas por otra o quitadas)."""
@@ -235,14 +281,23 @@ class ProfileForm(forms.ModelForm):
         """Quita los favoritos marcados y guarda el orden en que llegaron los demás (los que no llegaron, al final)."""
         if "favoritos" not in self.data and "quitar_favoritos" not in self.data:
             return
-        removed = set(self.cleaned_data["quitar_favoritos"])
+        removed, kept = self._favorite_changes()
         FavoriteGame.objects.filter(user=self.user, game_id__in=removed).delete()
-        kept = [favorite for favorite in self.favorites if favorite.game_id not in removed]
-        order = [game_id for game_id in dict.fromkeys(self.cleaned_data["favoritos"]) if game_id not in removed]
-        order += [favorite.game_id for favorite in kept if favorite.game_id not in order]
-        for favorite in kept:
-            favorite.position = order.index(favorite.game_id)
+        for position, favorite in enumerate(kept):
+            favorite.position = position
         FavoriteGame.objects.bulk_update(kept, ["position"])
+
+    def _favorite_changes(self):
+        """(ids de los juegos que se quitan, favoritos que quedan) según el envío, sin guardar nada.
+
+        Los que quedan van en el orden en que llegaron en favoritos y los que no llegaron, al final.
+        """
+        removed = set(self.cleaned_data.get("quitar_favoritos", []))
+        kept = [favorite for favorite in self.favorites if favorite.game_id not in removed]
+        order = [game_id for game_id in dict.fromkeys(self.cleaned_data.get("favoritos", [])) if game_id not in removed]
+        order += [favorite.game_id for favorite in kept if favorite.game_id not in order]
+        kept.sort(key=lambda favorite: order.index(favorite.game_id))
+        return removed, kept
 
 
 class PlatformAccountForm(forms.Form):

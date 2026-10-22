@@ -22,8 +22,8 @@ from games import igdb
 from games.models import LANGUAGE_FILTERS, Game, Genre, igdb_image_url, known_shops, language_filter
 from library.models import LibraryEntry
 
-from . import matching, psn, steam, xbox
-from .forms import PlatformAccountForm, ProfileForm, SignupForm
+from . import images, matching, psn, steam, xbox
+from .forms import IMAGE_FIELDS, PlatformAccountForm, ProfileForm, SignupForm
 from .models import (
     ACCENT_PRESETS, SECTIONS, FavoriteGame, ImportedTitle, PlatformAccount, Profile, PSNAccount, SteamAccount,
     XboxAccount,
@@ -70,16 +70,43 @@ def profile(request, username):
     castellano); se ordena con ?orden= (recientes, nota, horas o nombre). Con ?vista=resenas muestra sus
     reseñas en vez de la biblioteca. Un perfil privado da 404 a cualquiera que no sea su dueño.
     """
-    owner = get_object_or_404(
-        User.objects.select_related("profile", "profile__banner_game", "psn_account", "xbox_account").prefetch_related(
-            "steam_accounts", "platform_accounts"
-        ),
-        username=username,
-    )
+    owner = get_object_or_404(_profile_owners(), username=username)
     # 404 rather than 403 so private profiles don't confirm that the account exists.
     if not owner.profile.visible_to(request.user):
         raise Http404
+    return render(request, "accounts/profile.html", _profile_context(request, owner))
 
+
+@require_POST
+@login_required
+def profile_preview(request):
+    """Vista previa de Editar perfil: la página del perfil tal como quedaría con lo que hay en el formulario.
+
+    La pide el JavaScript de Editar perfil cada vez que se cambia algo y la enseña a la vez en un marco
+    del ancho de un ordenador y en otro del de un móvil. No guarda nada (ver ProfileForm.preview). Sale
+    como la ven los demás, sin los botones del dueño, aunque el perfil sea privado.
+    """
+    owner = _profile_owners().get(pk=request.user.pk)
+    form = ProfileForm(request.POST, instance=owner.profile, user=owner)
+    _, favorites = form.preview()
+    return render(request, "accounts/profile.html", _profile_context(request, owner, favorites, preview=True))
+
+
+def _profile_owners():
+    """Usuarios con lo que enseña la cabecera del perfil ya cargado: perfil, juego de la cabecera y cuentas vinculadas."""
+    return User.objects.select_related("profile", "profile__banner_game", "psn_account", "xbox_account").prefetch_related(
+        "steam_accounts", "platform_accounts"
+    )
+
+
+def _profile_context(request, owner, favorites=None, preview=False):
+    """Variables de la plantilla del perfil de owner, con la biblioteca filtrada y ordenada según ?estado=, ?idioma= y ?orden=.
+
+    favorites son sus juegos favoritos en orden (si no se dan, los guardados). Con preview es la vista
+    previa de Editar perfil: se ve como la ven los demás, el usuario de la barra superior es owner con los
+    cambios sin guardar y la biblioteca se corta en PREVIEW_LIBRARY juegos.
+    """
+    is_owner = request.user == owner and not preview
     entries = list(
         LibraryEntry.objects.filter(user=owner).select_related("game").order_by("-updated_at")
     )
@@ -114,42 +141,50 @@ def profile(request, username):
     view = "resenas" if request.GET.get("vista") == "resenas" else ""
 
     tabs = [(value, label, counts[value]) for value, label in LibraryEntry.Status.choices]
-    return render(
-        request,
-        "accounts/profile.html",
-        {
-            "owner": owner,
-            "entries": shown,
-            "total": len(entries),
-            "tabs": tabs,
-            "active_status": status,
-            "sorts": [(value, label) for value, (label, _) in PROFILE_SORTS.items()],
-            "active_sort": sort,
-            "language_filters": LANGUAGE_FILTERS.items(),
-            "active_language": language,
-            # Orden e idioma elegidos, para no perderlos al cambiar de pestaña de estado.
-            "keep_qs": urlencode({k: v for k, v in (("orden", sort), ("idioma", language)) if v}),
-            "view": view,
-            "reviews": reviews,
-            # El escaparate solo va en la vista principal: al filtrar u ordenar, la biblioteca sube.
-            "show_showcase": not (status or sort or view or language),
-            "favorites": list(owner.favorite_games.select_related("game")),
-            "max_favorites": FavoriteGame.MAX_PER_USER,
-            "playing": [e for e in entries if e.status == LibraryEntry.Status.PLAYING][:PLAYING_SHOWN],
-            "pinned": next((e for e in reviews if e.pk == owner.profile.pinned_review_id), None),
-            "stats": _profile_stats(owner, entries, counts),
-            "is_owner": request.user == owner,
-            "unmatched_count": (
-                owner.imported_titles.filter(title__game__isnull=True, hidden=False).count()
-                if request.user == owner else 0
-            ),
-            **(linking_context() if request.user == owner else {}),
-        },
-    )
+    return {
+        "owner": owner,
+        "entries": shown[:PREVIEW_LIBRARY] if preview else shown,
+        "total": len(entries),
+        "tabs": tabs,
+        "active_status": status,
+        "sorts": [(value, label) for value, (label, _) in PROFILE_SORTS.items()],
+        "active_sort": sort,
+        "language_filters": LANGUAGE_FILTERS.items(),
+        "active_language": language,
+        # Orden e idioma elegidos, para no perderlos al cambiar de pestaña de estado.
+        "keep_qs": urlencode({k: v for k, v in (("orden", sort), ("idioma", language)) if v}),
+        "view": view,
+        "reviews": reviews,
+        # El escaparate solo va en la vista principal: al filtrar u ordenar, la biblioteca sube.
+        "show_showcase": not (status or sort or view or language),
+        "favorites": list(owner.favorite_games.select_related("game")) if favorites is None else favorites,
+        "max_favorites": FavoriteGame.MAX_PER_USER,
+        "playing": [e for e in entries if e.status == LibraryEntry.Status.PLAYING][:PLAYING_SHOWN],
+        "pinned": next((e for e in reviews if e.pk == owner.profile.pinned_review_id), None),
+        "stats": _profile_stats(owner, entries, counts),
+        "is_owner": is_owner,
+        "unmatched_count": (
+            owner.imported_titles.filter(title__game__isnull=True, hidden=False).count() if is_owner else 0
+        ),
+        **(linking_context() if is_owner else {}),
+        # En la vista previa, la barra superior también enseña la foto y el nombre sin guardar.
+        **({"preview": True, "user": owner} if preview else {}),
+    }
 
 
 # Juegos que se enseñan en la sección «Jugando ahora» del escaparate del perfil.
 PLAYING_SHOWN = 6
+# Juegos de la biblioteca que salen en la vista previa de Editar perfil: bastan para ver cómo queda y
+# así la página pesa poco aunque la biblioteca tenga cientos.
+PREVIEW_LIBRARY = 24
+# Marcos del editor de encuadre de Editar perfil: (nombre, icono, proporción ancho/alto) de cada sitio donde
+# se ve la imagen. La cabecera mide unos 1066 × 190 en un ordenador y 340 × 140 en un móvil (ver
+# .profile-banner en app.css) y el fondo ocupa toda la ventana: 16:9 en un ordenador y 390 × 844 en un móvil.
+FRAMER_VIEWS = {
+    "avatar": [("", "", "1")],
+    "banner": [("Escritorio", "monitor", f"{1066 / 190:.3f}"), ("Móvil", "phone", f"{340 / 140:.3f}")],
+    "background": [("Escritorio", "monitor", f"{16 / 9:.3f}"), ("Móvil", "phone", f"{390 / 844:.3f}")],
+}
 
 # Valor de ?orden= → (etiqueta, clave de orden). Los juegos sin nota o sin horas jugadas van al final.
 PROFILE_SORTS = {
@@ -182,9 +217,10 @@ def _profile_stats(owner, entries, counts):
 def edit_profile(request):
     """Editar perfil: datos, apariencia (foto, cabecera, fondo, color y diseño), escaparate, redes y privacidad.
 
-    El formulario trabaja con una copia del perfil para que, si no es válido, la vista previa y la
-    cabecera de la página sigan enseñando lo guardado. Las tiendas y las cuentas vinculadas tienen
-    sus propios formularios en la misma página.
+    El formulario trabaja con una copia del perfil para que, si no es válido, la página (las imágenes
+    subidas, la barra superior) siga enseñando lo guardado. Al lado va la vista previa del perfil en un
+    ordenador y en un móvil, que pinta profile_preview con lo que hay en el formulario. Las tiendas y las
+    cuentas vinculadas tienen sus propios formularios en la misma página.
     """
     profile = request.user.profile
     form = ProfileForm(
@@ -206,6 +242,10 @@ def edit_profile(request):
             "favorites": form.favorites,
             "max_favorites": FavoriteGame.MAX_PER_USER,
             "accent_presets": ACCENT_PRESETS,
+            # Para el encuadre y para que el navegador reduzca antes de subirlas las fotos que no caben.
+            "image_kinds": images.KINDS,
+            "framer_views": FRAMER_VIEWS,
+            "uploads": {name: getattr(profile, name).url if getattr(profile, name) else "" for name in IMAGE_FIELDS},
             "sections": _posted_sections(form) or profile.section_layout,
             "shop_choices": [(shop_id, name, shop_id in chosen) for shop_id, name in known_shops()],
             **linking_context(),

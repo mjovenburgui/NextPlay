@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}Editar perfil · NextPlay{% endblock %}
+{% block container_class %} container-editor{% endblock %}
 
 {% block content %}
   <header class="page-head settings-head">
@@ -28,22 +29,6 @@
         {% csrf_token %}
 
         <section class="settings-card" id="perfil">
-          {# Vista previa en directo de la cabecera: el JavaScript del final la cambia según lo que se elige abajo. #}
-          <div class="settings-preview profile-preview profile-layout-{{ profile.layout }}" id="profile-preview"
-               style="--violet: {{ profile.accent }}; --accent-rgb: {{ profile.accent_rgb }}; --accent-text: {{ profile.accent_text }};" aria-hidden="true">
-            <div class="profile-banner{% if profile.banner_blurred %} is-blurred{% endif %}" id="preview-banner">
-              {% if profile.banner_url %}<img src="{{ profile.banner_url }}" alt="">{% endif %}
-            </div>
-            <div class="settings-preview-id">
-              <span id="preview-avatar">{% include "accounts/_avatar.html" with size="lg" %}</span>
-              <div>
-                <strong id="preview-name" data-fallback="{{ user.username }}">{{ profile.name }}</strong>
-                <p class="profile-status" id="preview-status"{% if not profile.status_emoji and not profile.status_text %} hidden{% endif %}>{{ profile.status_emoji }} {{ profile.status_text }}</p>
-                <p class="muted small">@{{ user.username }}</p>
-              </div>
-            </div>
-          </div>
-
           <h2>Perfil</h2>
           {{ form.non_field_errors }}
           <div class="field{% if form.display_name.errors %} has-error{% endif %}">
@@ -86,18 +71,18 @@
 
         <section class="settings-card" id="apariencia">
           <h2>Apariencia</h2>
-          <p class="help">Tu foto, la cabecera, el fondo y el color de tu perfil. Las imágenes se recortan solas y se les quitan los datos ocultos (como la ubicación de las fotos del móvil).</p>
+          <p class="help">Tu foto, la cabecera, el fondo y el color de tu perfil. Arrastra cada imagen en su marco para elegir qué parte se ve, o ponla entera. Se les quitan los datos ocultos (como la ubicación de las fotos del móvil).</p>
 
           <h3>Foto de perfil</h3>
           <div class="upload-row{% if form.avatar.errors %} has-error{% endif %}">
-            <span class="upload-preview upload-preview-avatar" id="avatar-upload-preview">
-              {% if profile.avatar %}<img src="{{ profile.avatar.url }}" alt="">{% else %}{% include "_icon.html" with name="user" %}{% endif %}
-            </span>
+            {% include "accounts/_framer.html" with name="avatar" views=framer_views.avatar x=form.avatar_x y=form.avatar_y zoom=form.avatar_zoom fit=form.avatar_fit src=uploads.avatar upload=uploads.avatar shape=profile.avatar_shape %}
             <div class="upload-controls">
               <label for="{{ form.avatar.id_for_label }}">Subir una foto</label>
-              <input type="file" name="avatar" id="{{ form.avatar.id_for_label }}" accept="image/png,image/jpeg,image/webp,image/gif">
+              <input type="file" name="avatar" id="{{ form.avatar.id_for_label }}" accept="image/png,image/jpeg,image/webp,image/gif"
+                     data-max-width="{{ image_kinds.avatar.width }}" data-max-height="{{ image_kinds.avatar.height }}" data-max-mb="{{ image_kinds.avatar.max_mb }}">
               {% if profile.avatar %}<label class="check small"><input type="checkbox" name="avatar-clear"> Quitar la foto subida</label>{% endif %}
-              <p class="help">JPG, PNG, WebP o GIF de hasta 5 MB. Se recorta en cuadrado.</p>
+              <p class="help">JPG, PNG, WebP o GIF. Si es muy grande, se reduce antes de subirla.</p>
+              <p class="help" data-shrunk hidden></p>
               {{ form.avatar.errors }}
             </div>
           </div>
@@ -124,14 +109,13 @@
             </div>
           </fieldset>
           <div class="upload-row{% if form.banner.errors %} has-error{% endif %}" data-show-when="banner_mode=image">
-            <span class="upload-preview upload-preview-banner" id="banner-upload-preview">
-              {% if profile.banner %}<img src="{{ profile.banner.url }}" alt="">{% else %}{% include "_icon.html" with name="games" %}{% endif %}
-            </span>
             <div class="upload-controls">
               <label for="{{ form.banner.id_for_label }}">Subir una imagen</label>
-              <input type="file" name="banner" id="{{ form.banner.id_for_label }}" accept="image/png,image/jpeg,image/webp,image/gif">
+              <input type="file" name="banner" id="{{ form.banner.id_for_label }}" accept="image/png,image/jpeg,image/webp,image/gif"
+                     data-max-width="{{ image_kinds.banner.width }}" data-max-height="{{ image_kinds.banner.height }}" data-max-mb="{{ image_kinds.banner.max_mb }}">
               {% if profile.banner %}<label class="check small"><input type="checkbox" name="banner-clear"> Quitar la imagen subida</label>{% endif %}
-              <p class="help">Apaisada, de hasta 8 MB. Se recorta a 1500 × 500.</p>
+              <p class="help">Mejor apaisada. Si es muy grande, se reduce antes de subirla.</p>
+              <p class="help" data-shrunk hidden></p>
               {{ form.banner.errors }}
             </div>
           </div>
@@ -150,6 +134,9 @@
             {% endif %}
             {{ form.banner_art.errors }}
           </div>
+          <div data-show-when="banner_mode=image,game">
+            {% include "accounts/_framer.html" with name="banner" views=framer_views.banner x=form.banner_x y=form.banner_y zoom=form.banner_zoom fit=form.banner_fit src=profile.banner_url blurred=profile.banner_blurred upload=uploads.banner shape="" %}
+          </div>
 
           <h3>Fondo de la página</h3>
           <fieldset class="field">
@@ -159,16 +146,18 @@
             </div>
           </fieldset>
           <div class="upload-row{% if form.background.errors %} has-error{% endif %}" data-show-when="background_mode=image">
-            <span class="upload-preview upload-preview-banner" id="background-upload-preview">
-              {% if profile.background %}<img src="{{ profile.background.url }}" alt="">{% else %}{% include "_icon.html" with name="games" %}{% endif %}
-            </span>
             <div class="upload-controls">
               <label for="{{ form.background.id_for_label }}">Subir una imagen</label>
-              <input type="file" name="background" id="{{ form.background.id_for_label }}" accept="image/png,image/jpeg,image/webp,image/gif">
+              <input type="file" name="background" id="{{ form.background.id_for_label }}" accept="image/png,image/jpeg,image/webp,image/gif"
+                     data-max-width="{{ image_kinds.background.width }}" data-max-height="{{ image_kinds.background.height }}" data-max-mb="{{ image_kinds.background.max_mb }}">
               {% if profile.background %}<label class="check small"><input type="checkbox" name="background-clear"> Quitar la imagen subida</label>{% endif %}
-              <p class="help">Hasta 8 MB. Se reduce a 1920 × 1200 como mucho.</p>
+              <p class="help">Si es muy grande, se reduce antes de subirla.</p>
+              <p class="help" data-shrunk hidden></p>
               {{ form.background.errors }}
             </div>
+          </div>
+          <div data-show-when="background_mode=banner,image">
+            {% include "accounts/_framer.html" with name="background" views=framer_views.background x=form.background_x y=form.background_y zoom=form.background_zoom fit=form.background_fit src=profile.background_url blurred=profile.background_blurred upload=uploads.background shape="" %}
           </div>
           <div class="field" data-show-when="background_mode=banner,image">
             <label for="{{ form.background_dim.id_for_label }}">Oscurecer el fondo <output id="dim-value" for="{{ form.background_dim.id_for_label }}">{{ form.background_dim.value }} %</output></label>
@@ -262,7 +251,7 @@
 
         <section class="settings-card" id="privacidad">
           <h2>Privacidad y avisos</h2>
-          {% for field in form %}{% if field.widget_type == "checkbox" %}
+          {% for field in form.privacy_fields %}
             <label class="switch-row" for="{{ field.id_for_label }}">
               <span>
                 <strong>{{ field.label|capfirst }}</strong>
@@ -271,10 +260,12 @@
               <span class="switch">{{ field }}</span>
             </label>
             {{ field.errors }}
-          {% endif %}{% endfor %}
+          {% endfor %}
         </section>
 
         <div class="settings-savebar">
+          {# Solo en pantallas estrechas: en las anchas la vista previa ya está al lado. #}
+          <button class="btn btn-preview" type="button" data-open-preview aria-haspopup="dialog">{% include "_icon.html" with name="eye" %} <span>Vista previa</span></button>
           <a class="btn" href="{% url 'profile' user.username %}">Cancelar</a>
           <button class="btn btn-primary" type="submit">Guardar cambios</button>
         </div>
@@ -338,20 +329,32 @@
         </div>
       </section>
     </div>
+
+    {# Vista previa en directo, fija al lado del formulario en pantallas anchas (en las estrechas se oculta). #}
+    <aside class="live-preview" aria-labelledby="live-preview-title">
+      <header class="live-preview-head">
+        <h2 id="live-preview-title">Vista previa <span class="live-state" data-live-state>En directo</span></h2>
+        <button class="btn btn-small" type="button" data-open-preview aria-haspopup="dialog">{% include "_icon.html" with name="expand" %} Ampliar</button>
+      </header>
+      {% include "accounts/_preview_devices.html" %}
+      <p class="help live-preview-note">Así te verán los demás. Cambia con cada ajuste, pero no se guarda hasta que pulses «Guardar cambios».</p>
+    </aside>
   </div>
+
+  {# Las mismas dos pantallas en grande: se abre con «Ampliar» o, en pantallas estrechas, con «Vista previa». #}
+  <dialog class="preview-dialog" id="preview-dialog" aria-labelledby="preview-dialog-title">
+    <header class="link-dialog-head">
+      <h2 id="preview-dialog-title">Vista previa <span class="live-state" data-live-state>En directo</span></h2>
+      <button class="link-dialog-close" type="button" data-close-preview aria-label="Cerrar">×</button>
+    </header>
+    {% include "accounts/_preview_devices.html" %}
+  </dialog>
 
   <script>
     (function () {
       var form = document.getElementById("profile-form");
-      var preview = document.getElementById("profile-preview");
 
-      // Vista previa del nombre y contador de caracteres de la biografía.
-      var name = document.getElementById("{{ form.display_name.id_for_label }}");
-      var previewName = document.getElementById("preview-name");
-      function updateName() {
-        previewName.textContent = name.value.trim() || previewName.dataset.fallback;
-      }
-      name.addEventListener("input", updateName);
+      // Contador de caracteres de la biografía.
       var bio = document.getElementById("{{ form.bio.id_for_label }}");
       var count = document.getElementById("bio-count");
       function updateCount() {
@@ -359,147 +362,232 @@
       }
       bio.addEventListener("input", updateCount);
 
-      // Estado: el emoji y el texto, con los emojis rápidos.
+      // Emojis rápidos del estado. Lanzan «change» como si se hubiera escrito a mano, para que se entere la vista previa.
       var emoji = document.getElementById("{{ form.status_emoji.id_for_label }}");
-      var statusText = document.getElementById("{{ form.status_text.id_for_label }}");
-      var previewStatus = document.getElementById("preview-status");
-      function updateStatus() {
-        var text = (emoji.value.trim() + " " + statusText.value.trim()).trim();
-        previewStatus.textContent = text;
-        previewStatus.hidden = !text;
-      }
-      emoji.addEventListener("input", updateStatus);
-      statusText.addEventListener("input", updateStatus);
       document.querySelectorAll("[data-emoji]").forEach(function (button) {
         button.addEventListener("click", function () {
           emoji.value = button.dataset.emoji;
-          updateStatus();
+          emoji.dispatchEvent(new Event("change", { bubbles: true }));
         });
       });
 
-      // Color del perfil: la paleta rellena el selector y la vista previa cambia sus variables de CSS.
+      // Color del perfil: la paleta rellena el selector y se marca la muestra elegida.
       var color = document.getElementById("{{ form.accent_color.id_for_label }}");
       var swatches = document.querySelectorAll(".swatch");
-      function textOn(r, g, b) {
-        // Blanco salvo en los colores claros, igual que Profile.accent_text.
-        var lum = [r, g, b].map(function (c) {
-          c = c / 255;
-          return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-        });
-        var l = 0.2126 * lum[0] + 0.7152 * lum[1] + 0.0722 * lum[2];
-        return 1.05 / (l + 0.05) >= 3 ? "#ffffff" : "#0b0d18";
-      }
-      function applyColor() {
+      function markSwatch() {
         var value = color.value.toLowerCase();
-        var r = parseInt(value.slice(1, 3), 16), g = parseInt(value.slice(3, 5), 16), b = parseInt(value.slice(5, 7), 16);
-        preview.style.setProperty("--violet", value);
-        preview.style.setProperty("--accent-rgb", r + ", " + g + ", " + b);
-        preview.style.setProperty("--accent-text", textOn(r, g, b));
         swatches.forEach(function (swatch) {
           swatch.classList.toggle("is-active", swatch.dataset.color === value);
           swatch.setAttribute("aria-pressed", swatch.dataset.color === value ? "true" : "false");
         });
       }
-      color.addEventListener("input", applyColor);
+      color.addEventListener("input", markSwatch);
       swatches.forEach(function (swatch) {
         swatch.addEventListener("click", function () {
           color.value = swatch.dataset.color;
-          applyColor();
+          markSwatch();
+          color.dispatchEvent(new Event("change", { bubbles: true }));
         });
       });
 
-      // Diseño de la cabecera y forma de la foto.
+      // Imágenes elegidas y aún sin subir; su dirección blob: sirve para el encuadre y para la vista previa.
+      var localImages = {};
+      ["avatar", "banner", "background"].forEach(function (name) {
+        var input = form.elements[name];
+        var note = input.parentNode.querySelector("[data-shrunk]");
+        input.addEventListener("change", function () {
+          var file = input.files && input.files[0];
+          if (localImages[name]) URL.revokeObjectURL(localImages[name]);
+          localImages[name] = "";
+          note.hidden = true;
+          if (!file) return;
+          shrink(input, file, function (upload, message) {
+            localImages[name] = URL.createObjectURL(upload);
+            note.textContent = message;
+            note.hidden = !message;
+            syncFramers();
+            schedule(0);
+          });
+        });
+      });
+
+      // Si la imagen es más grande de lo que se guarda (o pesa más de lo que se admite), el navegador la reduce
+      // antes de subirla, como haría el servidor: así se sube antes y no se rechaza. Llama a done con el archivo
+      // que se subirá y, si se ha reducido, un aviso para el usuario.
+      function shrink(input, file, done) {
+        var maxWidth = Number(input.dataset.maxWidth), maxHeight = Number(input.dataset.maxHeight);
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function () {
+          URL.revokeObjectURL(url);
+          var width = img.naturalWidth, height = img.naturalHeight;
+          var ratio = Math.min(1, maxWidth / width, maxHeight / height);
+          if (ratio === 1 && file.size <= input.dataset.maxMb * 1024 * 1024) return done(file, "");
+          var canvas = document.createElement("canvas");
+          canvas.width = Math.round(width * ratio);
+          canvas.height = Math.round(height * ratio);
+          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+          // En WebP, que guarda la transparencia; el navegador que no sabe hacerlo la da en PNG.
+          canvas.toBlob(function (blob) {
+            if (!blob) return done(file, "");
+            var smaller = new File([blob], file.name.replace(/\.\w+$/, "") + (blob.type === "image/webp" ? ".webp" : ".png"), { type: blob.type });
+            var files = new DataTransfer();
+            files.items.add(smaller);
+            input.files = files.files;
+            done(smaller, "Reducida antes de subirla: " + (ratio < 1
+              ? "de " + width + " × " + height + " a " + canvas.width + " × " + canvas.height + " píxeles."
+              : "pesaba " + (file.size / 1048576).toLocaleString("es-ES", { maximumFractionDigits: 1 }) + " MB."));
+          }, "image/webp", 0.9);
+        };
+        // Si el navegador no sabe leerla, que la compruebe el servidor y explique qué le pasa.
+        img.onerror = function () {
+          URL.revokeObjectURL(url);
+          done(file, "");
+        };
+        img.src = url;
+      }
+
+      // Encuadre de la foto, la cabecera y el fondo: se arrastra la imagen dentro de su marco (o se mueve con las
+      // flechas) para elegir qué parte se ve, el zoom la acerca y «Entera» la enseña toda. Los marcos usan las
+      // mismas reglas de CSS que el perfil, así que se ve tal como quedará.
+      var framers = {};
+      document.querySelectorAll("[data-framer]").forEach(function (root) {
+        var name = root.dataset.framer;
+        var x = form.elements[name + "_x"], y = form.elements[name + "_y"];
+        var zoom = form.elements[name + "_zoom"], fit = form.elements[name + "_fit"];
+        var frames = root.querySelectorAll(".framer-frame");
+        var probe = frames[0].querySelector("img:not(.img-fill)");
+        // src es la última imagen que ha enseñado y size, sus medidas (para pasar lo arrastrado a %).
+        var framer = { root: root, upload: root.dataset.upload, src: root.dataset.src || null, size: null };
+        framers[name] = framer;
+
+        function render() {
+          root.style.setProperty("--focus-x", x.value + "%");
+          root.style.setProperty("--focus-y", y.value + "%");
+          root.style.setProperty("--zoom", zoom.value / 100);
+          root.classList.toggle("is-fit", fit.checked);
+          frames.forEach(function (frame) { frame.classList.toggle("is-fit", fit.checked); });
+        }
+        function place(left, top) {
+          x.value = Math.round(Math.min(100, Math.max(0, left)) * 10) / 10;
+          y.value = Math.round(Math.min(100, Math.max(0, top)) * 10) / 10;
+        }
+        // Avisa al formulario (y con él a la vista previa): mientras se arrastra, «input»; al terminar, «change».
+        function moved(done) {
+          render();
+          x.dispatchEvent(new Event(done ? "change" : "input", { bubbles: true }));
+        }
+        function measure() {
+          framer.size = probe.naturalWidth ? { width: probe.naturalWidth, height: probe.naturalHeight } : null;
+        }
+        probe.addEventListener("load", measure);
+        if (probe.complete) measure();
+
+        // Enseña la imagen src (vacía: sin imagen). Una imagen nueva empieza centrada y sin zoom: el encuadre era de la anterior.
+        framer.show = function (src, blurred) {
+          frames.forEach(function (frame) { frame.classList.toggle("is-blurred", Boolean(blurred)); });
+          root.classList.toggle("is-empty", !src);
+          if (!src || src === framer.src) return;
+          if (framer.src) {
+            place(50, 50);
+            zoom.value = 100;
+            fit.checked = false;
+            render();
+          }
+          framer.src = src;
+          framer.size = null;
+          root.querySelectorAll("img").forEach(function (img) { img.src = src; });
+        };
+
+        var drag = null;
+        frames.forEach(function (frame) {
+          frame.addEventListener("pointerdown", function (event) {
+            if (fit.checked || !framer.size) return;
+            frame.setPointerCapture(event.pointerId);
+            drag = { frame: frame, x: event.clientX, y: event.clientY, left: Number(x.value), top: Number(y.value) };
+          });
+          frame.addEventListener("pointermove", function (event) {
+            if (!drag || drag.frame !== frame) return;
+            // Lo que la imagen sobresale del marco: arrastrarla todo eso la lleva de un borde al otro (de 0 a 100 %).
+            var box = frame.getBoundingClientRect();
+            var scale = Math.max(box.width / framer.size.width, box.height / framer.size.height) * zoom.value / 100;
+            var spareX = framer.size.width * scale - box.width, spareY = framer.size.height * scale - box.height;
+            place(spareX > 1 ? drag.left - (event.clientX - drag.x) / spareX * 100 : Number(x.value),
+                  spareY > 1 ? drag.top - (event.clientY - drag.y) / spareY * 100 : Number(y.value));
+            moved(false);
+          });
+          function stop() {
+            if (!drag) return;
+            drag = null;
+            moved(true);
+          }
+          frame.addEventListener("pointerup", stop);
+          frame.addEventListener("pointercancel", stop);
+          // Con el teclado: las flechas mueven la imagen (con Mayúsculas, más) y + y − cambian el zoom.
+          frame.addEventListener("keydown", function (event) {
+            var step = event.shiftKey ? 10 : 2;
+            var arrows = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
+            if (fit.checked || framer.root.classList.contains("is-empty")) return;
+            if (arrows[event.key]) {
+              place(Number(x.value) + arrows[event.key][0], Number(y.value) + arrows[event.key][1]);
+            } else if (event.key === "+" || event.key === "-") {
+              zoom.value = Number(zoom.value) + (event.key === "+" ? 10 : -10);
+            } else {
+              return;
+            }
+            event.preventDefault();
+            moved(true);
+          });
+        });
+        zoom.addEventListener("input", render);
+        fit.addEventListener("change", render);
+        root.querySelector("[data-framer-reset]").addEventListener("click", function () {
+          place(50, 50);
+          zoom.value = 100;
+          moved(true);
+        });
+        render();
+      });
+
+      // La imagen de cada marco, como la elige el servidor (Profile.banner_url y background_url): la recién
+      // elegida, la subida (si no se ha marcado para quitarla) o, en la cabecera, la imagen del juego. null si
+      // aún no se sabe (llegan las imágenes del juego): el marco se queda como está.
+      function frameSource(name) {
+        if (name === "background" && checked("background_mode") === "banner") return frameSource("banner");
+        if (name === "banner" && checked("banner_mode") === "game") {
+          var arts = document.getElementById("banner-arts");
+          if (arts && arts.hasAttribute("hx-get")) return { src: null };
+          var art = form.querySelector('input[name="banner_art"][type="radio"]:checked');
+          return art ? { src: art.dataset.full, blurred: Boolean(art.dataset.blur) } : { src: "" };
+        }
+        if (name !== "avatar" && checked(name + "_mode") !== "image") return { src: "" };
+        var clear = form.elements[name + "-clear"];
+        return { src: localImages[name] || (clear && clear.checked ? "" : framers[name].upload) };
+      }
+      function syncFramers() {
+        Object.keys(framers).forEach(function (name) {
+          var source = frameSource(name);
+          if (source.src !== null) framers[name].show(source.src, source.blurred);
+        });
+        // El marco de la foto, con la forma elegida.
+        var frame = framers.avatar.root.querySelector(".framer-frame");
+        frame.className = frame.className.replace(/avatar-shape-\S+/, "avatar-shape-" + checked("avatar_shape"));
+      }
+      form.addEventListener("change", syncFramers);
+      document.body.addEventListener("htmx:afterSettle", syncFramers);
+
+      // Campos que solo tienen sentido con una opción concreta (p. ej. el juego, con la cabecera «de un juego»).
       function checked(fieldName) {
         var input = form.querySelector('input[name="' + fieldName + '"]:checked');
         return input ? input.value : "";
       }
-      function applyLayout() {
-        var layout = checked("layout");
-        if (!layout) return;
-        preview.className = preview.className.replace(/profile-layout-\S+/g, "").trim() + " profile-layout-" + layout;
-      }
-      function applyShape() {
-        var shape = checked("avatar_shape");
-        var avatar = preview.querySelector(".avatar");
-        if (!shape || !avatar) return;
-        avatar.className = avatar.className.replace(/avatar-shape-\S+/g, "").trim() + " avatar-shape-" + shape;
-      }
-
-      // Imágenes elegidas: se ven al momento en la vista previa, antes de guardar.
-      var previewBanner = document.getElementById("preview-banner");
-      function setBanner(url, blurred) {
-        previewBanner.innerHTML = "";
-        previewBanner.classList.toggle("is-blurred", Boolean(url && blurred));
-        if (!url) return;
-        var img = document.createElement("img");
-        img.src = url;
-        img.alt = "";
-        previewBanner.appendChild(img);
-      }
-      function showFile(input, target) {
-        var file = input.files && input.files[0];
-        if (!file) return "";
-        var url = URL.createObjectURL(file);
-        target.innerHTML = "";
-        var img = document.createElement("img");
-        img.src = url;
-        img.alt = "";
-        target.appendChild(img);
-        return url;
-      }
-      var avatarInput = document.getElementById("{{ form.avatar.id_for_label }}");
-      avatarInput.addEventListener("change", function () {
-        var url = showFile(avatarInput, document.getElementById("avatar-upload-preview"));
-        var avatar = preview.querySelector(".avatar");
-        if (url && avatar) {
-          avatar.innerHTML = "";
-          var img = document.createElement("img");
-          img.src = url;
-          img.alt = "";
-          avatar.appendChild(img);
-        }
-      });
-      var bannerInput = document.getElementById("{{ form.banner.id_for_label }}");
-      bannerInput.addEventListener("change", function () {
-        var url = showFile(bannerInput, document.getElementById("banner-upload-preview"));
-        if (url && checked("banner_mode") === "image") setBanner(url, false);
-      });
-      var backgroundInput = document.getElementById("{{ form.background.id_for_label }}");
-      backgroundInput.addEventListener("change", function () {
-        showFile(backgroundInput, document.getElementById("background-upload-preview"));
-      });
-      function applyBannerMode() {
-        var mode = checked("banner_mode");
-        if (mode === "gradient") {
-          setBanner("", false);
-        } else if (mode === "image") {
-          var img = document.querySelector("#banner-upload-preview img");
-          if (img) setBanner(img.src, false);
-        } else if (mode === "game") {
-          var art = form.querySelector('input[name="banner_art"][type="radio"]:checked');
-          if (art) setBanner(art.dataset.full, art.dataset.blur);
-        }
-      }
-
-      // Campos que solo tienen sentido con una opción concreta (p. ej. el juego, con la cabecera «de un juego»).
       function syncConditional() {
         form.querySelectorAll("[data-show-when]").forEach(function (element) {
           var rule = element.dataset.showWhen.split("=");
           element.hidden = rule[1].split(",").indexOf(checked(rule[0])) === -1;
         });
       }
-
-      form.addEventListener("change", function (event) {
-        var target = event.target;
-        if (target.name === "layout") applyLayout();
-        if (target.name === "avatar_shape") applyShape();
-        if (target.name === "banner_mode" || target.name === "banner_art") applyBannerMode();
-        syncConditional();
-      });
-      // Las imágenes del juego llegan con HTMX: al cargarlas, la vista previa enseña la elegida.
-      document.body.addEventListener("htmx:afterSettle", function () {
-        if (checked("banner_mode") === "game") applyBannerMode();
-      });
+      form.addEventListener("change", syncConditional);
 
       // Subir y bajar favoritos y secciones; el orden de la lista es el que se guarda.
       form.addEventListener("click", function (event) {
@@ -512,6 +600,7 @@
           item.parentNode.insertBefore(item.nextElementSibling, item);
         }
         button.focus();
+        schedule(0);  // mover no lanza ningún evento del formulario
       });
 
       // Porcentaje del oscurecido del fondo.
@@ -521,14 +610,122 @@
         dimValue.textContent = dim.value + " %";
       });
 
+      // Vista previa en directo: el servidor pinta la página del perfil con lo que hay en el formulario
+      // (sin guardarlo) y se enseña a la vez en la pantalla de un ordenador y en la de un móvil.
+      var previewUrl = "{% url 'profile_preview' %}";
+      var dialog = document.getElementById("preview-dialog");
+      var states = document.querySelectorAll("[data-live-state]");
+      var html = "";      // la última página recibida
+      var version = 0;    // cuántas se han recibido; cada marco apunta cuál enseña
+      var timer = null;
+      var controller = null;
+
+      function previewData() {
+        var data = new FormData(form);
+        // Las imágenes nuevas no se suben hasta guardar: va su dirección blob:, que los marcos sí pueden abrir.
+        ["avatar", "banner", "background"].forEach(function (name) {
+          data.delete(name);
+          var clear = form.elements[name + "-clear"];
+          if (localImages[name] && !(clear && clear.checked)) data.set("local_" + name, localImages[name]);
+        });
+        return data;
+      }
+
+      function setState(text, className) {
+        states.forEach(function (state) {
+          state.textContent = text;
+          state.className = "live-state" + (className ? " " + className : "");
+        });
+      }
+
+      function paint(frame) {
+        if (!html || frame.dataset.version === String(version)) return;
+        if (frame.dataset.ready) {
+          // Sin recargar el marco: se cambia el contenido y no se pierde hasta dónde se había bajado.
+          var doc = frame.contentDocument;
+          var fresh = new DOMParser().parseFromString(html, "text/html");
+          doc.body.replaceWith(doc.importNode(fresh.body, true));
+        } else {
+          frame.srcdoc = html;
+        }
+        frame.dataset.version = version;
+      }
+
+      function paintVisible() {
+        document.querySelectorAll(".device-screen").forEach(function (screen) {
+          if (screen.clientWidth) paint(screen.querySelector("iframe"));
+        });
+      }
+
+      function refresh() {
+        if (controller) controller.abort();
+        controller = new AbortController();
+        setState("Actualizando…", "is-updating");
+        fetch(previewUrl, { method: "POST", body: previewData(), signal: controller.signal })
+          .then(function (response) {
+            if (!response.ok) throw new Error("HTTP " + response.status);
+            return response.text();
+          })
+          .then(function (text) {
+            html = text;
+            version += 1;
+            paintVisible();
+            setState("En directo");
+          })
+          .catch(function (error) {
+            if (error.name !== "AbortError") setState("Sin actualizar", "is-error");
+          });
+      }
+
+      function schedule(delay) {
+        clearTimeout(timer);
+        timer = setTimeout(refresh, delay);
+      }
+      // Mientras se escribe espera a que se pare un momento; al elegir una opción va al instante.
+      form.addEventListener("input", function () { schedule(400); });
+      form.addEventListener("change", function () { schedule(0); });
+      // Las imágenes del juego de la cabecera llegan con HTMX y cambian la que está elegida.
+      document.body.addEventListener("htmx:afterSettle", function () { schedule(0); });
+
+      document.querySelectorAll(".device-screen iframe").forEach(function (frame) {
+        frame.addEventListener("load", function () {
+          // También salta con la página en blanco con la que nace el marco: solo cuenta la del perfil, que lleva el CSS.
+          var doc = frame.contentDocument;
+          if (!doc || !doc.querySelector('link[rel="stylesheet"]')) return;
+          frame.dataset.ready = "1";
+          frame.parentNode.classList.add("is-ready");
+          paint(frame);  // por si llegó otra versión mientras cargaba
+        });
+      });
+
+      // Cada pantalla pinta la página a su ancho real (1280 o 390 px) y la encoge hasta caber en su marco.
+      var resizer = new ResizeObserver(function (entries) {
+        entries.forEach(function (entry) {
+          var screen = entry.target;
+          if (!screen.clientWidth) return;  // oculta: el panel en pantallas estrechas o la ventana ampliada cerrada
+          var scale = screen.clientWidth / parseFloat(getComputedStyle(screen).getPropertyValue("--w"));
+          screen.style.setProperty("--scale", scale);
+          screen.style.setProperty("--frame-h", screen.clientHeight / scale + "px");
+          paint(screen.querySelector("iframe"));  // al aparecer se pone al día
+        });
+      });
+      document.querySelectorAll(".device-screen").forEach(function (screen) { resizer.observe(screen); });
+
+      // Ventana ampliada: se cierra con la ×, con Esc (lo hace <dialog>) o al pulsar fuera.
+      document.querySelectorAll("[data-open-preview]").forEach(function (button) {
+        button.addEventListener("click", function () { dialog.showModal(); });
+      });
+      dialog.querySelector("[data-close-preview]").addEventListener("click", function () { dialog.close(); });
+      dialog.addEventListener("click", function (event) {
+        if (event.target === dialog) dialog.close();
+      });
+
       // Estado inicial: si la página vuelve con errores, la vista previa enseña lo que se había elegido.
-      updateName();
       updateCount();
-      updateStatus();
-      applyColor();
-      applyLayout();
-      applyShape();
+      markSwatch();
       syncConditional();
+      syncFramers();
+      refresh();
 
       // Marca en el índice lateral la sección que se está viendo.
       var links = document.querySelectorAll(".settings-nav a");

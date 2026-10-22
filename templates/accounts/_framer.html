@@ -1,0 +1,23 @@
+{# Editor de encuadre de una imagen del perfil en Editar perfil: se arrastra la imagen dentro de sus marcos para elegir qué parte se ve (lo hace el JavaScript de la página). #}
+{# Necesita name (avatar, banner o background), sus campos x, y, zoom y fit, views ([(nombre, icono, proporción ancho/alto)] de los sitios donde se ve), #}
+{# src y blurred (la imagen que se ve ahora y si va desenfocada), upload (la que hay subida) y, en la foto, shape (su forma). #}
+<div class="framer framer-{{ name }}" data-framer="{{ name }}" data-src="{{ src }}" data-upload="{{ upload }}"{% if blurred %} data-blurred{% endif %}>
+  <div class="framer-views">
+    {% for label, icon, aspect in views %}
+      <figure class="framer-view" style="--aspect: {{ aspect }};">
+        <div class="framer-frame{% if shape %} avatar-shape-{{ shape }}{% endif %}" tabindex="0" role="group"
+             aria-label="Encuadre{% if label %} en {{ label|lower }}{% endif %}: arrastra la imagen o muévela con las flechas; + y − cambian el zoom">
+          <img class="img-fill" src="{{ src }}" alt=""><img src="{{ src }}" alt="">
+          <span class="framer-empty">{% if shape %}{% include "_icon.html" with name="user" %}{% else %}{% include "_icon.html" with name="games" %}{% endif %}</span>
+        </div>
+        {% if label %}<figcaption>{% include "_icon.html" with name=icon %} {{ label }}</figcaption>{% endif %}
+      </figure>
+    {% endfor %}
+  </div>
+  <div class="framer-tools">
+    <label class="framer-zoom">Zoom {{ zoom }}</label>
+    <label class="check small">{{ fit }} Entera, sin recortar</label>
+    <button class="link small" type="button" data-framer-reset>Centrar</button>
+  </div>
+  {{ x }}{{ y }}{{ x.errors }}{{ y.errors }}{{ zoom.errors }}
+</div>
