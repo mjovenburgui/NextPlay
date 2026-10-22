@@ -1,22 +1,34 @@
 """Tratamiento de las imágenes que suben los usuarios para su perfil: foto, cabecera y fondo.
 
 Cada imagen se comprueba con Pillow, se gira según su EXIF (las fotos del móvil vienen tumbadas), se
-recorta o se reduce al tamaño de su uso y se guarda en WebP con un nombre aleatorio. Al volver a
+reduce hasta caber en el tamaño de su uso y se guarda en WebP con un nombre aleatorio. No se recorta: se
+guarda entera y el usuario elige qué parte se ve, o que se vea entera, con el encuadre del perfil
+(Profile.avatar_x, avatar_y, avatar_zoom, avatar_fit y los de la cabecera y el fondo). Al volver a
 codificarla se pierden los metadatos EXIF, que en las fotos del móvil pueden llevar la ubicación.
 """
 
 import secrets
 from io import BytesIO
+from typing import NamedTuple
 
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-# Por tipo de imagen: (ancho, alto, si se recorta a esa proporción o solo se reduce, peso máximo en MB).
+
+class Kind(NamedTuple):
+    """Medidas máximas (en píxeles) y peso máximo de la subida (en MB) de un tipo de imagen."""
+
+    width: int
+    height: int
+    max_mb: int
+
+
+# Editar perfil le pasa estas medidas al navegador, que reduce antes de subirlas las fotos que no caben.
 KINDS = {
-    "avatar": (400, 400, True, 5),
-    "banner": (1500, 500, True, 8),
-    "background": (1920, 1200, False, 8),
+    "avatar": Kind(800, 800, 5),
+    "banner": Kind(2000, 1500, 8),
+    "background": Kind(1920, 1200, 8),
 }
 FORMATS = {"JPEG", "PNG", "WEBP", "GIF"}
 # Las más grandes se rechazan antes de descomprimirlas: una imagen pequeña en disco puede ocupar gigas en memoria.
@@ -31,7 +43,7 @@ def process(upload, kind):
     imagen, es de otro formato, pesa más de lo permitido o tiene demasiados píxeles. De los GIF
     animados se queda con el primer fotograma.
     """
-    width, height, crop, max_mb = KINDS[kind]
+    width, height, max_mb = KINDS[kind]
     if upload.size > max_mb * 1024 * 1024:
         raise ValidationError(f"La imagen pesa demasiado: el máximo son {max_mb} MB.")
     upload.seek(0)
@@ -46,10 +58,7 @@ def process(upload, kind):
         image = image.convert("RGBA" if has_alpha else "RGB")
     except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as exc:
         raise ValidationError(INVALID) from exc
-    if crop:
-        image = ImageOps.fit(image, (width, height), Image.Resampling.LANCZOS)
-    else:
-        image.thumbnail((width, height), Image.Resampling.LANCZOS)
+    image.thumbnail((width, height), Image.Resampling.LANCZOS)
     buffer = BytesIO()
     image.save(buffer, "WEBP", quality=85)
     return ContentFile(buffer.getvalue(), name=f"{kind}-{secrets.token_hex(8)}.webp")

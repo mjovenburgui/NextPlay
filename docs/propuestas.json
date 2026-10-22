@@ -49,7 +49,7 @@
       "Escaparate: hasta 5 juegos favoritos (se marcan desde la ficha del juego), reseña destacada y orden y visibilidad de las secciones.",
       "Vista previa en directo en Editar perfil."
     ],
-    "notas": "Las imágenes se guardan en MEDIA_ROOT; en producción habrá que servirlas aparte o con un almacenamiento externo (por ejemplo, S3). Hecha el 21/10/2026 (aún sin commit): modelo FavoriteGame y campos nuevos en Profile, accounts/images.py, Editar perfil con vista previa en directo, selector de imágenes de IGDB con HTMX, botón de favoritos en la ficha, escaparate en el perfil (solo en su vista principal) y 27 tests nuevos. Probada en el navegador con la cuenta tester, también en móvil."
+    "notas": "Las imágenes se guardan en MEDIA_ROOT; en producción habrá que servirlas aparte o con un almacenamiento externo (por ejemplo, S3). Hecha el 21/10/2026 (aún sin commit): modelo FavoriteGame y campos nuevos en Profile, accounts/images.py, Editar perfil con vista previa en directo, selector de imágenes de IGDB con HTMX, botón de favoritos en la ficha, escaparate en el perfil (solo en su vista principal) y 27 tests nuevos. Probada en el navegador con la cuenta tester, también en móvil. El 22/10/2026, a petición del usuario, la vista previa pasó de enseñar solo la cabecera a enseñar el perfil entero a la vez en escritorio (1280 px) y en móvil (390 px): el servidor pinta la página de verdad con lo que hay en el formulario, sin guardar nada (10 tests nuevos). Ese mismo día, también a petición suya, las imágenes dejaron de recortarse solas: se guardan enteras y cada una tiene su encuadre (arrastrarla en su marco, zoom o «entera» con una copia desenfocada en el hueco), con marcos de escritorio y de móvil para la cabecera y el fondo; el navegador reduce antes de subirlas las que no caben."
   },
   {
     "titulo": "Reseñas completas: medias estrellas, una por partida y página propia",
@@ -321,6 +321,22 @@
       "Filtros con HTMX que cambian la URL, para poder compartir una búsqueda («RPG de 2015 por menos de 10 €»)."
     ],
     "notas": "Los filtros de idioma y de Game Pass dependen de «Fichas en castellano» y de «Saber qué juegos están en Game Pass»."
+  },
+  {
+    "titulo": "Avisar al salir de Editar perfil con cambios sin guardar",
+    "fecha": "2026-10-22",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Si se han tocado campos de Editar perfil y no se ha pulsado «Guardar cambios», preguntar antes de salir de la página (al pulsar un enlace, cerrar la pestaña o recargar) y señalar en la barra de guardar que hay cambios pendientes.",
+    "motivo": "Con la vista previa en escritorio y en móvil apetece probar colores, cabeceras y fondos; es fácil irse a otra página creyendo que ya está guardado y perderlo todo, sobre todo en el móvil, donde la barra inferior está siempre a mano.",
+    "pasos": [
+      "Marcar el formulario como cambiado en cuanto llegue un evento input o change, y desmarcarlo al enviarlo.",
+      "Evento beforeunload para el aviso del navegador al cerrar o recargar con cambios.",
+      "Texto «Cambios sin guardar» junto a «Guardar cambios», con el color del perfil.",
+      "Botón «Descartar» que vuelva a lo guardado (recargar la página) y limpie la vista previa."
+    ],
+    "notas": "Va justo después de la vista previa en escritorio y móvil (22/10/2026), que pinta los cambios sin guardarlos."
   },
   {
     "titulo": "Quitar DLC y actualizaciones de las búsquedas en IGDB",
@@ -840,6 +856,21 @@
       "Si el usuario ya tiene el juego y existe un remaster, decirlo: «tienes el original; el remaster está a 19,99 €»."
     ],
     "notas": "Multiplica las llamadas a IsThereAnyDeal de los juegos con ediciones: limitarlo o pedirlo al abrir la ficha, como el historial."
+  },
+  {
+    "titulo": "Miniatura ya encuadrada de la foto de perfil para las listas",
+    "fecha": "2026-10-22",
+    "estado": "pendiente",
+    "prioridad": "baja",
+    "tipo": "Rendimiento",
+    "resumen": "Al guardar el perfil, generar una versión pequeña (por ejemplo, 96 × 96) de la foto subida con su encuadre ya aplicado, para la barra superior, las reseñas y el feed; la foto entera queda para el perfil y el editor.",
+    "motivo": "Desde que las fotos se guardan enteras (hasta 800 px) para poder encuadrarlas, en las listas se descarga la foto grande para enseñarla a 40 px. Con pocos usuarios no se nota, pero un feed largo con muchas fotos distintas pesaría bastante más.",
+    "pasos": [
+      "Al guardar, recortar con Pillow la parte que deja ver el encuadre (o la imagen entera con su fondo desenfocado) y guardarla aparte en WebP pequeño.",
+      "Usarla en accounts/_avatar.html con los tamaños sm y md.",
+      "Rehacerla cuando cambien la foto o su encuadre, y borrar del disco la anterior."
+    ],
+    "notas": "Sale del encuadre de imágenes del 22/10/2026."
   },
   {
     "titulo": "Traducir al español los comentarios antiguos en inglés",

@@ -1,4 +1,7 @@
 {# Avatar de un perfil: la foto que haya elegido (subida, Steam, PlayStation o Xbox) o su inicial, con la forma que eligió. size: "sm", "md", "" o "lg". #}
-<span class="avatar{% if size %} avatar-{{ size }}{% endif %} avatar-shape-{{ profile.avatar_shape }}" aria-hidden="true">
-  {% if profile.avatar_url %}<img src="{{ profile.avatar_url }}" alt="" loading="lazy">{% else %}{{ profile.name|slice:":1"|upper }}{% endif %}
+{# La foto subida lleva su encuadre (qué parte se ve y el zoom) o, si la quiere entera, una copia desenfocada detrás que llena el hueco. #}
+{% with image=profile.avatar_image %}
+<span class="avatar{% if size %} avatar-{{ size }}{% endif %} avatar-shape-{{ profile.avatar_shape }}{% if image.fit %} is-fit{% endif %}"{% if image.framing %} style="{{ image.framing }}"{% endif %} aria-hidden="true">
+  {% if image %}{% if image.fit %}<img class="img-fill" src="{{ image.url }}" alt="" loading="lazy">{% endif %}<img src="{{ image.url }}" alt="" loading="lazy">{% else %}{{ profile.name|slice:":1"|upper }}{% endif %}
 </span>
+{% endwith %}

@@ -16,6 +16,8 @@ ACCENT_PRESETS = [
     ("#ffc84a", "Oro"), ("#ff8a3d", "Naranja"), ("#ff4d5e", "Rojo"), ("#ff4fa3", "Rosa"), ("#e6e8f5", "Blanco"),
 ]
 HEX_COLOR = re.compile(r"^#[0-9a-f]{6}$")
+# Zoom máximo (en %) del encuadre de las imágenes del perfil.
+FRAME_ZOOM_MAX = 400
 
 # Secciones del escaparate del perfil, en su orden por defecto: (clave, nombre).
 SECTIONS = [
@@ -139,6 +141,28 @@ class Profile(models.Model):
         "oscurecer el fondo", default=60, validators=[MinValueValidator(0), MaxValueValidator(90)],
         help_text="Tanto por ciento: cuanto más oscuro, mejor se lee el texto encima.",
     )
+    # Encuadre de cada imagen (foto, cabecera y fondo), que se guardan enteras: qué parte se ve y con cuánto
+    # zoom, o «entera» (toda la imagen encogida, con una copia suya desenfocada en el hueco que sobra).
+    # x e y van de 0 a 100 como object-position de CSS: 0 pega la imagen al borde izquierdo (o al de
+    # arriba), 50 la centra y 100 la pega al derecho (o al de abajo). El zoom va en % (100 = justo cubre).
+    avatar_x = models.FloatField("foto: posición horizontal", default=50, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    avatar_y = models.FloatField("foto: posición vertical", default=50, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    avatar_zoom = models.PositiveSmallIntegerField(
+        "foto: zoom", default=100, validators=[MinValueValidator(100), MaxValueValidator(FRAME_ZOOM_MAX)]
+    )
+    avatar_fit = models.BooleanField("foto entera", default=False)
+    banner_x = models.FloatField("cabecera: posición horizontal", default=50, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    banner_y = models.FloatField("cabecera: posición vertical", default=50, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    banner_zoom = models.PositiveSmallIntegerField(
+        "cabecera: zoom", default=100, validators=[MinValueValidator(100), MaxValueValidator(FRAME_ZOOM_MAX)]
+    )
+    banner_fit = models.BooleanField("cabecera entera", default=False)
+    background_x = models.FloatField("fondo: posición horizontal", default=50, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    background_y = models.FloatField("fondo: posición vertical", default=50, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    background_zoom = models.PositiveSmallIntegerField(
+        "fondo: zoom", default=100, validators=[MinValueValidator(100), MaxValueValidator(FRAME_ZOOM_MAX)]
+    )
+    background_fit = models.BooleanField("fondo entero", default=False)
     accent_color = models.CharField("color del perfil", max_length=7, blank=True)
     layout = models.CharField("diseño de la cabecera", max_length=10, choices=Layout.choices, default=Layout.CLASSIC)
     # Usuario de cada red de SOCIAL_LINKS y, con la clave «web», la URL de su web: {"twitch": "usuario", ...}.
@@ -150,6 +174,10 @@ class Profile(models.Model):
     # Orden y visibilidad del escaparate: [[clave de SECTIONS, visible], ...]. Vacía = el orden por defecto.
     sections = models.JSONField("secciones del perfil", default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    # Solo en la vista previa de Editar perfil: imágenes elegidas en el navegador y aún sin subir,
+    # {campo: dirección blob:}. ProfileForm.preview pone un diccionario nuevo; este no se modifica.
+    preview_images = {}
 
     def __str__(self):
         """Texto del perfil en el admin y en la consola: su nombre visible."""
@@ -215,7 +243,7 @@ class Profile(models.Model):
         if self.avatar_source == self.AvatarSource.INITIAL:
             return ""
         options = {
-            self.AvatarSource.UPLOAD: lambda: self.avatar.url if self.avatar else "",
+            self.AvatarSource.UPLOAD: lambda: self._uploaded_url("avatar"),
             self.AvatarSource.STEAM: lambda: self.steam_avatar,
             self.AvatarSource.PSN: lambda: self.psn.avatar if self.psn else "",
             self.AvatarSource.XBOX: lambda: self.xbox.avatar if self.xbox else "",
@@ -256,8 +284,8 @@ class Profile(models.Model):
 
         Con un juego usa el arte de IGDB elegido o, si no hay, su portada (que se enseña desenfocada).
         """
-        if self.banner_mode == self.BannerMode.IMAGE and self.banner:
-            return self.banner.url
+        if self.banner_mode == self.BannerMode.IMAGE and (url := self._uploaded_url("banner")):
+            return url
         if self.banner_mode == self.BannerMode.GAME and self.banner_game_id:
             return igdb_image_url(self.banner_art or self.banner_game.cover_image_id, "t_1080p")
         return ""
@@ -272,9 +300,17 @@ class Profile(models.Model):
         """Imagen de fondo de la página del perfil según background_mode, o vacía si no tiene."""
         if self.background_mode == self.BackgroundMode.BANNER:
             return self.banner_url
-        if self.background_mode == self.BackgroundMode.IMAGE and self.background:
-            return self.background.url
+        if self.background_mode == self.BackgroundMode.IMAGE:
+            return self._uploaded_url("background")
         return ""
+
+    def _uploaded_url(self, name):
+        """URL de la imagen subida del campo name (avatar, banner o background), o vacía si no hay.
+
+        En la vista previa de Editar perfil manda la que se acaba de elegir y aún no se ha subido.
+        """
+        image = getattr(self, name)
+        return self.preview_images.get(name) or (image.url if image else "")
 
     @property
     def background_blurred(self):
@@ -285,6 +321,41 @@ class Profile(models.Model):
     def background_dim_ratio(self):
         """Lo que se oscurece el fondo como número entre 0 y 1 con punto decimal, para el CSS."""
         return f"{self.background_dim / 100:.2f}"
+
+    @property
+    def avatar_image(self):
+        """La foto que se enseña, para accounts/_avatar.html: {"url", "framing", "fit"}, o {} si va la inicial.
+
+        El encuadre (ver _framing) solo vale para la foto subida: las de Steam, PlayStation y Xbox se
+        enseñan tal cual.
+        """
+        url = self.avatar_url
+        if not url:
+            return {}
+        if url != self._uploaded_url("avatar"):
+            return {"url": url, "framing": "", "fit": False}
+        return {"url": url, "framing": self._framing("avatar"), "fit": self.avatar_fit}
+
+    @property
+    def banner_framing(self):
+        """Encuadre de la cabecera como variables de CSS (ver _framing)."""
+        return self._framing("banner")
+
+    @property
+    def background_framing(self):
+        """Encuadre del fondo de la página como variables de CSS (ver _framing)."""
+        return self._framing("background")
+
+    def _framing(self, name):
+        """Encuadre de la imagen name (avatar, banner o background) como variables de CSS para su atributo style.
+
+        «--focus-x: 30%; --focus-y: 20%; --zoom: 1.5;», que app.css pasa a object-position y a la escala
+        de la imagen. Vacío con el encuadre por defecto: centrada y sin zoom.
+        """
+        x, y, zoom = (getattr(self, f"{name}_{part}") for part in ("x", "y", "zoom"))
+        if (x, y, zoom) == (50, 50, 100):
+            return ""
+        return f"--focus-x: {x:g}%; --focus-y: {y:g}%; --zoom: {zoom / 100:g};"
 
     @property
     def section_layout(self):

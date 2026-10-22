@@ -6,10 +6,12 @@
   <title>{% block title %}NextPlay{% endblock %}</title>
   <meta name="description" content="{% block description %}Tu vida gamer. En un solo lugar.{% endblock %}">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
-  <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+  {# La vista previa de Editar perfil no lleva scripts: su marco no los ejecuta y el navegador se quejaría de cada uno. #}
+  {% if not preview %}<script src="https://unpkg.com/htmx.org@2.0.4" defer></script>{% endif %}
 </head>
 {% with section=request.resolver_match.url_name %}
-<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'{% if user.is_authenticated %} class="has-tabbar"{% endif %}>
+{# En la vista previa de Editar perfil (preview) la página se ve igual, pero inert hace que no se pueda pulsar ni enfocar nada. #}
+<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' class="{% if user.is_authenticated %}has-tabbar{% endif %}{% if preview %} is-preview{% endif %}"{% if preview %} inert{% endif %}>
   <header class="topbar">
     <a class="brand" href="{% url 'home' %}" aria-label="NextPlay, inicio">
       <span class="brand-mark" aria-hidden="true">N</span><span class="brand-name">Next<span>Play</span></span>
@@ -56,9 +58,12 @@
   </header>
 
   <main class="container{% block container_class %}{% endblock %}">
-    {% for message in messages %}
-      <p class="flash flash-{{ message.tags }}">{{ message }}</p>
-    {% endfor %}
+    {# La vista previa no los enseña: si los recorriera, se gastarían y no saldrían en la página de verdad. #}
+    {% if not preview %}
+      {% for message in messages %}
+        <p class="flash flash-{{ message.tags }}">{{ message }}</p>
+      {% endfor %}
+    {% endif %}
     {% block content %}{% endblock %}
   </main>
 
@@ -75,13 +80,15 @@
       <a class="{% if section == 'notifications' %}is-active{% endif %}" href="{% url 'notifications' %}">{% include "_icon.html" with name="bell" %}<span>Avisos</span></a>
       <a class="{% if section == 'profile' or section == 'edit_profile' %}is-active{% endif %}" href="{% url 'profile' user.username %}">{% include "_icon.html" with name="user" %}<span>Perfil</span></a>
     </nav>
-    <script>
-      // Cierra el menú de la cuenta al pulsar fuera de él.
-      document.addEventListener("click", function (event) {
-        var menu = document.querySelector(".account-menu[open]");
-        if (menu && !menu.contains(event.target)) menu.removeAttribute("open");
-      });
-    </script>
+    {% if not preview %}
+      <script>
+        // Cierra el menú de la cuenta al pulsar fuera de él.
+        document.addEventListener("click", function (event) {
+          var menu = document.querySelector(".account-menu[open]");
+          if (menu && !menu.contains(event.target)) menu.removeAttribute("open");
+        });
+      </script>
+    {% endif %}
   {% endif %}
 </body>
 {% endwith %}
