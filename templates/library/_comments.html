@@ -1,0 +1,46 @@
+{% load reviews %}
+{# Comentarios de una reseña y el formulario para comentar. Necesita review, comments y comment_form. Con HTMX se cambia entero al comentar o borrar #}
+{# y, con oob, también cambia el contador de comentarios de la tarjeta de la reseña. #}
+{% if oob %}<span id="comment-count-{{ review.pk }}" hx-swap-oob="true">{{ comments|length }}</span>{% endif %}
+<div class="comments" id="comments-box">
+  <h2>Comentarios <span class="muted">{{ comments|length }}</span></h2>
+  {% for comment in comments %}
+    <article class="comment" id="comentario-{{ comment.pk }}">
+      {% include "accounts/_avatar.html" with profile=comment.user.profile size="sm" %}
+      <div class="comment-body">
+        <p class="comment-meta">
+          <a class="review-author" href="{{ comment.user.profile.get_absolute_url }}">{{ comment.user.profile.name }}</a>
+          {% if comment.user_id == review.user_id %}<span class="own-tag">Autor</span>{% endif %}
+          <span class="muted small">· hace {{ comment.created_at|timesince }}</span>
+        </p>
+        <div class="comment-text">{{ comment.text|review_html }}</div>
+        {% if comment|can_delete:user %}
+          <form action="{% url 'library:comment_delete' comment.pk %}" method="post"
+                hx-post="{% url 'library:comment_delete' comment.pk %}" hx-target="#comments-box" hx-swap="outerHTML"
+                hx-confirm="¿Borrar este comentario?">
+            {% csrf_token %}
+            <button class="link small" type="submit">Borrar</button>
+          </form>
+        {% endif %}
+      </div>
+    </article>
+  {% empty %}
+    <p class="muted">Aún no hay comentarios.</p>
+  {% endfor %}
+
+  {% if user.is_authenticated %}
+    <form class="comment-form" action="{% url 'library:review_comment' review.pk %}" method="post"
+          hx-post="{% url 'library:review_comment' review.pk %}" hx-target="#comments-box" hx-swap="outerHTML">
+      {% csrf_token %}
+      <label class="visually-hidden" for="{{ comment_form.text.id_for_label }}">Tu comentario</label>
+      {{ comment_form.text }}
+      {{ comment_form.text.errors }}
+      <div class="comment-form-foot">
+        <span class="help">Puedes usar **negrita**, *cursiva* y ||spoiler||.</span>
+        <button class="btn btn-primary" type="submit">Comentar</button>
+      </div>
+    </form>
+  {% else %}
+    <p class="widget"><a href="{% url 'login' %}?next={{ request.path|urlencode }}">Inicia sesión</a> para comentar.</p>
+  {% endif %}
+</div>

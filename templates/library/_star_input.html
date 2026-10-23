@@ -1,0 +1,14 @@
+{% load reviews %}
+{# Nota en medias estrellas para el editor de reseñas: diez botones de radio (de media a cinco estrellas) y «Sin nota». Funciona sin JavaScript. #}
+{# Necesita field (el campo rating del formulario) y steps (de 10 a 1: se pintan al revés para que el CSS ilumine la elegida y las de antes). #}
+<div class="star-input">
+  <div class="star-input-stars" role="radiogroup" aria-label="Tu nota">
+    {% for step in steps %}
+      <input class="visually-hidden" type="radio" name="{{ field.html_name }}" id="nota-{{ step }}" value="{{ step }}"{% if field.value|stringformat:"s" == step|stringformat:"s" %} checked{% endif %}>
+      <label class="half-star {% cycle 'is-right' 'is-left' %}" for="nota-{{ step }}" title="{{ step|stars_label }}"><span class="visually-hidden">{{ step|stars_label }}</span></label>
+    {% endfor %}
+  </div>
+  <input class="visually-hidden" type="radio" name="{{ field.html_name }}" id="nota-0" value=""{% if not field.value %} checked{% endif %}>
+  <label class="star-input-none" for="nota-0">Sin nota</label>
+  <output class="star-input-value" data-star-value>{% if field.value %}{{ field.value|stars_label }}{% endif %}</output>
+</div>

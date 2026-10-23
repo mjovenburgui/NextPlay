@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% load reviews %}
+
+{% block title %}Reseña de {{ game.name }} por {{ review.user.profile.name }} · NextPlay{% endblock %}
+{% block description %}{{ review.text|review_plain|truncatechars:155 }}{% endblock %}
+
+{% block content %}
+  {# Página propia de una reseña, para enlazarla: el juego a un lado y la reseña entera con sus comentarios. #}
+  <div class="review-page">
+    <aside class="review-page-game">
+      <a class="cover" href="{{ game.get_absolute_url }}">
+        {% if game.cover_url %}<img src="{{ game.cover_url }}" alt="Carátula de {{ game.name }}">{% else %}<span class="cover-fallback">{{ game.name }}</span>{% endif %}
+      </a>
+      <p class="review-page-title"><a href="{{ game.get_absolute_url }}">{{ game.name }}</a>{% if game.release_year %} <span class="muted">({{ game.release_year }})</span>{% endif %}</p>
+      <a class="btn btn-small" href="{{ game.get_absolute_url }}#resenas">Todas las reseñas del juego</a>
+    </aside>
+    <div class="review-page-main">
+      {% if review.is_draft %}
+        <p class="flash">Es un borrador: solo lo ves tú. <a href="{% url 'library:review_edit' review.pk %}">Seguir escribiendo</a></p>
+      {% endif %}
+      {% include "library/_review.html" with full=True %}
+      {% if not review.is_draft %}
+        <section id="comentarios">{% include "library/_comments.html" %}</section>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

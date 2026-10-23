@@ -1,3 +1,4 @@
+{% load reviews %}
 <div class="widget" id="library-widget">
   <p class="widget-label">{% if entry %}En tu biblioteca{% else %}Añadir a tu biblioteca{% endif %}</p>
   <form action="{% url 'library:set_status' game.id %}" method="post"
@@ -12,18 +13,20 @@
     </div>
   </form>
   {% if entry %}
+    {# Valoración en medias estrellas: cada botón es media estrella (de 10 a 1, al revés para que el CSS ilumine la que está bajo el ratón y las de antes). Pulsar la nota que ya tiene la quita. #}
     <form class="rate" action="{% url 'library:rate' game.id %}" method="post"
           hx-post="{% url 'library:rate' game.id %}" hx-target="#library-widget" hx-swap="outerHTML">
       {% csrf_token %}
       <span class="rate-label">Tu valoración</span>
-      <span class="rate-stars">
-        {% for value in entry.RATING_STARS %}
-          <button class="rate-star{% if entry.rating and value <= entry.rating %} is-on{% endif %}" type="submit"
+      <span class="star-buttons">
+        {% for value in entry.RATING_STEPS %}
+          <button class="half-star {% cycle 'is-right' 'is-left' %}{% if entry.rating and value <= entry.rating %} is-on{% endif %}" type="submit"
                   name="rating" value="{% if entry.rating == value %}0{% else %}{{ value }}{% endif %}"
-                  aria-label="{% if entry.rating == value %}Quitar tu valoración{% else %}Valorar con {{ value }} estrella{{ value|pluralize }}{% endif %}"
-                  title="{% if entry.rating == value %}Quitar tu valoración{% else %}{{ value }} estrella{{ value|pluralize }}{% endif %}">★</button>
+                  aria-label="{% if entry.rating == value %}Quitar tu valoración{% else %}Valorar con {{ value|stars_label }}{% endif %}"
+                  title="{% if entry.rating == value %}Quitar tu valoración{% else %}{{ value|stars_label }}{% endif %}"></button>
         {% endfor %}
       </span>
+      {% if entry.rating %}<span class="rate-value">{{ entry.rating|stars_label }}</span>{% endif %}
     </form>
     <form action="{% url 'library:remove' game.id %}" method="post"
           hx-post="{% url 'library:remove' game.id %}" hx-target="#library-widget" hx-swap="outerHTML">

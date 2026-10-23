@@ -132,7 +132,7 @@
         {% if pinned %}
           <section class="showcase showcase-review">
             <h2 class="showcase-title">{% include "_icon.html" with name="pin" %} Reseña destacada</h2>
-            {% include "library/_review.html" with entry=pinned show_game=True %}
+            {% include "library/_review.html" with review=pinned show_game=True %}
           </section>
         {% endif %}
       {% elif key == "estadisticas" %}
@@ -158,7 +158,18 @@
     </nav>
 
     {% if view == "resenas" %}
-      {% for entry in reviews %}
+      {% if drafts %}
+        {# Sus borradores, que solo ve él. #}
+        <div class="widget own-reviews">
+          <p class="widget-label">Tus borradores</p>
+          <ul>
+            {% for draft in drafts %}
+              <li><span class="draft-tag">Borrador</span> <a href="{% url 'library:review_edit' draft.pk %}">{{ draft.game.name }}</a> <span class="muted small">· guardado hace {{ draft.updated_at|timesince }}</span></li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+      {% for review in reviews %}
         {% include "library/_review.html" with show_game=True %}
       {% empty %}
         <p class="empty">

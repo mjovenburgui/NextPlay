@@ -71,6 +71,41 @@
     <p>NextPlay · Datos de juegos de <a href="https://www.igdb.com" rel="noopener">IGDB</a></p>
   </footer>
 
+  {% if not preview %}
+    <script>
+      // Reseñas y comentarios: los ||spoilers|| se destapan al pulsarlos (o con Enter o Espacio; si llevan un enlace,
+      // el primer toque solo destapa) y «Copiar enlace» copia la dirección de una reseña.
+      (function () {
+        function reveal(spoiler) {
+          spoiler.classList.add("is-shown");
+          spoiler.setAttribute("aria-expanded", "true");
+          ["title", "role", "tabindex"].forEach(function (name) { spoiler.removeAttribute(name); });
+        }
+        document.addEventListener("click", function (event) {
+          var spoiler = event.target.closest(".spoiler-inline:not(.is-shown)");
+          if (spoiler) {
+            event.preventDefault();
+            reveal(spoiler);
+            return;
+          }
+          var copy = event.target.closest("[data-copy-link]");
+          if (copy && navigator.clipboard) {
+            navigator.clipboard.writeText(copy.dataset.copyLink).then(function () {
+              copy.querySelector("[data-copy-label]").textContent = "¡Copiado!";
+            });
+          }
+        });
+        document.addEventListener("keydown", function (event) {
+          var spoiler = event.target.closest && event.target.closest(".spoiler-inline:not(.is-shown)");
+          if (spoiler && (event.key === "Enter" || event.key === " ")) {
+            event.preventDefault();
+            reveal(spoiler);
+          }
+        });
+      })();
+    </script>
+  {% endif %}
+
   {% if user.is_authenticated %}
     {# Barra inferior en el móvil, como en una app. #}
     <nav class="tabbar" aria-label="Principal (móvil)">

@@ -351,10 +351,16 @@ class Game(models.Model):
         ]
 
     def community_rating(self):
-        """Media de las valoraciones de los usuarios de NextPlay: {"average": 1-5 o None, "count": n}."""
-        return self.library_entries.filter(rating__isnull=False).aggregate(
+        """Media de las valoraciones de los usuarios de NextPlay: {"average": de 0,5 a 5 estrellas o None, "count": n}.
+
+        Las notas se guardan en medias estrellas (de 1 a 10), así que la media se divide entre dos.
+        """
+        result = self.library_entries.filter(rating__isnull=False).aggregate(
             average=models.Avg("rating"), count=models.Count("id")
         )
+        if result["average"] is not None:
+            result["average"] /= 2
+        return result
 
     @property
     def critic_score(self):

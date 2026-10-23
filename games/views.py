@@ -12,8 +12,8 @@ from django.utils.http import urlencode
 from django.views.decorators.http import require_POST
 
 from accounts.views import favorite_context
-from library.models import LibraryEntry, WishlistItem
-from library.views import review_context
+from library.models import LibraryEntry, Review, WishlistItem
+from library.views import mark_liked, review_context
 
 from . import history, igdb, media, prices
 from .models import LANGUAGE_FILTERS, Game, GamePrice, Genre, Platform, language_filter
@@ -50,8 +50,8 @@ def home(request):
         summary = library.aggregate(
             games=Count("id"),
             completed=Count("id", filter=Q(status=LibraryEntry.Status.COMPLETED)),
-            reviews=Count("id", filter=~Q(review="")),
         )
+        summary["reviews"] = Review.objects.filter(user=request.user).published().count()
         playing = library.filter(status=LibraryEntry.Status.PLAYING).select_related("game").order_by("-updated_at")[:4]
     popular = list(Game.objects.order_by("-popularity", "name")[:12])
     if request.user.is_authenticated:
@@ -59,7 +59,7 @@ def home(request):
         statuses = {entry.game_id: entry.get_status_display() for entry in entries}
     for game in popular:
         game.library_status = statuses.get(game.id, "")
-    reviews = LibraryEntry.objects.reviews_visible_to(request.user)[:5]
+    reviews = mark_liked(list(Review.objects.visible_to(request.user)[:5]), request.user)
     return render(
         request,
         "games/home.html",
@@ -178,7 +178,7 @@ def detail(request, slug):
             "wish": wish,
             "store_searches": game.store_searches(),
             "community": game.community_rating(),
-            **review_context(game, entry, request.user),
+            **review_context(request, game, entry),
             **(favorite_context(request.user, game) if request.user.is_authenticated else {}),
         },
     )

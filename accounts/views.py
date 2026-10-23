@@ -20,7 +20,8 @@ from django.views.decorators.http import require_POST
 from games import igdb, media
 
 from games.models import LANGUAGE_FILTERS, Game, Genre, igdb_image_url, known_shops, language_filter
-from library.models import LibraryEntry
+from library.models import LibraryEntry, Review
+from library.views import mark_liked
 
 from . import images, matching, psn, steam, xbox
 from .forms import IMAGE_FIELDS, PlatformAccountForm, ProfileForm, SignupForm
@@ -136,8 +137,9 @@ def _profile_context(request, owner, favorites=None, preview=False):
         )
         shown = [e for e in shown if e.game_id in allowed]
 
-    reviews = [e for e in entries if e.review]
-    reviews.sort(key=lambda e: e.reviewed_at, reverse=True)
+    # Sus reseñas publicadas (con «me gusta» y comentarios contados) y, si es él quien mira, sus borradores.
+    reviews = mark_liked(list(Review.objects.filter(user=owner).visible_to(request.user)), request.user)
+    drafts = list(Review.objects.filter(user=owner, is_draft=True).select_related("game")) if is_owner else []
     view = "resenas" if request.GET.get("vista") == "resenas" else ""
 
     tabs = [(value, label, counts[value]) for value, label in LibraryEntry.Status.choices]
@@ -155,13 +157,14 @@ def _profile_context(request, owner, favorites=None, preview=False):
         "keep_qs": urlencode({k: v for k, v in (("orden", sort), ("idioma", language)) if v}),
         "view": view,
         "reviews": reviews,
+        "drafts": drafts,
         # El escaparate solo va en la vista principal: al filtrar u ordenar, la biblioteca sube.
         "show_showcase": not (status or sort or view or language),
         "favorites": list(owner.favorite_games.select_related("game")) if favorites is None else favorites,
         "max_favorites": FavoriteGame.MAX_PER_USER,
         "playing": [e for e in entries if e.status == LibraryEntry.Status.PLAYING][:PLAYING_SHOWN],
-        "pinned": next((e for e in reviews if e.pk == owner.profile.pinned_review_id), None),
-        "stats": _profile_stats(owner, entries, counts),
+        "pinned": next((review for review in reviews if review.pk == owner.profile.pinned_review_id), None),
+        "stats": _profile_stats(owner, entries, counts, len(reviews)),
         "is_owner": is_owner,
         "unmatched_count": (
             owner.imported_titles.filter(title__game__isnull=True, hidden=False).count() if is_owner else 0
@@ -194,12 +197,13 @@ PROFILE_SORTS = {
 }
 
 
-def _profile_stats(owner, entries, counts):
-    """Cifras de la cabecera del perfil: juegos, completados, horas jugadas (Steam + PlayStation + Xbox), nota media y reseñas.
+def _profile_stats(owner, entries, counts, reviews):
+    """Cifras de la cabecera del perfil: juegos, completados, horas jugadas (Steam + PlayStation + Xbox), nota media
+    (en estrellas: las notas van en medias estrellas) y reseñas publicadas (reviews, ya contadas).
 
     También calcula los tres géneros más repetidos de su biblioteca.
     """
-    ratings = [e.rating for e in entries if e.rating]
+    ratings = [e.stars for e in entries if e.rating]
     minutes = sum(e.playtime_minutes or 0 for e in entries)
     # Una fila por (género, juego de la biblioteca), así que cada género cuenta una vez por juego.
     genres = Counter(Genre.objects.filter(games__library_entries__user=owner).values_list("name", flat=True))
@@ -208,7 +212,7 @@ def _profile_stats(owner, entries, counts):
         "completed": counts[LibraryEntry.Status.COMPLETED],
         "hours": round(minutes / 60) if minutes else None,
         "average_rating": sum(ratings) / len(ratings) if ratings else None,
-        "reviews": sum(1 for e in entries if e.review),
+        "reviews": reviews,
         "top_genres": [name for name, _ in genres.most_common(3)],
     }
 

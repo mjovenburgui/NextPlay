@@ -15,7 +15,7 @@ from django.utils import timezone
 
 from games import igdb
 from games.models import Game
-from library.models import LibraryEntry
+from library.models import LibraryEntry, Review
 
 from .models import ExternalTitle, ImportedTitle
 
@@ -45,17 +45,22 @@ def normalize(name):
     return igdb._normalize(name)
 
 
-def add_title(titles, external_id, name, minutes=0, last_played=None, platforms=()):
+def add_title(titles, external_id, name, minutes=0, last_played=None, platforms=(), first_played=None):
     """Añade un título importado al dict titles ({ID externo: datos}).
 
     Si el ID ya estaba (el mismo juego en dos cuentas de Steam, o dos versiones con el mismo nombre)
-    suma los minutos, se queda con la última partida más reciente y junta las plataformas, que son
-    nombres de plataforma de IGDB («PlayStation 5», «Xbox One»...) para desempatar al buscar por nombre.
+    suma los minutos, se queda con la última partida más reciente y con la primera más antigua, y junta
+    las plataformas, que son nombres de plataforma de IGDB («PlayStation 5», «Xbox One»...): sirven para
+    desempatar al buscar por nombre y para rellenar la plataforma de las reseñas.
     """
-    title = titles.setdefault(str(external_id), {"name": name, "minutes": 0, "last_played": None, "platforms": set()})
+    title = titles.setdefault(
+        str(external_id), {"name": name, "minutes": 0, "last_played": None, "first_played": None, "platforms": set()}
+    )
     title["minutes"] += minutes or 0
     if last_played and (title["last_played"] is None or last_played > title["last_played"]):
         title["last_played"] = last_played
+    if first_played and (title["first_played"] is None or first_played < title["first_played"]):
+        title["first_played"] = first_played
     title["platforms"].update(platforms)
 
 
@@ -132,7 +137,7 @@ def save_titles(user, platform, titles, auto_match):
 
     titles es el dict que llena add_title. Los títulos que ya tienen juego, o que alguien dejó sin
     juego a mano, se respetan; los demás se buscan con auto_match(ids), que devuelve {ID: Game}. Los
-    minutos y la última partida del usuario se sobrescriben con los de esta importación.
+    minutos, las partidas y las plataformas del usuario se sobrescriben con los de esta importación.
     """
     ids = list(titles)
     known = {t.external_id: t for t in ExternalTitle.objects.filter(platform=platform, external_id__in=ids)}
@@ -167,12 +172,13 @@ def save_titles(user, platform, titles, auto_match):
             [
                 ImportedTitle(
                     user=user, title=saved[i], minutes=titles[i]["minutes"], last_played=titles[i]["last_played"],
+                    first_played=titles[i].get("first_played"), platforms=sorted(titles[i].get("platforms") or ()),
                 )
                 for i in ids
             ],
             update_conflicts=True,
             unique_fields=["user", "title"],
-            update_fields=["minutes", "last_played", "imported_at"],
+            update_fields=["minutes", "last_played", "first_played", "platforms", "imported_at"],
         )
     return {i: saved[i].game for i in ids}
 
@@ -254,7 +260,8 @@ def reassign(imported, game, by):
         removed = False
         if previous is not None and previous != game:
             entry = LibraryEntry.objects.filter(user=imported.user, game=previous).first()
-            if entry and entry.playtime_minutes is None and not entry.rating and not entry.review:
+            reviewed = Review.objects.filter(user=imported.user, game=previous).exists()
+            if entry and entry.playtime_minutes is None and not entry.rating and not reviewed:
                 entry.delete()
                 removed = True
     return {"added": added, "updated": updated, "removed": removed}

@@ -11,7 +11,7 @@ from django.urls import reverse
 from django.utils import timezone
 from PIL import Image
 
-from library.models import LibraryEntry, WishlistItem
+from library.models import LibraryEntry, Review, WishlistItem
 
 from . import history, igdb, media, prices, spanish, xbox
 from .models import Game, GamePrice, Genre, Platform
@@ -367,14 +367,17 @@ class CatalogTests(TestCase):
         luis = User.objects.create_user("luis", "luis@example.com", "x")
         luis.profile.is_public = False
         luis.profile.save()
-        LibraryEntry.objects.create(user=ana, game=self.hades, status=LibraryEntry.Status.PLAYING, review="Genial", reviewed_at=timezone.now())
-        LibraryEntry.objects.create(user=luis, game=self.celeste, review="Secreta", reviewed_at=timezone.now())
+        LibraryEntry.objects.create(user=ana, game=self.hades, status=LibraryEntry.Status.PLAYING)
+        Review.objects.create(user=ana, game=self.hades, text="Genial", published_at=timezone.now())
+        Review.objects.create(user=ana, game=self.celeste, text="Borrador sin publicar", is_draft=True)
+        Review.objects.create(user=luis, game=self.celeste, text="Secreta", published_at=timezone.now())
         self.client.force_login(ana)
         response = self.client.get(reverse("home"))
         self.assertEqual(response.context["summary"], {"games": 1, "completed": 0, "reviews": 1})
         self.assertEqual([e.game for e in response.context["playing"]], [self.hades])
         self.assertContains(response, "Genial")
         self.assertNotContains(response, "Secreta")
+        self.assertNotContains(response, "Borrador sin publicar")
 
     def test_search_and_filters(self):
         url = reverse("games:catalog")

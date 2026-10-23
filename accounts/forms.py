@@ -8,7 +8,7 @@ from django.db.models import Q
 from django.urls import reverse
 
 from games.models import Game
-from library.models import LibraryEntry
+from library.models import Review
 
 from . import images
 from .models import (
@@ -131,9 +131,10 @@ class ProfileForm(forms.ModelForm):
 
         field = self.fields["pinned_review"]
         field.queryset = (
-            LibraryEntry.objects.filter(user=user).exclude(review="").select_related("game").order_by("game__name")
+            Review.objects.filter(user=user).published().select_related("game").order_by("game__name", "-published_at")
         )
-        field.label_from_instance = lambda entry: entry.game.name
+        # Con varias reseñas del mismo juego, la fecha las distingue.
+        field.label_from_instance = lambda review: f"{review.game.name} ({review.published_at:%d/%m/%Y})"
         field.empty_label = "Ninguna"
 
         self.favorites = list(user.favorite_games.select_related("game"))
