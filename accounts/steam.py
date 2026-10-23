@@ -22,6 +22,8 @@ OPENID_IDENTIFIER_SELECT = "http://specs.openid.net/auth/2.0/identifier_select"
 CLAIMED_ID = re.compile(r"^https://steamcommunity\.com/openid/id/(\d{17})$")
 API_URL = "https://api.steampowered.com"
 TIMEOUT = 15
+# Plataforma de IGDB de lo que se juega en Steam, para rellenar la de las reseñas.
+STEAM_PLATFORM = "PC (Microsoft Windows)"
 
 
 class SteamError(Exception):
@@ -193,7 +195,7 @@ def import_library(user, include_unplayed=False):
         if data.get("appid"):
             add_title(
                 titles, data["appid"], data.get("name") or f"App {data['appid']}",
-                data.get("playtime_forever"), _played_at(data),
+                data.get("playtime_forever"), _played_at(data), [STEAM_PLATFORM],
             )
 
     def auto_match(ids):

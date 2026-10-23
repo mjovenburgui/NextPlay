@@ -1,25 +1,40 @@
-{# Reseña en la portada, como una publicación: autor, juego, estrellas y texto recortado. Necesita entry. #}
+{% load reviews %}
+{# Reseña en la portada, como una publicación: autor, juego, estrellas, texto recortado (sin spoilers), «me gusta» y comentarios. Necesita review. #}
 <article class="feed-item">
   <header class="feed-head">
-    {% include "accounts/_avatar.html" with profile=entry.user.profile size="sm" %}
+    {% include "accounts/_avatar.html" with profile=review.user.profile size="sm" %}
     <div class="feed-meta">
-      <p><a class="feed-author" href="{{ entry.user.profile.get_absolute_url }}">{{ entry.user.profile.name }}</a>
-        <span class="muted small">· hace {{ entry.reviewed_at|timesince }}</span></p>
-      <p class="feed-game small">{% include "_icon.html" with name="games" %} <a href="{{ entry.game.get_absolute_url }}">{{ entry.game.name }}</a></p>
+      <p><a class="feed-author" href="{{ review.user.profile.get_absolute_url }}">{{ review.user.profile.name }}</a>
+        <span class="muted small">· <a class="review-date" href="{{ review.get_absolute_url }}">hace {{ review.published_at|timesince }}</a></span></p>
+      <p class="feed-game small">{% include "_icon.html" with name="games" %} <a href="{{ review.game.get_absolute_url }}">{{ review.game.name }}</a></p>
     </div>
-    {% if entry.rating %}<span class="review-stars" aria-label="{{ entry.rating }} de 5 estrellas">{% for value in entry.RATING_STARS %}<span class="{% if value <= entry.rating %}on{% endif %}">★</span>{% endfor %}</span>{% endif %}
+    {% if review.rating %}{% include "library/_stars.html" with rating=review.rating %}{% endif %}
   </header>
   <div class="feed-body">
-    {% if entry.review_has_spoilers %}
-      <details class="spoiler">
-        <summary>Contiene spoilers · Mostrar reseña</summary>
-        <p class="review-text">{{ entry.review|truncatechars:320|linebreaksbr }}</p>
-      </details>
-    {% else %}
-      <p class="review-text">{{ entry.review|truncatechars:320|linebreaksbr }}</p>
-    {% endif %}
-    <a class="feed-cover" href="{{ entry.game.get_absolute_url }}#resenas" aria-label="Ver las reseñas de {{ entry.game.name }}">
-      {% if entry.game.cover_url %}<img src="{{ entry.game.cover_url }}" alt="" loading="lazy">{% endif %}
+    <div>
+      {% if review.has_spoilers %}
+        <details class="spoiler">
+          <summary>Toda la reseña es un spoiler · Leerla</summary>
+          <p class="review-text">{{ review.text|review_plain|truncatechars:320 }}</p>
+        </details>
+      {% else %}
+        <p class="review-text">{{ review.text|review_plain|truncatechars:320 }}</p>
+        {% if review.pros or review.cons %}
+          {# El primer punto de cada lista, como resumen. #}
+          <p class="feed-points small">
+            {% if review.pros %}<span class="points-pros">{% include "_icon.html" with name="check" %} {{ review.pros.0|review_plain }}</span>{% endif %}
+            {% if review.cons %}<span class="points-cons">{% include "_icon.html" with name="close" %} {{ review.cons.0|review_plain }}</span>{% endif %}
+          </p>
+        {% endif %}
+      {% endif %}
+      <p class="feed-actions">
+        {% include "library/_like.html" with liked=review.liked like_count=review.like_count %}
+        <a class="review-action" href="{{ review.get_absolute_url }}#comentarios">{% include "_icon.html" with name="comment" %} {{ review.comment_count|default:0 }}<span class="visually-hidden"> comentarios</span></a>
+        <a class="review-more" href="{{ review.get_absolute_url }}">Leer la reseña</a>
+      </p>
+    </div>
+    <a class="feed-cover" href="{{ review.game.get_absolute_url }}#resenas" aria-label="Ver las reseñas de {{ review.game.name }}">
+      {% if review.game.cover_url %}<img src="{{ review.game.cover_url }}" alt="" loading="lazy">{% endif %}
     </a>
   </div>
 </article>

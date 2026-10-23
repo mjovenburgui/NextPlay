@@ -1,0 +1,2 @@
+{% load reviews %}{# Vista previa del texto de una reseña en el editor, con su formato. Necesita text. #}
+{% if text.strip %}<div class="review-text">{{ text|review_html }}</div>{% else %}<p class="muted">Aquí verás cómo queda tu reseña.</p>{% endif %}

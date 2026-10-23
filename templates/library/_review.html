@@ -1,31 +1,67 @@
-{# Una reseña. Con show_game=True (en el perfil) enlaza al juego; si no, muestra al autor. La vista previa del perfil (preview) la pinta como la ven los demás. #}
-<article class="review{% if entry.user == user and not preview %} is-own{% endif %}">
+{% load reviews %}
+{# Una reseña en una lista (ficha, perfil o portada) o en su propia página (full). Necesita review. Con show_game (perfil) enseña el juego en vez del autor. #}
+{# Si review.ahead, va plegada: se escribió con muchas más horas de las que lleva quien la lee (viewer_hours) y puede contarle lo que le queda. #}
+{# La vista previa del perfil (preview) la pinta como la ven los demás. #}
+<article class="review{% if review.user == user and not preview %} is-own{% endif %}{% if full %} is-full{% endif %}" id="resena-{{ review.pk }}">
   <header class="review-head">
     {% if show_game %}
-      <a class="review-thumb" href="{{ entry.game.get_absolute_url }}">
-        {% if entry.game.cover_url %}<img src="{{ entry.game.cover_url }}" alt="" loading="lazy">{% endif %}
+      <a class="review-thumb" href="{{ review.game.get_absolute_url }}">
+        {% if review.game.cover_url %}<img src="{{ review.game.cover_url }}" alt="" loading="lazy">{% endif %}
       </a>
       <div class="review-meta">
-        <a class="review-author" href="{{ entry.game.get_absolute_url }}">{{ entry.game.name }}</a>
+        <a class="review-author" href="{{ review.game.get_absolute_url }}">{{ review.game.name }}</a>
     {% else %}
-      {% include "accounts/_avatar.html" with profile=entry.user.profile size="sm" %}
+      {% include "accounts/_avatar.html" with profile=review.user.profile size="sm" %}
       <div class="review-meta">
-        <a class="review-author" href="{{ entry.user.profile.get_absolute_url }}">{{ entry.user.profile.name }}</a>
-        {% if entry.user == user %}<span class="own-tag">Tu reseña</span>{% endif %}
+        <a class="review-author" href="{{ review.user.profile.get_absolute_url }}">{{ review.user.profile.name }}</a>
+        {% if review.user == user and not preview %}<span class="own-tag">Tu reseña</span>{% endif %}
     {% endif %}
-        <p class="muted small">
-          {% if entry.rating %}<span class="review-stars" aria-label="{{ entry.rating }} de 5 estrellas">{% for value in entry.RATING_STARS %}<span class="{% if value <= entry.rating %}on{% endif %}">★</span>{% endfor %}</span> · {% endif %}
-          {{ entry.get_status_display }}{% if entry.playtime_hours %} · {{ entry.playtime_hours|floatformat:"-1" }} h jugadas{% endif %}
-          · <time datetime="{{ entry.reviewed_at|date:'c' }}">{{ entry.reviewed_at|date:"j M Y" }}</time>
+        <p class="review-line">
+          {% if review.rating %}{% include "library/_stars.html" with rating=review.rating %}{% endif %}
+          <a class="review-date" href="{{ review.get_absolute_url }}"><time datetime="{{ review.published_at|date:'c' }}">{{ review.published_at|date:"j M Y" }}</time></a>
         </p>
       </div>
   </header>
-  {% if entry.review_has_spoilers %}
+
+  {# Datos de la partida: cómo iba, horas importadas al escribirla, plataforma, si es rejugada y fechas. #}
+  {% if review.status_note or review.hours is not None or review.platform or review.is_replay or review.started_on or review.finished_on %}
+    <ul class="review-facts">
+      {% if review.status_note %}<li class="fact{% if review.finished %} fact-done{% endif %}">{% if review.finished %}{% include "_icon.html" with name="check" %} {% endif %}{{ review.status_note }}</li>{% endif %}
+      {% if review.hours is not None %}
+        <li class="fact fact-hours" title="Horas importadas{% if review.hours_source_names %} de {{ review.hours_source_names }}{% endif %}: no las escribe el autor">
+          {% include "_icon.html" with name="clock" %} Escrita a las {{ review.hours|floatformat:"-1" }} h{% if review.hours_source_names %} <span class="fact-source">· {{ review.hours_source_names }}</span>{% endif %}
+        </li>
+      {% endif %}
+      {% if review.platform %}<li class="fact">{{ review.platform.short_name }}</li>{% endif %}
+      {% if review.is_replay %}<li class="fact">{% include "_icon.html" with name="replay" %} Rejugada</li>{% endif %}
+      {% if review.started_on or review.finished_on %}
+        <li class="fact">{% if review.started_on %}{{ review.started_on|date:"j M Y" }}{% else %}¿?{% endif %} – {% if review.finished_on %}{{ review.finished_on|date:"j M Y" }}{% else %}…{% endif %}</li>
+      {% endif %}
+    </ul>
+  {% endif %}
+
+  {% if review.ahead %}
+    <details class="spoiler spoiler-progress">
+      <summary>Escrita a las {{ review.hours|floatformat:"-1" }} h y tú llevas {{ viewer_hours|floatformat:"-1" }} h: puede contar lo que te queda · Leerla igualmente</summary>
+      {% include "library/_review_body.html" %}
+    </details>
+  {% elif review.has_spoilers %}
     <details class="spoiler">
-      <summary>Contiene spoilers · Mostrar reseña</summary>
-      <p class="review-text">{{ entry.review|linebreaksbr }}</p>
+      <summary>Toda la reseña es un spoiler · Leerla</summary>
+      {% include "library/_review_body.html" %}
     </details>
   {% else %}
-    <p class="review-text">{{ entry.review|linebreaksbr }}</p>
+    {% include "library/_review_body.html" %}
   {% endif %}
+
+  <footer class="review-foot">
+    {% include "library/_like.html" with liked=review.liked like_count=review.like_count %}
+    <a class="review-action" href="{{ review.get_absolute_url }}#comentarios">{% include "_icon.html" with name="comment" %} <span id="comment-count-{{ review.pk }}">{{ review.comment_count|default:0 }}</span><span class="visually-hidden"> comentarios</span></a>
+    {% if full %}
+      <button class="review-action" type="button" data-copy-link="{{ request.scheme }}://{{ request.get_host }}{{ review.get_absolute_url }}">{% include "_icon.html" with name="link" %} <span data-copy-label>Copiar enlace</span></button>
+    {% endif %}
+    {% if review.user == user and not preview %}
+      <a class="review-action" href="{% url 'library:review_edit' review.pk %}">{% include "_icon.html" with name="edit" %} Editar</a>
+    {% endif %}
+  </footer>
 </article>

@@ -1,0 +1,23 @@
+{% load reviews %}{# Texto de una reseña con su formato y su «Lo mejor» y «Lo peor». En las listas, los textos largos se cortan (sin formato y con los spoilers tapados) y enlazan a su página; con full va entero. #}
+{% if full or review.text|length <= 700 %}
+  <div class="review-text">{{ review.text|review_html }}</div>
+{% else %}
+  <div class="review-text"><p>{{ review.text|review_plain|truncatechars:480 }}</p></div>
+  <a class="review-more" href="{{ review.get_absolute_url }}">Seguir leyendo</a>
+{% endif %}
+{% if review.pros or review.cons %}
+  <div class="review-points">
+    {% if review.pros %}
+      <div class="points points-pros">
+        <p class="points-title">Lo mejor</p>
+        <ul>{% for point in review.pros %}<li>{% include "_icon.html" with name="check" %}<span>{{ point|review_inline }}</span></li>{% endfor %}</ul>
+      </div>
+    {% endif %}
+    {% if review.cons %}
+      <div class="points points-cons">
+        <p class="points-title">Lo peor</p>
+        <ul>{% for point in review.cons %}<li>{% include "_icon.html" with name="close" %}<span>{{ point|review_inline }}</span></li>{% endfor %}</ul>
+      </div>
+    {% endif %}
+  </div>
+{% endif %}

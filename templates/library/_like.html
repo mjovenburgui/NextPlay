@@ -1,0 +1,12 @@
+{# Botón «Me gusta» de una reseña con su contador. Sin sesión, en tus propias reseñas o en la vista previa del perfil, solo el contador. #}
+{# Necesita review, liked y like_count. Con HTMX se cambia por el que devuelve library.views.review_like. #}
+{% if user.is_authenticated and user != review.user and not preview %}
+  <form class="like-form" action="{% url 'library:review_like' review.pk %}" method="post"
+        hx-post="{% url 'library:review_like' review.pk %}" hx-swap="outerHTML">
+    {% csrf_token %}
+    <button class="review-action like-btn{% if liked %} is-on{% endif %}" type="submit" aria-pressed="{% if liked %}true{% else %}false{% endif %}"
+            title="{% if liked %}Quitar el me gusta{% else %}Me gusta{% endif %}">{% include "_icon.html" with name="heart" %} {{ like_count|default:0 }}<span class="visually-hidden"> me gusta</span></button>
+  </form>
+{% else %}
+  <span class="review-action" title="Me gusta">{% include "_icon.html" with name="heart" %} {{ like_count|default:0 }}<span class="visually-hidden"> me gusta</span></span>
+{% endif %}

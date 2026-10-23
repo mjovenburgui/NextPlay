@@ -168,7 +168,7 @@ class Profile(models.Model):
     # Usuario de cada red de SOCIAL_LINKS y, con la clave «web», la URL de su web: {"twitch": "usuario", ...}.
     links = models.JSONField("redes sociales", default=dict, blank=True)
     pinned_review = models.ForeignKey(
-        "library.LibraryEntry", on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+        "library.Review", on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
         verbose_name="reseña destacada",
     )
     # Orden y visibilidad del escaparate: [[clave de SECTIONS, visible], ...]. Vacía = el orden por defecto.
@@ -662,6 +662,10 @@ class ImportedTitle(models.Model):
     game = models.ForeignKey("games.Game", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
     minutes = models.PositiveIntegerField("minutos jugados", default=0)
     last_played = models.DateTimeField("última partida", null=True, blank=True)
+    # Primera partida (solo la da PlayStation) y plataformas en las que se jugó, como nombres de plataforma de
+    # IGDB («PlayStation 5», «Xbox Series X|S»...). Rellenan solas la plataforma y las fechas de las reseñas.
+    first_played = models.DateTimeField("primera partida", null=True, blank=True)
+    platforms = models.JSONField("plataformas en las que se jugó", default=list, blank=True)
     # El usuario lo quita de «Sin emparejar» (herramientas, demos, apps...).
     hidden = models.BooleanField("oculto", default=False)
     imported_at = models.DateTimeField(auto_now=True)
@@ -689,6 +693,8 @@ class Notification(models.Model):
 
     class Kind(models.TextChoices):
         PRICE = "price", "Bajada de precio"
+        LIKE = "like", "Me gusta en tu reseña"
+        COMMENT = "comment", "Comentario en tu reseña"
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
     kind = models.CharField("tipo", max_length=20, choices=Kind.choices)

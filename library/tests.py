@@ -1,4 +1,5 @@
 import io
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest import mock
 
@@ -8,12 +9,13 @@ from django.core.management import call_command
 from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
-from accounts.models import Notification
-from games.models import Game, GamePrice
+from accounts.models import ExternalTitle, ImportedTitle, Notification
+from games.models import Game, GamePrice, Platform
 
-from . import wishlist
-from .models import LibraryEntry, WishlistItem
+from . import markup, wishlist
+from .models import LibraryEntry, Review, ReviewLike, WishlistItem
 
 User = get_user_model()
 
@@ -72,7 +74,7 @@ class LibraryTests(TestCase):
         LibraryEntry.objects.create(user=self.user, game=self.game, rating=3)
         self.client.force_login(self.user)
         rate_url = reverse("library:rate", args=[self.game.id])
-        for value in ("6", "-1", "abc", ""):
+        for value in ("11", "-1", "abc", ""):
             self.assertEqual(self.client.post(rate_url, {"rating": value}).status_code, 400)
         self.assertEqual(LibraryEntry.objects.get().rating, 3)
 
@@ -94,7 +96,8 @@ class LibraryTests(TestCase):
         self.assertContains(response, "2 valoraciones")
 
     def test_community_rating_averages_only_rated_entries(self):
-        LibraryEntry.objects.create(user=self.user, game=self.game, rating=5)
+        # 10 medias estrellas son cinco estrellas.
+        LibraryEntry.objects.create(user=self.user, game=self.game, rating=10)
         LibraryEntry.objects.create(user=self.other, game=self.game, rating=None)
         self.assertEqual(self.game.community_rating(), {"average": 5.0, "count": 1})
         response = self.client.get(self.game.get_absolute_url())
@@ -117,39 +120,95 @@ class ReviewTests(TestCase):
     def setUpTestData(cls):
         cls.user = User.objects.create_user("ana", "ana@example.com", "x")
         cls.other = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.third = User.objects.create_user("eva", "eva@example.com", "x")
+        cls.platform = Platform.objects.create(name="PlayStation 5", abbreviation="PS5", slug="ps5")
         cls.game = Game.objects.create(name="Hades", slug="hades")
-        cls.url = reverse("library:review", args=[cls.game.id])
+        cls.game.platforms.add(cls.platform)
+        cls.new_url = reverse("library:review_new", args=[cls.game.id])
 
-    def test_write_edit_and_delete_review(self):
+    def publish(self, user, text="Muy bueno.", **fields):
+        """Reseña publicada de user sobre el juego (sin pasar por el editor)."""
+        return Review.objects.create(user=user, game=self.game, text=text, published_at=timezone.now(), **fields)
+
+    def test_publishing_saves_hours_status_and_the_library_rating(self):
+        LibraryEntry.objects.create(
+            user=self.user, game=self.game, status=LibraryEntry.Status.COMPLETED, rating=6,
+            steam_playtime_minutes=750, psn_playtime_minutes=120,
+        )
+        self.client.force_login(self.user)
+        response = self.client.get(self.new_url)
+        self.assertContains(response, 'id="nota-6" value="6" checked')  # empieza con la nota que ya tenía
+        response = self.client.post(self.new_url, {
+            "rating": "9", "text": "  **Genial**.  ", "platform": self.platform.pk, "finished_on": "2026-01-02",
+            "publicar": "",
+        })
+        review = Review.objects.get()
+        self.assertRedirects(response, review.get_absolute_url(), fetch_redirect_response=False)
+        self.assertEqual(review.get_absolute_url(), f"/u/ana/resenas/{review.pk}/")
+        self.assertEqual((review.text, review.rating, review.platform, review.is_draft), ("**Genial**.", 9, self.platform, False))
+        self.assertEqual((review.status, review.hours, review.hours_sources), ("completed", Decimal("14.5"), "steam,psn"))
+        self.assertEqual(review.hours_source_names, "Steam y PlayStation")
+        self.assertIsNotNone(review.published_at)
+        self.assertEqual(LibraryEntry.objects.get().rating, 9)  # la nota de la reseña pasa a la biblioteca
+        # Una segunda reseña del mismo juego empieza marcada como rejugada.
+        self.assertContains(self.client.get(self.new_url), 'name="is_replay" id="id_is_replay" checked')
+
+    def test_drafts_stay_private_until_published(self):
         LibraryEntry.objects.create(user=self.user, game=self.game)
         self.client.force_login(self.user)
-        response = self.client.post(self.url, {"review": "  Adictivo.  ", "review_has_spoilers": "on"})
+        response = self.client.post(self.new_url, {"text": "Aún lo estoy pensando.", "borrador": ""})
+        review = Review.objects.get()
+        self.assertRedirects(response, reverse("library:review_edit", args=[review.pk]), fetch_redirect_response=False)
+        self.assertEqual((review.is_draft, review.published_at), (True, None))
+        self.assertContains(self.client.get(self.game.get_absolute_url()), "Borrador")
+        self.client.force_login(self.other)
+        self.assertNotContains(self.client.get(self.game.get_absolute_url()), "Aún lo estoy pensando.")
+        self.assertEqual(self.client.get(f"/u/ana/resenas/{review.pk}/").status_code, 404)
+        self.client.force_login(self.user)
+        self.client.post(reverse("library:review_edit", args=[review.pk]), {"text": "Ya está.", "publicar": ""})
+        review.refresh_from_db()
+        self.assertFalse(review.is_draft)
+        self.assertIsNotNone(review.published_at)
+
+    def test_review_form_validation(self):
+        LibraryEntry.objects.create(user=self.user, game=self.game)
+        self.client.force_login(self.user)
+        other_platform = Platform.objects.create(name="Wii U", slug="wiiu")
+        tomorrow = (timezone.localdate() + timedelta(days=1)).isoformat()
+        cases = [
+            ({"text": "   "}, "text"),
+            ({"text": "x" * 8001}, "text"),
+            ({"text": "Bien.", "rating": "11"}, "rating"),
+            ({"text": "Bien.", "platform": other_platform.pk}, "platform"),
+            ({"text": "Bien.", "started_on": "2026-02-01", "finished_on": "2026-01-01"}, "finished_on"),
+            ({"text": "Bien.", "finished_on": tomorrow}, "finished_on"),
+        ]
+        for data, field in cases:
+            response = self.client.post(self.new_url, {**data, "publicar": ""})
+            self.assertIn(field, response.context["form"].errors, data)
+        self.assertFalse(Review.objects.exists())
+
+    def test_review_needs_the_game_in_the_library_and_only_its_author_edits_it(self):
+        self.client.force_login(self.user)
+        response = self.client.get(self.new_url)
+        self.assertRedirects(response, self.game.get_absolute_url(), fetch_redirect_response=False)
+        review = self.publish(self.other)
+        self.assertEqual(self.client.get(reverse("library:review_edit", args=[review.pk])).status_code, 404)
+        self.assertEqual(self.client.post(reverse("library:review_delete", args=[review.pk])).status_code, 404)
+        self.client.force_login(self.other)
+        response = self.client.post(reverse("library:review_delete", args=[review.pk]))
         self.assertRedirects(response, f"{self.game.get_absolute_url()}#resenas", fetch_redirect_response=False)
-        entry = LibraryEntry.objects.get()
-        self.assertEqual((entry.review, entry.review_has_spoilers), ("Adictivo.", True))
-        self.assertIsNotNone(entry.reviewed_at)
-        self.client.post(self.url, {"review": "   "})
-        entry.refresh_from_db()
-        self.assertEqual((entry.review, entry.review_has_spoilers, entry.reviewed_at), ("", False, None))
-
-    def test_review_needs_the_game_in_the_library(self):
-        self.client.force_login(self.user)
-        self.assertEqual(self.client.post(self.url, {"review": "Hola"}).status_code, 404)
-
-    def test_too_long_review_is_rejected(self):
-        LibraryEntry.objects.create(user=self.user, game=self.game)
-        self.client.force_login(self.user)
-        self.client.post(self.url, {"review": "x" * 3001})
-        self.assertEqual(LibraryEntry.objects.get().review, "")
+        self.assertFalse(Review.objects.exists())
 
     def test_game_page_hides_reviews_from_private_profiles(self):
-        LibraryEntry.objects.create(user=self.user, game=self.game, review="Pública", reviewed_at="2026-01-01T10:00Z")
-        LibraryEntry.objects.create(user=self.other, game=self.game, review="Secreta", reviewed_at="2026-01-02T10:00Z")
+        self.publish(self.user, "Pública")
+        self.publish(self.other, "Secreta")
         self.other.profile.is_public = False
         self.other.profile.save()
         response = self.client.get(self.game.get_absolute_url())
         self.assertContains(response, "Pública")
         self.assertNotContains(response, "Secreta")
+        self.assertEqual(response.context["review_count"], 1)
         self.client.force_login(self.other)
         response = self.client.get(self.game.get_absolute_url())
         self.assertContains(response, "Secreta")
@@ -161,7 +220,165 @@ class ReviewTests(TestCase):
             reverse("library:set_status", args=[self.game.id]), {"status": "playing"}, headers={"HX-Request": "true"}
         )
         self.assertContains(response, 'id="resenas" hx-swap-oob="true"')
-        self.assertContains(response, "Publicar reseña")
+        self.assertContains(response, "Escribir una reseña")
+
+    def test_likes_toggle_and_notify_the_author_once(self):
+        review = self.publish(self.user)
+        url = reverse("library:review_like", args=[review.pk])
+        self.client.force_login(self.other)
+        response = self.client.post(url, headers={"HX-Request": "true"})
+        self.assertContains(response, 'aria-pressed="true"')
+        self.assertEqual(review.likes.count(), 1)
+        self.client.post(url)  # lo quita
+        self.client.post(url)  # y lo vuelve a dar
+        self.assertEqual(review.likes.count(), 1)
+        notices = Notification.objects.filter(user=self.user, kind=Notification.Kind.LIKE)
+        self.assertEqual([notice.text for notice in notices], ["A luis le ha gustado tu reseña de Hades."])
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.post(url).status_code, 400)  # la propia no
+
+    def test_comments_notify_and_only_writer_or_author_delete_them(self):
+        review = self.publish(self.user)
+        self.client.force_login(self.other)
+        response = self.client.post(
+            reverse("library:review_comment", args=[review.pk]), {"text": "  ¡Muy *buena*!  "}, headers={"HX-Request": "true"}
+        )
+        self.assertContains(response, "<em>buena</em>")
+        comment = review.comments.get()
+        self.assertEqual(comment.text, "¡Muy *buena*!")
+        self.assertTrue(Notification.objects.filter(user=self.user, kind=Notification.Kind.COMMENT).exists())
+        delete_url = reverse("library:comment_delete", args=[comment.pk])
+        self.client.force_login(self.third)
+        self.assertEqual(self.client.post(delete_url).status_code, 403)
+        self.client.force_login(self.user)  # el autor de la reseña sí puede
+        self.client.post(delete_url, headers={"HX-Request": "true"})
+        self.assertFalse(review.comments.exists())
+        response = self.client.post(reverse("library:review_comment", args=[review.pk]), {"text": "   "})
+        self.assertFalse(review.comments.exists())
+
+    def test_review_page_renders_safe_formatting(self):
+        text = (
+            "<script>alert(1)</script> **negrita** y *cursiva*\n\n||el final|| [web](https://example.com/a?b=1&c=2) "
+            "[mal](javascript:alert(1))"
+        )
+        review = self.publish(self.user, text)
+        response = self.client.get(review.get_absolute_url())
+        self.assertContains(response, "&lt;script&gt;alert(1)&lt;/script&gt;")
+        self.assertContains(response, "<strong>negrita</strong> y <em>cursiva</em>")
+        self.assertContains(response, 'class="spoiler-inline"')
+        self.assertContains(response, '<a href="https://example.com/a?b=1&amp;c=2" rel="nofollow ugc noopener"')
+        self.assertNotContains(response, 'href="javascript:')
+        self.assertContains(response, "[spoiler]")  # en la descripción de la página, tapado
+
+    def test_markup_plain_and_paragraphs(self):
+        self.assertEqual(
+            str(markup.render("Uno\ndos\n\n**tres**")), "<p>Uno<br>dos</p><p><strong>tres</strong></p>"
+        )
+        self.assertEqual(markup.plain("**Ojo**: ||muere|| al *final* [aquí](https://x.es)"), "Ojo: [spoiler] al final aquí")
+        self.assertEqual(str(markup.render("2 * 3 * 4")), "<p>2 * 3 * 4</p>")  # sin palabras pegadas no es cursiva
+
+    def test_sort_by_likes_and_filters(self):
+        old = self.publish(self.user, "La terminé.", status=LibraryEntry.Status.COMPLETED, hours=Decimal("30"))
+        old.published_at = timezone.now() - timedelta(days=2)
+        old.save()
+        liked = self.publish(self.other, "Gustada.", status=LibraryEntry.Status.PLAYING, hours=Decimal("3"))
+        ReviewLike.objects.create(user=self.third, review=old)
+        response = self.client.get(self.game.get_absolute_url())
+        self.assertEqual(response.context["reviews"], [liked, old])
+        response = self.client.get(self.game.get_absolute_url(), {"resenas": "gustadas"})
+        self.assertEqual(response.context["reviews"], [old, liked])
+        for chosen in ("terminado", "horas"):
+            response = self.client.get(self.game.get_absolute_url(), {"filtro": chosen})
+            self.assertEqual(response.context["reviews"], [old])
+        self.assertContains(response, "?filtro=horas#resenas")
+
+    def test_reviews_far_ahead_of_your_progress_are_folded(self):
+        self.publish(self.other, "Lo que pasa al final.", hours=Decimal("40"))
+        entry = LibraryEntry.objects.create(user=self.user, game=self.game, steam_playtime_minutes=120)
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(self.game.get_absolute_url()), "puede contar lo que te queda")
+        entry.status = LibraryEntry.Status.COMPLETED
+        entry.save()
+        self.assertNotContains(self.client.get(self.game.get_absolute_url()), "puede contar lo que te queda")
+
+    def test_preview_renders_the_formatting(self):
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("library:review_preview"), {"text": "**hola**"})
+        self.assertContains(response, "<strong>hola</strong>")
+
+    def test_best_and_worst_are_saved_clean_and_shown(self):
+        LibraryEntry.objects.create(user=self.user, game=self.game)
+        self.client.force_login(self.user)
+        response = self.client.post(self.new_url, {
+            "text": "Muy bueno.", "pros_0": "  La banda   sonora ", "pros_1": "la banda sonora", "pros_2": "",
+            "cons_0": "Los **tiempos** de carga", "publicar": "",
+        })
+        review = Review.objects.get()
+        self.assertEqual((review.pros, review.cons), (["La banda sonora"], ["Los **tiempos** de carga"]))
+        response = self.client.get(review.get_absolute_url())
+        self.assertContains(response, "Lo mejor")
+        self.assertContains(response, "Los <strong>tiempos</strong> de carga")
+        # Al editarla, cada punto vuelve a su casilla.
+        response = self.client.get(reverse("library:review_edit", args=[review.pk]))
+        self.assertContains(response, 'name="pros_0" id="id_pros_0" value="La banda sonora"')
+        response = self.client.post(reverse("library:review_edit", args=[review.pk]), {"text": "Bien.", "pros_0": "x" * 91})
+        self.assertIn("pros", response.context["form"].errors)
+
+    def test_what_reviews_agree_on_and_suggestions(self):
+        self.publish(self.other, pros=["Banda sonora", "Historia"], cons=["Corto"])
+        self.publish(self.third, pros=["¡banda sonora!"], cons=["corto."])
+        private = User.objects.create_user("max", "max@example.com", "x")
+        private.profile.is_public = False
+        private.profile.save()
+        self.publish(private, pros=["Historia"])
+        response = self.client.get(self.game.get_absolute_url())
+        self.assertEqual(response.context["consensus"], {"pros": [("Banda sonora", 2)], "cons": [("Corto", 2)]})
+        self.assertContains(response, "Lo que más destacan")
+        # El editor sugiere lo que han escrito otros (no lo propio ni lo de perfiles privados).
+        LibraryEntry.objects.create(user=self.third, game=self.game)
+        self.client.force_login(self.third)
+        response = self.client.get(self.new_url)
+        self.assertEqual(response.context["suggestions"], {"pros": ["Banda sonora", "Historia"], "cons": ["Corto"]})
+        self.assertContains(response, '<datalist id="lo-mejor-sugerido"><option value="Banda sonora">')
+
+    def test_platform_and_dates_fill_themselves_from_imports(self):
+        pc = Platform.objects.create(name="PC (Microsoft Windows)", abbreviation="PC", slug="win")
+        self.game.platforms.add(pc)
+        entry = LibraryEntry.objects.create(user=self.user, game=self.game, status=LibraryEntry.Status.COMPLETED)
+        when = timezone.make_aware(datetime(2026, 1, 5, 20, 0))
+        psn_title = ExternalTitle.objects.create(platform="psn", external_id="CUSA1", name="Hades", game=self.game)
+        steam_title = ExternalTitle.objects.create(platform="steam", external_id="1145360", name="Hades", game=self.game)
+        ImportedTitle.objects.create(
+            user=self.user, title=psn_title, minutes=600, platforms=["PlayStation 5"],
+            first_played=when, last_played=when + timedelta(days=30),
+        )
+        # Importado antes de que se guardaran las plataformas: lo de Steam cuenta como PC.
+        ImportedTitle.objects.create(user=self.user, title=steam_title, minutes=120, last_played=when + timedelta(days=40))
+        self.client.force_login(self.user)
+        response = self.client.get(self.new_url)
+        form = response.context["form"]
+        self.assertEqual(form["platform"].value(), self.platform.pk)  # PS5: donde más ha jugado
+        self.assertEqual(form["started_on"].value(), date(2026, 1, 5))
+        self.assertEqual(form["finished_on"].value(), date(2026, 2, 14))  # su última partida, porque lo completó
+        self.assertContains(response, "Has jugado en PS5 (10 h) y PC (2 h): va la de más horas.")
+        self.assertContains(response, "Tu primera partida en PlayStation.")
+        # Sin completarlo no se inventa la fecha de fin, y una reseña ya escrita no se toca.
+        entry.status = LibraryEntry.Status.PLAYING
+        entry.save()
+        self.assertIsNone(self.client.get(self.new_url).context["form"]["finished_on"].value())
+        review = self.publish(self.user)
+        self.assertIsNone(self.client.get(reverse("library:review_edit", args=[review.pk])).context["form"]["platform"].value())
+
+    def test_playstation_console_comes_from_the_title_id_of_older_imports(self):
+        ps4 = Platform.objects.create(name="PlayStation 4", abbreviation="PS4", slug="ps4")
+        self.game.platforms.add(ps4)
+        LibraryEntry.objects.create(user=self.user, game=self.game)
+        title = ExternalTitle.objects.create(platform="psn", external_id="CUSA03173_00", name="Hades", game=self.game)
+        ImportedTitle.objects.create(user=self.user, title=title, minutes=300)  # sin plataformas guardadas
+        self.client.force_login(self.user)
+        response = self.client.get(self.new_url)
+        self.assertEqual(response.context["form"]["platform"].value(), ps4.pk)
+        self.assertContains(response, "De tu cuenta de PlayStation.")
 
 
 class WishlistTests(TestCase):

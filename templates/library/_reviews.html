@@ -1,25 +1,81 @@
+{% load reviews %}
+{# Reseñas de la ficha: el botón para escribir una, las tuyas (también los borradores), el orden y los filtros, y las de todos. #}
+{# Necesita game y las variables de library.views.review_context. Con oob, HTMX la cambia en su sitio (al añadir o quitar el juego de la biblioteca). #}
 <section class="reviews" id="resenas"{% if oob %} hx-swap-oob="true"{% endif %}>
-  <h2>Reseñas <span class="muted">{{ review_count }}</span></h2>
+  <div class="reviews-head">
+    <h2>Reseñas <span class="muted">{{ review_count }}</span></h2>
+    {% if can_review %}
+      <a class="btn btn-primary" href="{% url 'library:review_new' game.id %}">{% include "_icon.html" with name="edit" %} {% if has_published_review %}Escribir otra (rejugada){% else %}Escribir una reseña{% endif %}</a>
+    {% endif %}
+  </div>
 
-  {% if review_form %}
-    <details class="widget review-form"{% if not entry.review %} open{% endif %}>
-      <summary class="widget-label">{% if entry.review %}Editar tu reseña{% else %}Escribe tu reseña{% endif %}</summary>
-      <form action="{% url 'library:review' game.id %}" method="post">
-        {% include "_form.html" with form=review_form %}
-        <button class="btn btn-primary" type="submit">{% if entry.review %}Guardar cambios{% else %}Publicar reseña{% endif %}</button>
-        {% if not entry.rating %}<span class="help">Consejo: valóralo también con estrellas arriba.</span>{% endif %}
-      </form>
-    </details>
-  {% elif user.is_authenticated %}
-    <p class="widget muted">Añade el juego a tu biblioteca para escribir una reseña.</p>
-  {% else %}
-    <p class="widget"><a href="{% url 'login' %}?next={{ request.path|urlencode }}">Inicia sesión</a> para escribir una reseña.</p>
+  {% if not can_review %}
+    {% if user.is_authenticated %}
+      <p class="widget muted">Añade el juego a tu biblioteca para escribir una reseña.</p>
+    {% else %}
+      <p class="widget"><a href="{% url 'login' %}?next={{ request.path|urlencode }}">Inicia sesión</a> para escribir una reseña.</p>
+    {% endif %}
   {% endif %}
 
-  {% for entry in reviews %}
+  {% if own_reviews %}
+    <div class="widget own-reviews">
+      <p class="widget-label">Tus reseñas de este juego</p>
+      <ul>
+        {% for review in own_reviews %}
+          <li>
+            {% if review.is_draft %}<span class="draft-tag">Borrador</span>{% else %}<span class="muted small">{{ review.published_at|date:"j M Y" }}</span>{% endif %}
+            {% if review.rating %}{% include "library/_stars.html" with rating=review.rating %}{% endif %}
+            <span class="own-review-text">{{ review.text|review_plain|truncatechars:90 }}</span>
+            <span class="own-review-links">
+              <a href="{% url 'library:review_edit' review.pk %}">{% if review.is_draft %}Seguir escribiendo{% else %}Editar{% endif %}</a>
+              {% if not review.is_draft %}· <a href="{{ review.get_absolute_url }}">Ver</a>{% endif %}
+            </span>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  {% if consensus.pros or consensus.cons %}
+    {# Lo mejor y lo peor que más se repite en las reseñas (al menos dos reseñas dicen lo mismo). #}
+    <div class="widget consensus">
+      {% if consensus.pros %}
+        <div class="points points-pros">
+          <p class="points-title">Lo que más destacan</p>
+          <ul>{% for point, count in consensus.pros %}<li>{% include "_icon.html" with name="check" %}<span>{{ point|review_inline }}</span><span class="consensus-count" title="{{ count }} reseñas lo dicen">{{ count }}</span></li>{% endfor %}</ul>
+        </div>
+      {% endif %}
+      {% if consensus.cons %}
+        <div class="points points-cons">
+          <p class="points-title">Lo que menos gusta</p>
+          <ul>{% for point, count in consensus.cons %}<li>{% include "_icon.html" with name="close" %}<span>{{ point|review_inline }}</span><span class="consensus-count" title="{{ count }} reseñas lo dicen">{{ count }}</span></li>{% endfor %}</ul>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if review_count %}
+    {# Orden y filtros: con HTMX solo se cambia esta sección (y la dirección de la página, para poder compartirla). #}
+    <div class="review-controls">
+      <nav class="chip-links" aria-label="Orden de las reseñas">
+        {% for label, url, active in review_sorts %}
+          <a class="chip-link{% if active %} is-active{% endif %}" href="{{ url }}"{% if active %} aria-current="true"{% endif %}
+             hx-get="{{ url }}" hx-select="#resenas" hx-target="#resenas" hx-swap="outerHTML" hx-push-url="true">{{ label }}</a>
+        {% endfor %}
+      </nav>
+      <nav class="chip-links" aria-label="Filtrar las reseñas">
+        {% for label, url, active in review_filters %}
+          <a class="chip-link{% if active %} is-active{% endif %}" href="{{ url }}"{% if active %} aria-current="true"{% endif %}
+             hx-get="{{ url }}" hx-select="#resenas" hx-target="#resenas" hx-swap="outerHTML" hx-push-url="true">{{ label }}</a>
+        {% endfor %}
+      </nav>
+    </div>
+  {% endif %}
+
+  {% for review in reviews %}
     {% include "library/_review.html" %}
   {% empty %}
-    <p class="muted">Todavía no hay reseñas. ¡Sé el primero!</p>
+    <p class="muted">{% if review_count %}Ninguna reseña cumple ese filtro.{% else %}Todavía no hay reseñas. ¡Sé el primero!{% endif %}</p>
   {% endfor %}
-  {% if review_count > reviews|length %}<p class="help">Mostrando las {{ reviews|length }} más recientes.</p>{% endif %}
+  {% if filtered_count > reviews|length %}<p class="help">Mostrando {{ reviews|length }} de {{ filtered_count }}.</p>{% endif %}
 </section>

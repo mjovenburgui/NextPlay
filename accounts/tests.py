@@ -19,7 +19,7 @@ from PIL import Image
 
 from games import igdb
 from games.models import Game, Platform
-from library.models import LibraryEntry
+from library.models import LibraryEntry, Review
 
 from . import images, matching, psn, steam, views, xbox
 from .models import (
@@ -92,22 +92,30 @@ class ProfileTests(TestCase):
         self.assertEqual(self.owner.profile.display_name, "")
 
     def test_profile_stats_and_sort(self):
-        LibraryEntry.objects.filter(game=self.done).update(rating=4, steam_playtime_minutes=600)
-        LibraryEntry.objects.filter(game=self.playing).update(rating=2, steam_playtime_minutes=30)
+        # Las notas van en medias estrellas: 9 = 4,5 estrellas y 4 = 2 estrellas.
+        LibraryEntry.objects.filter(game=self.done).update(rating=9, steam_playtime_minutes=600)
+        LibraryEntry.objects.filter(game=self.playing).update(rating=4, steam_playtime_minutes=30)
         response = self.client.get(reverse("profile", args=["ana"]))
         stats = response.context["stats"]
         self.assertEqual((stats["games"], stats["completed"], stats["hours"]), (2, 1, 10))
-        self.assertEqual(stats["average_rating"], 3)
+        self.assertEqual(stats["average_rating"], 3.25)
         response = self.client.get(reverse("profile", args=["ana"]), {"orden": "nombre"})
         self.assertEqual([e.game.name for e in response.context["entries"]], ["Celeste", "Hades"])
         response = self.client.get(reverse("profile", args=["ana"]), {"orden": "horas"})
         self.assertEqual([e.game.name for e in response.context["entries"]], ["Celeste", "Hades"])
 
-    def test_reviews_tab_lists_only_reviewed_games(self):
-        LibraryEntry.objects.filter(game=self.done).update(review="Preciosa.", reviewed_at="2026-01-01T10:00Z")
+    def test_reviews_tab_lists_published_reviews_and_your_drafts(self):
+        Review.objects.create(user=self.owner, game=self.done, text="Preciosa.", published_at=timezone.now())
+        Review.objects.create(user=self.owner, game=self.playing, text="A medias.", is_draft=True)
         response = self.client.get(reverse("profile", args=["ana"]), {"vista": "resenas"})
         self.assertContains(response, "Preciosa.")
-        self.assertEqual([e.game.name for e in response.context["reviews"]], ["Celeste"])
+        self.assertEqual([review.game.name for review in response.context["reviews"]], ["Celeste"])
+        self.assertEqual(response.context["stats"]["reviews"], 1)
+        self.assertNotContains(response, "Tus borradores")
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse("profile", args=["ana"]), {"vista": "resenas"})
+        self.assertContains(response, "Tus borradores")
+        self.assertEqual([draft.game.name for draft in response.context["drafts"]], ["Hades"])
 
     def test_edit_profile_requires_login(self):
         response = self.client.get(reverse("edit_profile"))
@@ -281,6 +289,8 @@ class SteamImportTests(TestCase):
         self.assertNotIn(self.celeste, entries)
         self.account.refresh_from_db()
         self.assertIsNotNone(self.account.synced_at)
+        # Lo de Steam se juega en el PC: rellena la plataforma de las reseñas.
+        self.assertEqual(ImportedTitle.objects.get(title__external_id="620").platforms, ["PC (Microsoft Windows)"])
 
     def test_hours_add_up_across_accounts(self):
         second = SteamAccount.objects.create(user=self.user, steam_id="76561190000000002")
@@ -356,11 +366,12 @@ NPSSO = "a" * 64
 
 
 def psn_title(name, duration, days_ago=400, category="ps4_game"):
-    """Juego tal como lo devuelve la lista de juegos jugados de PSN."""
+    """Juego tal como lo devuelve la lista de juegos jugados de PSN; la primera partida fue 30 días antes de la última."""
     played = timezone.now() - timedelta(days=days_ago)
     return {
         "name": name, "localizedName": name, "category": category,
         "playDuration": duration, "lastPlayedDateTime": played.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+        "firstPlayedDateTime": (played - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
     }
 
 
@@ -425,6 +436,10 @@ class PSNImportTests(TestCase):
         # Las versiones de PS4 y PS5 se suman y la partida reciente lo deja como «Jugando».
         self.assertEqual((hades.psn_playtime_minutes, hades.status), (930, LibraryEntry.Status.PLAYING))
         self.assertEqual(LibraryEntry.objects.get(game=self.gow).status, LibraryEntry.Status.PLAYED)
+        # Se guardan las dos plataformas y la primera partida más antigua, para rellenar las reseñas.
+        imported = ImportedTitle.objects.get(user=self.user, title__game=self.hades)
+        self.assertEqual(imported.platforms, ["PlayStation 4", "PlayStation 5"])
+        self.assertEqual(imported.first_played.date(), (timezone.now() - timedelta(days=430)).date())
 
     def test_hours_add_up_with_steam_and_status_is_kept(self):
         LibraryEntry.objects.create(
@@ -1109,15 +1124,13 @@ class ProfileCustomizationTests(TestCase):
         positions = [content.index(f"Juego {i}</p>") for i in (2, 0, 1)]
         self.assertEqual(positions, sorted(positions))
 
-    def test_pinned_review_must_be_one_of_your_reviews(self):
-        own = LibraryEntry.objects.filter(user=self.user, game=self.games[0]).get()
-        own.review, own.reviewed_at = "Me ha encantado.", timezone.now()
-        own.save()
-        theirs = LibraryEntry.objects.create(
-            user=self.other, game=self.games[1], review="Del otro.", reviewed_at=timezone.now()
-        )
-        response = self.post_profile(pinned_review=theirs.pk)
-        self.assertIn("pinned_review", response.context["form"].errors)
+    def test_pinned_review_must_be_one_of_your_published_reviews(self):
+        own = Review.objects.create(user=self.user, game=self.games[0], text="Me ha encantado.", published_at=timezone.now())
+        draft = Review.objects.create(user=self.user, game=self.games[1], text="A medias.", is_draft=True)
+        theirs = Review.objects.create(user=self.other, game=self.games[1], text="Del otro.", published_at=timezone.now())
+        for pk in (theirs.pk, draft.pk):
+            response = self.post_profile(pinned_review=pk)
+            self.assertIn("pinned_review", response.context["form"].errors)
         self.post_profile(pinned_review=own.pk)
         response = self.client.get(reverse("profile", args=["ana"]))
         self.assertContains(response, "Reseña destacada")

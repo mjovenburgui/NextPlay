@@ -54,7 +54,7 @@
   {
     "titulo": "Reseñas completas: medias estrellas, una por partida y página propia",
     "fecha": "2026-10-21",
-    "estado": "pendiente",
+    "estado": "hecha",
     "prioridad": "alta",
     "tipo": "Funcionalidad",
     "resumen": "Llevar las reseñas al nivel de las de Backloggd sin copiar su diseño: valoraciones con medias estrellas, varias reseñas del mismo juego (una por partida o rejugada) con plataforma y fechas, una página propia para enlazar cada reseña, texto con formato (negrita, cursiva, enlaces y spoilers dentro del texto) y borradores.",
@@ -67,12 +67,31 @@
       "Guardar como borrador antes de publicarla.",
       "Mejoras propias: las horas con las que se escribió y los spoilers según tu progreso (ver «Reseñas con horas verificadas y spoilers según tu progreso»)."
     ],
-    "notas": "Las reseñas son un patrón común (Letterboxd, Goodreads, Steam): se pueden hacer igual de completas con un diseño y unos textos propios. Va junto con «Me gusta y comentarios en las reseñas»."
+    "notas": "Las reseñas son un patrón común (Letterboxd, Goodreads, Steam): se pueden hacer igual de completas con un diseño y unos textos propios. Va junto con «Me gusta y comentarios en las reseñas». Hecha el 23/10/2026 en la rama resenas-completas y fusionada con main, a petición del usuario («son super simples»): modelo Review aparte de LibraryEntry con varias reseñas por juego (plataforma, fechas, rejugada), notas de 1 a 10 medias estrellas también en la biblioteca y en la media de la comunidad, editor propio con barra de formato, vista previa en directo y borradores, formato seguro (library/markup.py: negrita, cursiva, enlaces y ||spoilers|| en línea), página propia /u/<usuario>/resenas/<id>/ con «Copiar enlace», y al publicar se guardan las horas y el estado de la biblioteca. Las migraciones pasan solas las reseñas y notas que había (las horas de las reseñas viejas son las de ese momento). 13 tests nuevos."
+  },
+  {
+    "titulo": "Reseñas: lo mejor y lo peor, datos de la partida rellenos solos e imágenes",
+    "fecha": "2026-10-23",
+    "estado": "en curso",
+    "prioridad": "alta",
+    "tipo": "Funcionalidad",
+    "resumen": "Tres mejoras del editor de reseñas que propuso el usuario: una lista de «Lo mejor» y otra de «Lo peor», que la plataforma y las fechas de la partida se rellenen solas con lo que dejan las importaciones de Steam, PlayStation y Xbox, y poder añadir imágenes.",
+    "motivo": "«Lo mejor / Lo peor» es el formato de las revistas de videojuegos de aquí y deja leer una reseña de un vistazo. Las importaciones ya reciben la plataforma (PS4 o PS5 en PlayStation, la consola o el PC en Xbox) y las fechas de partida, pero ahora solo se usan para emparejar y se tiran. Las imágenes hacen las reseñas más vivas y Backloggd no las tiene.",
+    "pasos": [
+      "Lo mejor y lo peor: hasta 5 puntos cortos en cada lista (opcionales), con iconos en la tarjeta y en la página de la reseña; en la portada y en el perfil sirven de resumen cuando el texto es largo.",
+      "Mejora propia: al escribir un punto, sugerir los que ya han puesto otros en el mismo juego, para que se repitan las mismas frases y la ficha pueda enseñar «Lo que más destacan» con cuánta gente lo dice.",
+      "Autorrelleno de la plataforma: guardar en cada título importado dónde se jugó (PC en Steam, PS4 o PS5 por la categoría de PlayStation, los dispositivos de Xbox; y Steam Deck si GetOwnedGames trae playtime_deck_forever) y elegirla sola en el editor; si se jugó en varias, la de más horas, diciéndolo.",
+      "Autorrelleno de fechas: la primera partida de PlayStation (firstPlayedDateTime, que la importación recibe y ahora no lee) para «Lo empecé el» y, si el juego está como Completado, la última partida de la plataforma para «Lo terminé el». Con el «Diario de partidas que se escribe solo» serían exactas.",
+      "Todo lo rellenado lleva al lado de dónde sale («De tu cuenta de PlayStation») y se puede cambiar; las horas y el estado ya se guardan solos al publicar.",
+      "Imágenes: hasta 4 por reseña, pasadas a WebP y sin EXIF con lo que ya usa el perfil (accounts/images.py), cada una marcable como spoiler (borrosa hasta pulsarla) y vistas en el visor a pantalla completa del carrusel. Se puede elegir también una captura oficial del juego (las del carrusel) sin subir nada.",
+      "Antes de abrir las imágenes al público: el botón de denunciar de «Me gusta y comentarios en las reseñas» y guardar los archivos fuera del servidor en producción."
+    ],
+    "notas": "Propuesta por el usuario el 23/10/2026. Orden recomendado: lo mejor y lo peor y el autorrelleno primero (poco trabajo, salen de datos que ya existen) y las imágenes después, compartiendo el modelo de imagen con «Publicaciones con imágenes asociadas a un juego» para no hacerlo dos veces. 23/10/2026: hechos en la rama resenas-completas, fusionada con main, lo mejor y lo peor (Review.pros y Review.cons, cinco casillas por lista, con formato), las sugerencias de lo que han escrito otros (library/points.py, con <datalist>), «Lo que más destacan» y «Lo que menos gusta» en la ficha (a partir de dos reseñas que coinciden) y el autorrelleno (library/autofill.py): ImportedTitle guarda ahora las plataformas y la primera partida; en lo importado antes, la consola de PlayStation sale del ID del juego (CUSA es PS4 y PPSA, PS5) y lo de Steam es PC. Probado con las importaciones reales de tester_steam (Apex Legends: elige PS4 con 134 h frente a 25 h en PC). La primera partida de PlayStation llegará con la próxima sincronización de PlayStation. Faltan las imágenes y Steam Deck."
   },
   {
     "titulo": "Me gusta y comentarios en las reseñas",
     "fecha": "2026-10-17",
-    "estado": "pendiente",
+    "estado": "en curso",
     "prioridad": "alta",
     "tipo": "Funcionalidad",
     "resumen": "Reaccionar a las reseñas con «me gusta», comentarlas y ordenar las de la ficha por las más útiles.",
@@ -83,7 +102,7 @@
       "Orden de reseñas en la ficha: más útiles / más recientes.",
       "Botón de denunciar reseña para el admin."
     ],
-    "notas": "Ya estaba planeada antes de proponerla. 21/10/2026: sube a alta porque el usuario quiere unas reseñas al nivel de las de Backloggd."
+    "notas": "Ya estaba planeada antes de proponerla. 21/10/2026: sube a alta porque el usuario quiere unas reseñas al nivel de las de Backloggd. 23/10/2026: hechos en la rama resenas-completas los «me gusta» (no en las tuyas, con HTMX), los comentarios con el mismo formato (los borran quien los escribe y el autor de la reseña), los avisos en la campana (un «me gusta» de la misma persona avisa una sola vez) y el orden «Más gustadas». Falta el botón de denunciar."
   },
   {
     "titulo": "Listas personalizadas de juegos",
@@ -253,7 +272,7 @@
   {
     "titulo": "Rediseño de la ficha: cabecera con arte y carrusel de imágenes y vídeos",
     "fecha": "2026-10-22",
-    "estado": "en curso",
+    "estado": "hecha",
     "prioridad": "alta",
     "tipo": "Diseño",
     "resumen": "Aprovechar las imágenes y los vídeos de IGDB, Steam y la tienda de Microsoft en la ficha: una cabecera fija con el mejor arte apaisado y el logo del juego encima, y un carrusel que se pasa a mano con el tráiler, las capturas y los artes, que se abre en un visor a pantalla completa.",
@@ -268,7 +287,7 @@
       "Botón «Poner de cabecera en mi perfil» en el visor, que guarda ese juego y esa imagen en banner_game y banner_art.",
       "Más adelante: los tráileres en castellano de Steam (pidiendo filters=basic,screenshots,movies en la misma llamada que ya hace localize_games, sin peticiones de más) y las capturas de la comunidad cuando existan las publicaciones."
     ],
-    "notas": "Forma parte de «Rediseño de toda la web con aspecto de red social» y recoge el tráiler, la galería y la cabecera de «Ficha del juego más completa». Comprobado el 22/10/2026: 1297 de los 2175 juegos del catálogo tienen ID de Steam y 1442 el de Steam o el de Microsoft; library_hero.jpg y logo.png estaban en los 6 juegos de Steam probados. La tienda de Microsoft da, en la misma respuesta que ya pide fetch_descriptions, 14 capturas a 1920 × 1080, SuperHeroArt y TitledHeroArt (GTA V). Los vídeos de Steam vienen en HLS o DASH (hace falta un reproductor como hls.js) y en algunos juegos hay versiones en castellano: en GTA V salen con «(ES)» o «PEGI SP» en el nombre. 22/10/2026: maqueta con God of War (escritorio, móvil y visor) y Zelda: Breath of the Wild como juego sin Steam, en el lienzo «Maqueta de la ficha de juego» (https://claude.ai/artifact/99d2PMDrVMrnsuEyvMqRja); el carrusel se puede ver como tira o como vista grande con miniaturas. El usuario eligió la tira. 23/10/2026: montada en la rama ficha-cabecera-y-carrusel (aún sin commit): filtro de tipos de arte en IGDBClient.artworks (arregla el selector de cabecera del perfil), games/media.py con una sola consulta a IGDB guardada en Game.media 30 días, comprobación de la imagen y el logo de la biblioteca de Steam y recorte del margen transparente de los logos, cabecera con el logo encima, tira con filtros y flechas, visor con teclado, deslizar y tráileres de YouTube que se cargan al pulsar, y el botón «Poner de cabecera en mi perfil» (solo con juegos de la biblioteca). Solo se usan logos con transparencia (el de Zelda: Breath of the Wild en IGDB trae fondo blanco y saldría como un recuadro) y el primer vídeo es el tráiler de lanzamiento si lo hay. 10 tests nuevos; probada en el navegador en escritorio y en móvil con God of War y con Zelda. Falta: tráileres en castellano de Steam y capturas de la comunidad."
+    "notas": "Forma parte de «Rediseño de toda la web con aspecto de red social» y recoge el tráiler, la galería y la cabecera de «Ficha del juego más completa». Comprobado el 22/10/2026: 1297 de los 2175 juegos del catálogo tienen ID de Steam y 1442 el de Steam o el de Microsoft; library_hero.jpg y logo.png estaban en los 6 juegos de Steam probados. La tienda de Microsoft da, en la misma respuesta que ya pide fetch_descriptions, 14 capturas a 1920 × 1080, SuperHeroArt y TitledHeroArt (GTA V). Los vídeos de Steam vienen en HLS o DASH (hace falta un reproductor como hls.js) y en algunos juegos hay versiones en castellano: en GTA V salen con «(ES)» o «PEGI SP» en el nombre. 22/10/2026: maqueta con God of War (escritorio, móvil y visor) y Zelda: Breath of the Wild como juego sin Steam, en el lienzo «Maqueta de la ficha de juego» (https://claude.ai/artifact/99d2PMDrVMrnsuEyvMqRja); el carrusel se puede ver como tira o como vista grande con miniaturas. El usuario eligió la tira. 23/10/2026: montada en la rama ficha-cabecera-y-carrusel y fusionada con main: filtro de tipos de arte en IGDBClient.artworks (arregla el selector de cabecera del perfil), games/media.py con una sola consulta a IGDB guardada en Game.media 30 días, comprobación de la imagen y el logo de la biblioteca de Steam y recorte del margen transparente de los logos, cabecera con el logo encima, tira con filtros y flechas, visor con teclado, deslizar y tráileres de YouTube que se cargan al pulsar, y el botón «Poner de cabecera en mi perfil» (solo con juegos de la biblioteca). Solo se usan logos con transparencia (el de Zelda: Breath of the Wild en IGDB trae fondo blanco y saldría como un recuadro) y el primer vídeo es el tráiler de lanzamiento si lo hay. 10 tests nuevos; probada en el navegador en escritorio y en móvil con God of War y con Zelda. Falta: tráileres en castellano de Steam y capturas de la comunidad."
   },
   {
     "titulo": "Publicaciones con imágenes asociadas a un juego",
@@ -443,7 +462,7 @@
   {
     "titulo": "Reseñas con horas verificadas y spoilers según tu progreso",
     "fecha": "2026-10-21",
-    "estado": "pendiente",
+    "estado": "en curso",
     "prioridad": "media",
     "tipo": "Funcionalidad",
     "resumen": "Que cada reseña diga con cuántas horas se escribió y de qué plataforma salen, poder ver solo las de quien lo ha jugado de verdad o lo ha terminado, y plegar las que van más adelante que tú en el juego.",
@@ -455,7 +474,7 @@
       "Spoilers según tu progreso: si llevas 5 h, las reseñas escritas con muchas más horas que tú salen plegadas («escrita a las 60 h: puede contar lo que te queda»).",
       "Aviso al autor cuando ha jugado mucho más desde su reseña: «llevas 40 h más, ¿la actualizas?»."
     ],
-    "notas": "El plegado por progreso sirve también para «Publicaciones con imágenes asociadas a un juego». Backloggd tiene pendiente en su hoja de ruta marcar spoilers dentro del texto; aquí sería automático."
+    "notas": "El plegado por progreso sirve también para «Publicaciones con imágenes asociadas a un juego». Backloggd tiene pendiente en su hoja de ruta marcar spoilers dentro del texto; aquí sería automático. 23/10/2026: hecho en la rama resenas-completas: cada reseña guarda al publicarla (y al editarla) las horas importadas y de qué plataformas salen («Escrita a las 24,2 h · Steam») y cómo iba el autor con el juego («Lo terminó», «Aún jugándolo»); filtros «Lo han terminado» y «Con más de 10 h» en la ficha; las reseñas escritas con 10 h o más de ventaja sobre quien las lee (si no lo ha terminado) salen plegadas. Faltan la nota de la comunidad solo con quien tiene horas, los logos de plataforma en vez del nombre y el aviso «llevas 40 h más, ¿la actualizas?»."
   },
   {
     "titulo": "¿A qué jugamos? Juegos en común con tus amigos",

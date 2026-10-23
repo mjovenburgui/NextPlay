@@ -195,6 +195,8 @@ def import_library(user, npsso):
             titles, title.get("titleId") or f"name:{normalize(name)}", name,
             duration_minutes(title.get("playDuration")), parse_datetime(title.get("lastPlayedDateTime") or ""),
             [platform] if platform else [],
+            # PlayStation también da la primera partida: rellena «Lo empecé el» en las reseñas.
+            first_played=parse_datetime(title.get("firstPlayedDateTime") or ""),
         )
 
     def auto_match(ids):

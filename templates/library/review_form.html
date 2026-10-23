@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% load reviews %}
+
+{% block title %}{% if review.pk and not review.is_draft %}Editar tu reseña{% else %}Escribir una reseña{% endif %} de {{ game.name }} · NextPlay{% endblock %}
+
+{% block content %}
+  {# Editor de reseñas: nota en medias estrellas, texto con formato y vista previa, datos de la partida, borrador o publicar. #}
+  <div class="review-editor">
+    <header class="editor-head">
+      <a class="review-thumb editor-cover" href="{{ game.get_absolute_url }}">
+        {% if game.cover_url %}<img src="{{ game.cover_url }}" alt="" loading="lazy">{% endif %}
+      </a>
+      <div>
+        <p class="widget-label">{% if review.pk and not review.is_draft %}Editar tu reseña{% elif review.pk %}Borrador{% else %}Nueva reseña{% endif %}</p>
+        <h1><a href="{{ game.get_absolute_url }}">{{ game.name }}</a></h1>
+        {% if entry %}
+          <p class="help">
+            Al publicarla se guardan tu estado en la biblioteca ({{ entry.get_status_display|lower }}){% if entry.playtime_hours is not None %} y tus {{ entry.playtime_hours|floatformat:"-1" }} h jugadas, que vienen de tus importaciones{% endif %}:
+            así quien la lea sabe con cuánto la escribiste.
+          </p>
+        {% endif %}
+      </div>
+    </header>
+
+    <form class="editor-form" method="post">
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+
+      <fieldset class="field editor-rating">
+        <legend>Tu nota</legend>
+        {% include "library/_star_input.html" with field=form.rating steps=rating_steps %}
+        <p class="help">Si la pones, también será tu nota del juego en tu biblioteca.</p>
+        {{ form.rating.errors }}
+      </fieldset>
+
+      <div class="field{% if form.text.errors %} has-error{% endif %}">
+        <label for="{{ form.text.id_for_label }}">{{ form.text.label }}</label>
+        <div class="editor-toolbar" role="toolbar" aria-label="Formato del texto">
+          <button class="btn btn-small" type="button" data-wrap="**" title="Negrita (Ctrl+B)"><strong>N</strong><span class="visually-hidden"> negrita</span></button>
+          <button class="btn btn-small" type="button" data-wrap="*" title="Cursiva (Ctrl+I)"><em>C</em><span class="visually-hidden"> cursiva</span></button>
+          <button class="btn btn-small" type="button" data-wrap="||" title="Ocultar como spoiler">Spoiler</button>
+          <button class="btn btn-small" type="button" data-link title="Añadir un enlace">Enlace</button>
+          <span class="editor-count" data-count></span>
+        </div>
+        {{ form.text }}
+        <p class="help">{{ form.text.help_text }}</p>
+        {{ form.text.errors }}
+      </div>
+
+      {# Lo mejor y lo peor: hasta cinco puntos cortos en cada lista; las sugerencias son lo que ya han escrito otros en este juego. #}
+      <fieldset class="field editor-points">
+        <legend>Lo mejor y lo peor <span class="muted small">(opcional)</span></legend>
+        <div class="points-editor">
+          <div class="points-column points-pros">
+            <p class="points-title">{% include "_icon.html" with name="check" %} Lo mejor</p>
+            {% for name, id, value in form.pro_slots %}
+              <label class="visually-hidden" for="{{ id }}">Lo mejor, punto {{ forloop.counter }}</label>
+              <input type="text" name="{{ name }}" id="{{ id }}" value="{{ value }}" maxlength="90" list="lo-mejor-sugerido"
+                     placeholder="{% if forloop.first %}Ej.: la banda sonora{% endif %}">
+            {% endfor %}
+            {{ form.pros.errors }}
+          </div>
+          <div class="points-column points-cons">
+            <p class="points-title">{% include "_icon.html" with name="close" %} Lo peor</p>
+            {% for name, id, value in form.con_slots %}
+              <label class="visually-hidden" for="{{ id }}">Lo peor, punto {{ forloop.counter }}</label>
+              <input type="text" name="{{ name }}" id="{{ id }}" value="{{ value }}" maxlength="90" list="lo-peor-sugerido"
+                     placeholder="{% if forloop.first %}Ej.: los tiempos de carga{% endif %}">
+            {% endfor %}
+            {{ form.cons.errors }}
+          </div>
+        </div>
+        <p class="help">
+          Frases cortas; también valen **negrita** y ||spoiler||.
+          {% if suggestions.pros or suggestions.cons %}Al escribir te sugerimos lo que ya han puesto otros: si usas las mismas palabras, la ficha puede contar en qué coincidís.{% endif %}
+        </p>
+        <datalist id="lo-mejor-sugerido">{% for point in suggestions.pros %}<option value="{{ point }}">{% endfor %}</datalist>
+        <datalist id="lo-peor-sugerido">{% for point in suggestions.cons %}<option value="{{ point }}">{% endfor %}</datalist>
+      </fieldset>
+
+      <details class="editor-preview" open>
+        <summary>Vista previa</summary>
+        {# Se pide al servidor mientras se escribe: así se ve igual que quedará publicada. #}
+        <div class="editor-preview-box" hx-post="{% url 'library:review_preview' %}" hx-include="#{{ form.text.id_for_label }}"
+             hx-trigger="load, input from:#{{ form.text.id_for_label }} delay:400ms">
+          <p class="muted">Aquí verás cómo queda tu reseña.</p>
+        </div>
+      </details>
+
+      {# Datos de la partida. En una reseña nueva vienen rellenos con lo que dejaron las importaciones, diciendo de dónde sale cada uno. #}
+      <div class="editor-grid">
+        <div class="field">
+          <label for="{{ form.platform.id_for_label }}">{{ form.platform.label }}</label>
+          {{ form.platform }}
+          {% if fill_notes.platform %}<p class="help fill-note">{% include "_icon.html" with name="link" %} {{ fill_notes.platform }}</p>{% endif %}
+          {{ form.platform.errors }}
+        </div>
+        <div class="field{% if form.started_on.errors %} has-error{% endif %}">
+          <label for="{{ form.started_on.id_for_label }}">{{ form.started_on.label }}</label>
+          {{ form.started_on }}
+          {% if fill_notes.started_on %}<p class="help fill-note">{% include "_icon.html" with name="link" %} {{ fill_notes.started_on }}</p>{% endif %}
+          {{ form.started_on.errors }}
+        </div>
+        <div class="field{% if form.finished_on.errors %} has-error{% endif %}">
+          <label for="{{ form.finished_on.id_for_label }}">{{ form.finished_on.label }}</label>
+          {{ form.finished_on }}
+          {% if fill_notes.finished_on %}<p class="help fill-note">{% include "_icon.html" with name="link" %} {{ fill_notes.finished_on }}</p>{% endif %}
+          {{ form.finished_on.errors }}
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="check">{{ form.is_replay }} {{ form.is_replay.label }}</label>
+        <label class="check">{{ form.has_spoilers }} {{ form.has_spoilers.label }}</label>
+        <p class="help">{{ form.has_spoilers.help_text }}</p>
+      </div>
+
+      <div class="editor-actions">
+        <button class="btn btn-primary" type="submit" name="publicar">{% if review.pk and not review.is_draft %}Guardar cambios{% else %}Publicar reseña{% endif %}</button>
+        <button class="btn" type="submit" name="borrador">{% if review.pk and not review.is_draft %}Pasar a borrador{% else %}Guardar borrador{% endif %}</button>
+        <a class="link" href="{{ game.get_absolute_url }}#resenas">Cancelar</a>
+      </div>
+    </form>
+
+    {% if review.pk %}
+      <form class="editor-delete" method="post" action="{% url 'library:review_delete' review.pk %}"
+            onsubmit="return confirm('¿Borrar esta reseña con sus me gusta y comentarios? No se puede deshacer.');">
+        {% csrf_token %}
+        <button class="link link-danger" type="submit">Borrar la reseña</button>
+      </form>
+    {% endif %}
+  </div>
+
+  <script>
+    // Editor de reseñas: botones de formato (también Ctrl+B y Ctrl+I), contador de caracteres y el nombre de la nota elegida.
+    (function () {
+      var text = document.getElementById("{{ form.text.id_for_label }}");
+      var count = document.querySelector("[data-count]");
+
+      function updateCount() {
+        count.textContent = text.value.length + " / " + text.maxLength;
+      }
+
+      // Avisa de que el texto ha cambiado, para el contador y la vista previa.
+      function changed() {
+        text.focus();
+        text.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+
+      // Rodea lo seleccionado con la marca (o la pone a los dos lados del cursor) y deja seleccionado lo de dentro.
+      function wrap(mark) {
+        var start = text.selectionStart;
+        var end = text.selectionEnd;
+        var selected = text.value.slice(start, end);
+        text.setRangeText(mark + selected + mark, start, end, "end");
+        text.setSelectionRange(start + mark.length, start + mark.length + selected.length);
+        changed();
+      }
+
+      document.querySelectorAll("[data-wrap]").forEach(function (button) {
+        button.addEventListener("click", function () { wrap(button.dataset.wrap); });
+      });
+      document.querySelector("[data-link]").addEventListener("click", function () {
+        var url = window.prompt("Dirección del enlace (empieza por https://):", "https://");
+        if (!url || !/^https?:\/\/\S+$/.test(url.trim())) return;
+        var start = text.selectionStart;
+        var end = text.selectionEnd;
+        var label = text.value.slice(start, end) || "enlace";
+        text.setRangeText("[" + label + "](" + url.trim() + ")", start, end, "end");
+        changed();
+      });
+      text.addEventListener("keydown", function (event) {
+        if (!(event.ctrlKey || event.metaKey)) return;
+        if (event.key === "b") { event.preventDefault(); wrap("**"); }
+        else if (event.key === "i") { event.preventDefault(); wrap("*"); }
+      });
+      text.addEventListener("input", updateCount);
+      updateCount();
+
+      // Nombre de la nota elegida junto a las estrellas («3,5 estrellas»).
+      var value = document.querySelector("[data-star-value]");
+      document.querySelectorAll(".star-input input[type=radio]").forEach(function (radio) {
+        radio.addEventListener("change", function () {
+          var label = document.querySelector("label[for='" + radio.id + "']");
+          value.textContent = radio.value ? label.title : "";
+        });
+      });
+    })();
+  </script>
+{% endblock %}

@@ -86,7 +86,7 @@
 
       <section class="card-box">
         <header class="box-head"><h2>Últimas reseñas</h2></header>
-        {% for entry in recent_reviews %}
+        {% for review in recent_reviews %}
           {% include "library/_feed_review.html" %}
         {% empty %}
           <p class="muted small box-empty">Todavía no hay reseñas. Abre un juego de tu biblioteca y cuenta qué te parece.</p>
