@@ -17,7 +17,7 @@ from django.utils.html import format_html
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from games import igdb
+from games import igdb, media
 
 from games.models import LANGUAGE_FILTERS, Game, Genre, igdb_image_url, known_shops, language_filter
 from library.models import LibraryEntry
@@ -354,6 +354,42 @@ def banner_arts(request):
             "igdb_configured": igdb.is_configured(),
         },
     )
+
+
+@require_POST
+@login_required
+def banner_from_game(request, game_id):
+    """Pone de cabecera del perfil una imagen de la ficha de un juego (el botón del visor del carrusel).
+
+    Como en Editar perfil, solo con juegos de la biblioteca del usuario, y solo con imágenes apaisadas de
+    la ficha (games.media.banner_arts). El encuadre vuelve al centro, como con cualquier imagen nueva. Con
+    HTMX devuelve el aviso del visor; si no, vuelve a la ficha con un mensaje.
+    """
+    game = get_object_or_404(Game, pk=game_id)
+    art = request.POST.get("art", "")
+    error = ""
+    if not LibraryEntry.objects.filter(user=request.user, game=game).exists():
+        error = "Añade el juego a tu biblioteca para usar sus imágenes de cabecera."
+    elif art not in media.banner_arts(game):
+        error = "Esa imagen no se puede poner de cabecera."
+    else:
+        profile = request.user.profile
+        profile.banner_mode = Profile.BannerMode.GAME
+        profile.banner_game = game
+        profile.banner_art = art
+        profile.banner_x = profile.banner_y = 50
+        profile.banner_zoom = 100
+        profile.banner_fit = False
+        profile.save(update_fields=[
+            "banner_mode", "banner_game", "banner_art", "banner_x", "banner_y", "banner_zoom", "banner_fit",
+        ])
+    if request.headers.get("HX-Request"):
+        return render(request, "accounts/_banner_toast.html", {"error": error})
+    if error:
+        messages.error(request, error)
+    else:
+        messages.success(request, "Hecho: es la nueva cabecera de tu perfil.")
+    return redirect(game)
 
 
 def linking_context():

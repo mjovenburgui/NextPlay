@@ -1223,6 +1223,36 @@ class ProfileCustomizationTests(TestCase):
             self.assertEqual(client.artworks(1942, limit=3), ["ar1", "sc1", "sc2"])
         self.assertIn("where game = 1942; limit 2;", query.call_args_list[1].args[1])
 
+    def test_banner_from_the_game_page_viewer(self):
+        game = self.games[0]  # está en la biblioteca de ana
+        game.media = {
+            "arts": [{"id": "ar1", "type": 2, "w": 1920, "h": 1080}, {"id": "ar2", "type": 1, "w": 500, "h": 900}],
+            "shots": [{"id": "sc1", "w": 1920, "h": 1080}],
+        }
+        game.save()
+        profile = self.profile()
+        profile.banner_x, profile.banner_zoom = 10, 150
+        profile.save()
+        url = reverse("banner_from_game", args=[game.pk])
+        response = self.client.post(url, {"art": "sc1"}, HTTP_HX_REQUEST="true")
+        self.assertContains(response, "Hecho: es la nueva cabecera de tu perfil")
+        profile = self.profile()
+        self.assertEqual((profile.banner_mode, profile.banner_game, profile.banner_art), (Profile.BannerMode.GAME, game, "sc1"))
+        self.assertEqual((profile.banner_x, profile.banner_zoom), (50, 100))  # el encuadre vuelve al centro
+        # No valen una imagen vertical, una que no es del juego ni un juego que no está en la biblioteca.
+        for game_pk, art in ((game.pk, "ar2"), (game.pk, "zz9"), (self.games[5].pk, "sc1")):
+            response = self.client.post(reverse("banner_from_game", args=[game_pk]), {"art": art}, HTTP_HX_REQUEST="true")
+            self.assertContains(response, 'role="alert"')
+        self.assertEqual(self.profile().banner_art, "sc1")
+        # Sin HTMX vuelve a la ficha con el aviso.
+        response = self.client.post(url, {"art": "ar1"})
+        self.assertRedirects(response, game.get_absolute_url(), fetch_redirect_response=False)
+        self.assertEqual(self.profile().banner_art, "ar1")
+        self.client.logout()
+        response = self.client.post(url, {"art": "sc1"})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.profile().banner_art, "ar1")
+
     def preview(self, **data):
         """Pide la vista previa de Editar perfil con los datos dados (perfil público salvo que se diga otra cosa)."""
         return self.client.post(reverse("profile_preview"), {"is_public": "on", **data})

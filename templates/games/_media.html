@@ -1,0 +1,197 @@
+{# Carrusel de imágenes y vídeos de la ficha: una tira que se pasa con el dedo o con las flechas, filtros por tipo y un visor a pantalla completa. #}
+{# Necesita game, carousel (games.media.carousel) y can_set_banner (el juego está en la biblioteca: se puede poner de cabecera del perfil). #}
+{# La ficha lo pinta directamente o lo pide con HTMX; entonces, con hero_oob, llega también la cabecera nueva. Sin imágenes no pinta nada. #}
+{% if carousel.items %}
+<section class="media" id="media" aria-labelledby="media-title" data-media>
+  <div class="media-head">
+    <h2 id="media-title">Imágenes y vídeos <span class="muted">{{ carousel.items|length }}</span></h2>
+    {% if carousel.filters %}
+      <div class="media-filters" role="group" aria-label="Qué enseñar">
+        <button class="media-filter" type="button" data-media-filter="todo" aria-pressed="true">Todo <span class="count">{{ carousel.items|length }}</span></button>
+        {% for kind, label, count in carousel.filters %}
+          <button class="media-filter" type="button" data-media-filter="{{ kind }}" aria-pressed="false">{{ label }} <span class="count">{{ count }}</span></button>
+        {% endfor %}
+      </div>
+    {% endif %}
+    <div class="media-arrows">
+      <button class="media-arrow" type="button" data-media-scroll="-1" aria-label="Anteriores">{% include "_icon.html" with name="back" %}</button>
+      <button class="media-arrow" type="button" data-media-scroll="1" aria-label="Siguientes">{% include "_icon.html" with name="arrow" %}</button>
+    </div>
+  </div>
+  <div class="media-strip" data-media-strip>
+    {% for item in carousel.items %}
+      <button class="media-tile" type="button" aria-label="{{ item.label }}" data-media-item data-kind="{{ item.kind }}"
+              data-thumb="{{ item.thumb }}" data-full="{{ item.full }}" data-heading="{{ item.heading }}" data-detail="{{ item.detail }}"
+              data-alt="{{ item.heading }} de {{ game.name }}" data-title="{{ item.tag }}"{% if item.youtube %} data-youtube="{{ item.youtube }}"{% endif %}{% if item.art %} data-art="{{ item.art }}"{% endif %}>
+        <img src="{{ item.thumb }}" alt="" loading="lazy"{% if item.tall %} class="is-tall"{% endif %}>
+        {% if item.youtube %}<span class="media-play" aria-hidden="true">{% include "_icon.html" with name="play" %}</span>{% endif %}
+        <span class="media-tag">{{ item.tag }}</span>
+      </button>
+    {% endfor %}
+  </div>
+  <p class="help">Capturas, artes y vídeos de IGDB. Los vídeos se cargan de YouTube solo al pulsarlos.</p>
+
+  {# Visor a pantalla completa. Se cierra con Esc, con la X o pulsando fuera de la imagen; las flechas del teclado pasan de una a otra. #}
+  <dialog class="viewer" aria-labelledby="viewer-title" data-media-viewer>
+    <div class="viewer-top">
+      <p class="viewer-title" id="viewer-title"><strong data-viewer-heading></strong> <span class="muted" data-viewer-detail></span></p>
+      <div class="viewer-actions">
+        {% if can_set_banner %}
+          <form action="{% url 'banner_from_game' game.pk %}" method="post" data-viewer-banner
+                hx-post="{% url 'banner_from_game' game.pk %}" hx-target="#viewer-toast" hx-swap="innerHTML">
+            {% csrf_token %}
+            <input type="hidden" name="art" value="">
+            <button class="btn btn-small" type="submit">{% include "_icon.html" with name="image" %} Poner de cabecera en mi perfil</button>
+          </form>
+        {% endif %}
+        <button class="viewer-close" type="button" aria-label="Cerrar" data-viewer-close>{% include "_icon.html" with name="close" %}</button>
+      </div>
+    </div>
+    <div class="viewer-stage">
+      <button class="media-arrow viewer-nav" type="button" data-viewer-step="-1" aria-label="Anterior">{% include "_icon.html" with name="back" %}</button>
+      <figure class="viewer-figure" data-viewer-figure></figure>
+      <button class="media-arrow viewer-nav" type="button" data-viewer-step="1" aria-label="Siguiente">{% include "_icon.html" with name="arrow" %}</button>
+    </div>
+    <p class="viewer-count" data-viewer-count></p>
+    <div class="viewer-toast" id="viewer-toast" aria-live="polite"></div>
+  </dialog>
+
+  <script>
+    // Carrusel de la ficha: filtros, flechas, visor a pantalla completa (con teclado y deslizando el dedo) y
+    // «Poner de cabecera». Vale tanto si la ficha lo pinta directamente como si llega después por HTMX (que ejecuta este script).
+    (function () {
+      document.querySelectorAll("[data-media]:not([data-ready])").forEach(function (section) {
+        section.dataset.ready = "1";
+        var strip = section.querySelector("[data-media-strip]");
+        var tiles = Array.prototype.slice.call(strip.querySelectorAll("[data-media-item]"));
+        var arrows = section.querySelectorAll("[data-media-scroll]");
+        var viewer = section.querySelector("[data-media-viewer]");
+        var figure = viewer.querySelector("[data-viewer-figure]");
+        var banner = viewer.querySelector("[data-viewer-banner]");
+        var toast = viewer.querySelector("#viewer-toast");
+        var current = 0;
+
+        // Miniaturas que deja ver el filtro elegido, en orden.
+        function visible() {
+          return tiles.filter(function (tile) { return !tile.hidden; });
+        }
+
+        // Apaga cada flecha cuando la tira ya está en ese extremo (o cuando cabe entera).
+        function updateArrows() {
+          var end = strip.scrollWidth - strip.clientWidth - 2;
+          arrows.forEach(function (arrow) {
+            arrow.disabled = Number(arrow.dataset.mediaScroll) < 0 ? strip.scrollLeft <= 2 : strip.scrollLeft >= end;
+          });
+        }
+        arrows.forEach(function (arrow) {
+          arrow.addEventListener("click", function () {
+            strip.scrollBy({ left: Number(arrow.dataset.mediaScroll) * strip.clientWidth * 0.8, behavior: "smooth" });
+          });
+        });
+        strip.addEventListener("scroll", updateArrows, { passive: true });
+        window.addEventListener("resize", updateArrows);
+        updateArrows();
+
+        // Filtros: enseñan solo vídeos, capturas o arte y vuelven al principio de la tira.
+        var filters = section.querySelectorAll("[data-media-filter]");
+        filters.forEach(function (button) {
+          button.addEventListener("click", function () {
+            var kind = button.dataset.mediaFilter;
+            filters.forEach(function (other) { other.setAttribute("aria-pressed", other === button ? "true" : "false"); });
+            tiles.forEach(function (tile) { tile.hidden = kind !== "todo" && tile.dataset.kind !== kind; });
+            strip.scrollLeft = 0;
+            updateArrows();
+          });
+        });
+
+        // Portada de un vídeo con su botón de reproducir: hasta que se pulsa no se carga nada de YouTube más que la imagen.
+        function videoPoster(tile) {
+          var data = tile.dataset;
+          var play = document.createElement("button");
+          play.type = "button";
+          play.className = "viewer-video";
+          play.setAttribute("aria-label", "Reproducir «" + data.title + "»");
+          var poster = document.createElement("img");
+          poster.alt = "";
+          poster.src = data.thumb;
+          // La portada grande (maxresdefault) no existe en todos los vídeos: entonces YouTube da un error o una
+          // imagen gris de 120 px, y se queda la pequeña.
+          var big = new Image();
+          big.addEventListener("load", function () { if (big.naturalWidth > 120) poster.src = data.full; });
+          big.src = data.full;
+          play.append(poster, tile.querySelector(".media-play").cloneNode(true));
+          play.addEventListener("click", function () {
+            var frame = document.createElement("iframe");
+            frame.className = "viewer-frame";
+            frame.src = "https://www.youtube-nocookie.com/embed/" + encodeURIComponent(data.youtube) + "?autoplay=1&rel=0";
+            frame.title = data.title;
+            frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+            frame.allowFullscreen = true;
+            figure.replaceChildren(frame);
+          });
+          return play;
+        }
+
+        // Enseña en el visor la miniatura i de las visibles (da la vuelta al llegar a un extremo).
+        function show(i) {
+          var list = visible();
+          if (!list.length) return;
+          current = (i + list.length) % list.length;
+          var tile = list[current];
+          var data = tile.dataset;
+          if (data.youtube) {
+            figure.replaceChildren(videoPoster(tile));
+          } else {
+            // Primero la miniatura, que ya está cargada, y la grande en cuanto llegue.
+            var img = document.createElement("img");
+            img.alt = data.alt;
+            img.src = data.thumb;
+            var full = new Image();
+            full.addEventListener("load", function () { img.src = data.full; });
+            full.src = data.full;
+            figure.replaceChildren(img);
+          }
+          viewer.querySelector("[data-viewer-heading]").textContent = data.heading;
+          viewer.querySelector("[data-viewer-detail]").textContent = "· " + data.detail;
+          viewer.querySelector("[data-viewer-count]").textContent = (current + 1) + " / " + list.length;
+          if (banner) {
+            banner.hidden = !data.art;
+            banner.querySelector("[name=art]").value = data.art || "";
+          }
+          toast.replaceChildren();
+        }
+
+        tiles.forEach(function (tile) {
+          tile.addEventListener("click", function () {
+            show(visible().indexOf(tile));
+            viewer.showModal();
+          });
+        });
+        viewer.querySelectorAll("[data-viewer-step]").forEach(function (button) {
+          button.addEventListener("click", function () { show(current + Number(button.dataset.viewerStep)); });
+        });
+        viewer.querySelector("[data-viewer-close]").addEventListener("click", function () { viewer.close(); });
+        viewer.addEventListener("click", function (event) {
+          if (event.target === viewer || event.target.classList.contains("viewer-stage")) viewer.close();
+        });
+        // Al cerrar se vacía el visor, para que un vídeo no siga sonando.
+        viewer.addEventListener("close", function () { figure.replaceChildren(); });
+        viewer.addEventListener("keydown", function (event) {
+          if (event.key === "ArrowLeft") show(current - 1);
+          else if (event.key === "ArrowRight") show(current + 1);
+        });
+        // En el móvil, deslizar el dedo a un lado pasa a la anterior o a la siguiente.
+        var startX = null;
+        figure.addEventListener("touchstart", function (event) { startX = event.touches[0].clientX; }, { passive: true });
+        figure.addEventListener("touchend", function (event) {
+          if (startX === null) return;
+          var moved = event.changedTouches[0].clientX - startX;
+          startX = null;
+          if (Math.abs(moved) > 50) show(current + (moved < 0 ? 1 : -1));
+        });
+      });
+    })();
+  </script>
+</section>
+{% endif %}
+{% if hero_oob %}{% include "games/_hero.html" with oob=True %}{% endif %}

@@ -1,0 +1,33 @@
+{# Cabecera de la ficha: el arte del juego a todo lo ancho con su logo (o su nombre), la fecha, los géneros, las plataformas y el castellano. #}
+{# Necesita game y hero (games.media.hero). Con oob, HTMX la cambia por la de la página cuando llega el carrusel con imágenes nuevas. #}
+{# Si la imagen de Steam no existe, el script de la ficha pasa a la de repuesto (data-fallback) o deja la carátula desenfocada. #}
+<section class="game-hero{% if not hero.image %} is-plain{% endif %}" id="game-hero"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <div class="game-hero-art" aria-hidden="true">
+    {% if game.cover_url %}<img class="game-hero-blur" src="{{ game.cover_url }}" alt="">{% endif %}
+    {% if hero.image %}<img class="game-hero-img" src="{{ hero.image }}" alt="" data-hero-image data-fallback="{{ hero.fallback }}" data-credit="{{ hero.fallback_credit }}">{% endif %}
+  </div>
+  <div class="game-hero-inner">
+    <h1 class="game-title">
+      {% if hero.logo %}
+        {# El logo recortado sin su margen transparente (variables --crop-* de games.media). #}
+        <span class="game-logo" style="{{ hero.logo_style }}"><img src="{{ hero.logo }}" alt="{{ game.name }}"></span>
+      {% else %}
+        <span class="game-name">{{ game.name }}</span>
+      {% endif %}
+    </h1>
+    {% if game.spain_name %}<p class="name-es">En España: <strong>{{ game.spain_name }}</strong></p>{% endif %}
+    {% if game.first_release_date %}
+      <p class="game-date">{{ game.first_release_date|date:"j \d\e F \d\e Y" }}</p>
+    {% endif %}
+    <div class="chips">
+      {% for genre in game.genres.all %}
+        <a class="chip" href="{% url 'games:catalog' %}?genero={{ genre.slug }}">{{ genre.name }}</a>
+      {% endfor %}
+      {% for platform in game.platforms.all %}
+        <a class="chip chip-alt" href="{% url 'games:catalog' %}?plataforma={{ platform.slug }}">{{ platform.short_name }}</a>
+      {% endfor %}
+    </div>
+    {% include "games/_spanish.html" %}
+  </div>
+  {% if hero.credit %}<p class="game-hero-credit" data-hero-credit>{{ hero.credit }}</p>{% endif %}
+</section>

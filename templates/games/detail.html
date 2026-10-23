@@ -4,8 +4,34 @@
 {% block description %}{{ game.summary_es|default:game.summary|default:game.name|truncatechars:155 }}{% endblock %}
 
 {% block content %}
-  {# Fondo de cabecera: la carátula ampliada y desenfocada, fundida con el fondo de la página. #}
-  <div class="game-hero" aria-hidden="true">{% if game.cover_url %}<img src="{{ game.cover_url }}" alt="">{% endif %}</div>
+  <script>
+    // Cabecera: si la imagen de Steam no existe, pasa a la de repuesto de IGDB (y cambia el texto de procedencia) o la quita
+    // y queda la carátula desenfocada; si falla el logo, pone el nombre en texto. Vale también para la cabecera que llega por HTMX.
+    document.addEventListener("error", function (event) {
+      var img = event.target;
+      var hero = img instanceof HTMLImageElement && img.closest(".game-hero");
+      if (!hero) return;
+      if (img.parentElement.classList.contains("game-logo")) {
+        var name = document.createElement("span");
+        name.className = "game-name";
+        name.textContent = img.alt;
+        img.parentElement.replaceWith(name);
+      } else if (img.hasAttribute("data-hero-image")) {
+        var credit = hero.querySelector("[data-hero-credit]");
+        if (credit && img.dataset.credit) credit.textContent = img.dataset.credit;
+        else if (credit) credit.remove();
+        img.dataset.credit = "";
+        if (img.dataset.fallback) {
+          img.src = img.dataset.fallback;
+          img.dataset.fallback = "";
+        } else {
+          img.remove();
+          hero.classList.add("is-plain");
+        }
+      }
+    }, true);
+  </script>
+  {% include "games/_hero.html" %}
   <article class="game">
     <aside class="game-side">
       <div class="cover cover-lg">
@@ -33,22 +59,6 @@
     </aside>
 
     <div class="game-body">
-      <h1>{{ game.name }}</h1>
-      {% if game.spain_name %}<p class="name-es">En España: <strong>{{ game.spain_name }}</strong></p>{% endif %}
-      {% if game.first_release_date %}
-        <p class="muted">{{ game.first_release_date|date:"j \d\e F \d\e Y" }}</p>
-      {% endif %}
-
-      <div class="chips">
-        {% for genre in game.genres.all %}
-          <a class="chip" href="{% url 'games:catalog' %}?genero={{ genre.slug }}">{{ genre.name }}</a>
-        {% endfor %}
-        {% for platform in game.platforms.all %}
-          <a class="chip chip-alt" href="{% url 'games:catalog' %}?plataforma={{ platform.slug }}">{{ platform.short_name }}</a>
-        {% endfor %}
-      </div>
-      {% include "games/_spanish.html" %}
-
       {% if user.is_authenticated %}
         {% include "library/_widget.html" %}
         {% include "accounts/_favorite.html" %}
@@ -71,6 +81,15 @@
       {% elif game.summary %}
         <p class="summary" lang="en">{{ game.summary }}</p>
         <p class="help summary-source"><span class="pill pill-en">En inglés</span> Aún no tenemos su sinopsis en español.</p>
+      {% endif %}
+
+      {# Carrusel de imágenes y vídeos: con las de IGDB al día va ya; si no, la ficha las pide después con HTMX. #}
+      {% if carousel %}
+        {% include "games/_media.html" %}
+      {% elif load_media %}
+        <div id="media" hx-get="{% url 'games:media' game.slug %}" hx-trigger="load" hx-swap="outerHTML">
+          <p class="help">Cargando imágenes y vídeos…</p>
+        </div>
       {% endif %}
 
       {% with rows=game.language_rows %}{% if rows %}
