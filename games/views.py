@@ -15,7 +15,7 @@ from accounts.views import favorite_context
 from library.models import LibraryEntry, WishlistItem
 from library.views import review_context
 
-from . import history, igdb, prices
+from . import history, igdb, media, prices
 from .models import LANGUAGE_FILTERS, Game, GamePrice, Genre, Platform, language_filter
 
 PAGE_SIZE = 24
@@ -132,13 +132,14 @@ def catalog(request):
 
 
 def detail(request, slug):
-    """Ficha de un juego: datos, nota de la crítica, valoración de la comunidad, widget de biblioteca,
-    botón de favoritos del perfil, precios y reseñas.
+    """Ficha de un juego: cabecera con su arte, datos, nota de la crítica, valoración de la comunidad,
+    widget de biblioteca, botón de favoritos del perfil, carrusel de imágenes y vídeos, precios y reseñas.
 
-    Los precios llegan ya repartidos por Game.price_groups(); store_searches() da los enlaces de
-    búsqueda a las tiendas de consola sin precio. Si el usuario ha elegido sus tiendas solo se enseñan
-    esas, salvo con ?tiendas=todas; la gráfica de precios elige tienda con ?tienda=. Las reseñas de
-    perfiles privados solo las ve su autor.
+    La cabecera y el carrusel salen de games.media: si sus imágenes de IGDB están al día se pintan ya;
+    si no, la ficha carga el carrusel después con HTMX (game_media). Los precios llegan ya repartidos por
+    Game.price_groups(); store_searches() da los enlaces de búsqueda a las tiendas de consola sin
+    precio. Si el usuario ha elegido sus tiendas solo se enseñan esas, salvo con ?tiendas=todas; la
+    gráfica de precios elige tienda con ?tienda=. Las reseñas de perfiles privados solo las ve su autor.
     """
     game = get_object_or_404(Game.objects.prefetch_related("genres", "platforms", "prices"), slug=slug)
     entry = wish = None
@@ -152,11 +153,17 @@ def detail(request, slug):
     has_pc_prices = any(price.source == GamePrice.Source.ITAD for price in game.prices.all())
     # Con el historial reciente se pinta ya; si hay que pedirlo a ITAD, la ficha lo carga después con HTMX.
     fresh = not history.needs_update(game)
+    # Lo mismo con las imágenes y vídeos de IGDB del carrusel.
+    media_fresh = not media.needs_update(game)
     return render(
         request,
         "games/detail.html",
         {
             "game": game,
+            "hero": media.hero(game),
+            "carousel": media.carousel(game) if media_fresh else None,
+            "load_media": not media_fresh and igdb.is_configured(),
+            "can_set_banner": entry is not None,
             "entry": entry,
             "statuses": LibraryEntry.Status.choices,
             "featured_prices": featured_prices,
@@ -173,6 +180,35 @@ def detail(request, slug):
             "community": game.community_rating(),
             **review_context(game, entry, request.user),
             **(favorite_context(request.user, game) if request.user.is_authenticated else {}),
+        },
+    )
+
+
+def game_media(request, slug):
+    """Carrusel de imágenes y vídeos de la ficha (fragmento HTML que la ficha carga con HTMX).
+
+    Si nunca se pidieron a IGDB o tienen más de media.MAX_AGE, los pide antes; si IGDB falla, enseña los
+    que hubiera. Si con ellos cambia la cabecera (un juego que no está en Steam y ahora tiene arte),
+    manda también la nueva para que HTMX la cambie en la página.
+    """
+    game = get_object_or_404(Game.objects.prefetch_related("genres", "platforms"), slug=slug)
+    before = media.hero(game)
+    if media.needs_update(game) and igdb.is_configured():
+        try:
+            media.update_media(game)
+        except igdb.IGDBError:
+            logger.exception("No se pudieron pedir a IGDB las imágenes de %s", game.slug)
+    hero = media.hero(game)
+    return render(
+        request,
+        "games/_media.html",
+        {
+            "game": game,
+            "carousel": media.carousel(game),
+            "hero": hero,
+            "hero_oob": hero != before,
+            "can_set_banner": request.user.is_authenticated
+            and LibraryEntry.objects.filter(user=request.user, game=game).exists(),
         },
     )
 

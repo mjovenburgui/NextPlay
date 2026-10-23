@@ -25,6 +25,18 @@ STORE_SOURCES = {"steam": STEAM_SOURCE_ID, "gog": GOG_SOURCE_ID}
 MICROSOFT_SOURCE_ID = 11  # uid is a Microsoft Store product ID (or an "xbox360..." legacy one)
 MICROSOFT_PRODUCT_ID = re.compile(r"^[0-9A-Z]{12}$")
 
+# Tipos de arte de IGDB (endpoint artwork_types) que no son ilustraciones del juego: logos (blanco, negro, de
+# color e histórico), infografías, portadas (alternativa, histórica y cuadrada) e iconos. No sirven de
+# cabecera ni para el carrusel de la ficha; los logos se usan aparte, encima de la cabecera.
+NOT_ART_TYPES = {5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
+KEY_ART_WITHOUT_LOGO = 2
+KEY_ART_TYPES = (KEY_ART_WITHOUT_LOGO, 3)  # el arte principal, sin logo y con logo: van los primeros
+LOGO_TYPES = (5, 7)  # logo blanco y logo de color, los que se leen sobre la cabecera oscura, por preferencia
+MEDIA_FIELDS = (
+    "fields artworks.image_id, artworks.artwork_type, artworks.width, artworks.height, artworks.alpha_channel, "
+    "screenshots.image_id, screenshots.width, screenshots.height, videos.name, videos.video_id;"
+)
+
 STEAM_FIELDS = "external_games.uid, external_games.name, external_games.external_game_source"
 GAME_FIELDS = (
     "fields name, slug, summary, first_release_date, total_rating_count, cover.image_id, "
@@ -176,17 +188,28 @@ class IGDBClient:
     def artworks(self, igdb_id, limit=8):
         """IDs de imagen del arte promocional de un juego y, si no llegan a limit, de sus capturas.
 
-        Son imágenes apaisadas que sirven de cabecera o de fondo del perfil (la portada es vertical).
+        Son imágenes apaisadas que sirven de cabecera o de fondo del perfil (la portada es vertical). Del
+        arte se quitan los logos, iconos, portadas e infografías (NOT_ART_TYPES) y va primero el principal.
         """
-        images = []
-        for endpoint in ("artworks", "screenshots"):
-            if len(images) >= limit:
-                break
+        found = self.query(
+            "artworks", f"fields image_id, artwork_type; where game = {int(igdb_id)}; limit {MAX_PAGE_SIZE};"
+        )
+        images = [item["image_id"] for item in sort_arts(found) if item.get("image_id")][:limit]
+        if len(images) < limit:
             found = self.query(
-                endpoint, f"fields image_id; where game = {int(igdb_id)}; limit {limit - len(images)};"
+                "screenshots", f"fields image_id; where game = {int(igdb_id)}; limit {limit - len(images)};"
             )
             images += [item["image_id"] for item in found if item.get("image_id")]
         return images
+
+    def game_media(self, igdb_id):
+        """Artes, capturas y vídeos de un juego en una sola consulta: {"artworks", "screenshots", "videos"}.
+
+        Son las listas tal como las da IGDB (los artes con su tipo y tamaño, los vídeos con su ID de
+        YouTube); vacío si IGDB no conoce el juego.
+        """
+        found = self.query("games", f"{MEDIA_FIELDS} where id = {int(igdb_id)};")
+        return found[0] if found else {}
 
     def _with_editions(self, games):
         """Añade a cada juego sus ediciones (GOTY, Definitive...) en la clave «editions», para tener sus IDs de tienda."""
@@ -208,6 +231,15 @@ class IGDBClient:
         for game in games:
             game["editions"] = [edition for edition in editions if edition.get("version_parent") == game["id"]]
         return games
+
+
+def sort_arts(artworks):
+    """Artes de IGDB que son ilustraciones (sin los tipos de NOT_ART_TYPES), con el arte principal primero.
+
+    Los que no traen tipo se quedan: IGDB no los ha clasificado, pero suelen ser ilustraciones.
+    """
+    arts = [art for art in artworks if art.get("artwork_type") not in NOT_ART_TYPES]
+    return sorted(arts, key=lambda art: art.get("artwork_type") not in KEY_ART_TYPES)
 
 
 def _upsert_ref(model, data, **extra):

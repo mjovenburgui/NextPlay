@@ -251,6 +251,26 @@
     "notas": "Propuesta por el usuario con maquetas de móvil y escritorio. Se hace antes que las publicaciones para que estas nazcan ya con el diseño nuevo."
   },
   {
+    "titulo": "Rediseño de la ficha: cabecera con arte y carrusel de imágenes y vídeos",
+    "fecha": "2026-10-22",
+    "estado": "en curso",
+    "prioridad": "alta",
+    "tipo": "Diseño",
+    "resumen": "Aprovechar las imágenes y los vídeos de IGDB, Steam y la tienda de Microsoft en la ficha: una cabecera fija con el mejor arte apaisado y el logo del juego encima, y un carrusel que se pasa a mano con el tráiler, las capturas y los artes, que se abre en un visor a pantalla completa.",
+    "motivo": "Idea del usuario al empezar el rediseño de las fichas. Ahora la ficha solo usa la carátula (desenfocada de fondo) y hay material de sobra: en 100 juegos del catálogo repartidos por popularidad, la mediana es de 18 imágenes por juego entre los 25 más populares y de 8 en torno al puesto 2000, y 99 de cada 100 tienen vídeo. Pero no todo sirve: uno de cada seis artes de IGDB es un logo, un icono o una portada, y solo 15 de cada 100 juegos tienen un arte principal sin logo para la cabecera.",
+    "pasos": [
+      "Filtrar los artes por artwork_type de IGDB: al carrusel van los artes, los conceptuales y los key art; fuera logos, iconos, portadas e infografías. Arregla de paso el selector de cabecera del perfil (IGDBClient.artworks), que ahora ofrece logos e iconos en los 5 juegos más populares (el icono de 256 × 256 de GTA V, el logo de The Witcher 3...).",
+      "Cabecera fija con la mejor imagen: library_hero.jpg de Steam con su logo.png encima, como en la biblioteca de Steam (salen del CDN con el steam_app_id, sin llamar a ninguna API); si no, el SuperHeroArt de la tienda de Microsoft o el key art sin logo de IGDB; si no, la carátula desenfocada de ahora. El título sigue siendo texto para lectores de pantalla y buscadores.",
+      "Carrusel manual «Imágenes y vídeos»: tira con scroll-snap (en el móvil se pasa con el dedo), flechas en escritorio, la siguiente imagen asomando, contador y filtros Todo / Vídeos / Capturas / Arte. Sin avance automático: casi nadie mira más allá de la primera, distrae de la biblioteca y los precios y obliga a poner un botón de pausa por accesibilidad.",
+      "El tráiler, primero y como miniatura: el vídeo de YouTube (youtube-nocookie.com) solo se carga al pulsar.",
+      "Visor a pantalla completa con <dialog>: flechas, teclado, deslizar y Esc; la imagen a 1080p solo se descarga ahí. Miniaturas con srcset y carga diferida.",
+      "Cargar la sección con HTMX después de pintar la ficha, como el historial de precios, con caché de un día (game_arts ya lo hace para el perfil) y por la noche para los juegos más populares.",
+      "Botón «Poner de cabecera en mi perfil» en el visor, que guarda ese juego y esa imagen en banner_game y banner_art.",
+      "Más adelante: los tráileres en castellano de Steam (pidiendo filters=basic,screenshots,movies en la misma llamada que ya hace localize_games, sin peticiones de más) y las capturas de la comunidad cuando existan las publicaciones."
+    ],
+    "notas": "Forma parte de «Rediseño de toda la web con aspecto de red social» y recoge el tráiler, la galería y la cabecera de «Ficha del juego más completa». Comprobado el 22/10/2026: 1297 de los 2175 juegos del catálogo tienen ID de Steam y 1442 el de Steam o el de Microsoft; library_hero.jpg y logo.png estaban en los 6 juegos de Steam probados. La tienda de Microsoft da, en la misma respuesta que ya pide fetch_descriptions, 14 capturas a 1920 × 1080, SuperHeroArt y TitledHeroArt (GTA V). Los vídeos de Steam vienen en HLS o DASH (hace falta un reproductor como hls.js) y en algunos juegos hay versiones en castellano: en GTA V salen con «(ES)» o «PEGI SP» en el nombre. 22/10/2026: maqueta con God of War (escritorio, móvil y visor) y Zelda: Breath of the Wild como juego sin Steam, en el lienzo «Maqueta de la ficha de juego» (https://claude.ai/artifact/99d2PMDrVMrnsuEyvMqRja); el carrusel se puede ver como tira o como vista grande con miniaturas. El usuario eligió la tira. 23/10/2026: montada en la rama ficha-cabecera-y-carrusel (aún sin commit): filtro de tipos de arte en IGDBClient.artworks (arregla el selector de cabecera del perfil), games/media.py con una sola consulta a IGDB guardada en Game.media 30 días, comprobación de la imagen y el logo de la biblioteca de Steam y recorte del margen transparente de los logos, cabecera con el logo encima, tira con filtros y flechas, visor con teclado, deslizar y tráileres de YouTube que se cargan al pulsar, y el botón «Poner de cabecera en mi perfil» (solo con juegos de la biblioteca). Solo se usan logos con transparencia (el de Zelda: Breath of the Wild en IGDB trae fondo blanco y saldría como un recuadro) y el primer vídeo es el tráiler de lanzamiento si lo hay. 10 tests nuevos; probada en el navegador en escritorio y en móvil con God of War y con Zelda. Falta: tráileres en castellano de Steam y capturas de la comunidad."
+  },
+  {
     "titulo": "Publicaciones con imágenes asociadas a un juego",
     "fecha": "2026-10-19",
     "estado": "pendiente",
@@ -285,7 +305,7 @@
       "Usar un arte o una captura apaisada de IGDB como fondo de la cabecera de la ficha en vez de la portada desenfocada (Backloggd pone una captura arriba).",
       "Enlace «Ver en IGDB» con el campo url, como el «More on IGDB» de Backloggd."
     ],
-    "notas": "21/10/2026: comparada con la ficha de Backloggd, que también sale de IGDB: enseña estudio y editora, una captura arriba, resumen, fecha, géneros, plataformas y pestañas de DLC, actualizaciones, ediciones, saga y mods. De The Witcher 3, IGDB da 16 artes, 12 capturas, 17 vídeos, 7 clasificaciones de edad, 48 idiomas, 16 webs y 82 palabras clave, así que la ficha puede quedar más completa que la suya. Pedirlo todo en cada importación hace las respuestas mucho más grandes: mejor traer lo extra al abrir la ficha (con caché) y por la noche para los más populares."
+    "notas": "21/10/2026: comparada con la ficha de Backloggd, que también sale de IGDB: enseña estudio y editora, una captura arriba, resumen, fecha, géneros, plataformas y pestañas de DLC, actualizaciones, ediciones, saga y mods. De The Witcher 3, IGDB da 16 artes, 12 capturas, 17 vídeos, 7 clasificaciones de edad, 48 idiomas, 16 webs y 82 palabras clave, así que la ficha puede quedar más completa que la suya. Pedirlo todo en cada importación hace las respuestas mucho más grandes: mejor traer lo extra al abrir la ficha (con caché) y por la noche para los más populares. 22/10/2026: el tráiler, la galería de capturas y el arte de la cabecera pasan a «Rediseño de la ficha: cabecera con arte y carrusel de imágenes y vídeos»."
   },
   {
     "titulo": "Fichas en castellano: doblaje, subtítulos y sinopsis en español",

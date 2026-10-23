@@ -37,12 +37,15 @@ def spanish_genre_name(name, slug=""):
     return GENRE_NAMES_ES.get(slug or slugify(name), name)
 
 
-IGDB_IMAGE_URL = "https://images.igdb.com/igdb/image/upload/{size}/{image_id}.jpg"
+IGDB_IMAGE_URL = "https://images.igdb.com/igdb/image/upload/{size}/{image_id}.{ext}"
 
 
-def igdb_image_url(image_id, size="t_cover_big"):
-    """URL de una imagen del CDN de IGDB (portada, arte o captura) en ese tamaño; vacía si no hay imagen."""
-    return IGDB_IMAGE_URL.format(size=size, image_id=image_id) if image_id else ""
+def igdb_image_url(image_id, size="t_cover_big", ext="jpg"):
+    """URL de una imagen del CDN de IGDB (portada, arte o captura) en ese tamaño; vacía si no hay imagen.
+
+    Con ext «png» conserva la transparencia, que hace falta en los logos.
+    """
+    return IGDB_IMAGE_URL.format(size=size, image_id=image_id, ext=ext) if image_id else ""
 
 
 # Nombre en español de cada idioma, por el código que usan IGDB y games.spanish (los de Steam se traducen a él).
@@ -188,6 +191,9 @@ class Game(models.Model):
     summary_es_source = models.CharField("de dónde sale la sinopsis", max_length=10, blank=True)
     # Última vez que se pidieron a Steam y a Microsoft la sinopsis y los idiomas (comando localize_games).
     localized_at = models.DateTimeField("textos de las tiendas pedidos", null=True, blank=True)
+    # Artes, capturas, logos y vídeos de IGDB para la cabecera y el carrusel de la ficha (formato en games.media).
+    media = models.JSONField("imágenes y vídeos", default=dict, blank=True)
+    media_updated_at = models.DateTimeField("imágenes y vídeos pedidos", null=True, blank=True)
     genres = models.ManyToManyField(Genre, related_name="games", blank=True)
     platforms = models.ManyToManyField(Platform, related_name="games", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

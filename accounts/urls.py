@@ -7,6 +7,7 @@ urlpatterns = [
     path("cuenta/perfil/", views.edit_profile, name="edit_profile"),
     path("cuenta/perfil/vista-previa/", views.profile_preview, name="profile_preview"),
     path("cuenta/perfil/imagenes-de-juego/", views.banner_arts, name="banner_arts"),
+    path("cuenta/perfil/cabecera-de-juego/<int:game_id>/", views.banner_from_game, name="banner_from_game"),
     path("cuenta/favoritos/<int:game_id>/", views.favorite_toggle, name="favorite_toggle"),
     path("cuenta/tiendas/", views.shops_update, name="shops_update"),
     path("cuenta/steam/vincular/", views.steam_link, name="steam_link"),

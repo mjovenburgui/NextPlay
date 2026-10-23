@@ -9,10 +9,11 @@ from django.core.management import CommandError, call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from PIL import Image
 
 from library.models import LibraryEntry, WishlistItem
 
-from . import history, igdb, prices, spanish, xbox
+from . import history, igdb, media, prices, spanish, xbox
 from .models import Game, GamePrice, Genre, Platform
 
 User = get_user_model()
@@ -159,6 +160,181 @@ class IGDBClientTests(TestCase):
         with mock.patch.object(client, "query") as query:
             self.assertEqual(client.search('  " '), [])
         query.assert_not_called()
+
+    def test_artworks_skip_logos_icons_and_covers_and_put_key_art_first(self):
+        client = igdb.IGDBClient("id", "secret")
+        arts = [
+            {"image_id": "icono", "artwork_type": 12}, {"image_id": "arte", "artwork_type": 1},
+            {"image_id": "logo", "artwork_type": 7}, {"image_id": "principal", "artwork_type": 2},
+            {"image_id": "portada", "artwork_type": 9}, {"image_id": "sin-tipo"},
+        ]
+        with mock.patch.object(igdb.IGDBClient, "query", side_effect=[arts, [{"image_id": "captura"}]]) as query:
+            self.assertEqual(client.artworks(1942, limit=4), ["principal", "arte", "sin-tipo", "captura"])
+        self.assertIn("artwork_type", query.call_args_list[0].args[1])
+        self.assertIn("where game = 1942; limit 1;", query.call_args_list[1].args[1])
+
+    def test_game_media_asks_everything_in_one_query(self):
+        client = igdb.IGDBClient("id", "secret")
+        with mock.patch.object(igdb.IGDBClient, "query", return_value=[{"id": 1942, "videos": []}]) as query:
+            self.assertEqual(client.game_media(1942), {"id": 1942, "videos": []})
+        endpoint, body = query.call_args.args
+        self.assertEqual(endpoint, "games")
+        self.assertIn("artworks.artwork_type", body)
+        self.assertIn("videos.video_id", body)
+        self.assertIn("where id = 1942;", body)
+        with mock.patch.object(igdb.IGDBClient, "query", return_value=[]):
+            self.assertEqual(client.game_media(1942), {})
+
+
+# Lo que contesta IGDB a game_media: dos logos (uno con fondo) y un icono entre los artes, un arte vertical y dos vídeos.
+IGDB_MEDIA = {
+    "artworks": [
+        {"image_id": "logo", "artwork_type": 5, "width": 800, "height": 200, "alpha_channel": True},
+        {"image_id": "logo-con-fondo", "artwork_type": 7, "width": 800, "height": 200, "alpha_channel": False},
+        {"image_id": "icono", "artwork_type": 12, "width": 256, "height": 256},
+        {"image_id": "arte", "artwork_type": 1, "width": 1920, "height": 1080},
+        {"image_id": "principal", "artwork_type": 2, "width": 1600, "height": 900},
+        {"image_id": "vertical", "artwork_type": 1, "width": 700, "height": 1000},
+    ],
+    "screenshots": [{"image_id": "sc1", "width": 1920, "height": 1080}, {"image_id": "sc2", "width": 1280, "height": 720}],
+    "videos": [
+        {"id": 9, "name": "Gameplay", "video_id": "yt-gameplay"},
+        {"id": 5, "name": "Launch Trailer", "video_id": "yt-launch"},
+    ],
+}
+# Recorte de un logo sin su margen transparente, como lo calcula media._logo_crop.
+LOGO_CROP = {"l": 0.034, "t": 0.32, "w": 0.93, "h": 0.364, "ratio": 4.542}
+
+
+class GameMediaTests(TestCase):
+    def setUp(self):
+        self.game = Game.objects.create(
+            name="Hades", slug="hades", igdb_id=113112, steam_app_id=1145360, cover_image_id="co39vc"
+        )
+
+    def load(self, steam_hero=True, steam_logo=LOGO_CROP, igdb_logo=None):
+        """Guarda como imágenes del juego las de IGDB_MEDIA, simulando lo que contestan IGDB y Steam."""
+        client = mock.Mock(spec=igdb.IGDBClient)
+        client.game_media.return_value = IGDB_MEDIA
+        with mock.patch.object(media, "_exists", return_value=steam_hero), \
+                mock.patch.object(media, "_logo_crop", side_effect=lambda url: steam_logo if "steam" in url else igdb_logo) as crop:
+            media.update_media(self.game, client)
+        self.game.refresh_from_db()
+        return crop
+
+    def test_update_media_keeps_only_art_and_checks_steam(self):
+        crop = self.load()
+        stored = self.game.media
+        self.assertEqual([art["id"] for art in stored["arts"]], ["principal", "arte", "vertical"])
+        self.assertEqual(stored["logos"], [{"id": "logo", "type": 5}])  # sin recorte: va el logo de Steam
+        self.assertEqual([video["id"] for video in stored["videos"]], ["yt-launch", "yt-gameplay"])
+        self.assertEqual(stored["steam"], {"app_id": 1145360, "hero": True, "logo": LOGO_CROP})
+        crop.assert_called_once()  # solo el logo de Steam
+        self.assertFalse(media.needs_update(self.game))
+        self.game.steam_app_id_override = 3240220
+        self.assertTrue(media.needs_update(self.game))  # con otro ID de Steam hay que volver a mirar
+
+    def test_logo_crop_skips_logos_without_transparency(self):
+        def answer(mode, color):
+            """Respuesta de un CDN con un PNG de 100 × 50; en RGBA, transparente salvo una franja de 80 × 10."""
+            image = Image.new(mode, (100, 50), color)
+            if mode == "RGBA":
+                image.paste((255, 255, 255, 255), (10, 20, 90, 30))
+            buffer = io.BytesIO()
+            image.save(buffer, "PNG")
+            return mock.Mock(status_code=200, content=buffer.getvalue())
+
+        with mock.patch("games.media.requests.get", return_value=answer("RGBA", (0, 0, 0, 0))):
+            self.assertEqual(media._logo_crop("https://cdn/logo.png"), {"l": 0.1, "t": 0.4, "w": 0.8, "h": 0.2, "ratio": 8.0})
+        with mock.patch("games.media.requests.get", return_value=answer("RGB", (255, 255, 255))):
+            self.assertIsNone(media._logo_crop("https://cdn/logo.png"))  # con fondo: haría un recuadro
+        with mock.patch("games.media.requests.get", return_value=mock.Mock(status_code=404)):
+            self.assertIsNone(media._logo_crop("https://cdn/logo.png"))
+
+    def test_hero_prefers_steam_and_falls_back_to_igdb(self):
+        # Aún sin imágenes de IGDB: la de Steam, a ver si carga, y el nombre en texto.
+        hero = media.hero(self.game)
+        self.assertIn("/apps/1145360/library_hero.jpg", hero["image"])
+        self.assertEqual((hero["fallback"], hero["logo"], hero["credit"]), ("", "", "Imagen: biblioteca de Steam"))
+        self.load()
+        hero = media.hero(self.game)
+        self.assertIn("/apps/1145360/logo.png", hero["logo"])
+        self.assertIn("t_1080p/principal.jpg", hero["fallback"])
+        self.assertEqual(hero["credit"], "Imagen y logo: biblioteca de Steam")
+        self.assertEqual(hero["fallback_credit"], "Imagen: IGDB · Logo: biblioteca de Steam")
+        self.assertEqual(
+            hero["logo_style"], "--crop-l: 0.0340; --crop-t: 0.3200; --crop-w: 0.9300; --crop-h: 0.3640; --crop-ratio: 4.5420;"
+        )
+        # Sin imagen ni logo en Steam: el arte principal y el logo blanco de IGDB.
+        self.load(steam_hero=False, steam_logo=None, igdb_logo=LOGO_CROP)
+        hero = media.hero(self.game)
+        self.assertIn("t_1080p/principal.jpg", hero["image"])
+        self.assertIn("t_logo_med_2x/logo.png", hero["logo"])
+        self.assertEqual((hero["fallback"], hero["credit"]), ("", "Imagen y logo: IGDB"))
+        # Un juego sin nada: la carátula desenfocada y el nombre.
+        bare = Game.objects.create(name="Celeste", slug="celeste")
+        self.assertEqual(media.hero(bare), {
+            "image": "", "fallback": "", "credit": "", "fallback_credit": "", "logo": "", "logo_style": "",
+        })
+
+    def test_carousel_order_labels_and_filters(self):
+        self.load()
+        carousel = media.carousel(self.game)
+        items = carousel["items"]
+        self.assertEqual([item["kind"] for item in items], ["video", "arte", "captura", "captura", "arte", "arte", "video"])
+        self.assertEqual(items[0]["tag"], "Launch Trailer")
+        self.assertIn("yt-launch/hqdefault.jpg", items[0]["thumb"])
+        self.assertEqual(
+            (items[1]["tag"], items[1]["heading"], items[1]["art"]), ("Arte principal", "Arte principal 1 de 3", "principal")
+        )
+        self.assertEqual((items[2]["heading"], items[2]["art"]), ("Captura 1 de 2", "sc1"))
+        vertical = items[5]
+        self.assertTrue(vertical["tall"])
+        self.assertEqual(vertical["art"], "")  # una imagen vertical no vale de cabecera
+        self.assertIn("t_720p/vertical.jpg", vertical["thumb"])
+        self.assertEqual(carousel["filters"], [("video", "Vídeos", 2), ("captura", "Capturas", 2), ("arte", "Arte", 3)])
+        self.assertEqual(media.banner_arts(self.game), {"principal", "arte", "sc1", "sc2"})
+
+    def test_detail_loads_media_lazily_then_inline(self):
+        with mock.patch.object(igdb, "is_configured", return_value=True):
+            response = self.client.get(reverse("games:detail", args=["hades"]))
+        self.assertContains(response, 'hx-get="/juegos/hades/imagenes-y-videos/"')
+        self.assertContains(response, "/apps/1145360/library_hero.jpg")
+        self.assertContains(response, '<span class="game-name">Hades</span>')
+        with mock.patch.object(igdb, "is_configured", return_value=True), \
+                mock.patch.object(igdb.IGDBClient, "__init__", return_value=None), \
+                mock.patch.object(igdb.IGDBClient, "game_media", return_value=IGDB_MEDIA), \
+                mock.patch.object(media, "_exists", return_value=True), \
+                mock.patch.object(media, "_logo_crop", return_value=LOGO_CROP):
+            response = self.client.get(reverse("games:media", args=["hades"]))
+        self.assertContains(response, 'class="media-tile"', count=7)
+        self.assertContains(response, 'hx-swap-oob="true"')  # llega la cabecera nueva, ya con el logo
+        self.assertNotContains(response, "Poner de cabecera en mi perfil")  # sin sesión
+        response = self.client.get(reverse("games:detail", args=["hades"]))
+        self.assertNotContains(response, "imagenes-y-videos")
+        self.assertContains(response, 'class="media-tile"', count=7)
+        self.assertContains(response, 'class="game-logo"')
+
+    def test_media_view_survives_igdb_errors(self):
+        with mock.patch.object(igdb, "is_configured", return_value=True), \
+                mock.patch.object(igdb.IGDBClient, "__init__", return_value=None), \
+                mock.patch.object(igdb.IGDBClient, "game_media", side_effect=igdb.IGDBError("caído")), \
+                self.assertLogs("games.views", level="ERROR"):
+            response = self.client.get(reverse("games:media", args=["hades"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "media-tile")
+        self.assertTrue(media.needs_update(self.game))
+
+    def test_viewer_offers_the_banner_button_only_with_the_game_in_the_library(self):
+        self.load()
+        user = User.objects.create_user("ana", "ana@example.com", "x")
+        self.client.force_login(user)
+        response = self.client.get(reverse("games:detail", args=["hades"]))
+        self.assertNotContains(response, "Poner de cabecera en mi perfil")
+        LibraryEntry.objects.create(user=user, game=self.game)
+        response = self.client.get(reverse("games:detail", args=["hades"]))
+        self.assertContains(response, "Poner de cabecera en mi perfil")
+        self.assertContains(response, reverse("banner_from_game", args=[self.game.pk]))
 
 
 class CatalogTests(TestCase):

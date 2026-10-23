@@ -1,0 +1,6 @@
+{# Aviso del botón «Poner de cabecera en mi perfil» del visor del carrusel de la ficha. Necesita error (vacío si ha ido bien). #}
+{% if error %}
+  <p class="media-toast is-error" role="alert">{{ error }}</p>
+{% else %}
+  <p class="media-toast" role="status">Hecho: es la nueva cabecera de tu perfil. <a href="{% url 'profile' user.username %}">Ver perfil</a></p>
+{% endif %}
