@@ -722,7 +722,7 @@
   {
     "titulo": "Importar la lista de deseos de Steam",
     "fecha": "2026-10-21",
-    "estado": "pendiente",
+    "estado": "hecha",
     "prioridad": "media",
     "tipo": "Funcionalidad",
     "resumen": "Un botón (y una pregunta al vincular Steam) que trae a «Lo quiero» todos los juegos de la lista de deseos de Steam, para que desde el primer minuto el usuario sepa cuáles están en su mínimo histórico o más baratos en otra tienda y reciba los avisos.",
@@ -734,7 +734,7 @@
       "Pedir en ese momento los precios de los juegos importados (update_prices solo con ellos), sin esperar a la noche, y enseñar un resumen: «de tus 93 deseados, 12 están hoy en su mínimo histórico y 5 son más baratos fuera de Steam».",
       "Opción para volver a importarla cada noche junto a la biblioteca, recordando los que el usuario haya quitado para no volver a añadirlos."
     ],
-    "notas": "Es una API sin documentar, como otras que ya se usan, y solo funciona si el perfil deja ver sus detalles de juego (igual que la biblioteca). Conviene tenerla antes de las rebajas de invierno de Steam (del 17 de diciembre al 4 de enero). 21/10/2026: aparcada; de momento el usuario prefiere centrarse en el perfil, las listas, los retos y las reseñas."
+    "notas": "Es una API sin documentar, como otras que ya se usan, y solo funciona si el perfil deja ver sus detalles de juego (igual que la biblioteca). Conviene tenerla antes de las rebajas de invierno de Steam (del 17 de diciembre al 4 de enero). 21/10/2026: aparcada; de momento el usuario prefiere centrarse en el perfil, las listas, los retos y las reseñas. 24/10/2026: hecha a petición del usuario (aún sin commit). Cada vez que se importa Steam (al vincular, con «Sincronizar» y en la sincronización de cada noche) se lee IWishlistService/GetWishlist de todas sus cuentas y los juegos se buscan como los de la biblioteca, respetando lo emparejado a mano. Se crean en «Lo quiero» los que no tiene ya, con el puesto y la fecha de Steam, que dan el orden «Como en tu lista de Steam» y una etiqueta de Steam en la lista de deseos. No se traen los de su biblioteca ni los que quitó a mano (Profile.steam_wishlist_skip, con «Volver a traerlos» en el panel de Steam); los que trajo Steam se quitan cuando dejan de estar allí, pero solo si se han podido leer todas sus listas (una privada o vacía no borra nada), y lo añadido a mano en NextPlay nunca se toca. Al sincronizar se piden ya a IsThereAnyDeal los precios de los nuevos y el aviso dice cuántos están hoy en su mínimo histórico y cuántos son más baratos fuera de Steam. Se puede desactivar en el panel de Steam. 7 tests nuevos. De los que no están en el catálogo solo se da el número: la API no trae sus nombres."
   },
   {
     "titulo": "Publicar NextPlay y abrir una beta antes de las rebajas de invierno",

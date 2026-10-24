@@ -17,6 +17,7 @@ from django.utils import timezone
 from PIL import Image
 
 from accounts.models import ExternalTitle, ImportedTitle, Notification
+from games import prices
 from games.models import STEAM_DECK_SLUG, Game, GamePrice, Platform
 
 from . import markup, reminders, wishlist
@@ -764,6 +765,33 @@ class WishlistTests(TestCase):
         self.assertEqual(names, ["Hades", "Celeste"])
         self.assertContains(response, "Por debajo de tu límite")
         self.assertContains(response, "Sin precio")
+
+    def test_games_from_the_steam_wishlist_are_marked_and_sorted_like_on_steam(self):
+        third = Game.objects.create(name="Celeste 2", slug="celeste-2")
+        now = timezone.now()
+        WishlistItem.objects.create(user=self.user, game=self.game, from_steam=True, steam_priority=2, steam_added_at=now)
+        WishlistItem.objects.create(user=self.user, game=self.other_game, from_steam=True, steam_priority=1, steam_added_at=now)
+        WishlistItem.objects.create(user=self.user, game=third)
+        response = self.client.get(reverse("library:wishlist"), {"orden": "steam"})
+        self.assertEqual([row["wish"].game.name for row in response.context["rows"]], ["Celeste", "Hades", "Celeste 2"])
+        self.assertContains(response, "Como en tu lista de Steam")
+        self.assertContains(response, 'class="pill pill-steam"', count=2)
+        # Sin nada de Steam no se ofrece ese orden.
+        WishlistItem.objects.filter(steam_added_at__isnull=False).delete()
+        self.assertNotContains(self.client.get(reverse("library:wishlist")), "Como en tu lista de Steam")
+
+    def test_prices_of_games_from_steam_are_fetched_at_once(self):
+        Game.objects.filter(pk=self.game.pk).update(prices_updated_at=timezone.now())
+        self.game.refresh_from_db()
+        with override_settings(ITAD_API_KEY="key"), mock.patch("games.prices.update_prices", return_value=1) as update:
+            self.assertEqual(wishlist.fetch_missing_prices([self.game, self.other_game]), 1)
+        update.assert_called_once_with([self.other_game])  # el que ya tiene precios no se vuelve a pedir
+        with override_settings(ITAD_API_KEY="key"), mock.patch("games.prices.update_prices", side_effect=prices.ITADError("caído")), \
+                self.assertLogs("library.wishlist", "ERROR"):
+            self.assertEqual(wishlist.fetch_missing_prices([self.other_game]), 0)
+        with override_settings(ITAD_API_KEY=""), mock.patch("games.prices.update_prices") as update:
+            wishlist.fetch_missing_prices([self.other_game])
+        update.assert_not_called()
 
     def test_bell_counts_unread_and_the_page_marks_them_read(self):
         Notification.objects.create(user=self.user, kind="price", text="Hades ha bajado", url="/juegos/hades/")

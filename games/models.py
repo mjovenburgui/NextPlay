@@ -406,9 +406,11 @@ class Game(models.Model):
 
 
 XBOX_SHOP_ID = 0  # not an IsThereAnyDeal shop: Xbox prices come from the Microsoft catalog
+# ID de Steam en IsThereAnyDeal.
+STEAM_SHOP_ID = 61
 
 # Shop IDs of the best-known stores, in display order, with their logo template.
-FEATURED_SHOPS = {61: "steam", 16: "epic", 48: "microsoft", 35: "gog", XBOX_SHOP_ID: "xbox"}
+FEATURED_SHOPS = {STEAM_SHOP_ID: "steam", 16: "epic", 48: "microsoft", 35: "gog", XBOX_SHOP_ID: "xbox"}
 
 CURRENT_XBOX_PLATFORMS = ("Xbox One", "Xbox Series X|S")
 

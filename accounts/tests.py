@@ -19,8 +19,8 @@ from django.utils import timezone
 from PIL import Image
 
 from games import igdb
-from games.models import Game, Platform
-from library.models import LibraryEntry, Review
+from games.models import Game, GamePrice, Platform
+from library.models import LibraryEntry, Review, WishlistItem
 
 from . import images, matching, psn, steam, views, xbox
 from .models import (
@@ -149,6 +149,10 @@ class SteamLinkTests(TestCase):
 
     def setUp(self):
         self.client.force_login(self.user)
+        # Al vincular se trae también la lista de deseos: aquí, vacía (sin llamar a Steam).
+        patcher = mock.patch.object(steam, "wishlist", return_value=None)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def start_login(self):
         """Pulsa «Vincular Steam» y devuelve el código anti-CSRF que se guardó en la sesión."""
@@ -334,6 +338,104 @@ class SteamImportTests(TestCase):
         self.assertEqual(result, {"added": 0, "updated": 1, "unmatched": 0, "private": []})
         entry = LibraryEntry.objects.get(user=self.user)
         self.assertEqual((entry.status, entry.rating, entry.steam_playtime_minutes), ("completed", 5, 120))
+
+    def wishes(self, *app_ids):
+        """Simula la lista de deseos de Steam de todas las cuentas con esos IDs, en ese orden (sin ninguno: vacía o privada)."""
+        items = [{"appid": app_id, "priority": n, "date_added": 1700000000 + n} for n, app_id in enumerate(app_ids, 1)]
+        return mock.patch.object(steam, "wishlist", return_value=items or None)
+
+    def test_wishlist_comes_to_lo_quiero_without_the_games_you_own(self):
+        LibraryEntry.objects.create(user=self.user, game=self.portal)
+        knight = Game.objects.create(name="Hollow Knight", slug="hollow-knight", steam_app_id=367520)
+        manual = WishlistItem.objects.create(user=self.user, game=knight, target_price=Decimal("5"))
+        items = [
+            {"appid": 620, "priority": 1, "date_added": 1700000000},
+            {"appid": 1145360, "priority": 2, "date_added": 1710000000},
+            {"appid": 504230, "priority": 0, "date_added": 1720000000},
+            {"appid": 367520, "priority": 3, "date_added": 1690000000},
+            {"appid": 999999, "priority": 4, "date_added": 1690000000},
+        ]
+        with mock.patch.object(steam, "wishlist", return_value=items):
+            result = steam.import_wishlist(self.user)
+        self.assertEqual(
+            (result["total"], [item.game for item in result["added"]], result["owned"], result["unmatched"]),
+            (5, [self.hades, self.celeste], 1, 1),
+        )
+        hades = WishlistItem.objects.get(game=self.hades)
+        self.assertEqual((hades.from_steam, hades.steam_priority, hades.steam_added_at.year), (True, 2, 2024))
+        self.assertIsNone(WishlistItem.objects.get(game=self.celeste).steam_priority)  # sin ordenar en Steam
+        # El que ya tenía en «Lo quiero» solo apunta su puesto en Steam y sigue siendo suyo.
+        manual.refresh_from_db()
+        self.assertEqual((manual.from_steam, manual.steam_priority, manual.target_price), (False, 3, Decimal("5")))
+        self.assertFalse(WishlistItem.objects.filter(game=self.portal).exists())
+
+    def test_wishlist_follows_steam_and_remembers_what_you_removed(self):
+        knight = Game.objects.create(name="Hollow Knight", slug="hollow-knight", steam_app_id=367520)
+        WishlistItem.objects.create(user=self.user, game=knight)  # puesto a mano en NextPlay
+
+        def run(*app_ids):
+            """Importa la lista de deseos con esos juegos en Steam (con el usuario recién leído, como en cada petición)."""
+            with self.wishes(*app_ids):
+                return steam.import_wishlist(User.objects.get(pk=self.user.pk))
+
+        run(1145360, 504230, 367520)
+        self.assertEqual(WishlistItem.objects.filter(user=self.user).count(), 3)
+        # Quitar aquí uno que está en Steam lo apunta para no volver a traerlo.
+        self.client.force_login(self.user)
+        self.client.post(reverse("library:wish_toggle", args=[self.hades.id]))
+        self.assertEqual(Profile.objects.get(user=self.user).steam_wishlist_skip, [self.hades.pk])
+        result = run(1145360, 504230, 367520)
+        self.assertEqual((len(result["added"]), result["skipped"]), (0, 1))
+        # Lo que deja de estar en Steam se va si vino de Steam; lo puesto a mano se queda.
+        result = run(1145360)
+        self.assertEqual(result["removed"], 1)
+        self.assertEqual(list(WishlistItem.objects.values_list("game__slug", flat=True)), ["hollow-knight"])
+        self.assertFalse(WishlistItem.objects.get(game=knight).on_steam)
+        # Una lista privada o vacía no quita nada.
+        run(1145360, 504230)
+        result = run()
+        self.assertEqual((result["unreadable"], result["removed"]), (["Ana"], 0))
+        self.assertTrue(WishlistItem.objects.filter(game=self.celeste).exists())
+        # Si lo vuelve a añadir él, se olvida que lo quitó.
+        self.client.post(reverse("library:wish_toggle", args=[self.hades.id]))
+        self.assertEqual(Profile.objects.get(user=self.user).steam_wishlist_skip, [])
+
+    @override_settings(ITAD_API_KEY="")
+    def test_sync_button_reports_the_wishlist_with_todays_deals(self):
+        Game.objects.filter(pk=self.hades.pk).update(historical_low=Decimal("12.49"))
+        prices = [
+            (self.hades, 61, "Steam", "12.49", 50), (self.celeste, 61, "Steam", "19.99", 0), (self.celeste, 35, "GOG", "14.99", 25),
+        ]
+        for game, shop_id, shop, price, cut in prices:
+            GamePrice.objects.create(
+                game=game, shop_id=shop_id, shop_name=shop, price=Decimal(price), regular_price=Decimal("24.99"),
+                currency="EUR", cut=cut, url="https://itad.link/x",
+            )
+        self.client.force_login(self.user)
+        with self.owned({"appid": 620, "playtime_forever": 60}), self.wishes(1145360, 504230, 999999):
+            response = self.client.post(reverse("steam_import"), follow=True)
+        self.assertContains(
+            response,
+            "Lista de deseos de Steam: 3 juegos (2 nuevos en «Lo quiero», 1 que no está en el catálogo). "
+            "Hoy, 1 está en su mínimo histórico y 1 es más barato fuera de Steam.",
+        )
+        response = self.client.get(reverse("library:wishlist"), {"orden": "steam"})
+        self.assertEqual([row["wish"].game for row in response.context["rows"]], [self.hades, self.celeste])
+
+    def test_wishlist_can_be_turned_off_and_removed_games_brought_back(self):
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(reverse("edit_profile")), "También trae tu lista de deseos de Steam")
+        self.client.post(reverse("steam_wishlist"), {"steam_wishlist": "0"})
+        profile = Profile.objects.get(user=self.user)
+        self.assertFalse(profile.steam_wishlist)
+        with self.owned(), mock.patch.object(steam, "wishlist") as wishlist:
+            self.client.post(reverse("steam_import"))
+        wishlist.assert_not_called()
+        profile.steam_wishlist, profile.steam_wishlist_skip = True, [self.hades.pk]
+        profile.save()
+        self.assertContains(self.client.get(reverse("edit_profile")), "1 juego que quitaste a mano no se vuelve a traer")
+        self.client.post(reverse("steam_wishlist"), {"restore": "1"})
+        self.assertEqual(Profile.objects.get(user=self.user).steam_wishlist_skip, [])
 
     def test_minutes_on_steam_deck_are_kept_apart(self):
         with self.owned(
@@ -877,13 +979,25 @@ class SyncLibrariesTests(TestCase):
         # Eva sincronizó a mano hace una hora: no hace falta repetirlo esta noche.
         SteamAccount.objects.filter(user=cls.users["eva"]).update(synced_at=timezone.now() - timedelta(hours=1))
 
-    def run_sync(self, owned, **options):
-        """Lanza sync_libraries sin pausas con Steam simulado (owned es el side_effect de owned_games)."""
+    def run_sync(self, owned, wishes=None, **options):
+        """Lanza sync_libraries sin pausas con Steam simulado (owned es el side_effect de owned_games y wishes, la
+        lista de deseos de todas las cuentas; None = vacía o privada)."""
         out = io.StringIO()
         with mock.patch.object(steam, "owned_games", side_effect=owned), \
-                mock.patch.object(steam, "player_summary", return_value={}):
+                mock.patch.object(steam, "player_summary", return_value={}), \
+                mock.patch.object(steam, "wishlist", return_value=wishes):
             call_command("sync_libraries", pause=0, stdout=out, stderr=io.StringIO(), **options)
         return out.getvalue()
+
+    def test_nightly_sync_also_brings_the_wishlist_if_wanted(self):
+        hades = Game.objects.create(name="Hades", slug="hades", steam_app_id=1145360)
+        self.users["luis"].profile.steam_wishlist = False
+        self.users["luis"].profile.save()
+        out = self.run_sync(
+            lambda steam_id: [{"appid": 620, "playtime_forever": 90}], wishes=[{"appid": 1145360, "date_added": 1700000000}]
+        )
+        self.assertIn("ana: lista de deseos de Steam con 1 juego, 1 nuevo en «Lo quiero» y 0 quitados.", out)
+        self.assertEqual(list(WishlistItem.objects.values_list("user__username", "game")), [("ana", hades.pk)])
 
     def test_syncs_only_users_with_auto_sync_and_not_synced_recently(self):
         out = self.run_sync(lambda steam_id: [{"appid": 620, "playtime_forever": 90}])

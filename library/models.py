@@ -459,6 +459,12 @@ class WishlistItem(models.Model):
     # precio vuelve a subir, para avisar de la siguiente bajada.
     alerted_price = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    # Lista de deseos de Steam (accounts.steam.import_wishlist): from_steam si lo trajo la importación, y entonces
+    # se quita cuando deja de estar allí; steam_added_at, mientras está en la lista de Steam, la fecha en que se
+    # añadió allí, y steam_priority su puesto (vacío si no lo ha ordenado), para ordenar «Como en Steam».
+    from_steam = models.BooleanField("traído de Steam", default=False)
+    steam_added_at = models.DateTimeField("añadido en Steam", null=True, blank=True)
+    steam_priority = models.PositiveIntegerField("puesto en Steam", null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at", "-id"]
@@ -469,3 +475,8 @@ class WishlistItem(models.Model):
     def __str__(self):
         """Texto en el admin: «usuario · juego»."""
         return f"{self.user} · {self.game}"
+
+    @property
+    def on_steam(self):
+        """Indica si el juego está también en la lista de deseos de Steam del usuario (según la última importación)."""
+        return self.steam_added_at is not None
