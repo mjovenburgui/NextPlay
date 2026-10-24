@@ -1,23 +1,39 @@
 import io
+import os
+import shutil
+import tempfile
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.core import mail
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from PIL import Image
 
 from accounts.models import ExternalTitle, ImportedTitle, Notification
-from games.models import Game, GamePrice, Platform
+from games.models import STEAM_DECK_SLUG, Game, GamePrice, Platform
 
-from . import markup, wishlist
-from .models import LibraryEntry, Review, ReviewLike, WishlistItem
+from . import markup, reminders, wishlist
+from .models import LibraryEntry, Report, Review, ReviewComment, ReviewImage, ReviewLike, WishlistItem
 
 User = get_user_model()
+
+
+def image_upload(name="captura.png", size=(2400, 1200), fmt="PNG"):
+    """Imagen de prueba lista para subir."""
+    buffer = io.BytesIO()
+    Image.new("RGB", size, (30, 90, 200)).save(buffer, fmt)
+    return SimpleUploadedFile(name, buffer.getvalue(), content_type=f"image/{fmt.lower()}")
+
+
+# Carpeta temporal para las imágenes que suben los tests (se borra al terminar la clase).
+TEST_MEDIA = tempfile.mkdtemp(prefix="nextplay-resenas-")
 
 
 class LibraryTests(TestCase):
@@ -99,10 +115,25 @@ class LibraryTests(TestCase):
         # 10 medias estrellas son cinco estrellas.
         LibraryEntry.objects.create(user=self.user, game=self.game, rating=10)
         LibraryEntry.objects.create(user=self.other, game=self.game, rating=None)
-        self.assertEqual(self.game.community_rating(), {"average": 5.0, "count": 1})
+        self.assertEqual(
+            self.game.community_rating(), {"average": 5.0, "count": 1, "verified_average": None, "verified_count": 0}
+        )
         response = self.client.get(self.game.get_absolute_url())
         self.assertContains(response, "1 valoración de jugadores")
         self.assertContains(response, "width: 100%")
+        self.assertNotContains(response, "Con horas jugadas")
+
+    def test_community_rating_with_played_hours_only(self):
+        # Solo cuentan quienes tienen horas importadas (más de 0 minutos en alguna plataforma).
+        LibraryEntry.objects.create(user=self.user, game=self.game, rating=10, steam_playtime_minutes=600)
+        LibraryEntry.objects.create(user=self.other, game=self.game, rating=2, psn_playtime_minutes=0)
+        third = User.objects.create_user("eva", "eva@example.com", "x")
+        LibraryEntry.objects.create(user=third, game=self.game, rating=6, xbox_playtime_minutes=90)
+        rating = self.game.community_rating()
+        self.assertEqual((rating["count"], rating["verified_count"], rating["verified_average"]), (3, 2, 4.0))
+        response = self.client.get(self.game.get_absolute_url())
+        self.assertContains(response, "Con horas jugadas: <strong>4,0</strong>")
+        self.assertContains(response, "2 valoraciones")
 
     def test_game_page_without_ratings(self):
         response = self.client.get(self.game.get_absolute_url())
@@ -379,6 +410,261 @@ class ReviewTests(TestCase):
         response = self.client.get(self.new_url)
         self.assertEqual(response.context["form"]["platform"].value(), ps4.pk)
         self.assertContains(response, "De tu cuenta de PlayStation.")
+
+    def test_steam_deck_is_offered_in_pc_games_and_chosen_when_most_hours_were_there(self):
+        deck = Platform.objects.get(slug=STEAM_DECK_SLUG)
+        self.assertNotIn(deck, self.game.review_platforms())  # solo sale en PS5
+        pc = Platform.objects.create(name="PC (Microsoft Windows)", abbreviation="PC", slug="win")
+        self.game.platforms.add(pc)
+        self.assertIn(deck, self.game.review_platforms())
+        LibraryEntry.objects.create(user=self.user, game=self.game)
+        title = ExternalTitle.objects.create(platform="steam", external_id="1145360", name="Hades", game=self.game)
+        ImportedTitle.objects.create(
+            user=self.user, title=title, minutes=600, deck_minutes=480, platforms=["PC (Microsoft Windows)"]
+        )
+        self.client.force_login(self.user)
+        response = self.client.get(self.new_url)
+        self.assertEqual(response.context["form"]["platform"].value(), deck.pk)
+        self.assertContains(response, "Has jugado en PC (2 h) y Steam Deck (8 h): va la de más horas.")
+        self.client.post(self.new_url, {"text": "En la Deck va de lujo.", "platform": deck.pk, "publicar": ""})
+        review = Review.objects.get()
+        self.assertEqual(review.platform, deck)
+        self.assertContains(self.client.get(review.get_absolute_url()), '<li class="fact">Steam Deck</li>')
+
+    def test_hours_badge_shows_the_platform_logos(self):
+        review = self.publish(self.user, hours=Decimal("14.5"), hours_sources="steam,psn")
+        response = self.client.get(review.get_absolute_url())
+        self.assertContains(response, "Escrita a las 14,5 h")
+        self.assertContains(response, '<span class="fact-logo" role="img" aria-label="Steam">')
+        self.assertContains(response, '<span class="fact-logo" role="img" aria-label="PlayStation">')
+
+    def test_authors_who_played_much_more_are_asked_to_update_their_latest_review(self):
+        # Se propone con el doble de horas que al escribirla y al menos 10 más.
+        self.assertIsNone(Review(hours=Decimal("30")).hours_since(LibraryEntry(steam_playtime_minutes=55 * 60)))
+        self.assertEqual(Review(hours=Decimal("30")).hours_since(LibraryEntry(steam_playtime_minutes=60 * 60)), 30)
+        self.assertIsNone(Review(hours=Decimal("1")).hours_since(LibraryEntry(steam_playtime_minutes=10 * 60)))
+        self.assertIsNone(Review(hours=None).hours_since(LibraryEntry(steam_playtime_minutes=60 * 60)))
+        self.assertIsNone(Review(hours=Decimal("1"), is_draft=True).hours_since(LibraryEntry(steam_playtime_minutes=60 * 60)))
+
+        LibraryEntry.objects.create(user=self.user, game=self.game, steam_playtime_minutes=50 * 60)
+        old = self.publish(self.user, "Primera partida.", hours=Decimal("2"))
+        old.published_at = timezone.now() - timedelta(days=30)
+        old.save()
+        latest = self.publish(self.user, "Rejugada.", hours=Decimal("5"), is_replay=True)
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(self.game.get_absolute_url()), "Llevas 45 h más desde que la escribiste", count=1)
+        self.assertContains(self.client.get(latest.get_absolute_url()), "Llevas 45 h más que cuando la escribiste")
+        self.assertNotContains(self.client.get(old.get_absolute_url()), "Llevas")  # la de otra partida, no
+        self.client.force_login(self.other)
+        self.assertNotContains(self.client.get(latest.get_absolute_url()), "Llevas")
+        # En la campana, un aviso por reseña hasta que la vuelva a guardar.
+        self.assertEqual(reminders.remind_outdated_reviews(self.user), 1)
+        self.assertEqual(reminders.remind_outdated_reviews(self.user), 0)
+        notice = Notification.objects.get(kind=Notification.Kind.REVIEW_UPDATE)
+        self.assertEqual(notice.text, "Llevas 45 h más en Hades que cuando escribiste tu reseña: ¿la actualizas?")
+        self.assertEqual(notice.url, reverse("library:review_edit", args=[latest.pk]))
+        # Al actualizarla se guardan las horas de ahora y ya no se propone.
+        self.client.force_login(self.user)
+        self.client.post(reverse("library:review_edit", args=[latest.pk]), {"text": "Rejugada, ya terminada.", "publicar": ""})
+        latest.refresh_from_db()
+        self.assertEqual(latest.hours, Decimal("50.0"))
+        self.assertNotContains(self.client.get(latest.get_absolute_url()), "Llevas")
+
+
+@override_settings(MEDIA_ROOT=TEST_MEDIA)
+class ReviewImageTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.game = Game.objects.create(name="Hades", slug="hades", media={
+            "shots": [{"id": "sc1", "w": 1920, "h": 1080}, {"id": "sc2", "w": 1920, "h": 1080}],
+            "arts": [{"id": "ar1", "w": 1000, "h": 1500, "type": 1}],
+        })
+        LibraryEntry.objects.create(user=cls.user, game=cls.game)
+        cls.new_url = reverse("library:review_new", args=[cls.game.id])
+
+    @classmethod
+    def tearDownClass(cls):
+        """Borra las imágenes que han subido los tests."""
+        super().tearDownClass()
+        shutil.rmtree(TEST_MEDIA, ignore_errors=True)
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def review_with_images(self, count):
+        """Reseña publicada de ana con count imágenes oficiales («x0», «x1»...)."""
+        review = Review.objects.create(user=self.user, game=self.game, text="Hola.", published_at=timezone.now())
+        for position in range(count):
+            ReviewImage.objects.create(review=review, igdb_image_id=f"x{position}", position=position)
+        return review
+
+    def test_editor_offers_the_official_images(self):
+        response = self.client.get(self.new_url)
+        self.assertContains(response, 'enctype="multipart/form-data"')
+        self.assertContains(response, 'name="captura" value="sc1"')
+        self.assertContains(response, 'name="captura" value="ar1"')
+        self.assertContains(response, 'name="imagenes"')
+
+    def test_uploads_are_converted_with_a_thumbnail_and_official_images_need_no_upload(self):
+        response = self.client.post(self.new_url, {
+            "text": "Mira esto.", "imagenes": [image_upload("a.png"), image_upload("b.jpg", fmt="JPEG")],
+            "spoiler_nueva": ["1"], "captura": ["sc2"], "spoiler_captura": ["sc2"], "publicar": "",
+        })
+        review = Review.objects.get()
+        self.assertRedirects(response, review.get_absolute_url(), fetch_redirect_response=False)
+        first, second, official = review.images.all()
+        self.assertTrue(first.image.name.startswith(f"resenas/{self.user.pk}/review-"))
+        self.assertTrue(first.thumb.name.startswith(f"resenas/{self.user.pk}/review_thumb-"))
+        with Image.open(first.image.path) as big, Image.open(first.thumb.path) as small:
+            self.assertEqual((big.format, big.size, small.size), ("WEBP", (1920, 960), (720, 360)))
+        self.assertEqual([image.is_spoiler for image in (first, second, official)], [False, True, True])
+        self.assertEqual((official.igdb_image_id, official.image.name), ("sc2", ""))
+        self.assertIn("t_1080p/sc2.jpg", official.url)
+        response = self.client.get(review.get_absolute_url())
+        self.assertContains(response, 'class="gallery-tile', count=3)
+        self.assertContains(response, 'class="gallery-tile is-spoiler"', count=2)
+        self.assertContains(response, "Imagen oficial del juego · IGDB")
+        # También en la ficha y en la portada.
+        self.assertContains(self.client.get(self.game.get_absolute_url()), first.thumb.url)
+        self.assertContains(self.client.get(reverse("home")), first.thumb.url)
+        # Al editarla ya no se ofrece la oficial que tiene.
+        response = self.client.get(reverse("library:review_edit", args=[review.pk]))
+        self.assertNotContains(response, 'name="captura" value="sc2"')
+        self.assertContains(response, f'name="spoiler" value="{official.pk}" checked')
+
+    def test_no_more_than_four_and_bad_files_are_explained(self):
+        review = self.review_with_images(3)
+        edit_url = reverse("library:review_edit", args=[review.pk])
+        response = self.client.post(edit_url, {"text": "Hola.", "captura": ["sc1", "sc2"], "publicar": ""})
+        self.assertIn("Caben 4 imágenes por reseña", str(response.context["images_form"].non_field_errors()))
+        response = self.client.post(edit_url, {"text": "Hola.", "captura": ["inventada"], "publicar": ""})
+        self.assertIn("captura", response.context["images_form"].errors)
+        response = self.client.post(edit_url, {
+            "text": "Hola.", "imagenes": [SimpleUploadedFile("roto.png", b"no soy una imagen", "image/png")], "publicar": "",
+        })
+        self.assertIn("«roto.png»", str(response.context["images_form"].errors["imagenes"]))
+        self.assertContains(response, "Vuelve a elegir las imágenes nuevas")
+        self.assertEqual(review.images.count(), 3)
+        # Quitando una ya caben dos más.
+        first = review.images.first()
+        self.client.post(edit_url, {"text": "Hola.", "quitar": [str(first.pk)], "captura": ["sc1", "sc2"], "publicar": ""})
+        self.assertEqual(list(review.images.values_list("igdb_image_id", flat=True)), ["x1", "x2", "sc1", "sc2"])
+        self.assertContains(self.client.get(edit_url), "Ya tiene 4 imágenes")
+
+    def test_removed_images_and_deleted_reviews_take_their_files_with_them(self):
+        self.client.post(
+            self.new_url, {"text": "Hola.", "imagenes": [image_upload("a.png"), image_upload("b.png")], "publicar": ""}
+        )
+        review = Review.objects.get()
+        kept, removed = review.images.all()
+        files = {image.pk: [image.image.path, image.thumb.path] for image in (kept, removed)}
+        self.assertTrue(all(os.path.exists(path) for paths in files.values() for path in paths))
+        self.client.post(reverse("library:review_edit", args=[review.pk]), {
+            "text": "Hola.", "quitar": [str(removed.pk)], "spoiler": [str(kept.pk)], "publicar": "",
+        })
+        self.assertEqual([(image.pk, image.is_spoiler, image.position) for image in review.images.all()], [(kept.pk, True, 0)])
+        self.assertFalse(any(os.path.exists(path) for path in files[removed.pk]))
+        self.client.post(reverse("library:review_delete", args=[review.pk]))
+        self.assertFalse(any(os.path.exists(path) for path in files[kept.pk]))
+
+    def test_drafts_keep_their_images_private(self):
+        self.client.post(self.new_url, {"text": "Aún no.", "captura": ["sc1"], "borrador": ""})
+        review = Review.objects.get()
+        self.assertEqual(review.images.count(), 1)
+        self.client.logout()
+        self.assertNotContains(self.client.get(self.game.get_absolute_url()), 'class="gallery-tile')
+
+
+class ReportTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.author = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.reader = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.admin = User.objects.create_user("jefa", "jefa@example.com", "x", is_staff=True, is_superuser=True)
+        cls.game = Game.objects.create(name="Hades", slug="hades")
+        cls.review = Review.objects.create(user=cls.author, game=cls.game, text="Muy bueno.", published_at=timezone.now())
+        cls.url = reverse("library:review_report", args=[cls.review.pk])
+
+    def test_reporting_a_review_tells_the_admins_once_and_can_be_changed(self):
+        self.client.force_login(self.reader)
+        response = self.client.post(
+            self.url, {"reason": "spam", "detail": "  Anuncia una web  "}, headers={"HX-Request": "true"}
+        )
+        self.assertContains(response, "Gracias: lo revisaremos")
+        report = Report.objects.get()
+        self.assertEqual(
+            (report.target, report.reporter, report.reason, report.detail, report.target_kind),
+            (self.review, self.reader, "spam", "Anuncia una web", "reseña"),
+        )
+        notice = Notification.objects.get(user=self.admin)
+        self.assertEqual(notice.text, "Han denunciado una reseña de ana en Hades: Spam o publicidad.")
+        self.assertEqual(notice.url, reverse("admin:library_report_change", args=[report.pk]))
+        self.assertFalse(Notification.objects.filter(user__in=[self.author, self.reader]).exists())
+        # Volver a denunciarla cambia el motivo y la deja pendiente, sin repetir el aviso que aún no se ha leído.
+        Report.objects.update(resolved_at=timezone.now())
+        self.assertRedirects(self.client.post(self.url, {"reason": "abuse"}), self.review.get_absolute_url())
+        report.refresh_from_db()
+        self.assertEqual((report.reason, report.resolved_at), ("abuse", None))
+        self.assertEqual(Notification.objects.filter(user=self.admin).count(), 1)
+        self.assertContains(self.client.get(self.review.get_absolute_url()), "Ya lo has denunciado")
+
+    def test_needs_a_reason_and_your_own_cannot_be_reported(self):
+        self.client.force_login(self.reader)
+        response = self.client.post(self.url, {"reason": "nada"}, headers={"HX-Request": "true"})
+        self.assertContains(response, "Elige un motivo.")
+        self.assertContains(response, f'<details class="report" id="denunciar-resena-{self.review.pk}" open>')
+        self.assertFalse(Report.objects.exists())
+        self.client.force_login(self.author)
+        self.assertEqual(self.client.post(self.url, {"reason": "spam"}).status_code, 400)
+        self.assertNotContains(self.client.get(self.review.get_absolute_url()), "Denunciar")
+        self.client.logout()
+        self.assertIn(reverse("login"), self.client.post(self.url, {"reason": "spam"})["Location"])
+
+    def test_lists_link_to_the_review_page_with_the_form_open(self):
+        self.client.force_login(self.reader)
+        link = f"{self.review.get_absolute_url()}?denunciar#denunciar-resena-{self.review.pk}"
+        self.assertContains(self.client.get(self.game.get_absolute_url()), link)
+        response = self.client.get(f"{self.review.get_absolute_url()}?denunciar")
+        self.assertContains(response, f'<details class="report" id="denunciar-resena-{self.review.pk}" open>')
+        self.client.force_login(self.author)
+        self.assertNotContains(self.client.get(self.game.get_absolute_url()), link)
+
+    def test_comments_can_be_reported_but_not_in_private_reviews(self):
+        comment = ReviewComment.objects.create(review=self.review, user=self.author, text="¡Gracias!")
+        url = reverse("library:comment_report", args=[comment.pk])
+        self.client.force_login(self.reader)
+        self.assertContains(self.client.get(self.review.get_absolute_url()), f'id="denunciar-comentario-{comment.pk}"')
+        self.client.post(url, {"reason": "abuse"})
+        report = Report.objects.get()
+        self.assertEqual((report.target, report.target_kind), (comment, "comentario"))
+        self.assertEqual(
+            Notification.objects.get(user=self.admin).text, "Han denunciado un comentario de ana en Hades: Insultos, acoso u odio."
+        )
+        self.client.force_login(self.author)
+        self.assertEqual(self.client.post(url, {"reason": "spam"}).status_code, 400)  # el propio no
+        self.author.profile.is_public = False
+        self.author.profile.save()
+        self.client.force_login(self.reader)
+        self.assertEqual(self.client.post(url, {"reason": "spam"}).status_code, 404)
+        self.assertEqual(self.client.post(self.url, {"reason": "spam"}).status_code, 404)
+
+    def test_admin_lists_pending_reports_and_marks_them_reviewed(self):
+        Report.objects.create(target=self.review, reporter=self.reader, reason=Report.Reason.IMAGE)
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse("admin:library_report_changelist"), {"estado": "pendientes"})
+        self.assertContains(response, self.review.get_absolute_url())
+        self.assertContains(response, "Imagen inapropiada")
+        reviews = self.client.get(reverse("admin:library_review_changelist"))
+        self.assertContains(reviews, '<td class="field-pending_reports">1</td>')
+        self.client.post(reverse("admin:library_report_changelist"), {
+            "action": "mark_resolved", "_selected_action": [Report.objects.get().pk],
+        })
+        self.assertIsNotNone(Report.objects.get().resolved_at)
+        self.assertContains(self.client.get(reverse("admin:library_review_change", args=[self.review.pk])), "Imagen inapropiada")
+        # Al borrar la reseña se van sus denuncias.
+        self.review.delete()
+        self.assertFalse(Report.objects.exists())
 
 
 class WishlistTests(TestCase):

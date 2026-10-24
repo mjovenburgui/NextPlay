@@ -14,14 +14,21 @@
           <span class="muted small">· hace {{ comment.created_at|timesince }}</span>
         </p>
         <div class="comment-text">{{ comment.text|review_html }}</div>
-        {% if comment|can_delete:user %}
-          <form action="{% url 'library:comment_delete' comment.pk %}" method="post"
-                hx-post="{% url 'library:comment_delete' comment.pk %}" hx-target="#comments-box" hx-swap="outerHTML"
-                hx-confirm="¿Borrar este comentario?">
-            {% csrf_token %}
-            <button class="link small" type="submit">Borrar</button>
-          </form>
-        {% endif %}
+        {# Lo borran quien lo escribió y el autor de la reseña; los demás pueden denunciarlo. #}
+        <div class="comment-actions">
+          {% if comment|can_delete:user %}
+            <form action="{% url 'library:comment_delete' comment.pk %}" method="post"
+                  hx-post="{% url 'library:comment_delete' comment.pk %}" hx-target="#comments-box" hx-swap="outerHTML"
+                  hx-confirm="¿Borrar este comentario?">
+              {% csrf_token %}
+              <button class="link small" type="submit">Borrar</button>
+            </form>
+          {% endif %}
+          {% if user.is_authenticated and comment.user_id != user.pk %}
+            {% url 'library:comment_report' comment.pk as report_url %}
+            {% include "library/_report.html" with kind="comentario" target=comment noun="este comentario" reported=comment.reported open=False %}
+          {% endif %}
+        </div>
       </div>
     </article>
   {% empty %}

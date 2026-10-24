@@ -4,6 +4,7 @@ import shutil
 import tempfile
 import time
 from datetime import timedelta
+from decimal import Decimal
 from unittest import mock
 
 from django.contrib.auth import get_user_model
@@ -23,7 +24,8 @@ from library.models import LibraryEntry, Review
 
 from . import images, matching, psn, steam, views, xbox
 from .models import (
-    ExternalTitle, FavoriteGame, ImportedTitle, PlatformAccount, Profile, PSNAccount, SteamAccount, XboxAccount,
+    ExternalTitle, FavoriteGame, ImportedTitle, Notification, PlatformAccount, Profile, PSNAccount, SteamAccount,
+    XboxAccount,
 )
 
 User = get_user_model()
@@ -332,6 +334,27 @@ class SteamImportTests(TestCase):
         self.assertEqual(result, {"added": 0, "updated": 1, "unmatched": 0, "private": []})
         entry = LibraryEntry.objects.get(user=self.user)
         self.assertEqual((entry.status, entry.rating, entry.steam_playtime_minutes), ("completed", 5, 120))
+
+    def test_minutes_on_steam_deck_are_kept_apart(self):
+        with self.owned(
+            {"appid": 620, "playtime_forever": 900, "playtime_deck_forever": 600},
+            {"appid": 1145360, "playtime_forever": 60},
+        ):
+            steam.import_library(self.user)
+        deck = dict(ImportedTitle.objects.values_list("title__external_id", "deck_minutes"))
+        self.assertEqual(deck, {"620": 600, "1145360": 0})
+
+    def test_reimport_reminds_to_update_an_outdated_review(self):
+        LibraryEntry.objects.create(user=self.user, game=self.portal, steam_playtime_minutes=60)
+        review = Review.objects.create(
+            user=self.user, game=self.portal, text="Corto.", hours=Decimal("1"), hours_sources="steam",
+            published_at=timezone.now(),
+        )
+        with self.owned({"appid": 620, "playtime_forever": 25 * 60}):
+            steam.import_library(self.user)
+        notice = Notification.objects.get(user=self.user, kind=Notification.Kind.REVIEW_UPDATE)
+        self.assertEqual(notice.text, "Llevas 24 h más en Portal 2 que cuando escribiste tu reseña: ¿la actualizas?")
+        self.assertEqual(notice.url, reverse("library:review_edit", args=[review.pk]))
 
     @override_settings(IGDB_CLIENT_ID="id", IGDB_CLIENT_SECRET="secret")
     def test_unknown_games_are_looked_up_in_igdb(self):

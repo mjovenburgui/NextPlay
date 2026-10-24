@@ -2,13 +2,15 @@
 
 Cada título importado (accounts.ImportedTitle) guarda sus minutos, la última partida, la primera (solo la
 da PlayStation) y las plataformas en las que se jugó (PS4 o PS5 en PlayStation, los dispositivos de Xbox
-y el PC en Steam). Con eso el editor elige la plataforma en la que más ha jugado el usuario y propone las
-fechas, diciendo de dónde sale cada dato para que se pueda cambiar.
+y el PC en Steam, que además dice cuántos minutos fueron en una Steam Deck). Con eso el editor elige la
+plataforma en la que más ha jugado el usuario y propone las fechas, diciendo de dónde sale cada dato para
+que se pueda cambiar.
 """
 
 from django.utils import timezone
 
 from accounts.models import ExternalTitle, ImportedTitle
+from games.models import STEAM_DECK_NAME
 
 from .models import LibraryEntry
 
@@ -29,6 +31,20 @@ def _platforms(row):
     return []
 
 
+def _played_on(row):
+    """Dónde se jugó un título importado y cuántos minutos en cada sitio: [(nombre de plataforma, minutos)].
+
+    Lo jugado en una Steam Deck se separa de lo del PC. En lo demás no se sabe cómo se reparten las horas
+    entre sus plataformas (una consola y su sucesora, por ejemplo) y cada una cuenta con todos los minutos.
+    """
+    names = _platforms(row)
+    deck = min(row.deck_minutes, row.minutes)
+    if not deck:
+        return [(name, row.minutes) for name in names]
+    rest = row.minutes - deck
+    return [(name, rest) for name in names if rest] + [(STEAM_DECK_NAME, deck)]
+
+
 def _duration(minutes):
     """Tiempo jugado corto para las notas: «12 h» o «40 min»."""
     return f"{round(minutes / 60)} h" if minutes >= 60 else f"{minutes} min"
@@ -38,19 +54,19 @@ def play_details(user, game, entry):
     """Plataforma y fechas de la partida de user en game según sus importaciones, para el editor de reseñas.
 
     Devuelve {"initial": {campo: valor}, "notes": {campo: de dónde sale}}: la plataforma del juego en la que
-    más minutos lleva; «Lo empecé el» con su primera partida (si alguna importación la da) y, si tiene el
-    juego como Completado, «Lo terminé el» con su última partida. Vacíos si el juego no viene de ninguna
-    importación o sus plataformas no son las del juego.
+    más minutos lleva (la Steam Deck cuenta como una más en los juegos de PC); «Lo empecé el» con su primera
+    partida (si alguna importación la da) y, si tiene el juego como Completado, «Lo terminé el» con su última
+    partida. Vacíos si el juego no viene de ninguna importación o sus plataformas no son las del juego.
     """
     initial, notes = {}, {}
     rows = list(ImportedTitle.objects.filter(user=user, title__game=game, hidden=False).select_related("title"))
-    by_name = {platform.name: platform for platform in game.platforms.all()}
+    by_name = {platform.name: platform for platform in game.review_platforms()}
     played = {}  # nombre de plataforma → [minutos, cuentas de las que sale]
     for row in rows:
-        for name in _platforms(row):
+        for name, minutes in _played_on(row):
             if name in by_name:
-                minutes, sources = played.setdefault(name, [0, set()])
-                played[name] = [minutes + row.minutes, sources | {row.title.get_platform_display()}]
+                total, sources = played.setdefault(name, [0, set()])
+                played[name] = [total + minutes, sources | {row.title.get_platform_display()}]
     if played:
         name, (minutes, sources) = max(played.items(), key=lambda item: item[1][0])
         initial["platform"] = by_name[name]

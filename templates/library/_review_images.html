@@ -1,0 +1,18 @@
+{# Imágenes de una reseña: miniaturas que se abren en el visor a pantalla completa (el visor y su script están en base.html). #}
+{# Las marcadas como spoiler van borrosas hasta que se pulsan. Necesita review, con sus imágenes ya cargadas (prefetch_related("images")). #}
+{% with images=review.images.all %}
+  {% if images %}
+    <div class="review-gallery count-{{ images|length }}" data-gallery data-heading="Reseña de {{ review.user.profile.name }} · {{ review.game.name }}">
+      {% for image in images %}
+        <button class="gallery-tile{% if image.is_spoiler %} is-spoiler{% endif %}" type="button" data-gallery-item
+                data-full="{{ image.url }}" data-alt="Imagen {{ forloop.counter }} de la reseña de {{ review.game.name }}"
+                data-detail="{% if image.is_official %}Imagen oficial del juego · IGDB{% else %}Subida por {{ review.user.profile.name }}{% endif %}"
+                data-label="Ampliar la imagen {{ forloop.counter }} de {{ images|length }}"
+                aria-label="{% if image.is_spoiler %}Imagen {{ forloop.counter }}: es un spoiler, púlsala para verla{% else %}Ampliar la imagen {{ forloop.counter }} de {{ images|length }}{% endif %}">
+          <img src="{{ image.thumb_url }}" alt="" loading="lazy">
+          {% if image.is_spoiler %}<span class="gallery-spoiler" aria-hidden="true">{% include "_icon.html" with name="eye" %} Spoiler</span>{% endif %}
+        </button>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}

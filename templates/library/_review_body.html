@@ -1,4 +1,4 @@
-{% load reviews %}{# Texto de una reseña con su formato y su «Lo mejor» y «Lo peor». En las listas, los textos largos se cortan (sin formato y con los spoilers tapados) y enlazan a su página; con full va entero. #}
+{% load reviews %}{# Texto de una reseña con su formato, su «Lo mejor» y «Lo peor» y sus imágenes. En las listas, los textos largos se cortan (sin formato y con los spoilers tapados) y enlazan a su página; con full va entero. #}
 {% if full or review.text|length <= 700 %}
   <div class="review-text">{{ review.text|review_html }}</div>
 {% else %}
@@ -21,3 +21,4 @@
     {% endif %}
   </div>
 {% endif %}
+{% include "library/_review_images.html" %}

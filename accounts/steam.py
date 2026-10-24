@@ -193,9 +193,11 @@ def import_library(user, include_unplayed=False):
     titles = {}
     for data in owned:
         if data.get("appid"):
+            # playtime_deck_forever: de los minutos, los jugados en una Steam Deck (la reseña dirá Steam Deck si son más).
             add_title(
                 titles, data["appid"], data.get("name") or f"App {data['appid']}",
                 data.get("playtime_forever"), _played_at(data), [STEAM_PLATFORM],
+                deck_minutes=data.get("playtime_deck_forever"),
             )
 
     def auto_match(ids):

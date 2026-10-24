@@ -106,6 +106,13 @@ class Genre(models.Model):
         return self.name
 
 
+# Plataforma propia, que no está en IGDB, para las reseñas de lo jugado en una Steam Deck (la crea una migración).
+# Se ofrece en los juegos de PC, que son los que se pueden jugar en ella.
+STEAM_DECK_SLUG = "steam-deck"
+STEAM_DECK_NAME = "Steam Deck"
+STEAM_DECK_HOSTS = ("PC (Microsoft Windows)", "Linux")
+
+
 class Platform(models.Model):
     igdb_id = models.PositiveIntegerField(unique=True, null=True, blank=True)
     name = models.CharField(max_length=100)
@@ -209,6 +216,13 @@ class Game(models.Model):
     def get_absolute_url(self):
         """URL de la ficha del juego (/juegos/<slug>/)."""
         return reverse("games:detail", args=[self.slug])
+
+    def review_platforms(self):
+        """Plataformas que se pueden elegir en una reseña del juego: las suyas y, si sale en PC, la Steam Deck."""
+        query = models.Q(games=self)
+        if any(platform.name in STEAM_DECK_HOSTS for platform in self.platforms.all()):
+            query |= models.Q(slug=STEAM_DECK_SLUG)
+        return Platform.objects.filter(query).distinct()
 
     @property
     def cover_url(self):
@@ -351,15 +365,25 @@ class Game(models.Model):
         ]
 
     def community_rating(self):
-        """Media de las valoraciones de los usuarios de NextPlay: {"average": de 0,5 a 5 estrellas o None, "count": n}.
+        """Media de las valoraciones de los usuarios de NextPlay: {"average": de 0,5 a 5 estrellas o None, "count": n},
+        y la misma solo con quienes tienen horas importadas de Steam, PlayStation o Xbox («verified_average» y
+        «verified_count»), que no pueden valorarlo sin haberlo jugado.
 
-        Las notas se guardan en medias estrellas (de 1 a 10), así que la media se divide entre dos.
+        Las notas se guardan en medias estrellas (de 1 a 10), así que las medias se dividen entre dos.
         """
-        result = self.library_entries.filter(rating__isnull=False).aggregate(
-            average=models.Avg("rating"), count=models.Count("id")
+        played = (
+            models.Q(steam_playtime_minutes__gt=0) | models.Q(psn_playtime_minutes__gt=0)
+            | models.Q(xbox_playtime_minutes__gt=0)
         )
-        if result["average"] is not None:
-            result["average"] /= 2
+        result = self.library_entries.filter(rating__isnull=False).aggregate(
+            average=models.Avg("rating"),
+            count=models.Count("id"),
+            verified_average=models.Avg("rating", filter=played),
+            verified_count=models.Count("id", filter=played),
+        )
+        for key in ("average", "verified_average"):
+            if result[key] is not None:
+                result[key] /= 2
         return result
 
     @property
