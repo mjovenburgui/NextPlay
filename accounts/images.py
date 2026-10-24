@@ -1,10 +1,11 @@
-"""Tratamiento de las imágenes que suben los usuarios para su perfil: foto, cabecera y fondo.
+"""Tratamiento de las imágenes que suben los usuarios: la foto, la cabecera y el fondo del perfil y las de las reseñas.
 
 Cada imagen se comprueba con Pillow, se gira según su EXIF (las fotos del móvil vienen tumbadas), se
 reduce hasta caber en el tamaño de su uso y se guarda en WebP con un nombre aleatorio. No se recorta: se
 guarda entera y el usuario elige qué parte se ve, o que se vea entera, con el encuadre del perfil
-(Profile.avatar_x, avatar_y, avatar_zoom, avatar_fit y los de la cabecera y el fondo). Al volver a
-codificarla se pierden los metadatos EXIF, que en las fotos del móvil pueden llevar la ubicación.
+(Profile.avatar_x, avatar_y, avatar_zoom, avatar_fit y los de la cabecera y el fondo). De las imágenes de
+las reseñas se guardan dos tamaños: la grande, para el visor, y una miniatura. Al volver a codificarla se
+pierden los metadatos EXIF, que en las fotos del móvil pueden llevar la ubicación.
 """
 
 import secrets
@@ -24,11 +25,14 @@ class Kind(NamedTuple):
     max_mb: int
 
 
-# Editar perfil le pasa estas medidas al navegador, que reduce antes de subirlas las fotos que no caben.
+# Editar perfil y el editor de reseñas le pasan estas medidas al navegador, que reduce antes de subirlas las
+# fotos que no caben.
 KINDS = {
     "avatar": Kind(800, 800, 5),
     "banner": Kind(2000, 1500, 8),
     "background": Kind(1920, 1200, 8),
+    "review": Kind(1920, 1920, 8),
+    "review_thumb": Kind(720, 720, 8),
 }
 FORMATS = {"JPEG", "PNG", "WEBP", "GIF"}
 # Las más grandes se rechazan antes de descomprimirlas: una imagen pequeña en disco puede ocupar gigas en memoria.

@@ -28,8 +28,9 @@
     <ul class="review-facts">
       {% if review.status_note %}<li class="fact{% if review.finished %} fact-done{% endif %}">{% if review.finished %}{% include "_icon.html" with name="check" %} {% endif %}{{ review.status_note }}</li>{% endif %}
       {% if review.hours is not None %}
+        {# Sello de horas verificadas: los logos dicen de qué plataformas salen. #}
         <li class="fact fact-hours" title="Horas importadas{% if review.hours_source_names %} de {{ review.hours_source_names }}{% endif %}: no las escribe el autor">
-          {% include "_icon.html" with name="clock" %} Escrita a las {{ review.hours|floatformat:"-1" }} h{% if review.hours_source_names %} <span class="fact-source">· {{ review.hours_source_names }}</span>{% endif %}
+          {% include "_icon.html" with name="clock" %} Escrita a las {{ review.hours|floatformat:"-1" }} h{% if review.hours_source_logos %} <span class="fact-logos">{% for name, logo in review.hours_source_logos %}<span class="fact-logo" role="img" aria-label="{{ name }}">{% include logo %}</span>{% endfor %}</span>{% endif %}
         </li>
       {% endif %}
       {% if review.platform %}<li class="fact">{{ review.platform.short_name }}</li>{% endif %}
@@ -62,6 +63,14 @@
     {% endif %}
     {% if review.user == user and not preview %}
       <a class="review-action" href="{% url 'library:review_edit' review.pk %}">{% include "_icon.html" with name="edit" %} Editar</a>
+    {% elif user.is_authenticated and not preview %}
+      {# Denunciar: en su página se abre el formulario; en las listas lleva a ella con el formulario ya abierto. #}
+      {% if full %}
+        {% url 'library:review_report' review.pk as report_url %}
+        {% include "library/_report.html" with kind="resena" target=review noun="esta reseña" open=open_report %}
+      {% else %}
+        <a class="review-action report-link" href="{{ review.get_absolute_url }}?denunciar#denunciar-resena-{{ review.pk }}" title="Denunciar esta reseña">{% include "_icon.html" with name="flag" %}<span class="visually-hidden"> Denunciar esta reseña</span></a>
+      {% endif %}
     {% endif %}
   </footer>
 </article>

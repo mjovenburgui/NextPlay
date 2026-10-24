@@ -20,6 +20,7 @@ from django.views.decorators.http import require_POST
 from games import igdb, media
 
 from games.models import LANGUAGE_FILTERS, Game, Genre, igdb_image_url, known_shops, language_filter
+from library import wishlist
 from library.models import LibraryEntry, Review
 from library.views import mark_liked
 
@@ -452,10 +453,46 @@ def _with_unmatched(text, unmatched):
     )
 
 
+def _report_wishlist(request, result):
+    """Avisa de lo que se ha traído de la lista de deseos de Steam y, con los precios de hoy, de cuántos de sus
+    deseados están en su mínimo histórico o son más baratos fuera de Steam (HTML seguro: el texto se escapa).
+
+    Los precios de PC de los juegos nuevos se piden en ese momento (library.wishlist.fetch_missing_prices).
+    """
+    if result["unreadable"]:
+        messages.info(
+            request,
+            f"La lista de deseos de Steam de {', '.join(result['unreadable'])} está vacía o es privada: "
+            "de ahí no se ha traído nada a «Lo quiero».",
+        )
+    total = result["total"]
+    if not total:
+        return
+    wishlist.fetch_missing_prices([item.game for item in result["added"]])
+    count, at_low, cheaper = wishlist.steam_deals(request.user)
+    added, removed, owned, unmatched = len(result["added"]), result["removed"], result["owned"], result["unmatched"]
+    details = [f"{added} nuevo{pluralize(added)} en «Lo quiero»"]
+    if removed:
+        details.append(f"{removed} quitado{pluralize(removed)} porque ya no está{pluralize(removed, 'n')} en Steam")
+    if owned:
+        details.append(f"{owned} que ya tienes")
+    if unmatched:
+        details.append(f"{unmatched} que no está{pluralize(unmatched, 'n')} en el catálogo")
+    text = f"Lista de deseos de Steam: {total} juego{pluralize(total)} ({', '.join(details)})"
+    if count:
+        text += (
+            f". Hoy, {at_low} está{pluralize(at_low, 'n')} en su mínimo histórico y {cheaper} "
+            f"{'es' if cheaper == 1 else 'son'} más barato{pluralize(cheaper)} fuera de Steam"
+        )
+    messages.success(request, format_html('{}. <a href="{}">Ver tu lista de deseos</a>', text, reverse("library:wishlist")))
+
+
 def _import_steam(request, include_unplayed=False):
     """Lanza la importación de todas las cuentas de Steam del usuario y le avisa del resultado o del fallo.
 
-    Si falla por Steam o IGDB deja el error completo en el log del servidor para poder revisarlo.
+    Si lo tiene activado (Profile.steam_wishlist), trae también su lista de deseos de Steam a «Lo quiero»;
+    que falle eso no estropea lo de la biblioteca. Si falla por Steam o IGDB deja el error completo en el
+    log del servidor para poder revisarlo.
     """
     if not steam.is_configured():
         messages.error(request, STEAM_KEY_MISSING)
@@ -467,6 +504,13 @@ def _import_steam(request, include_unplayed=False):
     except (steam.SteamError, igdb.IGDBError):
         logger.exception("Falló la importación de Steam de %s", request.user.username)
         messages.error(request, "No se pudieron importar tus juegos de Steam. Inténtalo de nuevo más tarde.")
+    if not request.user.profile.steam_wishlist:
+        return
+    try:
+        _report_wishlist(request, steam.import_wishlist(request.user))
+    except (steam.SteamError, igdb.IGDBError):
+        logger.exception("Falló la importación de la lista de deseos de Steam de %s", request.user.username)
+        messages.error(request, "No se pudo traer tu lista de deseos de Steam. Inténtalo de nuevo más tarde.")
 
 
 @require_POST
@@ -549,6 +593,28 @@ def steam_auto_sync(request):
         messages.success(request, "Tu biblioteca de Steam se sincronizará sola cada noche.")
     else:
         messages.success(request, "Sincronización nocturna desactivada: Steam solo se importará cuando lo pidas.")
+    return _back(request, f"{reverse('edit_profile')}#steam")
+
+
+@require_POST
+@login_required
+def steam_wishlist(request):
+    """Activa (steam_wishlist=1) o desactiva que la importación de Steam traiga la lista de deseos a «Lo quiero».
+
+    Con restore=1, olvida los juegos que quitó a mano para que la próxima importación los vuelva a traer.
+    """
+    profile = request.user.profile
+    if request.POST.get("restore") == "1":
+        profile.steam_wishlist_skip = []
+        profile.save(update_fields=["steam_wishlist_skip"])
+        messages.success(request, "Hecho: la próxima vez que sincronices Steam se traerán también los que habías quitado.")
+    else:
+        profile.steam_wishlist = request.POST.get("steam_wishlist") == "1"
+        profile.save(update_fields=["steam_wishlist"])
+        if profile.steam_wishlist:
+            messages.success(request, "Tu lista de deseos de Steam se traerá a «Lo quiero» cada vez que se sincronice Steam.")
+        else:
+            messages.success(request, "Ya no se traerá tu lista de deseos de Steam. Lo que ya está en «Lo quiero» se queda.")
     return _back(request, f"{reverse('edit_profile')}#steam")
 
 

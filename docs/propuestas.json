@@ -72,7 +72,7 @@
   {
     "titulo": "Reseñas: lo mejor y lo peor, datos de la partida rellenos solos e imágenes",
     "fecha": "2026-10-23",
-    "estado": "en curso",
+    "estado": "hecha",
     "prioridad": "alta",
     "tipo": "Funcionalidad",
     "resumen": "Tres mejoras del editor de reseñas que propuso el usuario: una lista de «Lo mejor» y otra de «Lo peor», que la plataforma y las fechas de la partida se rellenen solas con lo que dejan las importaciones de Steam, PlayStation y Xbox, y poder añadir imágenes.",
@@ -86,12 +86,12 @@
       "Imágenes: hasta 4 por reseña, pasadas a WebP y sin EXIF con lo que ya usa el perfil (accounts/images.py), cada una marcable como spoiler (borrosa hasta pulsarla) y vistas en el visor a pantalla completa del carrusel. Se puede elegir también una captura oficial del juego (las del carrusel) sin subir nada.",
       "Antes de abrir las imágenes al público: el botón de denunciar de «Me gusta y comentarios en las reseñas» y guardar los archivos fuera del servidor en producción."
     ],
-    "notas": "Propuesta por el usuario el 23/10/2026. Orden recomendado: lo mejor y lo peor y el autorrelleno primero (poco trabajo, salen de datos que ya existen) y las imágenes después, compartiendo el modelo de imagen con «Publicaciones con imágenes asociadas a un juego» para no hacerlo dos veces. 23/10/2026: hechos en la rama resenas-completas, fusionada con main, lo mejor y lo peor (Review.pros y Review.cons, cinco casillas por lista, con formato), las sugerencias de lo que han escrito otros (library/points.py, con <datalist>), «Lo que más destacan» y «Lo que menos gusta» en la ficha (a partir de dos reseñas que coinciden) y el autorrelleno (library/autofill.py): ImportedTitle guarda ahora las plataformas y la primera partida; en lo importado antes, la consola de PlayStation sale del ID del juego (CUSA es PS4 y PPSA, PS5) y lo de Steam es PC. Probado con las importaciones reales de tester_steam (Apex Legends: elige PS4 con 134 h frente a 25 h en PC). La primera partida de PlayStation llegará con la próxima sincronización de PlayStation. Faltan las imágenes y Steam Deck."
+    "notas": "Propuesta por el usuario el 23/10/2026. Orden recomendado: lo mejor y lo peor y el autorrelleno primero (poco trabajo, salen de datos que ya existen) y las imágenes después, compartiendo el modelo de imagen con «Publicaciones con imágenes asociadas a un juego» para no hacerlo dos veces. 23/10/2026: hechos en la rama resenas-completas, fusionada con main, lo mejor y lo peor (Review.pros y Review.cons, cinco casillas por lista, con formato), las sugerencias de lo que han escrito otros (library/points.py, con <datalist>), «Lo que más destacan» y «Lo que menos gusta» en la ficha (a partir de dos reseñas que coinciden) y el autorrelleno (library/autofill.py): ImportedTitle guarda ahora las plataformas y la primera partida; en lo importado antes, la consola de PlayStation sale del ID del juego (CUSA es PS4 y PPSA, PS5) y lo de Steam es PC. Probado con las importaciones reales de tester_steam (Apex Legends: elige PS4 con 134 h frente a 25 h en PC). La primera partida de PlayStation llegará con la próxima sincronización de PlayStation. Faltan las imágenes y Steam Deck. 24/10/2026: hechas en la rama resenas-imagenes-y-denuncias (aún sin commit) las imágenes y la Steam Deck. Imágenes: hasta 4 por reseña, con un modelo abstracto (AttachedImage) que podrán usar también las publicaciones; las subidas se pasan a WebP sin EXIF en dos tamaños (1920 px para el visor y una miniatura de 720 px) y el navegador reduce antes de subirlas las que no caben; cada una se puede marcar como spoiler (borrosa hasta pulsarla) y se puede elegir cualquier captura o arte oficial de la ficha sin subir nada. Se ven en la ficha, el perfil, la portada y la página de la reseña, con un visor a pantalla completa como el del carrusel, y sus archivos se borran al quitarlas o al borrar la reseña. Steam Deck: la importación de Steam guarda los minutos jugados en ella (playtime_deck_forever) y, en los juegos de PC, el editor la ofrece como plataforma (una propia, porque IGDB no la tiene) y la elige si es donde más se ha jugado. El botón de denunciar ya está (ver «Me gusta y comentarios en las reseñas»); guardar las imágenes fuera del servidor queda para cuando se publique NextPlay. 16 tests nuevos entre las tres propuestas de reseñas terminadas ese día."
   },
   {
     "titulo": "Me gusta y comentarios en las reseñas",
     "fecha": "2026-10-17",
-    "estado": "en curso",
+    "estado": "hecha",
     "prioridad": "alta",
     "tipo": "Funcionalidad",
     "resumen": "Reaccionar a las reseñas con «me gusta», comentarlas y ordenar las de la ficha por las más útiles.",
@@ -102,7 +102,7 @@
       "Orden de reseñas en la ficha: más útiles / más recientes.",
       "Botón de denunciar reseña para el admin."
     ],
-    "notas": "Ya estaba planeada antes de proponerla. 21/10/2026: sube a alta porque el usuario quiere unas reseñas al nivel de las de Backloggd. 23/10/2026: hechos en la rama resenas-completas los «me gusta» (no en las tuyas, con HTMX), los comentarios con el mismo formato (los borran quien los escribe y el autor de la reseña), los avisos en la campana (un «me gusta» de la misma persona avisa una sola vez) y el orden «Más gustadas». Falta el botón de denunciar."
+    "notas": "Ya estaba planeada antes de proponerla. 21/10/2026: sube a alta porque el usuario quiere unas reseñas al nivel de las de Backloggd. 23/10/2026: hechos en la rama resenas-completas los «me gusta» (no en las tuyas, con HTMX), los comentarios con el mismo formato (los borran quien los escribe y el autor de la reseña), los avisos en la campana (un «me gusta» de la misma persona avisa una sola vez) y el orden «Más gustadas». Falta el botón de denunciar. 24/10/2026: hecho el botón de denunciar en la rama resenas-imagenes-y-denuncias (aún sin commit), para las reseñas y también para los comentarios: modelo Report genérico (con contenttypes, para que sirva luego para publicaciones o grupos) con motivo y detalles, una denuncia por persona y cosa denunciada, aviso en la campana a los administradores y página de denuncias en el admin con filtro de pendientes, enlaces a lo denunciado y la acción «Marcar como revisadas». En las listas, el botón lleva a la página de la reseña con el formulario ya abierto."
   },
   {
     "titulo": "Listas personalizadas de juegos",
@@ -462,7 +462,7 @@
   {
     "titulo": "Reseñas con horas verificadas y spoilers según tu progreso",
     "fecha": "2026-10-21",
-    "estado": "en curso",
+    "estado": "hecha",
     "prioridad": "media",
     "tipo": "Funcionalidad",
     "resumen": "Que cada reseña diga con cuántas horas se escribió y de qué plataforma salen, poder ver solo las de quien lo ha jugado de verdad o lo ha terminado, y plegar las que van más adelante que tú en el juego.",
@@ -474,7 +474,7 @@
       "Spoilers según tu progreso: si llevas 5 h, las reseñas escritas con muchas más horas que tú salen plegadas («escrita a las 60 h: puede contar lo que te queda»).",
       "Aviso al autor cuando ha jugado mucho más desde su reseña: «llevas 40 h más, ¿la actualizas?»."
     ],
-    "notas": "El plegado por progreso sirve también para «Publicaciones con imágenes asociadas a un juego». Backloggd tiene pendiente en su hoja de ruta marcar spoilers dentro del texto; aquí sería automático. 23/10/2026: hecho en la rama resenas-completas: cada reseña guarda al publicarla (y al editarla) las horas importadas y de qué plataformas salen («Escrita a las 24,2 h · Steam») y cómo iba el autor con el juego («Lo terminó», «Aún jugándolo»); filtros «Lo han terminado» y «Con más de 10 h» en la ficha; las reseñas escritas con 10 h o más de ventaja sobre quien las lee (si no lo ha terminado) salen plegadas. Faltan la nota de la comunidad solo con quien tiene horas, los logos de plataforma en vez del nombre y el aviso «llevas 40 h más, ¿la actualizas?»."
+    "notas": "El plegado por progreso sirve también para «Publicaciones con imágenes asociadas a un juego». Backloggd tiene pendiente en su hoja de ruta marcar spoilers dentro del texto; aquí sería automático. 23/10/2026: hecho en la rama resenas-completas: cada reseña guarda al publicarla (y al editarla) las horas importadas y de qué plataformas salen («Escrita a las 24,2 h · Steam») y cómo iba el autor con el juego («Lo terminó», «Aún jugándolo»); filtros «Lo han terminado» y «Con más de 10 h» en la ficha; las reseñas escritas con 10 h o más de ventaja sobre quien las lee (si no lo ha terminado) salen plegadas. Faltan la nota de la comunidad solo con quien tiene horas, los logos de plataforma en vez del nombre y el aviso «llevas 40 h más, ¿la actualizas?». 24/10/2026: hecho lo que faltaba en la rama resenas-imagenes-y-denuncias (aún sin commit): la valoración de la comunidad enseña también la media solo con quienes tienen horas importadas, el sello de horas lleva los logos de Steam, PlayStation y Xbox, y quien lleva el doble de horas que al escribir su última reseña del juego (y al menos 10 más) ve «Llevas 40 h más: ¿la actualizas?» en la ficha y en la reseña y recibe un aviso en la campana tras la importación (uno por reseña hasta que la vuelva a guardar)."
   },
   {
     "titulo": "¿A qué jugamos? Juegos en común con tus amigos",
@@ -722,7 +722,7 @@
   {
     "titulo": "Importar la lista de deseos de Steam",
     "fecha": "2026-10-21",
-    "estado": "pendiente",
+    "estado": "hecha",
     "prioridad": "media",
     "tipo": "Funcionalidad",
     "resumen": "Un botón (y una pregunta al vincular Steam) que trae a «Lo quiero» todos los juegos de la lista de deseos de Steam, para que desde el primer minuto el usuario sepa cuáles están en su mínimo histórico o más baratos en otra tienda y reciba los avisos.",
@@ -734,7 +734,7 @@
       "Pedir en ese momento los precios de los juegos importados (update_prices solo con ellos), sin esperar a la noche, y enseñar un resumen: «de tus 93 deseados, 12 están hoy en su mínimo histórico y 5 son más baratos fuera de Steam».",
       "Opción para volver a importarla cada noche junto a la biblioteca, recordando los que el usuario haya quitado para no volver a añadirlos."
     ],
-    "notas": "Es una API sin documentar, como otras que ya se usan, y solo funciona si el perfil deja ver sus detalles de juego (igual que la biblioteca). Conviene tenerla antes de las rebajas de invierno de Steam (del 17 de diciembre al 4 de enero). 21/10/2026: aparcada; de momento el usuario prefiere centrarse en el perfil, las listas, los retos y las reseñas."
+    "notas": "Es una API sin documentar, como otras que ya se usan, y solo funciona si el perfil deja ver sus detalles de juego (igual que la biblioteca). Conviene tenerla antes de las rebajas de invierno de Steam (del 17 de diciembre al 4 de enero). 21/10/2026: aparcada; de momento el usuario prefiere centrarse en el perfil, las listas, los retos y las reseñas. 24/10/2026: hecha a petición del usuario (aún sin commit). Cada vez que se importa Steam (al vincular, con «Sincronizar» y en la sincronización de cada noche) se lee IWishlistService/GetWishlist de todas sus cuentas y los juegos se buscan como los de la biblioteca, respetando lo emparejado a mano. Se crean en «Lo quiero» los que no tiene ya, con el puesto y la fecha de Steam, que dan el orden «Como en tu lista de Steam» y una etiqueta de Steam en la lista de deseos. No se traen los de su biblioteca ni los que quitó a mano (Profile.steam_wishlist_skip, con «Volver a traerlos» en el panel de Steam); los que trajo Steam se quitan cuando dejan de estar allí, pero solo si se han podido leer todas sus listas (una privada o vacía no borra nada), y lo añadido a mano en NextPlay nunca se toca. Al sincronizar se piden ya a IsThereAnyDeal los precios de los nuevos y el aviso dice cuántos están hoy en su mínimo histórico y cuántos son más baratos fuera de Steam. Se puede desactivar en el panel de Steam. 7 tests nuevos. De los que no están en el catálogo solo se da el número: la API no trae sus nombres."
   },
   {
     "titulo": "Publicar NextPlay y abrir una beta antes de las rebajas de invierno",
@@ -752,7 +752,7 @@
       "Medir lo justo: cuántos vinculan alguna plataforma y cuántos vuelven la semana siguiente.",
       "Con la beta estable, enseñarla en comunidades de videojuegos en español (subreddits, servidores de Discord, Mediavida) con algo que se pueda compartir: la tarjeta del perfil o «¿A qué jugamos?»."
     ],
-    "notas": "Primera meta realista: 50 personas que vuelvan cada semana. La importación de PlayStation usa una API no oficial: dejarla marcada como experimental. Si algún día se monetiza (anuncios o enlaces de afiliado), revisar antes las condiciones de uso comercial de IGDB e IsThereAnyDeal. 21/10/2026: aparcada; de momento el usuario prefiere centrarse en el perfil, las listas, los retos y las reseñas."
+    "notas": "Primera meta realista: 50 personas que vuelvan cada semana. La importación de PlayStation usa una API no oficial: dejarla marcada como experimental. Si algún día se monetiza (anuncios o enlaces de afiliado), revisar antes las condiciones de uso comercial de IGDB e IsThereAnyDeal. 21/10/2026: aparcada; de momento el usuario prefiere centrarse en el perfil, las listas, los retos y las reseñas. 24/10/2026: las reseñas y los comentarios ya tienen botón de denunciar; antes de publicar faltan bloquear usuarios y llevar las imágenes que se suben (perfiles y reseñas) a un almacenamiento aparte, porque ahora se guardan en MEDIA_ROOT del propio servidor."
   },
   {
     "titulo": "Retos del año y control del pendiente",

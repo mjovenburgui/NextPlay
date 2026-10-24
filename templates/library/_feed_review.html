@@ -1,5 +1,5 @@
 {% load reviews %}
-{# Reseña en la portada, como una publicación: autor, juego, estrellas, texto recortado (sin spoilers), «me gusta» y comentarios. Necesita review. #}
+{# Reseña en la portada, como una publicación: autor, juego, estrellas, texto recortado (sin spoilers), imágenes, «me gusta» y comentarios. Necesita review. #}
 <article class="feed-item">
   <header class="feed-head">
     {% include "accounts/_avatar.html" with profile=review.user.profile size="sm" %}
@@ -16,6 +16,7 @@
         <details class="spoiler">
           <summary>Toda la reseña es un spoiler · Leerla</summary>
           <p class="review-text">{{ review.text|review_plain|truncatechars:320 }}</p>
+          {% include "library/_review_images.html" %}
         </details>
       {% else %}
         <p class="review-text">{{ review.text|review_plain|truncatechars:320 }}</p>
@@ -26,6 +27,7 @@
             {% if review.cons %}<span class="points-cons">{% include "_icon.html" with name="close" %} {{ review.cons.0|review_plain }}</span>{% endif %}
           </p>
         {% endif %}
+        {% include "library/_review_images.html" %}
       {% endif %}
       <p class="feed-actions">
         {% include "library/_like.html" with liked=review.liked like_count=review.like_count %}

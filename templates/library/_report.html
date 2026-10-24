@@ -1,0 +1,29 @@
+{% load reviews %}
+{# Botón «Denunciar» de una reseña o un comentario de otro: un desplegable con el motivo, que llega a los administradores. #}
+{# Necesita kind («resena» o «comentario»), target (lo denunciado), noun («esta reseña»), report_url y reported (ya lo ha denunciado). #}
+{# Con open llega abierto (desde el «Denunciar» de las listas). Con HTMX, al enviarlo se cambia por la respuesta de library.views._report. #}
+{% if reported %}
+  <span class="review-action report-done" id="denunciar-{{ kind }}-{{ target.pk }}">{% include "_icon.html" with name="flag" %} {% if thanks %}Gracias: lo revisaremos{% else %}Ya lo has denunciado{% endif %}</span>
+{% else %}
+  <details class="report" id="denunciar-{{ kind }}-{{ target.pk }}"{% if open %} open{% endif %}>
+    <summary class="review-action" title="Denunciar {{ noun }}">{% include "_icon.html" with name="flag" %} Denunciar</summary>
+    <form class="report-form" method="post" action="{{ report_url }}"
+          hx-post="{{ report_url }}" hx-target="#denunciar-{{ kind }}-{{ target.pk }}" hx-swap="outerHTML">
+      {% csrf_token %}
+      <fieldset>
+        <legend>¿Qué le pasa a {{ noun }}?</legend>
+        {% report_reasons as reasons %}
+        {% for value, label in reasons %}
+          <label class="check"><input type="radio" name="reason" value="{{ value }}" required> {{ label }}</label>
+        {% endfor %}
+        {% if report_error %}<p class="error">Elige un motivo.</p>{% endif %}
+      </fieldset>
+      <label class="visually-hidden" for="detalle-{{ kind }}-{{ target.pk }}">Algo más que debamos saber</label>
+      <textarea id="detalle-{{ kind }}-{{ target.pk }}" name="detail" rows="2" maxlength="500" placeholder="Algo más que debamos saber (opcional)"></textarea>
+      <div class="report-foot">
+        <span class="help">Solo lo verán los administradores: nadie sabrá que has sido tú.</span>
+        <button class="btn btn-small btn-primary" type="submit">Enviar denuncia</button>
+      </div>
+    </form>
+  </details>
+{% endif %}

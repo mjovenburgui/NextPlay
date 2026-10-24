@@ -5,6 +5,7 @@ from datetime import timedelta
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import F, Max, Q
+from django.template.defaultfilters import pluralize
 from django.utils import timezone
 
 from games import igdb
@@ -17,8 +18,9 @@ logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
     help = (
-        "Vuelve a importar la biblioteca de Steam (horas y juegos nuevos) de los usuarios con la "
-        "sincronización nocturna activada. Pensado para lanzarlo cada noche (comando nightly)."
+        "Vuelve a importar la biblioteca de Steam (horas y juegos nuevos) y, si lo tienen activado, la lista de "
+        "deseos de Steam de los usuarios con la sincronización nocturna activada. Pensado para lanzarlo cada "
+        "noche (comando nightly), antes de actualizar los precios."
     )
 
     def add_arguments(self, parser):
@@ -37,7 +39,8 @@ class Command(BaseCommand):
         """Recorre los usuarios con cuentas de Steam, del que lleva más tiempo sin sincronizar al que menos.
 
         Un usuario que falla (perfil privado, Steam o IGDB caídos) no para a los demás: se apunta en el
-        log y se sigue. Solo da error al final si no ha podido sincronizar a nadie.
+        log y se sigue. Solo da error al final si no ha podido sincronizar a nadie. Que falle la lista de
+        deseos de alguien no cuenta como fallo de su biblioteca.
         """
         if not steam.is_configured():
             raise CommandError("Falta STEAM_API_KEY: no se puede leer la biblioteca de Steam.")
@@ -79,7 +82,23 @@ class Command(BaseCommand):
                 f"{user.username}: {result['added']} añadidos, {result['updated']} actualizados, "
                 f"{result['unmatched']} sin emparejar."
             )
+            if user.profile.steam_wishlist:
+                self.sync_wishlist(user)
 
         self.stdout.write(self.style.SUCCESS(f"Steam: {done} bibliotecas sincronizadas, {failed} con error."))
         if failed and not done:
             raise CommandError("No se ha podido sincronizar ninguna biblioteca.")
+
+    def sync_wishlist(self, user):
+        """Trae a «Lo quiero» la lista de deseos de Steam del usuario y lo cuenta; si falla, lo apunta en el log."""
+        try:
+            result = steam.import_wishlist(user)
+        except (steam.SteamError, igdb.IGDBError):
+            logger.exception("Falló la lista de deseos de Steam de %s", user.username)
+            self.stderr.write(f"{user.username}: falló la lista de deseos (detalles en el log).")
+            return
+        total, added, removed = result["total"], len(result["added"]), result["removed"]
+        self.stdout.write(
+            f"{user.username}: lista de deseos de Steam con {total} juego{pluralize(total)}, {added} "
+            f"nuevo{pluralize(added)} en «Lo quiero» y {removed} quitado{pluralize(removed)}."
+        )

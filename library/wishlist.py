@@ -4,6 +4,10 @@ Se lanzan al terminar update_prices. Un juego avisa cuando su mejor precio (PC o
 tiendas del usuario si las ha elegido) baja del precio que puso el usuario o cuando está rebajado a su mínimo histórico. No se repite el aviso hasta
 que baje más, o hasta que vuelva a subir y baje otra vez. Los juegos que ya están en la biblioteca
 del usuario no avisan (ya lo tiene).
+
+También están aquí los precios que se piden al momento para los juegos que llegan de la lista de deseos
+de Steam y el resumen que se enseña después: cuántos están hoy en su mínimo histórico y cuántos son más
+baratos fuera de Steam.
 """
 
 import logging
@@ -14,11 +18,61 @@ from django.core.mail import send_mail
 from django.db.models import Exists, OuterRef
 
 from accounts.models import Notification
-from games.models import format_price
+from games import prices
+from games.models import STEAM_SHOP_ID, XBOX_SHOP_ID, format_price
 
 from .models import LibraryEntry, WishlistItem
 
 logger = logging.getLogger(__name__)
+
+
+def at_historical_low(game, best):
+    """Indica si best (la oferta más barata del juego) está rebajada a su mínimo histórico o por debajo.
+
+    Solo cuenta si está rebajada: un juego que nunca baja siempre está en su mínimo.
+    """
+    low = game.historical_low
+    return bool(best and best.cut and low is not None and best.price <= low)
+
+
+def fetch_missing_prices(games):
+    """Pide ya a IsThereAnyDeal los precios de PC de los juegos que aún no los tienen, sin esperar a la noche.
+
+    Sin ITAD_API_KEY, o si falla, no hace nada (los traerá update_prices). Devuelve cuántos tienen ahora precio.
+    """
+    games = [game for game in games if game.prices_updated_at is None]
+    if not games or not prices.is_configured():
+        return 0
+    try:
+        return prices.update_prices(games)
+    except prices.ITADError:
+        logger.exception("No se pudieron pedir los precios de los juegos traídos de la lista de deseos de Steam")
+        return 0
+
+
+def steam_deals(user):
+    """De los juegos de «Lo quiero» de user que están en su lista de deseos de Steam: (cuántos son, cuántos están hoy
+    en su mínimo histórico, cuántos son más baratos en otra tienda de PC que en Steam).
+
+    Cuentan solo las tiendas del usuario si las ha elegido; el precio de Steam con el que se compara es siempre el
+    de Steam.
+    """
+    shops = set(user.profile.shops) or None
+    items = list(
+        WishlistItem.objects.filter(user=user, steam_added_at__isnull=False)
+        .select_related("game").prefetch_related("game__prices")
+    )
+    at_low = cheaper = 0
+    for item in items:
+        game = item.game
+        at_low += at_historical_low(game, game.cheapest(shops))
+        steam = next((price for price in game.prices.all() if price.shop_id == STEAM_SHOP_ID), None)
+        pc = [
+            price for price in game.prices.all()
+            if price.shop_id not in (STEAM_SHOP_ID, XBOX_SHOP_ID) and (shops is None or price.shop_id in shops)
+        ]
+        cheaper += bool(steam and pc and min(price.price for price in pc) < steam.price)
+    return len(items), at_low, cheaper
 
 
 def alert_reason(item, best):
@@ -30,8 +84,7 @@ def alert_reason(item, best):
         return None
     if item.target_price is not None and best.price <= item.target_price:
         return "objetivo"
-    low = item.game.historical_low
-    if best.cut and low is not None and best.price <= low:
+    if at_historical_low(item.game, best):
         return "minimo"
     return None
 

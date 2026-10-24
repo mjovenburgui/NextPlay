@@ -106,6 +106,10 @@ class Profile(models.Model):
     # La biblioteca de Steam se vuelve a importar sola cada noche (comando sync_libraries) salvo que lo desactive.
     auto_sync = models.BooleanField("sincronizar Steam cada noche", default=True)
     auto_synced_at = models.DateTimeField("última sincronización automática", null=True, blank=True)
+    # Al importar Steam también se trae su lista de deseos a «Lo quiero» (accounts.steam.import_wishlist), salvo
+    # que lo desactive. Los juegos de esa lista que quitó a mano de «Lo quiero» no se vuelven a traer (ids de Game).
+    steam_wishlist = models.BooleanField("traer la lista de deseos de Steam", default=True)
+    steam_wishlist_skip = models.JSONField("deseados de Steam que no traer", default=list, blank=True)
     # Ids de las tiendas en las que compra (los de GamePrice.shop_id; 0 es Xbox). Vacía = todas.
     shops = models.JSONField("tiendas en las que compro", default=list, blank=True)
     price_alert_emails = models.BooleanField(
@@ -666,6 +670,8 @@ class ImportedTitle(models.Model):
     # IGDB («PlayStation 5», «Xbox Series X|S»...). Rellenan solas la plataforma y las fechas de las reseñas.
     first_played = models.DateTimeField("primera partida", null=True, blank=True)
     platforms = models.JSONField("plataformas en las que se jugó", default=list, blank=True)
+    # De los minutos, los jugados en una Steam Deck (solo lo da Steam): si son la mayoría, la reseña dice Steam Deck.
+    deck_minutes = models.PositiveIntegerField("minutos en Steam Deck", default=0)
     # El usuario lo quita de «Sin emparejar» (herramientas, demos, apps...).
     hidden = models.BooleanField("oculto", default=False)
     imported_at = models.DateTimeField(auto_now=True)
@@ -695,6 +701,9 @@ class Notification(models.Model):
         PRICE = "price", "Bajada de precio"
         LIKE = "like", "Me gusta en tu reseña"
         COMMENT = "comment", "Comentario en tu reseña"
+        REVIEW_UPDATE = "review_update", "Actualizar una reseña"
+        # Solo para los administradores.
+        REPORT = "report", "Denuncia"
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
     kind = models.CharField("tipo", max_length=20, choices=Kind.choices)
