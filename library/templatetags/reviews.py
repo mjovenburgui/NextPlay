@@ -1,11 +1,19 @@
-"""Filtros de plantilla de las reseñas: el formato del texto, las notas en estrellas y los permisos de los comentarios."""
+"""Filtros de plantilla de las reseñas: el formato del texto, las notas en estrellas, los permisos de los comentarios y
+los motivos de las denuncias."""
 
 from django import template
 
 from .. import markup
 from ..forms import stars_label as _stars_label
+from ..models import Report
 
 register = template.Library()
+
+
+@register.simple_tag
+def report_reasons():
+    """Motivos que se pueden elegir al denunciar una reseña o un comentario: [(valor, texto)]."""
+    return Report.Reason.choices
 
 
 @register.filter

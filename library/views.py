@@ -2,19 +2,27 @@ from decimal import Decimal, InvalidOperation
 from urllib.parse import urlencode
 
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.contrib.contenttypes.models import ContentType
 from django.http import Http404, HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from accounts import images
 from accounts.models import Notification
+from games import media
 from games.models import LANGUAGE_FILTERS, Game, language_filter
 
 from . import points
 from .autofill import play_details
-from .forms import CommentForm, ReviewForm
-from .models import REVIEW_MAX_LENGTH, LibraryEntry, Review, ReviewComment, ReviewLike, WishlistItem
+from .forms import CommentForm, ReportForm, ReviewForm, ReviewImagesForm
+from .models import (
+    MAX_IMAGES, REVIEW_MAX_LENGTH, LibraryEntry, Report, Review, ReviewComment, ReviewLike, WishlistItem,
+)
+from .reminders import latest_reviews
 
 
 REVIEWS_SHOWN = 30
@@ -26,6 +34,8 @@ LONG_PLAY_HOURS = 10
 # Si una reseña se escribió con estas horas más de las que lleva quien la lee (y no lo ha terminado), se
 # pliega: puede contar lo que le queda.
 AHEAD_HOURS = 10
+# Lo que se puede denunciar: clave → (cómo se nombra en el botón, cómo se nombra en el aviso a los administradores).
+REPORT_TARGETS = {"resena": ("esta reseña", "una reseña"), "comentario": ("este comentario", "un comentario")}
 
 
 def mark_liked(reviews, user):
@@ -43,9 +53,10 @@ def review_context(request, game, entry):
 
     Las reseñas que puede leer, ordenadas con ?resenas= (recientes o más gustadas) y filtradas con ?filtro=
     (las de quien lo ha terminado o las escritas con más de LONG_PLAY_HOURS horas); las suyas del juego,
-    borradores incluidos; lo mejor y lo peor que más se repite (consensus, ver library.points); y en cada
-    reseña si le ha dado «me gusta» (liked) y si va más adelante que él en el juego (ahead, ver AHEAD_HOURS)
-    para plegarla.
+    borradores incluidos, con las horas que lleva de más desde la última (extra_hours, ver
+    Review.hours_since) para proponerle actualizarla; lo mejor y lo peor que más se repite (consensus, ver
+    library.points); y en cada reseña si le ha dado «me gusta» (liked) y si va más adelante que él en el
+    juego (ahead, ver AHEAD_HOURS) para plegarla.
     """
     viewer = request.user
     reviews = Review.objects.filter(game=game).visible_to(viewer)
@@ -71,6 +82,11 @@ def review_context(request, game, entry):
             and float(review.hours) >= viewer_hours + AHEAD_HOURS
         )
     own = list(Review.objects.filter(game=game, user=viewer)) if viewer.is_authenticated else []
+    # Solo a la última publicada se le propone actualizarla: las anteriores son de otras partidas.
+    published = [review for review in own if not review.is_draft]
+    latest = max(published, key=lambda review: (review.published_at, review.pk), default=None)
+    for review in own:
+        review.extra_hours = review.hours_since(entry) if review is latest else None
 
     def link(new_sort, new_filter):
         """URL de la ficha con ese orden y ese filtro de reseñas, y el resto de la consulta como estaba."""
@@ -196,13 +212,18 @@ def _review_editor(request, review, entry):
     lleva nota, pasa a ser también la nota del juego en su biblioteca, que es la que cuenta en la media de
     la comunidad. La fecha de publicación es la de la primera vez. En una reseña nueva, la plataforma y las
     fechas vienen ya rellenas con lo de las importaciones (library.autofill) y «Lo mejor» y «Lo peor»
-    sugieren lo que han escrito otros (library.points).
+    sugieren lo que han escrito otros (library.points). Las imágenes (subidas o capturas oficiales del
+    juego) van en un formulario aparte, ReviewImagesForm, que se guarda a la vez.
     """
     game = review.game
     # En una reseña nueva, la plataforma y las fechas se rellenan solas con lo que dejaron las importaciones.
     fill = play_details(request.user, game, entry) if review.pk is None else {"initial": {}, "notes": {}}
     form = ReviewForm(request.POST or None, instance=review, game=game, initial=fill["initial"])
-    if request.method == "POST" and form.is_valid():
+    images_form = ReviewImagesForm(
+        request.POST or None, request.FILES or None, review=review, official=media.official_images(game)
+    )
+    # Se comprueban los dos aunque falle el primero, para enseñar todos los errores a la vez.
+    if request.method == "POST" and all([form.is_valid(), images_form.is_valid()]):
         review = form.save(commit=False)
         publish = "borrador" not in request.POST
         # is_draft no está en el formulario: aún es el de antes de guardar.
@@ -212,6 +233,7 @@ def _review_editor(request, review, entry):
             review.published_at = review.published_at or timezone.now()
             review.snapshot(entry)
         review.save()
+        images_form.save(review)
         if publish and review.rating and entry is not None and entry.rating != review.rating:
             entry.rating = review.rating
             entry.save(update_fields=["rating", "updated_at"])
@@ -222,11 +244,15 @@ def _review_editor(request, review, entry):
         return redirect(review)
     return render(request, "library/review_form.html", {
         "form": form,
+        "images_form": images_form,
         "review": review,
         "game": game,
         "entry": entry,
         "rating_steps": LibraryEntry.RATING_STEPS,
         "max_length": REVIEW_MAX_LENGTH,
+        "max_images": MAX_IMAGES,
+        # Medidas que el navegador usa para reducir antes de subirlas las imágenes demasiado grandes.
+        "image_kind": images.KINDS["review"],
         "fill_notes": fill["notes"],
         "suggestions": points.suggestions(game, request.user),
     })
@@ -259,34 +285,53 @@ def _readable_review(request, review_id):
 
 
 def review_detail(request, username, review_id):
-    """Página de una reseña: el juego, la nota, los datos de la partida, sus «me gusta» y sus comentarios.
+    """Página de una reseña: el juego, la nota, los datos de la partida, sus imágenes, sus «me gusta» y sus comentarios.
 
-    Los borradores y las reseñas de perfiles privados solo los ve su autor; a los demás les da 404.
+    Los borradores y las reseñas de perfiles privados solo los ve su autor; a los demás les da 404. A su
+    autor se le propone actualizarla si ha jugado mucho más desde que la escribió (solo en la última que
+    ha publicado del juego); los demás pueden denunciarla (con ?denunciar, el formulario llega abierto).
     """
     review = get_object_or_404(
         Review.objects.select_related("user__profile", "user__psn_account", "game", "platform")
-        .prefetch_related("user__steam_accounts"),
+        .prefetch_related("user__steam_accounts", "images"),
         pk=review_id, user__username=username,
     )
-    is_author = request.user == review.user
-    if not is_author and (review.is_draft or not review.user.profile.visible_to(request.user)):
+    viewer = request.user
+    is_author = viewer == review.user
+    if not is_author and (review.is_draft or not review.user.profile.visible_to(viewer)):
         raise Http404
     review.like_count = review.likes.count()
-    review.liked = request.user.is_authenticated and review.likes.filter(user=request.user).exists()
+    review.liked = viewer.is_authenticated and review.likes.filter(user=viewer).exists()
+    extra_hours = None
+    if is_author and latest_reviews(viewer, [review.game]).get(review.game_id) == review:
+        extra_hours = review.hours_since(LibraryEntry.objects.filter(user=viewer, game=review.game).first())
     return render(request, "library/review_detail.html", {
         "review": review,
         "game": review.game,
         "is_author": is_author,
-        **_comments_context(review),
+        "extra_hours": extra_hours,
+        "reported": viewer.is_authenticated and not is_author and review.reports.filter(reporter=viewer).exists(),
+        "open_report": "denunciar" in request.GET,
+        **_comments_context(review, viewer),
         "comment_form": CommentForm(),
     })
 
 
-def _comments_context(review):
-    """Comentarios de la reseña con sus autores, en orden."""
+def _comments_context(review, viewer):
+    """Comentarios de la reseña con sus autores, en orden, y en cada uno si viewer ya lo ha denunciado (reported)."""
     comments = list(
         review.comments.select_related("user__profile", "user__psn_account", "review").prefetch_related("user__steam_accounts")
     )
+    reported = set()
+    if viewer.is_authenticated and comments:
+        reported = set(
+            Report.objects.filter(
+                reporter=viewer, content_type=ContentType.objects.get_for_model(ReviewComment),
+                object_id__in=[comment.pk for comment in comments],
+            ).values_list("object_id", flat=True)
+        )
+    for comment in comments:
+        comment.reported = comment.pk in reported
     review.comment_count = len(comments)
     return {"comments": comments}
 
@@ -346,7 +391,7 @@ def review_comment(request, review_id):
         messages.error(request, " ".join(form.errors.get("text", ["El comentario no es válido."])))
     if request.headers.get("HX-Request"):
         return render(request, "library/_comments.html", {
-            "review": review, "comment_form": form, "oob": True, **_comments_context(review),
+            "review": review, "comment_form": form, "oob": True, **_comments_context(review, request.user),
         })
     return redirect(f"{review.get_absolute_url()}#comentarios")
 
@@ -362,9 +407,73 @@ def comment_delete(request, comment_id):
     comment.delete()
     if request.headers.get("HX-Request"):
         return render(request, "library/_comments.html", {
-            "review": review, "comment_form": CommentForm(), "oob": True, **_comments_context(review),
+            "review": review, "comment_form": CommentForm(), "oob": True, **_comments_context(review, request.user),
         })
     return redirect(f"{review.get_absolute_url()}#comentarios")
+
+
+@require_POST
+@login_required
+def review_report(request, review_id):
+    """Denuncia una reseña de otro para que la revise un administrador; las propias no se pueden denunciar (400)."""
+    review = _readable_review(request, review_id)
+    if review.user_id == request.user.pk:
+        return HttpResponseBadRequest("No puedes denunciar tu propia reseña.")
+    return _report(request, review, "resena", review.game, review.get_absolute_url())
+
+
+@require_POST
+@login_required
+def comment_report(request, comment_id):
+    """Denuncia un comentario de otro para que lo revise un administrador; los propios no se pueden denunciar (400).
+
+    Como con la reseña, da 404 si la reseña del comentario es un borrador o de un perfil privado ajeno.
+    """
+    comment = get_object_or_404(ReviewComment.objects.select_related("user", "review__game"), pk=comment_id)
+    _readable_review(request, comment.review_id)
+    if comment.user_id == request.user.pk:
+        return HttpResponseBadRequest("No puedes denunciar tu propio comentario.")
+    return _report(request, comment, "comentario", comment.review.game, comment.get_absolute_url())
+
+
+def _report(request, target, kind, game, back_url):
+    """Guarda la denuncia del usuario sobre target (una reseña o un comentario, según kind) y avisa a los administradores.
+
+    Si ya lo había denunciado, cambia el motivo y la vuelve a dejar pendiente. Con HTMX devuelve el botón de
+    denunciar (library/_report.html) ya como «Gracias» o, si falta el motivo, abierto con el error; si no,
+    vuelve a back_url con un mensaje.
+    """
+    form = ReportForm(request.POST)
+    context = {"kind": kind, "target": target, "noun": REPORT_TARGETS[kind][0], "report_url": request.path}
+    if form.is_valid():
+        report, _ = Report.objects.update_or_create(
+            content_type=ContentType.objects.get_for_model(target), object_id=target.pk, reporter=request.user,
+            defaults={"reason": form.cleaned_data["reason"], "detail": form.cleaned_data["detail"], "resolved_at": None},
+        )
+        _notify_staff(report, f"{REPORT_TARGETS[kind][1]} de {target.user.username}", game)
+        if request.headers.get("HX-Request"):
+            return render(request, "library/_report.html", {**context, "reported": True, "thanks": True})
+        messages.success(request, "Gracias por avisar: un administrador lo revisará.")
+        return redirect(back_url)
+    if request.headers.get("HX-Request"):
+        return render(request, "library/_report.html", {**context, "open": True, "report_error": True})
+    messages.error(request, "Elige el motivo de la denuncia.")
+    return redirect(back_url)
+
+
+def _notify_staff(report, what, game):
+    """Avisa en la campana a los administradores de la denuncia de what («una reseña de ana») en game, sin
+    repetirlo mientras tengan uno igual sin leer.
+
+    El aviso lleva a la denuncia en el admin, desde donde se puede ir a lo denunciado y borrarlo.
+    """
+    url = reverse("admin:library_report_change", args=[report.pk])
+    text = f"Han denunciado {what} en {game.name}: {report.get_reason_display()}."
+    staff = get_user_model().objects.filter(is_staff=True, is_active=True).exclude(pk=report.reporter_id)
+    for admin_user in staff:
+        notices = Notification.objects.filter(user=admin_user, kind=Notification.Kind.REPORT, url=url, read_at=None)
+        if not notices.exists():
+            Notification.objects.create(user=admin_user, kind=Notification.Kind.REPORT, text=text[:300], url=url, game=game)
 
 
 def _wish_response(request, game, wish, error=""):

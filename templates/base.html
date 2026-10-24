@@ -104,6 +104,105 @@
         });
       })();
     </script>
+
+    {# Visor a pantalla completa de las imágenes de las reseñas, igual que el del carrusel de la ficha. #}
+    <dialog class="viewer" aria-labelledby="gallery-viewer-title" data-gallery-viewer>
+      <div class="viewer-top">
+        <p class="viewer-title" id="gallery-viewer-title"><strong data-viewer-heading></strong> <span class="muted" data-viewer-detail></span></p>
+        <div class="viewer-actions">
+          <button class="viewer-close" type="button" aria-label="Cerrar" data-viewer-close>{% include "_icon.html" with name="close" %}</button>
+        </div>
+      </div>
+      <div class="viewer-stage">
+        <button class="media-arrow viewer-nav" type="button" data-viewer-step="-1" aria-label="Anterior">{% include "_icon.html" with name="back" %}</button>
+        <figure class="viewer-figure" data-viewer-figure></figure>
+        <button class="media-arrow viewer-nav" type="button" data-viewer-step="1" aria-label="Siguiente">{% include "_icon.html" with name="arrow" %}</button>
+      </div>
+      <p class="viewer-count" data-viewer-count></p>
+    </dialog>
+    <script>
+      // Imágenes de las reseñas (library/_review_images.html): las marcadas como spoiler se destapan al pulsarlas y las
+      // demás se abren en el visor, donde se pasa de una a otra con las flechas, el teclado o deslizando el dedo. Va por
+      // delegación, así que también vale con las reseñas que llegan después por HTMX.
+      (function () {
+        var viewer = document.querySelector("[data-gallery-viewer]");
+        var figure = viewer.querySelector("[data-viewer-figure]");
+        var tiles = [];
+        var current = 0;
+
+        // Destapa la miniatura de un spoiler (ya no va borrosa y se puede ampliar).
+        function uncover(tile) {
+          tile.classList.add("is-shown");
+          tile.setAttribute("aria-label", tile.dataset.label);
+        }
+
+        // Enseña en el visor la imagen i de la reseña (da la vuelta al llegar a un extremo). Un spoiler sin destapar
+        // sale borroso, con un botón para verlo.
+        function show(i) {
+          current = (i + tiles.length) % tiles.length;
+          var tile = tiles[current];
+          var img = document.createElement("img");
+          img.alt = tile.dataset.alt;
+          // Primero la miniatura, que ya está cargada, y la grande en cuanto llegue.
+          img.src = tile.querySelector("img").src;
+          var full = new Image();
+          full.addEventListener("load", function () { img.src = tile.dataset.full; });
+          full.src = tile.dataset.full;
+          if (tile.classList.contains("is-spoiler") && !tile.classList.contains("is-shown")) {
+            var cover = document.createElement("button");
+            cover.type = "button";
+            cover.className = "viewer-spoiler";
+            var label = document.createElement("span");
+            label.textContent = "Es un spoiler · Verla";
+            cover.append(img, label);
+            cover.addEventListener("click", function () {
+              uncover(tile);
+              show(current);
+            });
+            figure.replaceChildren(cover);
+          } else {
+            figure.replaceChildren(img);
+          }
+          viewer.querySelector("[data-viewer-heading]").textContent = tile.closest("[data-gallery]").dataset.heading;
+          viewer.querySelector("[data-viewer-detail]").textContent = "· " + tile.dataset.detail;
+          viewer.querySelector("[data-viewer-count]").textContent = (current + 1) + " / " + tiles.length;
+          viewer.querySelectorAll("[data-viewer-step]").forEach(function (button) { button.hidden = tiles.length < 2; });
+        }
+
+        document.addEventListener("click", function (event) {
+          var tile = event.target.closest("[data-gallery-item]");
+          if (!tile) return;
+          if (tile.classList.contains("is-spoiler") && !tile.classList.contains("is-shown")) {
+            uncover(tile);
+            return;
+          }
+          tiles = Array.prototype.slice.call(tile.closest("[data-gallery]").querySelectorAll("[data-gallery-item]"));
+          show(tiles.indexOf(tile));
+          viewer.showModal();
+        });
+        viewer.querySelectorAll("[data-viewer-step]").forEach(function (button) {
+          button.addEventListener("click", function () { show(current + Number(button.dataset.viewerStep)); });
+        });
+        viewer.querySelector("[data-viewer-close]").addEventListener("click", function () { viewer.close(); });
+        viewer.addEventListener("click", function (event) {
+          if (event.target === viewer || event.target.classList.contains("viewer-stage")) viewer.close();
+        });
+        viewer.addEventListener("close", function () { figure.replaceChildren(); });
+        viewer.addEventListener("keydown", function (event) {
+          if (event.key === "ArrowLeft") show(current - 1);
+          else if (event.key === "ArrowRight") show(current + 1);
+        });
+        // En el móvil, deslizar el dedo a un lado pasa a la anterior o a la siguiente.
+        var startX = null;
+        figure.addEventListener("touchstart", function (event) { startX = event.touches[0].clientX; }, { passive: true });
+        figure.addEventListener("touchend", function (event) {
+          if (startX === null) return;
+          var moved = event.changedTouches[0].clientX - startX;
+          startX = null;
+          if (Math.abs(moved) > 50 && tiles.length > 1) show(current + (moved < 0 ? 1 : -1));
+        });
+      })();
+    </script>
   {% endif %}
 
   {% if user.is_authenticated %}

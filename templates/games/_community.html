@@ -16,4 +16,11 @@
       </p>
     </div>
   </div>
+  {# La misma media solo con quienes tienen horas importadas de Steam, PlayStation o Xbox: lo han jugado de verdad. #}
+  {% if community.verified_count %}
+    <p class="community-verified small" title="Solo cuentan quienes tienen horas importadas de Steam, PlayStation o Xbox">
+      {% include "_icon.html" with name="clock" %} Con horas jugadas: <strong>{{ community.verified_average|floatformat:1 }}</strong>
+      <span class="muted">· {{ community.verified_count }} valoraci{{ community.verified_count|pluralize:"ón,ones" }}</span>
+    </p>
+  {% endif %}
 </section>

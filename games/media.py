@@ -241,11 +241,25 @@ def carousel(game):
     return {"items": items, "filters": counts if len(counts) > 1 else []}
 
 
+def official_images(game):
+    """Capturas y artes de la ficha que se pueden poner en una reseña sin subir nada, primero las capturas.
+
+    Son miniaturas como las del carrusel (ver carousel), con «id», el ID de la imagen en IGDB. Vacía si aún
+    no se han pedido las imágenes del juego.
+    """
+    media = game.media or {}
+    shots, arts = media.get("shots") or [], media.get("arts") or []
+    return [_image_item("captura", shot, n, len(shots)) for n, shot in enumerate(shots, 1)] + [
+        _image_item("arte", art, n, len(arts)) for n, art in enumerate(arts, 1)
+    ]
+
+
 def _image_item(kind, image, n, total):
-    """Miniatura del carrusel de un arte o una captura (ver carousel)."""
+    """Miniatura del carrusel de un arte o una captura (ver carousel), con su ID de IGDB en «id»."""
     tall = not _is_wide(image)
     name = ART_LABELS.get(image.get("type"), "Arte") if kind == "arte" else "Captura"
     return {
+        "id": image["id"],
         "kind": kind,
         "tag": name,
         "heading": f"{name} {n} de {total}",
