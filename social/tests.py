@@ -450,6 +450,89 @@ class ActivityTabTests(TestCase):
         self.assertEqual(len(self.client.get(self.url(antes="nada")).context["activities"]), 20)
 
 
+class FeedTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.luis = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.leo = User.objects.create_user("leo", "leo@example.com", "x")
+        cls.eva = User.objects.create_user("eva", "eva@example.com", "x")
+        cls.eva.profile.is_public = False
+        cls.eva.profile.save()
+        cls.games = {name: Game.objects.create(name=name, slug=name.lower()) for name in ("Hades", "Celeste", "Tunic", "Inside")}
+        # Cada uno ha empezado un juego distinto: así se sabe de quién es cada actividad del feed.
+        for user, name in ((cls.ana, "Hades"), (cls.luis, "Celeste"), (cls.leo, "Tunic"), (cls.eva, "Inside")):
+            Activity.objects.create(user=user, kind="game", game=cls.games[name], status="playing")
+        Follow.objects.create(follower=cls.ana, followed=cls.luis)
+        Follow.objects.create(follower=cls.ana, followed=cls.eva)
+
+    def games_in(self, response):
+        """Juegos de las actividades que enseña el feed de response."""
+        return {item.game.name for item in response.context["activities"]}
+
+    def test_following_shows_yours_and_the_people_you_follow(self):
+        self.client.force_login(self.ana)
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.context["feed_tab"], "siguiendo")
+        # Ana sigue a Eva, pero Eva tiene el perfil privado: lo suyo no sale.
+        self.assertEqual(self.games_in(response), {"Hades", "Celeste"})
+        self.assertContains(response, 'class="activity-author" href="/u/luis/"')
+        self.assertNotContains(response, "Aún no sigues a nadie")
+        self.assertEqual(self.client.get(reverse("home"), {"ver": "otra"}).context["feed_tab"], "siguiendo")
+
+    def test_discover_shows_the_whole_community_except_private_profiles(self):
+        self.client.force_login(self.ana)
+        response = self.client.get(reverse("home"), {"ver": "descubrir"})
+        self.assertEqual(self.games_in(response), {"Hades", "Celeste", "Tunic"})
+        # Sin sesión solo hay Descubrir, con los juegos populares encima.
+        self.client.logout()
+        response = self.client.get(reverse("home"), {"ver": "siguiendo"})
+        self.assertEqual(response.context["feed_tab"], "descubrir")
+        self.assertEqual(self.games_in(response), {"Hades", "Celeste", "Tunic"})
+        self.assertContains(response, "Lo último de la comunidad")
+        self.assertContains(response, "Populares")
+
+    def test_people_to_follow_when_you_follow_nobody(self):
+        for user in (self.leo, self.luis, self.eva):
+            LibraryEntry.objects.create(user=user, game=self.games["Hades"])
+        self.client.force_login(self.leo)
+        response = self.client.get(reverse("home"))
+        self.assertTrue(response.context["follows_nobody"])
+        self.assertContains(response, "Aún no sigues a nadie")
+        # Primero quien tiene juegos en común (Luis) y después quien se mueve (Ana); Eva es privada.
+        suggestions = response.context["suggestions"]
+        self.assertEqual([person.username for person in suggestions], ["luis", "ana"])
+        self.assertEqual(suggestions[0].shared, 1)
+        self.assertContains(response, "1 juego en común")
+        self.assertContains(response, reverse("social:follow", args=["luis"]))
+        # Hasta que siga a alguien solo ve lo suyo; después, ya sin sugerencias.
+        self.assertEqual(self.games_in(response), {"Tunic"})
+        Follow.objects.create(follower=self.leo, followed=self.ana)
+        response = self.client.get(reverse("home"))
+        self.assertNotIn("suggestions", response.context)
+        self.assertEqual(self.games_in(response), {"Tunic", "Hades"})
+
+    def test_load_more_in_the_feed(self):
+        for minutes in range(25):
+            Activity.objects.create(
+                user=self.luis, kind="game", game=self.games["Celeste"], status="completed",
+                updated_at=timezone.now() - timedelta(minutes=minutes + 1),
+            )
+        self.client.force_login(self.ana)
+        response = self.client.get(reverse("home"))
+        self.assertEqual(len(response.context["activities"]), 20)
+        cursor = response.context["next_cursor"]
+        query = urlencode({"ver": "siguiendo", "antes": cursor})
+        self.assertEqual(response.context["more_url"], f"{reverse('social:feed')}?{query}")
+        # Las 27 de Ana y Luis: quedan 7, también con quién hizo cada cosa.
+        more = self.client.get(reverse("social:feed"), {"ver": "siguiendo", "antes": cursor}, HTTP_HX_REQUEST="true")
+        self.assertEqual((len(more.context["activities"]), more.context["next_cursor"]), (7, ""))
+        self.assertContains(more, 'class="activity-author"')
+        # Sin HTMX lleva a la portada desde ese punto.
+        response = self.client.get(reverse("social:feed"), {"ver": "siguiendo", "antes": cursor})
+        self.assertRedirects(response, f"{reverse('home')}?{query}")
+
+
 @override_settings(DEBUG=True)
 class SeedTests(TestCase):
     def test_seed_builds_activity_and_follows_and_can_run_twice(self):

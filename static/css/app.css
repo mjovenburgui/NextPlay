@@ -157,20 +157,6 @@ h1 { font-size: 1.6rem; margin: 0 0 .25rem; line-height: 1.2; }
 .trending-players .icon { width: .9rem; height: .9rem; }
 .trending-rank { font-weight: 800; color: var(--muted); }
 .chips-tight { margin: 0; }
-.feed-item { padding: 1rem 0; border-top: 1px solid var(--border); }
-.box-head + .feed-item { padding-top: 0; border-top: 0; }
-.feed-item:last-child { padding-bottom: 0; }
-.feed-head { display: flex; align-items: center; gap: .75rem; }
-.feed-meta { flex: 1; min-width: 0; }
-.feed-meta p { margin: 0; }
-.feed-author { font-weight: 700; color: var(--text); }
-.feed-game { display: inline-flex; align-items: center; gap: .35rem; }
-.feed-game .icon { width: .95rem; height: .95rem; color: var(--violet); }
-.feed-body { display: flex; gap: 1rem; align-items: flex-start; margin-top: .6rem; padding-left: calc(40px + .75rem); }
-.feed-body > :first-child { flex: 1; min-width: 0; }
-.feed-body .review-text { margin: 0; color: #d4d8ee; }
-.feed-cover { flex: none; width: 72px; aspect-ratio: 3 / 4; overflow: hidden; border-radius: 10px; border: 1px solid var(--border); background: linear-gradient(145deg, #1b1440, #0b2740); }
-.feed-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .grid-compact { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 1rem .8rem; }
 
 /* Barra inferior del móvil: solo se ve en pantallas estrechas (ver el final del archivo). */
@@ -669,7 +655,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   .tabbar a:hover { text-decoration: none; color: var(--text); }
   .tabbar a.is-active { color: var(--violet); }
   .tabbar .icon { width: 1.4rem; height: 1.4rem; }
-  .feed-body { padding-left: 0; }
   .grid-compact { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: .9rem .6rem; }
   .card-box { padding: 1rem; }
 }
@@ -1361,7 +1346,7 @@ p.update-hint { display: flex; border-left-color: var(--gold); }
 .review-gallery.count-1 { grid-template-columns: minmax(0, 1fr); max-width: 420px; }
 .review-gallery.count-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 540px; }
 .review-gallery.count-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.feed-body .review-gallery { max-width: 420px; margin-top: .6rem; }
+.activity-review .review-gallery { max-width: 420px; margin-top: .6rem; }
 .gallery-tile {
   position: relative; aspect-ratio: 16 / 10; padding: 0; overflow: hidden;
   background: #05070f; border: 1px solid var(--border); border-radius: 10px; cursor: zoom-in;
@@ -1489,3 +1474,15 @@ p.update-hint { display: flex; border-left-color: var(--gold); }
 .activity-covers .review-thumb { display: block; width: 52px; }
 .activity-cover { width: 48px; }
 .activity-more { display: flex; justify-content: center; padding-top: 1rem; }
+/* El feed de la portada: pestañas Siguiendo y Descubrir y, si no sigues a nadie, gente a la que seguir */
+.feed-tabs { margin: -.25rem 0 1rem; }
+.feed-suggest { margin-bottom: 1rem; padding: .9rem 1rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; }
+.feed-suggest > p { margin: 0; }
+.feed-suggest .people { margin: .5rem 0; }
+.feed-suggest .person:last-child { padding-bottom: .25rem; }
+.feed-suggest .small a { display: inline-flex; align-items: center; gap: .3rem; }
+.feed-suggest .small .icon { width: 1rem; height: 1rem; }
+/* En el móvil, con la foto de quién fue a un lado, la portada del juego al otro dejaría la reseña muy estrecha. */
+@media (max-width: 480px) {
+  .feed .activity-cover { display: none; }
+}

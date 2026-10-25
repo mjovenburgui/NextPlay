@@ -117,7 +117,11 @@ class Activity(models.Model):
 
     class Meta:
         ordering = ["-updated_at", "-id"]
-        indexes = [models.Index(fields=["user", "-updated_at", "-id"], name="activity_user_recent")]
+        # La actividad de cada uno (su pestaña y Siguiendo) y la de todos (Descubrir), de lo más nuevo a lo más viejo.
+        indexes = [
+            models.Index(fields=["user", "-updated_at", "-id"], name="activity_user_recent"),
+            models.Index(fields=["-updated_at", "-id"], name="activity_recent"),
+        ]
         verbose_name = "actividad"
         verbose_name_plural = "actividad"
 

@@ -26,15 +26,23 @@
       {% endwith %}
       {% if activity.review %}
         {% with review=activity.review %}
-          {# La reseña, recortada y sin formato, con sus «me gusta» y comentarios. #}
+          {# La reseña, recortada y sin formato, con lo primero de «Lo mejor» y «Lo peor», sus imágenes, sus «me gusta» y sus comentarios. #}
           <div class="activity-review">
             {% if review.has_spoilers %}
               <details class="spoiler">
                 <summary>Toda la reseña es un spoiler · Leerla</summary>
                 <p class="review-text">{{ review.text|review_plain|truncatechars:280 }}</p>
+                {% include "library/_review_images.html" %}
               </details>
             {% else %}
               <p class="review-text">{{ review.text|review_plain|truncatechars:280 }}</p>
+              {% if review.pros or review.cons %}
+                <p class="feed-points small">
+                  {% if review.pros %}<span class="points-pros">{% include "_icon.html" with name="check" %} {{ review.pros.0|review_plain }}</span>{% endif %}
+                  {% if review.cons %}<span class="points-cons">{% include "_icon.html" with name="close" %} {{ review.cons.0|review_plain }}</span>{% endif %}
+                </p>
+              {% endif %}
+              {% include "library/_review_images.html" %}
             {% endif %}
             <p class="feed-actions">
               {% include "library/_like.html" with liked=review.liked like_count=review.like_count %}

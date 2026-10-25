@@ -10,4 +10,6 @@ urlpatterns = [
     path("u/<str:username>/seguidores/", views.followers, name="followers"),
     path("u/<str:username>/siguiendo/", views.following, name="following"),
     path("u/<str:username>/actividad/", views.activity, name="activity"),
+    # «Cargar más» del feed de la portada.
+    path("actividad/", views.feed, name="feed"),
 ]

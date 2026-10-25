@@ -13,7 +13,8 @@ from django.views.decorators.http import require_POST
 
 from accounts.views import favorite_context
 from library.models import LibraryEntry, Review, WishlistItem
-from library.views import mark_liked, review_context
+from library.views import review_context
+from social.views import feed_context
 
 from . import history, igdb, media, prices
 from .models import LANGUAGE_FILTERS, Game, GamePrice, Genre, Platform, language_filter
@@ -41,10 +42,16 @@ def trending_games(limit=5):
 
 
 def home(request):
-    """Portada: tu resumen (con tus seguidores y seguidos) y tu menú a la izquierda; lo que estás jugando, los
-    juegos populares y las últimas reseñas en el centro; los juegos en tendencia a la derecha."""
+    """Portada: tu resumen (con tus seguidores y seguidos) y tu menú a la izquierda; en el centro lo que estás
+    jugando y el feed, y los juegos en tendencia a la derecha.
+
+    El feed tiene dos pestañas (?ver=, ver social.views.feed_context): «siguiendo», lo tuyo y lo de la gente
+    que sigues, con sugerencias de gente a la que seguir si no sigues a nadie, y «descubrir», lo de toda la
+    comunidad; ?antes= es el cursor de «Cargar más» para quien no tiene JavaScript. Sin sesión, en el centro
+    van los juegos populares y lo último de la comunidad.
+    """
     playing = summary = None
-    statuses = {}
+    popular = []
     if request.user.is_authenticated:
         library = LibraryEntry.objects.filter(user=request.user)
         summary = library.aggregate(
@@ -55,13 +62,8 @@ def home(request):
         summary["followers"] = request.user.followers.count()
         summary["following"] = request.user.following.count()
         playing = library.filter(status=LibraryEntry.Status.PLAYING).select_related("game").order_by("-updated_at")[:4]
-    popular = list(Game.objects.order_by("-popularity", "name")[:12])
-    if request.user.is_authenticated:
-        entries = LibraryEntry.objects.filter(user=request.user, game__in=popular)
-        statuses = {entry.game_id: entry.get_status_display() for entry in entries}
-    for game in popular:
-        game.library_status = statuses.get(game.id, "")
-    reviews = mark_liked(list(Review.objects.visible_to(request.user)[:5]), request.user)
+    else:
+        popular = list(Game.objects.order_by("-popularity", "name")[:12])
     return render(
         request,
         "games/home.html",
@@ -69,7 +71,7 @@ def home(request):
             "summary": summary,
             "playing": playing,
             "popular": popular,
-            "recent_reviews": reviews,
+            **feed_context(request.user, request.GET.get("ver", ""), request.GET.get("antes", "")),
             "trending": trending_games(),
             "genres": Genre.objects.annotate(n=Count("games")).filter(n__gt=0).order_by("-n")[:10],
         },
