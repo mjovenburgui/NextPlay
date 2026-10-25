@@ -14,7 +14,7 @@ from PIL import Image
 from library.models import LibraryEntry, Review, WishlistItem
 
 from . import history, igdb, media, prices, spanish, xbox
-from .models import Game, GamePrice, Genre, Platform
+from .models import STEAM_DECK_SLUG, Game, GamePrice, Genre, Platform
 
 User = get_user_model()
 
@@ -49,7 +49,8 @@ class UpsertGamesTests(TestCase):
         self.assertEqual(game.name, "Hades (updated)")
         self.assertEqual(game.genres.count(), 0)
         self.assertEqual(Genre.objects.count(), 1)
-        self.assertEqual(Platform.objects.count(), 1)
+        # La Steam Deck la crea una migración y no viene de IGDB.
+        self.assertEqual(Platform.objects.exclude(slug=STEAM_DECK_SLUG).count(), 1)
 
     def test_adopts_demo_rows_keeping_library_entries(self):
         call_command("seed_demo", verbosity=0, stdout=mock.Mock())

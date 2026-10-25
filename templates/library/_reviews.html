@@ -30,6 +30,9 @@
               <a href="{% url 'library:review_edit' review.pk %}">{% if review.is_draft %}Seguir escribiendo{% else %}Editar{% endif %}</a>
               {% if not review.is_draft %}· <a href="{{ review.get_absolute_url }}">Ver</a>{% endif %}
             </span>
+            {% if review.extra_hours %}
+              <span class="update-hint small">{% include "_icon.html" with name="clock" %} Llevas {{ review.extra_hours }} h más desde que la escribiste: <a href="{% url 'library:review_edit' review.pk %}">¿la actualizas?</a></span>
+            {% endif %}
           </li>
         {% endfor %}
       </ul>

@@ -2,18 +2,25 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
+from django.contrib.contenttypes.models import ContentType
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.urls import reverse
 from django.utils import timezone
 
-from games.models import Game, Platform
+from games.models import Game, Platform, igdb_image_url
 
 REVIEW_MAX_LENGTH = 8000
 COMMENT_MAX_LENGTH = 1000
 # «Lo mejor» y «Lo peor» de una reseña: cuántos puntos caben en cada lista y lo largo que puede ser cada uno.
 MAX_POINTS = 5
 POINT_MAX_LENGTH = 90
+# Imágenes que caben en una reseña, entre las subidas y las capturas oficiales del juego.
+MAX_IMAGES = 4
+REPORT_DETAIL_MAX_LENGTH = 500
+# Si el autor de una reseña lleva el doble de horas que al escribirla, y al menos estas más, se le propone actualizarla.
+UPDATE_MIN_EXTRA_HOURS = 10
 # Las notas van de 1 a 10 medias estrellas: 1 es media estrella y 10, cinco estrellas.
 MAX_RATING = 10
 # Los juegos importados que se han jugado en estos últimos días entran como «Jugando».
@@ -135,6 +142,10 @@ class LibraryEntry(models.Model):
 
 # Plataformas de las que se importan horas jugadas: clave del campo *_playtime_minutes → nombre.
 HOURS_SOURCES = {"steam": "Steam", "psn": "PlayStation", "xbox": "Xbox"}
+# Logo de cada una, para el sello de horas verificadas de las reseñas.
+HOURS_LOGOS = {
+    "steam": "games/shop_icons/steam.svg", "psn": "games/shop_icons/playstation.svg", "xbox": "games/shop_icons/xbox.svg",
+}
 # Estado de la biblioteca al publicar una reseña → cómo se cuenta en ella (Pendiente no dice nada).
 STATUS_NOTES = {
     LibraryEntry.Status.COMPLETED: "Lo terminó",
@@ -151,7 +162,7 @@ class ReviewQuerySet(models.QuerySet):
 
     def visible_to(self, viewer):
         """Reseñas publicadas que viewer puede leer, de la más reciente a la más antigua, con sus «me gusta»
-        (like_count) y comentarios (comment_count) contados.
+        (like_count) y comentarios (comment_count) contados y sus imágenes ya cargadas.
 
         Las de perfiles privados solo las ve su autor, igual que su biblioteca.
         """
@@ -162,7 +173,7 @@ class ReviewQuerySet(models.QuerySet):
             self.published()
             .filter(visible)
             .select_related("user__profile", "user__psn_account", "game", "platform")
-            .prefetch_related("user__steam_accounts")
+            .prefetch_related("user__steam_accounts", "images")
             .annotate(
                 like_count=models.Count("likes", distinct=True),
                 comment_count=models.Count("comments", distinct=True),
@@ -206,6 +217,8 @@ class Review(models.Model):
     published_at = models.DateTimeField("publicada", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Sus denuncias se borran con ella.
+    reports = GenericRelation("Report", related_query_name="review")
 
     objects = ReviewQuerySet.as_manager()
 
@@ -244,6 +257,24 @@ class Review(models.Model):
         names = [HOURS_SOURCES[key] for key in self.hours_sources.split(",") if key in HOURS_SOURCES]
         return " y ".join([", ".join(names[:-1]), names[-1]]) if len(names) > 1 else "".join(names)
 
+    @property
+    def hours_source_logos(self):
+        """Plataformas de las que salen las horas como [(nombre, plantilla de su logo)], para el sello de horas verificadas."""
+        return [(HOURS_SOURCES[key], HOURS_LOGOS[key]) for key in self.hours_sources.split(",") if key in HOURS_SOURCES]
+
+    def hours_since(self, entry):
+        """Horas que ha jugado el autor desde que la publicó, si son bastantes para proponerle actualizarla; si no, None.
+
+        entry es su entrada de biblioteca del juego. Son bastantes si lleva al menos el doble que al escribirla
+        y como mínimo UPDATE_MIN_EXTRA_HOURS más («Llevas 40 h más: ¿la actualizas?»). Los borradores y las
+        reseñas escritas sin horas importadas no cuentan.
+        """
+        if self.is_draft or self.hours is None or entry is None or entry.playtime_hours is None:
+            return None
+        written = float(self.hours)
+        extra = entry.playtime_hours - written
+        return round(extra) if extra >= max(UPDATE_MIN_EXTRA_HOURS, written) else None
+
     def snapshot(self, entry):
         """Apunta el estado y las horas que tiene ahora la entrada de biblioteca entry (o nada si no hay)."""
         self.status = entry.status if entry else ""
@@ -276,6 +307,8 @@ class ReviewComment(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="review_comments")
     text = models.TextField("comentario", max_length=COMMENT_MAX_LENGTH)
     created_at = models.DateTimeField(auto_now_add=True)
+    # Sus denuncias se borran con él.
+    reports = GenericRelation("Report", related_query_name="comment")
 
     class Meta:
         ordering = ["created_at", "id"]
@@ -286,9 +319,127 @@ class ReviewComment(models.Model):
         """Texto en el admin: «usuario en reseña: comienzo del comentario»."""
         return f"{self.user} en {self.review}: {self.text[:40]}"
 
+    def get_absolute_url(self):
+        """URL del comentario dentro de la página de su reseña."""
+        return f"{self.review.get_absolute_url()}#comentario-{self.pk}"
+
     def can_delete(self, user):
         """Indica si user puede borrar el comentario: es suyo o es el autor de la reseña."""
         return user.is_authenticated and user.pk in (self.user_id, self.review.user_id)
+
+
+def attached_image_upload_to(instance, filename):
+    """Ruta de una imagen adjunta: la carpeta la decide cada modelo (upload_folder) y el nombre aleatorio, accounts.images."""
+    return f"{instance.upload_folder()}/{filename}"
+
+
+class AttachedImage(models.Model):
+    """Imagen adjunta a algo que escribe un usuario: de momento, las reseñas; más adelante, también las publicaciones.
+
+    O la ha subido él (image, pasada a WebP y sin EXIF por accounts.images, con su miniatura en thumb) o es
+    una captura o un arte oficial del juego de IGDB (igdb_image_id), que no se sube. Cada una se puede marcar
+    como spoiler: entonces va borrosa hasta que se pulsa.
+    """
+
+    image = models.ImageField("imagen", upload_to=attached_image_upload_to, blank=True)
+    thumb = models.ImageField("miniatura", upload_to=attached_image_upload_to, blank=True)
+    igdb_image_id = models.CharField("imagen oficial de IGDB", max_length=40, blank=True)
+    is_spoiler = models.BooleanField("spoiler", default=False)
+    position = models.PositiveSmallIntegerField("orden", default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        abstract = True
+        ordering = ["position", "id"]
+
+    def upload_folder(self):
+        """Carpeta de MEDIA_ROOT en la que se guardan las imágenes subidas; la pone cada modelo."""
+        raise NotImplementedError
+
+    @property
+    def is_official(self):
+        """Indica si es una imagen oficial del juego (de IGDB) y no una subida por el usuario."""
+        return bool(self.igdb_image_id)
+
+    @property
+    def url(self):
+        """URL de la imagen grande, para el visor a pantalla completa."""
+        return igdb_image_url(self.igdb_image_id, "t_1080p") if self.is_official else self.image.url
+
+    @property
+    def thumb_url(self):
+        """URL de la miniatura: la de IGDB o la reducida al subirla (la grande si no la hay)."""
+        if self.is_official:
+            return igdb_image_url(self.igdb_image_id, "t_screenshot_big")
+        return (self.thumb or self.image).url
+
+    def delete_files(self):
+        """Borra del disco la imagen subida y su miniatura (las oficiales no tienen archivo)."""
+        for file in (self.image, self.thumb):
+            if file:
+                file.delete(save=False)
+
+
+class ReviewImage(AttachedImage):
+    """Imagen de una reseña (como mucho MAX_IMAGES por reseña). Las subidas se guardan en resenas/<id del autor>/."""
+
+    review = models.ForeignKey(Review, on_delete=models.CASCADE, related_name="images")
+
+    class Meta(AttachedImage.Meta):
+        verbose_name = "imagen de una reseña"
+        verbose_name_plural = "imágenes de las reseñas"
+
+    def __str__(self):
+        """Texto en el admin: «reseña · imagen n»."""
+        return f"{self.review} · imagen {self.position + 1}"
+
+    def upload_folder(self):
+        """Las imágenes de las reseñas van en resenas/<id del autor>."""
+        return f"resenas/{self.review.user_id}"
+
+
+class Report(models.Model):
+    """Denuncia de un usuario sobre algo que ha escrito otro (una reseña o un comentario) para que la revise un administrador.
+
+    Va por contenttypes para que sirva también para lo que se añada después (publicaciones, grupos...). Hay
+    una por usuario y cosa denunciada: volver a denunciarla cambia el motivo y la deja otra vez pendiente.
+    """
+
+    class Reason(models.TextChoices):
+        SPAM = "spam", "Spam o publicidad"
+        ABUSE = "abuse", "Insultos, acoso u odio"
+        SPOILER = "spoiler", "Destripa la historia sin avisar"
+        IMAGE = "image", "Imagen inapropiada"
+        OTHER = "other", "Otro motivo"
+
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveBigIntegerField()
+    target = GenericForeignKey("content_type", "object_id")
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="reports", verbose_name="denunciante"
+    )
+    reason = models.CharField("motivo", max_length=20, choices=Reason.choices)
+    detail = models.CharField("detalles", max_length=REPORT_DETAIL_MAX_LENGTH, blank=True)
+    created_at = models.DateTimeField("denunciada", auto_now_add=True)
+    resolved_at = models.DateTimeField("revisada", null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(fields=["content_type", "object_id", "reporter"], name="unique_report_per_user"),
+        ]
+        indexes = [models.Index(fields=["content_type", "object_id"])]
+        verbose_name = "denuncia"
+        verbose_name_plural = "denuncias"
+
+    def __str__(self):
+        """Texto en el admin: «denunciante → lo denunciado: motivo»."""
+        return f"{self.reporter} → {self.target or '(borrado)'}: {self.get_reason_display()}"
+
+    @property
+    def target_kind(self):
+        """Qué se ha denunciado, en palabras: «reseña» o «comentario» (el nombre del modelo de lo denunciado)."""
+        return self.content_type.name
 
 
 class WishlistItem(models.Model):

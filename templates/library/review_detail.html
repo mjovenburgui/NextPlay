@@ -17,6 +17,9 @@
     <div class="review-page-main">
       {% if review.is_draft %}
         <p class="flash">Es un borrador: solo lo ves tú. <a href="{% url 'library:review_edit' review.pk %}">Seguir escribiendo</a></p>
+      {% elif extra_hours %}
+        {# Su autor ha jugado mucho más desde que la escribió (Review.hours_since). #}
+        <p class="flash update-hint">{% include "_icon.html" with name="clock" %} Llevas {{ extra_hours }} h más que cuando la escribiste. <a href="{% url 'library:review_edit' review.pk %}">¿La actualizas?</a></p>
       {% endif %}
       {% include "library/_review.html" with full=True %}
       {% if not review.is_draft %}
