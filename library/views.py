@@ -15,6 +15,7 @@ from accounts import images
 from accounts.models import Notification
 from games import media
 from games.models import LANGUAGE_FILTERS, Game, language_filter
+from social import activity
 
 from . import points
 from .autofill import play_details
@@ -140,24 +141,30 @@ def _respond(request, game, entry):
 def set_status(request, game_id):
     """Añade el juego a la biblioteca del usuario con el estado enviado, o cambia el que tenía.
 
-    Responde 400 si el estado no es uno de los permitidos.
+    Si el estado es nuevo, lo apunta en su actividad (social.activity). Responde 400 si el estado no es uno
+    de los permitidos.
     """
     game = get_object_or_404(Game, pk=game_id)
     status = request.POST.get("status")
     if status not in LibraryEntry.Status.values:
         return HttpResponseBadRequest("Estado no válido.")
+    previous = LibraryEntry.objects.filter(user=request.user, game=game).values_list("status", flat=True).first()
     entry, _ = LibraryEntry.objects.update_or_create(
         user=request.user, game=game, defaults={"status": status}
     )
+    if status != previous:
+        activity.status_changed(request.user, game, status)
     return _respond(request, game, entry)
 
 
 @require_POST
 @login_required
 def remove(request, game_id):
-    """Quita el juego de la biblioteca del usuario (no da error si no estaba)."""
+    """Quita el juego de la biblioteca del usuario (no da error si no estaba) y olvida su actividad con él, salvo las reseñas."""
     game = get_object_or_404(Game, pk=game_id)
-    LibraryEntry.objects.filter(user=request.user, game=game).delete()
+    deleted, _ = LibraryEntry.objects.filter(user=request.user, game=game).delete()
+    if deleted:
+        activity.game_removed(request.user, game)
     return _respond(request, game, None)
 
 
@@ -166,8 +173,8 @@ def remove(request, game_id):
 def rate(request, game_id):
     """Guarda la valoración del usuario (de 1 a 10 medias estrellas) para un juego de su biblioteca.
 
-    Con rating=0 borra la valoración. Responde 404 si el juego no está en su biblioteca y 400 si
-    la valoración no es un número del 0 al 10.
+    Con rating=0 borra la valoración. Si cambia, lo apunta en su actividad (social.activity). Responde 404
+    si el juego no está en su biblioteca y 400 si la valoración no es un número del 0 al 10.
     """
     game = get_object_or_404(Game, pk=game_id)
     entry = get_object_or_404(LibraryEntry, user=request.user, game=game)
@@ -177,8 +184,11 @@ def rate(request, game_id):
         rating = -1
     if not 0 <= rating <= LibraryEntry.MAX_RATING:
         return HttpResponseBadRequest("Valoración no válida.")
+    changed = entry.rating != (rating or None)
     entry.rating = rating or None
     entry.save(update_fields=["rating", "updated_at"])
+    if changed:
+        activity.rated(request.user, game, entry.rating)
     return _respond(request, game, entry)
 
 
@@ -214,7 +224,8 @@ def _review_editor(request, review, entry):
     la comunidad. La fecha de publicación es la de la primera vez. En una reseña nueva, la plataforma y las
     fechas vienen ya rellenas con lo de las importaciones (library.autofill) y «Lo mejor» y «Lo peor»
     sugieren lo que han escrito otros (library.points). Las imágenes (subidas o capturas oficiales del
-    juego) van en un formulario aparte, ReviewImagesForm, que se guarda a la vez.
+    juego) van en un formulario aparte, ReviewImagesForm, que se guarda a la vez. La primera vez que se
+    publica se apunta en la actividad del autor (social.activity); al editarla, no.
     """
     game = review.game
     # En una reseña nueva, la plataforma y las fechas se rellenan solas con lo que dejaron las importaciones.
@@ -238,6 +249,8 @@ def _review_editor(request, review, entry):
         if publish and review.rating and entry is not None and entry.rating != review.rating:
             entry.rating = review.rating
             entry.save(update_fields=["rating", "updated_at"])
+        if publish and not was_published:
+            activity.review_published(review)
         if not publish:
             messages.success(request, "Borrador guardado. Solo lo ves tú.")
             return redirect("library:review_edit", review.pk)

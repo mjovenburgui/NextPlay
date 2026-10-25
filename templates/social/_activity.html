@@ -1,0 +1,53 @@
+{% load reviews %}
+{# Una actividad: lo que hizo un jugador con un juego (estado, nota y reseña juntos) o lo que importó. Necesita activity; con show_user también se ve quién fue (para el feed). #}
+<li class="activity">
+  {% if show_user %}{% include "accounts/_avatar.html" with profile=activity.user.profile size="sm" %}{% endif %}
+  <div class="activity-main">
+    {% if activity.kind == "import" %}
+      <p class="activity-line">
+        {% if show_user %}<a class="activity-author" href="{{ activity.user.profile.get_absolute_url }}">{{ activity.user.profile.name }}</a> importó{% else %}Importó{% endif %}
+        <strong>{{ activity.import_count }} juego{{ activity.import_count|pluralize }}</strong> de {{ activity.platform_name }}
+      </p>
+      {% if activity.import_games %}
+        {# Las portadas de los más jugados. #}
+        <ul class="activity-covers">
+          {% for game in activity.import_games %}
+            <li><a class="review-thumb" href="{{ game.get_absolute_url }}" title="{{ game.name }}">{% if game.cover_url %}<img src="{{ game.cover_url }}" alt="{{ game.name }}" loading="lazy">{% endif %}</a></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% else %}
+      {% with verb=activity.verb rating=activity.shown_rating %}
+        <p class="activity-line">
+          {% if show_user %}<a class="activity-author" href="{{ activity.user.profile.get_absolute_url }}">{{ activity.user.profile.name }}</a> {{ verb.0 }}{% else %}{{ verb.0|capfirst }}{% endif %}
+          <a class="activity-game" href="{{ activity.game.get_absolute_url }}">{{ activity.game.name }}</a>{% if verb.1 %} {{ verb.1 }}{% endif %}
+          {% if rating %}{% include "library/_stars.html" %}{% endif %}
+        </p>
+      {% endwith %}
+      {% if activity.review %}
+        {% with review=activity.review %}
+          {# La reseña, recortada y sin formato, con sus «me gusta» y comentarios. #}
+          <div class="activity-review">
+            {% if review.has_spoilers %}
+              <details class="spoiler">
+                <summary>Toda la reseña es un spoiler · Leerla</summary>
+                <p class="review-text">{{ review.text|review_plain|truncatechars:280 }}</p>
+              </details>
+            {% else %}
+              <p class="review-text">{{ review.text|review_plain|truncatechars:280 }}</p>
+            {% endif %}
+            <p class="feed-actions">
+              {% include "library/_like.html" with liked=review.liked like_count=review.like_count %}
+              <a class="review-action" href="{{ review.get_absolute_url }}#comentarios">{% include "_icon.html" with name="comment" %} {{ review.comment_count|default:0 }}<span class="visually-hidden"> comentarios</span></a>
+              <a class="review-more" href="{{ review.get_absolute_url }}">Leer la reseña</a>
+            </p>
+          </div>
+        {% endwith %}
+      {% endif %}
+    {% endif %}
+    <p class="activity-time muted small"><time datetime="{{ activity.updated_at|date:'c' }}">Hace {{ activity.updated_at|timesince }}</time></p>
+  </div>
+  {% if activity.game %}
+    <a class="review-thumb activity-cover" href="{{ activity.game.get_absolute_url }}" tabindex="-1" aria-hidden="true">{% if activity.game.cover_url %}<img src="{{ activity.game.cover_url }}" alt="" loading="lazy">{% endif %}</a>
+  {% endif %}
+</li>

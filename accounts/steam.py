@@ -216,7 +216,7 @@ def import_library(user, include_unplayed=False):
 
     games = save_titles(user, ExternalTitle.Platform.STEAM, titles, auto_match)
     with transaction.atomic():
-        added, updated = update_library(user, ExternalTitle.Platform.STEAM)
+        added, updated = update_library(user, ExternalTitle.Platform.STEAM, record_activity=True)
         user.steam_accounts.exclude(pk__in=[account.pk for account in private]).update(synced_at=timezone.now())
     return {
         "added": added,

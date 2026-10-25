@@ -7,7 +7,8 @@ from django.utils import timezone
 
 from games.models import Game
 from library.models import LibraryEntry, Review, ReviewComment, ReviewLike
-from social.models import Follow
+from social.activity import IMPORT_COVERS
+from social.models import Activity, Follow
 
 from ...models import PSNAccount, XboxAccount
 
@@ -100,16 +101,27 @@ class Command(BaseCommand):
         profile.is_public = True
         profile.save()
 
+        Activity.objects.filter(user=user).delete()
         LibraryEntry.objects.filter(user=user).delete()
         Review.objects.filter(user=user).delete()
         now = timezone.now()
         reviews = {}
+        # Su actividad: primero la importación de Steam de la que salen sus horas y después un juego al día, con
+        # su estado, su nota y su reseña juntos, como los junta social.activity.
+        played = sorted((pair for pair in zip(games, LIBRARY) if pair[1][2]), key=lambda pair: -pair[1][2])
+        when = now - timedelta(days=len(LIBRARY))
+        Activity.objects.create(
+            user=user, kind=Activity.Kind.IMPORT, created_at=when, updated_at=when,
+            data={"platform": "steam", "count": len(played), "games": [game.pk for game, _ in played[:IMPORT_COVERS]]},
+        )
         for days, (game, (status, rating, minutes, text, spoilers)) in enumerate(zip(games, LIBRARY)):
             entry = LibraryEntry.objects.create(
                 user=user, game=game, status=status, rating=rating, steam_playtime_minutes=minutes,
             )
+            when = now - timedelta(days=days)
             if text:
-                reviews[days] = self.review(user, entry, text, spoilers, now - timedelta(days=days))
+                reviews[days] = self.review(user, entry, text, spoilers, when)
+            self.activity(user, game, when, status, rating, reviews.get(days))
 
         for username, index, rating, minutes, status, text in OTHER_REVIEWS:
             other = User.objects.filter(username=username).first()
@@ -120,7 +132,9 @@ class Command(BaseCommand):
                 defaults={"rating": rating, "status": status, "steam_playtime_minutes": minutes},
             )
             Review.objects.filter(user=other, game=games[index]).delete()
-            self.review(other, entry, text, False, now - timedelta(hours=index + 2))
+            Activity.objects.filter(user=other, game=games[index]).delete()
+            when = now - timedelta(hours=index + 2)
+            self.activity(other, games[index], when, status, rating, self.review(other, entry, text, False, when))
 
         for username, index, comment in REACTIONS:
             other = User.objects.filter(username=username).first()
@@ -150,6 +164,13 @@ class Command(BaseCommand):
         review.save()
         return review
 
+    def activity(self, user, game, when, status, rating, review):
+        """Apunta en la actividad de user lo que hizo con game en el momento when: su estado, su nota y su reseña (o None)."""
+        Activity.objects.create(
+            user=user, kind=Activity.Kind.GAME, game=game, status=status, rating=rating, review=review,
+            created_at=when, updated_at=when,
+        )
+
     def create_empty_user(self):
         """Crea «tester_steam» o lo deja como recién creado: sin juegos ni cuentas de Steam, PlayStation, Xbox u otras plataformas."""
         user, _ = User.objects.get_or_create(username=EMPTY_USERNAME, defaults={"email": EMPTY_EMAIL})
@@ -161,6 +182,9 @@ class Command(BaseCommand):
         profile.is_public = True
         profile.save()
         LibraryEntry.objects.filter(user=user).delete()
+        # Sin biblioteca no queda actividad, salvo la de sus reseñas, que siguen publicadas (como al quitar un juego).
+        user.activities.filter(review__isnull=True).delete()
+        user.activities.update(status="", rating=None)
         user.steam_accounts.all().delete()
         PSNAccount.objects.filter(user=user).delete()
         XboxAccount.objects.filter(user=user).delete()

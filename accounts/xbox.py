@@ -227,6 +227,6 @@ def import_library(user, code, redirect_uri):
         )
         PlatformAccount.objects.filter(user=user, platform=PlatformAccount.Platform.XBOX).delete()
         # El historial solo trae juegos abiertos alguna vez: nunca entran como «Pendiente».
-        added, updated = update_library(user, ExternalTitle.Platform.XBOX, opened_only=True)
+        added, updated = update_library(user, ExternalTitle.Platform.XBOX, opened_only=True, record_activity=True)
     unmatched = sum(1 for game in games.values() if game is None)
     return {"account": account, "added": added, "updated": updated, "unmatched": unmatched}

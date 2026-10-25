@@ -42,7 +42,7 @@ APPS = {
     "accounts": "Usuarios: registro, inicio de sesión, perfil público o privado, vinculación con Steam, Xbox y PlayStation y cuentas de otras plataformas.",
     "games": "Catálogo de juegos, importación desde IGDB y precios de PC (IsThereAnyDeal) y Xbox.",
     "library": "Biblioteca de cada usuario: qué juegos tiene, en qué estado, su valoración y su reseña.",
-    "social": "Lo social: seguir a otros jugadores y las listas de seguidores y seguidos.",
+    "social": "Lo social: seguir a otros jugadores, las listas de seguidores y seguidos y la actividad de cada jugador.",
 }
 ACCENT = colors.HexColor("#7c3aed")
 MUTED = colors.HexColor("#6b7280")

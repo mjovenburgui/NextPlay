@@ -218,6 +218,6 @@ def import_library(user, npsso):
             },
         )
         # PSN solo lista juegos que se han abierto: nunca entran como «Pendiente».
-        added, updated = update_library(user, ExternalTitle.Platform.PSN, opened_only=True)
+        added, updated = update_library(user, ExternalTitle.Platform.PSN, opened_only=True, record_activity=True)
     unmatched = sum(1 for game in games.values() if game is None)
     return {"account": account, "added": added, "updated": updated, "unmatched": unmatched}

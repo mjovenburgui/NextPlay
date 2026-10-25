@@ -1,17 +1,30 @@
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
+from urllib.parse import urlencode
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.http import Http404, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from .models import Follow
+from games.models import Game
+from library.models import Review
+from library.views import mark_liked
+
+from .models import Activity, Follow
 
 User = get_user_model()
 # Personas por página en las listas de seguidores y seguidos.
 PEOPLE_PER_PAGE = 30
+# Actividades por tanda en la pestaña Actividad del perfil; «Cargar más» trae la siguiente.
+ACTIVITY_PAGE = 20
+# Origen de los cursores de «Cargar más» (ver _cursor).
+EPOCH = datetime(1970, 1, 1, tzinfo=dt_timezone.utc)
 
 
 def follow_context(viewer, user):
@@ -119,4 +132,70 @@ def _people(request, username, view):
         "follower_count": owner.followers.count(),
         "following_count": owner.following.count(),
         "is_owner": viewer == owner,
+    })
+
+
+def activity_page(user, viewer, cursor=""):
+    """Una tanda de la actividad de user tal como la ve viewer, de lo más reciente a lo más antiguo.
+
+    Devuelve (actividades, cursor de la tanda siguiente o "" si no hay más). cursor dice desde dónde seguir:
+    lo da la tanda anterior, y vacío (o roto) es desde el principio. Cada actividad trae su reseña solo si
+    viewer puede leerla (si su autor la volvió a dejar en borrador, no), con sus «me gusta» y comentarios
+    contados, y las importaciones traen sus juegos (import_games). Las que se quedan sin nada que enseñar no
+    salen. No mira si viewer puede ver el perfil de user: eso lo hace quien la llama.
+    """
+    activities = Activity.objects.filter(user=user).select_related("game")
+    start = _parse_cursor(cursor)
+    if start:
+        moment, pk = start
+        activities = activities.filter(Q(updated_at__lt=moment) | Q(updated_at=moment, pk__lt=pk))
+    activities = list(
+        activities.prefetch_related(Prefetch("review", queryset=Review.objects.visible_to(viewer)))[: ACTIVITY_PAGE + 1]
+    )
+    next_cursor = _cursor(activities[ACTIVITY_PAGE - 1]) if len(activities) > ACTIVITY_PAGE else ""
+    activities = activities[:ACTIVITY_PAGE]
+    mark_liked([activity.review for activity in activities if activity.review], viewer)
+    imported = [activity for activity in activities if activity.kind == Activity.Kind.IMPORT]
+    games = Game.objects.in_bulk({pk for activity in imported for pk in activity.data.get("games", [])})
+    for activity in imported:
+        activity.import_games = [games[pk] for pk in activity.data.get("games", []) if pk in games]
+    shown = [
+        activity for activity in activities
+        if activity.import_count or activity.status or activity.rating or activity.review
+    ]
+    return shown, next_cursor
+
+
+def _cursor(activity):
+    """Cursor de «Cargar más» para seguir después de activity: «microsegundos desde 1970 (UTC)-id».
+
+    Se cuenta en microsegundos enteros, sin decimales, para que la fecha vuelva exacta al leerlo.
+    """
+    return f"{(activity.updated_at - EPOCH) // timedelta(microseconds=1)}-{activity.pk}"
+
+
+def _parse_cursor(cursor):
+    """Lo contrario de _cursor: (fecha, id), o None si cursor está vacío o no tiene esa forma."""
+    try:
+        micros, pk = (int(part) for part in cursor.split("-"))
+        return EPOCH + timedelta(microseconds=micros), pk
+    except (ValueError, OverflowError):
+        return None
+
+
+def activity(request, username):
+    """Tanda siguiente de la actividad de username (?antes=, el cursor de la anterior) para «Cargar más».
+
+    Con HTMX devuelve solo las actividades nuevas y el botón para la siguiente; sin HTMX lleva a la pestaña
+    Actividad del perfil desde ese punto. Un perfil privado da 404 a cualquiera que no sea su dueño.
+    """
+    owner = get_object_or_404(User.objects.select_related("profile"), username=username)
+    if not owner.profile.visible_to(request.user):
+        raise Http404
+    cursor = request.GET.get("antes", "")
+    if not request.headers.get("HX-Request"):
+        return redirect(f"{reverse('profile', args=[username])}?{urlencode({'vista': 'actividad', 'antes': cursor})}")
+    activities, next_cursor = activity_page(owner, request.user, cursor)
+    return render(request, "social/_activities.html", {
+        "owner": owner, "activities": activities, "next_cursor": next_cursor,
     })

@@ -168,6 +168,21 @@ Los perfiles privados no se pueden seguir, pero sus dueños sí pueden seguir a 
 con su nombre, sin enlace a su página ni biografía. Quién puede ver qué se decide en un solo sitio:
 `Profile.visible_to` y, en las consultas, `Profile.visible_filter`.
 
+### Actividad
+
+La pestaña Actividad del perfil cuenta lo que ha hecho cada jugador, de lo más reciente a lo más antiguo
+y de 20 en 20 («Cargar más», con HTMX): juegos que empieza, termina, juega, deja en Pendiente o abandona,
+las notas que pone, las reseñas que publica (con un trozo, sus «me gusta» y sus comentarios) y sus
+importaciones de Steam, PlayStation y Xbox, cada una en una sola tarjeta («Importó 129 juegos de Steam»,
+con las portadas de los más jugados). Lo que hace con un mismo juego en menos de una hora se junta en una
+sola tarjeta: pasar Hades a Completado, ponerle cuatro estrellas y media y reseñarlo es «Terminó Hades»
+con la nota y la reseña debajo.
+
+La apunta `social/activity.py` desde las vistas y las importaciones, no con señales: la sincronización de
+cada noche también cambia estados, y eso no lo ha hecho el jugador. Quitar un juego de la biblioteca olvida
+lo que hizo con él, salvo sus reseñas; las reseñas en borrador no salen y la lista de deseos tampoco, porque
+es privada. Al migrar, las reseñas que ya estaban publicadas pasan a la actividad con su fecha.
+
 ## Tareas de cada noche
 
 `nightly` sincroniza la biblioteca de Steam (y su lista de deseos, si no se ha desactivado) de quien tenga
@@ -208,10 +223,10 @@ schtasks /Create /TN "NextPlay nightly" /SC DAILY /ST 04:00 /TR "cmd /c cd /d %C
 | `accounts` | Usuario propio, `Profile`, registro, perfil público/privado  |
 | `games`    | `Game`, `Genre`, `Platform`, catálogo y cliente de IGDB      |
 | `library`  | `LibraryEntry`: un estado por usuario y juego                |
-| `social`   | `Follow`: seguir a otros jugadores, seguidores y seguidos    |
+| `social`   | `Follow` y `Activity`: seguir a otros jugadores y su actividad |
 
 ## Siguientes cortes
 
 2. Importación de Steam, puntuaciones y reseñas, tarjeta compartible.
-3. Actividad de cada jugador y feed en la portada (seguir, me gusta y comentarios ya están).
+3. Feed en la portada con la actividad de la gente que sigues (seguir y la actividad ya están).
 4. Listas, bloquear y silenciar, beta.
