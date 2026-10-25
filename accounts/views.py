@@ -23,6 +23,7 @@ from games.models import LANGUAGE_FILTERS, Game, Genre, igdb_image_url, known_sh
 from library import wishlist
 from library.models import LibraryEntry, Review
 from library.views import mark_liked
+from social.views import follow_context
 
 from . import images, matching, psn, steam, xbox
 from .forms import IMAGE_FIELDS, PlatformAccountForm, ProfileForm, SignupForm
@@ -106,7 +107,8 @@ def _profile_context(request, owner, favorites=None, preview=False):
 
     favorites son sus juegos favoritos en orden (si no se dan, los guardados). Con preview es la vista
     previa de Editar perfil: se ve como la ven los demás, el usuario de la barra superior es owner con los
-    cambios sin guardar y la biblioteca se corta en PREVIEW_LIBRARY juegos.
+    cambios sin guardar y la biblioteca se corta en PREVIEW_LIBRARY juegos. También lleva cuántos seguidores
+    y seguidos tiene owner y si quien mira sigue a owner o al revés (social.views.follow_context).
     """
     is_owner = request.user == owner and not preview
     entries = list(
@@ -171,6 +173,7 @@ def _profile_context(request, owner, favorites=None, preview=False):
             owner.imported_titles.filter(title__game__isnull=True, hidden=False).count() if is_owner else 0
         ),
         **(linking_context() if is_owner else {}),
+        **follow_context(request.user, owner),
         # En la vista previa, la barra superior también enseña la foto y el nombre sin guardar.
         **({"preview": True, "user": owner} if preview else {}),
     }
@@ -879,8 +882,14 @@ NOTIFICATIONS_SHOWN = 50
 
 @login_required
 def notifications(request):
-    """Últimos avisos del usuario (bajadas de precio...). Al abrir la página, los no leídos pasan a leídos."""
-    shown = list(request.user.notifications.select_related("game")[:NOTIFICATIONS_SHOWN])
+    """Últimos avisos del usuario (bajadas de precio, nuevos seguidores...). Al abrir la página, los no leídos pasan a leídos.
+
+    Los que tienen quién los ha provocado (actor) traen ya lo que hace falta para enseñar su foto.
+    """
+    shown = list(
+        request.user.notifications.select_related("game", "actor__profile", "actor__psn_account", "actor__xbox_account")
+        .prefetch_related("actor__steam_accounts")[:NOTIFICATIONS_SHOWN]
+    )
     unread = {n.pk for n in shown if n.read_at is None}
     request.user.notifications.filter(read_at__isnull=True).update(read_at=timezone.now())
     return render(request, "accounts/notifications.html", {"shown": shown, "unread": unread})

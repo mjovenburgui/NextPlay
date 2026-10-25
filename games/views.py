@@ -41,8 +41,8 @@ def trending_games(limit=5):
 
 
 def home(request):
-    """Portada: tu resumen y tu menú a la izquierda; lo que estás jugando, los juegos populares y las
-    últimas reseñas en el centro; los juegos en tendencia a la derecha."""
+    """Portada: tu resumen (con tus seguidores y seguidos) y tu menú a la izquierda; lo que estás jugando, los
+    juegos populares y las últimas reseñas en el centro; los juegos en tendencia a la derecha."""
     playing = summary = None
     statuses = {}
     if request.user.is_authenticated:
@@ -52,6 +52,8 @@ def home(request):
             completed=Count("id", filter=Q(status=LibraryEntry.Status.COMPLETED)),
         )
         summary["reviews"] = Review.objects.filter(user=request.user).published().count()
+        summary["followers"] = request.user.followers.count()
+        summary["following"] = request.user.following.count()
         playing = library.filter(status=LibraryEntry.Status.PLAYING).select_related("game").order_by("-updated_at")[:4]
     popular = list(Game.objects.order_by("-popularity", "name")[:12])
     if request.user.is_authenticated:

@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from games.models import Game
 from library.models import LibraryEntry, Review, ReviewComment, ReviewLike
+from social.models import Follow
 
 from ...models import PSNAccount, XboxAccount
 
@@ -51,6 +52,13 @@ REACTIONS = [
     ("demo1", 1, "Totalmente de acuerdo con lo de las secundarias."),
     ("demo2", 1, ""),
     ("demo3", 0, "¿Merece la pena aunque no te gusten los mundos abiertos?"),
+]
+# Quién sigue a quién, para ver seguidores, «Te sigue» y los avisos de la campana: (seguidor, seguido). demo3 sigue
+# al usuario de prueba pero no al revés, para ver el botón «Seguir también».
+FOLLOWS = [
+    ("demo1", USERNAME), ("demo2", USERNAME), ("demo3", USERNAME),
+    (USERNAME, "demo1"), (USERNAME, "demo2"),
+    ("demo1", "demo2"), ("demo2", "demo3"),
 ]
 
 
@@ -121,6 +129,14 @@ class Command(BaseCommand):
             ReviewLike.objects.get_or_create(user=other, review=reviews[index])
             if comment:
                 ReviewComment.objects.create(user=other, review=reviews[index], text=comment)
+
+        # Los seguidores y seguidos del usuario de prueba se rehacen; los avisos de seguidor no se repiten.
+        Follow.objects.filter(follower=user).delete()
+        Follow.objects.filter(followed=user).delete()
+        people = {u.username: u for u in User.objects.filter(username__in={name for pair in FOLLOWS for name in pair})}
+        for follower, followed in FOLLOWS:
+            if follower in people and followed in people:
+                Follow.objects.follow(people[follower], people[followed])
 
         self.stdout.write(self.style.SUCCESS(
             f"Usuario de prueba «{USERNAME}» listo con {len(games)} juegos. "

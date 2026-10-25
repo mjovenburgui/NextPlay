@@ -187,7 +187,7 @@
       "PlayStation y Xbox también dejan sus sesiones en cada sincronización a mano, aunque más espaciadas.",
       "Respetar el perfil privado y dejar ocultar el diario aunque el perfil sea público."
     ],
-    "notas": "Conviene hacer ya el paso 1 aunque el resto espere: el historial que no se guarda no se recupera. Steam solo da el total y la última partida, así que una «sesión» es lo jugado entre dos sincronizaciones. Si algún día se guarda cifrado el token de refresco de Microsoft (ahora no se guarda a propósito), las sesiones de Xbox también serían diarias. Backloggd tiene en su hoja de ruta cambiar los estados según la actividad («Auto Log Organizing») y no lo ha hecho."
+    "notas": "Conviene hacer ya el paso 1 aunque el resto espere: el historial que no se guarda no se recupera. Steam solo da el total y la última partida, así que una «sesión» es lo jugado entre dos sincronizaciones. Si algún día se guarda cifrado el token de refresco de Microsoft (ahora no se guarda a propósito), las sesiones de Xbox también serían diarias. Backloggd tiene en su hoja de ruta cambiar los estados según la actividad («Auto Log Organizing») y no lo ha hecho. 25/10/2026: con el feed de actividad, las sesiones darían actividad automática y verificada («Ha jugado 9 h a Elden Ring esta semana», agrupada por semana), algo que en Backloggd hay que apuntar a mano."
   },
   {
     "titulo": "Revisar los juegos que no se emparejaron al importar",
@@ -238,19 +238,40 @@
   {
     "titulo": "Seguir a otros jugadores y feed de actividad",
     "fecha": "2026-10-17",
+    "estado": "en curso",
+    "prioridad": "alta",
+    "tipo": "Funcionalidad",
+    "resumen": "Poder seguir a otros jugadores y ver lo que hacen en la portada (pestañas Siguiendo y Descubrir) y en una pestaña Actividad de su perfil: juegos que empiezan, terminan o abandonan, notas, reseñas, «Lo quiero» e importaciones agrupadas.",
+    "motivo": "NextPlay se presenta como red social, pero ahora mismo no hay ninguna relación entre usuarios. Es la pieza que convierte la biblioteca personal en comunidad.",
+    "pasos": [
+      "Fase 1 · Seguir: app nueva social con el modelo Follow (seguidor, seguido y fecha; único y sin poder seguirse a uno mismo), botón Seguir / Siguiendo con HTMX en el perfil, «Te sigue», contadores y páginas de seguidores y seguidos, y aviso en la campana «X ha empezado a seguirte» (una sola vez por persona, como los «me gusta»).",
+      "Seguir es unidireccional y sin solicitudes. Los perfiles privados no se pueden seguir y su actividad solo la ve su dueño, como ahora su biblioteca. La visibilidad se decide en un solo sitio para poder añadir después «solo seguidores».",
+      "Fase 2 · Actividad: modelo Activity (autor, tipo, juego, reseña, estado, nota, datos y fecha) que se apunta desde las vistas (cambio de estado, nota, reseña publicada y «Lo quiero») y no con señales: update_import guarda juegos en cada sincronización nocturna (y a veces les cambia el estado solo), y con señales no se distinguiría lo que hace el usuario de lo automático.",
+      "Lo que se hace con un mismo juego en poco rato se junta en una sola actividad («Terminó Hades · ★★★★½ · y lo reseñó»), y cada importación de Steam, PlayStation o Xbox es una sola («Importó 129 juegos de Steam», con las portadas de los más jugados). Si se borra la reseña, se borra su actividad.",
+      "Pestaña Actividad en el perfil. Hacia atrás solo se rellenan las reseñas ya publicadas (con su fecha de publicación): las fechas de la biblioteca no valen, porque updated_at cambia con cada sincronización.",
+      "Fase 3 · Feed: la portada pasa a tener las pestañas Siguiendo y Descubrir de las maquetas, con una tarjeta para cada tipo de actividad (las reseñas, con library/_feed_review.html) y «Cargar más» con HTMX; si no sigues a nadie, sugerencias de gente a la que seguir.",
+      "El feed se calcula al leer (la actividad de la gente que sigues, con un índice por autor y fecha), sin Celery ni Redis: a este tamaño no hacen falta.",
+      "Usuarios demo que se siguen y tienen actividad en seed_test_profile, y tests de visibilidad, de agrupación, de importaciones y de avisos."
+    ],
+    "notas": "Las insignias de PSN, Switch, Epic... del perfil encajan aquí: sirven para añadir como amigo en la plataforma a quien sigues. Ya estaba planeada antes de proponerla. 25/10/2026: el usuario quiere empezar lo social por aquí; plan en tres fases, cada una en un PR que se puede probar por separado. Lo que hace que seguir a alguien sirva en la ficha y en los perfiles va en «La gente que sigues en la ficha y en los perfiles»; bloquear y silenciar, y el nivel «solo seguidores», en sus propias propuestas. 25/10/2026: fase 1 hecha en la rama seguir-a-jugadores (aún sin commit): app social con el modelo Follow (único y sin seguirse a uno mismo, también en la base de datos), botón Seguir / Siguiendo / Seguir también con HTMX en el perfil, «Te sigue», contadores en el perfil y en la portada, listas /u/<usuario>/seguidores/ y /u/<usuario>/siguiendo/ (los perfiles privados salen sin enlace ni biografía), aviso en la campana con la foto del nuevo seguidor (campo actor en Notification; una vez por persona), la regla de visibilidad en Profile.visible_to y Profile.visible_filter, seguidores de prueba en seed_test_profile y 24 tests. Faltan la fase 2 (actividad) y la 3 (feed)."
+  },
+  {
+    "titulo": "La gente que sigues en la ficha y en los perfiles",
+    "fecha": "2026-10-25",
     "estado": "pendiente",
     "prioridad": "alta",
     "tipo": "Funcionalidad",
-    "resumen": "Poder seguir a otros usuarios y ver en la portada lo que hacen: juegos que empiezan o terminan, valoraciones y reseñas nuevas.",
-    "motivo": "NextPlay se presenta como red social, pero ahora mismo no hay ninguna relación entre usuarios. Es la pieza que convierte la biblioteca personal en comunidad.",
+    "resumen": "Que seguir a alguien sirva en toda la web: en la ficha, qué han hecho con el juego las personas que sigues (estado, nota, horas verificadas y su reseña primero); en un perfil ajeno, los juegos que tenéis en común y lo compatibles que son vuestros gustos; y sugerencias de a quién seguir según esa compatibilidad.",
+    "motivo": "En un tracker el feed no basta: seguir a alguien vale la pena cuando su opinión aparece justo al decidir qué jugar o qué comprar. NextPlay sabe qué tiene cada uno, con qué nota y con cuántas horas verificadas de Steam, PlayStation y Xbox (en Backloggd todo se apunta a mano), así que puede decir en la ficha «Laura lo terminó en 62 h y le puso 4,5».",
     "pasos": [
-      "Modelo Follow (seguidor, seguido, fecha) con restricción única y sin poder seguirse a uno mismo.",
-      "Botón Seguir / Dejar de seguir en el perfil (HTMX) y contadores de seguidores y seguidos.",
-      "Modelo Activity (usuario, tipo, juego, fecha) que se crea al cambiar de estado, valorar o reseñar; las importaciones masivas de Steam/PSN/Xbox se agrupan en una sola actividad («importó 129 juegos»).",
-      "Página de feed con la actividad de la gente que sigues, paginada, respetando los perfiles privados.",
-      "Tests de visibilidad y de agrupación."
+      "Recuadro «Gente que sigues» en la ficha: quién lo tiene, en qué estado, con qué nota y cuántas horas verificadas, y la media de sus notas junto a la de la comunidad.",
+      "En las reseñas de la ficha, primero las de la gente que sigues.",
+      "En un perfil ajeno, «En común»: los juegos que tenéis los dos y la compatibilidad de gustos (lo parecidas que son vuestras notas en los juegos que habéis valorado los dos; solo a partir de unos 5 en común).",
+      "«A quién seguir» en la columna derecha de la portada: perfiles públicos con más compatibilidad y juegos en común. Si un día hay muchos usuarios, se precalcula en el comando nightly.",
+      "Aviso cuando alguien que sigues reseña un juego que tienes en «Lo quiero» o en Pendiente (uno por juego, sin repetir).",
+      "Respetar los perfiles privados y, cuando existan, los bloqueos."
     ],
-    "notas": "Las insignias de PSN, Switch, Epic... del perfil encajan aquí: sirven para añadir como amigo en la plataforma a quien sigues. Ya estaba planeada antes de proponerla."
+    "notas": "Depende de «Seguir a otros jugadores y feed de actividad». Va antes que «¿A qué jugamos?» y «Encontrar a tus amigos de Steam y Xbox en NextPlay», que se apoyan en lo mismo."
   },
   {
     "titulo": "Rediseño de toda la web con aspecto de red social",
@@ -475,6 +496,41 @@
       "Aviso al autor cuando ha jugado mucho más desde su reseña: «llevas 40 h más, ¿la actualizas?»."
     ],
     "notas": "El plegado por progreso sirve también para «Publicaciones con imágenes asociadas a un juego». Backloggd tiene pendiente en su hoja de ruta marcar spoilers dentro del texto; aquí sería automático. 23/10/2026: hecho en la rama resenas-completas: cada reseña guarda al publicarla (y al editarla) las horas importadas y de qué plataformas salen («Escrita a las 24,2 h · Steam») y cómo iba el autor con el juego («Lo terminó», «Aún jugándolo»); filtros «Lo han terminado» y «Con más de 10 h» en la ficha; las reseñas escritas con 10 h o más de ventaja sobre quien las lee (si no lo ha terminado) salen plegadas. Faltan la nota de la comunidad solo con quien tiene horas, los logos de plataforma en vez del nombre y el aviso «llevas 40 h más, ¿la actualizas?». 24/10/2026: hecho lo que faltaba en la rama resenas-imagenes-y-denuncias (aún sin commit): la valoración de la comunidad enseña también la media solo con quienes tienen horas importadas, el sello de horas lleva los logos de Steam, PlayStation y Xbox, y quien lleva el doble de horas que al escribir su última reseña del juego (y al menos 10 más) ve «Llevas 40 h más: ¿la actualizas?» en la ficha y en la reseña y recibe un aviso en la campana tras la importación (uno por reseña hasta que la vuelva a guardar)."
+  },
+  {
+    "titulo": "Bloquear, silenciar y quitar seguidores",
+    "fecha": "2026-10-25",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Poder bloquear a un usuario (no te sigue, no ve lo tuyo, no comenta ni da «me gusta» a tus reseñas), silenciarlo (deja de salir en tu feed sin que se entere), quitar a alguien de tus seguidores y denunciar un perfil.",
+    "motivo": "Con seguidores y comentarios llegan el acoso y el spam. Las denuncias ya existen, pero no hay forma de cortar el contacto con alguien. Hace falta antes de abrir NextPlay al público.",
+    "pasos": [
+      "Modelo Block (quien bloquea y bloqueado); al bloquear se borran los follows en los dos sentidos.",
+      "El bloqueado no puede seguirte, comentar ni dar «me gusta» a lo tuyo, y no ve tu perfil ni tu actividad; tú tampoco ves la suya.",
+      "Silenciar: su actividad deja de salir en tu feed y sus avisos no te llegan, sin que lo sepa.",
+      "«Quitar de mis seguidores» en tu lista de seguidores.",
+      "Denunciar un perfil con el modelo Report, que ya es genérico.",
+      "Lista de usuarios bloqueados y silenciados en Editar perfil, para deshacerlo."
+    ],
+    "notas": "Depende de «Seguir a otros jugadores y feed de actividad». Puede ir junto a su fase 1 si se quiere abrir pronto."
+  },
+  {
+    "titulo": "Perfil solo para seguidores, con solicitudes",
+    "fecha": "2026-10-25",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Un nivel de privacidad entre público y privado: tu perfil, tu biblioteca, tus reseñas y tu actividad solo los ven las personas que aceptas como seguidores.",
+    "motivo": "Ahora un perfil privado no lo ve nadie, así que su dueño no puede usar nada social. Con este nivel puede compartirlo con sus amigos sin enseñárselo a todo el mundo.",
+    "pasos": [
+      "Cambiar is_public por un nivel de visibilidad (público, solo seguidores o privado), con una migración que respete lo que tenía cada uno.",
+      "Follow con estado (pendiente o aceptado): en los perfiles «solo seguidores», seguir manda una solicitud.",
+      "Aviso de cada solicitud y página para aceptarlas o rechazarlas.",
+      "Contar a los seguidores aceptados en todas las comprobaciones de visibilidad (perfil, reseñas, comentarios, feed y ficha); si en la fase 1 de seguir se dejaron en un solo sitio, es un cambio pequeño.",
+      "Tests de visibilidad con los tres niveles."
+    ],
+    "notas": "Depende de «Seguir a otros jugadores y feed de actividad». Si el usuario lo quiere desde el principio, entra en su fase 1."
   },
   {
     "titulo": "¿A qué jugamos? Juegos en común con tus amigos",

@@ -9,6 +9,7 @@ from django.db import models
 from django.urls import reverse
 from django.utils import timezone
 
+from accounts.models import Profile
 from games.models import Game, Platform, igdb_image_url
 
 REVIEW_MAX_LENGTH = 8000
@@ -164,14 +165,11 @@ class ReviewQuerySet(models.QuerySet):
         """Reseñas publicadas que viewer puede leer, de la más reciente a la más antigua, con sus «me gusta»
         (like_count) y comentarios (comment_count) contados y sus imágenes ya cargadas.
 
-        Las de perfiles privados solo las ve su autor, igual que su biblioteca.
+        Las de perfiles privados solo las ve su autor, igual que su biblioteca (Profile.visible_filter).
         """
-        visible = models.Q(user__profile__is_public=True)
-        if viewer.is_authenticated:
-            visible |= models.Q(user=viewer)
         return (
             self.published()
-            .filter(visible)
+            .filter(Profile.visible_filter(viewer))
             .select_related("user__profile", "user__psn_account", "game", "platform")
             .prefetch_related("user__steam_accounts", "images")
             .annotate(

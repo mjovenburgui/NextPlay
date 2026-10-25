@@ -1,0 +1,26 @@
+{# Botón Seguir / Siguiendo de target para quien mira (user). Necesita target, is_following y follows_you; where dice dónde va ("perfil" o "lista", más pequeño) y next, a dónde volver sin JavaScript. #}
+{# Sin sesión lleva a entrar y en lo propio no sale. En la vista previa de Editar perfil se ve como lo verían los demás, sin funcionar. Con HTMX se cambia por el que devuelve social.views.follow. #}
+{% if preview %}
+  <span class="btn btn-primary follow-btn">{% include "_icon.html" with name="user-plus" %} Seguir</span>
+{% elif not user.is_authenticated %}
+  <a class="btn btn-primary follow-btn{% if where == 'lista' %} btn-small{% endif %}" href="{% url 'login' %}?next={{ request.get_full_path|urlencode }}">{% include "_icon.html" with name="user-plus" %} Seguir</a>
+{% elif user != target %}
+  <form class="follow-form" action="{% url 'social:follow' target.username %}" method="post"
+        hx-post="{% url 'social:follow' target.username %}" hx-swap="outerHTML">
+    {% csrf_token %}
+    <input type="hidden" name="seguir" value="{% if is_following %}0{% else %}1{% endif %}">
+    <input type="hidden" name="desde" value="{{ where }}">
+    <input type="hidden" name="next" value="{{ next|default:request.get_full_path }}">
+    {% if is_following %}
+      {# Al pasar por encima (o al enfocarlo con el teclado) pasa a decir «Dejar de seguir». #}
+      <button class="btn follow-btn is-following{% if where == 'lista' %} btn-small{% endif %}" type="submit"
+              aria-label="Siguiendo a {{ target.profile.name }}: pulsa para dejar de seguir">
+        <span class="follow-on">{% include "_icon.html" with name="user-check" %} Siguiendo</span>
+        <span class="follow-off" aria-hidden="true">Dejar de seguir</span>
+      </button>
+    {% else %}
+      <button class="btn btn-primary follow-btn{% if where == 'lista' %} btn-small{% endif %}" type="submit">{% include "_icon.html" with name="user-plus" %} {% if follows_you %}Seguir también{% else %}Seguir{% endif %}</button>
+    {% endif %}
+  </form>
+{% endif %}
+{% if oob %}{% include "social/_follower_count.html" %}{% endif %}

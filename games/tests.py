@@ -374,7 +374,9 @@ class CatalogTests(TestCase):
         Review.objects.create(user=luis, game=self.celeste, text="Secreta", published_at=timezone.now())
         self.client.force_login(ana)
         response = self.client.get(reverse("home"))
-        self.assertEqual(response.context["summary"], {"games": 1, "completed": 0, "reviews": 1})
+        self.assertEqual(
+            response.context["summary"], {"games": 1, "completed": 0, "reviews": 1, "followers": 0, "following": 0}
+        )
         self.assertEqual([e.game for e in response.context["playing"]], [self.hades])
         self.assertContains(response, "Genial")
         self.assertNotContains(response, "Secreta")

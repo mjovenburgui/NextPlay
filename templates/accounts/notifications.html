@@ -10,6 +10,9 @@
         <li class="notification{% if notification.pk in unread %} is-unread{% endif %}">
           {% if notification.game %}
             <span class="review-thumb" aria-hidden="true">{% if notification.game.cover_url %}<img src="{{ notification.game.cover_url }}" alt="" loading="lazy">{% endif %}</span>
+          {% elif notification.actor %}
+            {# Sin juego (un nuevo seguidor), la foto de quien lo ha provocado. #}
+            {% include "accounts/_avatar.html" with profile=notification.actor.profile size="sm" %}
           {% endif %}
           <div>
             {% if notification.url %}<a href="{{ notification.url }}">{{ notification.text }}</a>{% else %}{{ notification.text }}{% endif %}

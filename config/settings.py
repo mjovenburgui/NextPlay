@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "accounts",
     "games",
     "library",
+    "social",
 ]
 
 MIDDLEWARE = [

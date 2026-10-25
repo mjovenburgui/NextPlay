@@ -1435,3 +1435,37 @@ p.update-hint { display: flex; border-left-color: var(--gold); }
   .review-page-game .cover { width: 72px; }
   .review.is-full { padding: 1rem; }
 }
+
+/* Seguir: botón Seguir / Siguiendo, contadores de seguidores y seguidos, y sus listas */
+.follow-form { margin: 0; }
+.follow-btn { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; white-space: nowrap; }
+.follow-btn .icon { width: 1.1rem; height: 1.1rem; }
+/* «Siguiendo» pasa a «Dejar de seguir» al pasar por encima. Los dos textos van en la misma celda de la
+   rejilla y el que no toca se esconde con visibility, así el botón no cambia de ancho. */
+.follow-btn.is-following { display: inline-grid; }
+.follow-btn.is-following > span { grid-area: 1 / 1; display: inline-flex; align-items: center; justify-content: center; gap: .4rem; }
+.follow-btn.is-following .follow-off { visibility: hidden; }
+.follow-btn.is-following:hover, .follow-btn.is-following:focus-visible { border-color: var(--pink); color: #ffc2de; }
+.follow-btn.is-following:hover .follow-on, .follow-btn.is-following:focus-visible .follow-on { visibility: hidden; }
+.follow-btn.is-following:hover .follow-off, .follow-btn.is-following:focus-visible .follow-off { visibility: visible; }
+.follow-stats { display: flex; flex-wrap: wrap; align-items: center; gap: .2rem 1rem; margin-top: .35rem !important; font-size: .92rem; }
+.follow-stat { color: var(--muted); }
+.follow-stat strong { color: var(--text); font-weight: 800; }
+.follow-stat:hover { color: var(--text); text-decoration: none; }
+.profile-layout-centered .follow-stats { justify-content: center; }
+.me-follows { display: flex; justify-content: center; flex-wrap: wrap; gap: .2rem 1rem; margin: .8rem 0 0; font-size: .85rem; }
+.notification > .avatar { flex: none; }
+.people-owner { display: flex; align-items: center; gap: .8rem; margin-bottom: 1rem; color: var(--text); }
+.people-owner:hover { text-decoration: none; }
+.people-owner > span:last-child { display: flex; flex-direction: column; min-width: 0; }
+.people-page .tabs { margin-bottom: .25rem; }
+.people { margin: 0; padding: 0; list-style: none; }
+/* Si no cabe al lado, el botón baja a la línea de abajo, pegado a la derecha. */
+.person { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem .75rem; padding: .75rem 0; border-top: 1px solid var(--border); }
+.person:first-child { border-top: 0; }
+.person-info { flex: 1 1 11rem; min-width: 0; overflow-wrap: anywhere; }
+.person-info p { margin: 0; }
+.person-name { font-weight: 700; color: var(--text); }
+.person-bio { margin-top: .15rem !important; }
+.person .pill { margin-left: .35rem; }
+.person > .follow-form, .person > .follow-btn { margin-left: auto; }

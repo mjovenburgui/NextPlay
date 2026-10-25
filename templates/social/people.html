@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}{% if view == "seguidores" %}Seguidores de{% else %}A quién sigue{% endif %} {{ owner.profile.name }} (@{{ owner.username }}) · NextPlay{% endblock %}
+
+{% block content %}
+  {% with profile=owner.profile %}
+  {# Seguidores de un perfil o gente a la que sigue, con el color de ese perfil, como su página. #}
+  <section class="panel panel-wide people-page" style="--violet: {{ profile.accent }}; --accent-rgb: {{ profile.accent_rgb }}; --accent-text: {{ profile.accent_text }};">
+    <a class="people-owner" href="{{ profile.get_absolute_url }}">
+      {% include "accounts/_avatar.html" with size="md" %}
+      <span>
+        <strong>{{ profile.name }}</strong>
+        <span class="muted small">@{{ owner.username }}</span>
+      </span>
+    </a>
+    <nav class="tabs tabs-main" aria-label="Seguidores y seguidos">
+      <a class="tab{% if view == 'seguidores' %} is-active{% endif %}" href="{% url 'social:followers' owner.username %}"{% if view == 'seguidores' %} aria-current="page"{% endif %}>Seguidores <span>{{ follower_count }}</span></a>
+      <a class="tab{% if view == 'siguiendo' %} is-active{% endif %}" href="{% url 'social:following' owner.username %}"{% if view == 'siguiendo' %} aria-current="page"{% endif %}>Siguiendo <span>{{ following_count }}</span></a>
+    </nav>
+
+    <ul class="people">
+      {% for person in people %}
+        <li class="person">
+          {% include "accounts/_avatar.html" with profile=person.profile size="sm" %}
+          <div class="person-info">
+            <p>
+              {# Los perfiles privados salen sin enlace ni biografía: su página da 404 a los demás. #}
+              {% if person.profile_visible %}
+                <a class="person-name" href="{{ person.profile.get_absolute_url }}">{{ person.profile.name }}</a>
+              {% else %}
+                <span class="person-name">{{ person.profile.name }}</span>
+              {% endif %}
+              <span class="muted small">@{{ person.username }}</span>
+              {% if person.follows_viewer %}<span class="pill">Te sigue</span>{% endif %}
+              {% if not person.profile.is_public %}<span class="pill">Perfil privado</span>{% endif %}
+            </p>
+            {% if person.profile_visible and person.profile.bio %}<p class="muted small person-bio">{{ person.profile.bio|truncatechars:120 }}</p>{% endif %}
+          </div>
+          {# A un perfil privado no se le puede seguir, pero sí dejar de seguir si se hizo privado después. #}
+          {% if person.profile_visible or person.viewer_follows %}
+            {% include "social/_follow_button.html" with target=person is_following=person.viewer_follows follows_you=person.follows_viewer where="lista" %}
+          {% endif %}
+        </li>
+      {% empty %}
+        <li class="empty">
+          {% if view == "seguidores" %}
+            {% if is_owner %}Aún no te sigue nadie. Cuando alguien lo haga, saldrá aquí.{% else %}Aún nadie sigue a {{ profile.name }}.{% endif %}
+          {% elif is_owner %}
+            Aún no sigues a nadie. Entra en el perfil de alguien (desde sus reseñas, por ejemplo) y pulsa «Seguir».
+          {% else %}
+            {{ profile.name }} aún no sigue a nadie.
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+
+    {% if page.has_other_pages %}
+      <nav class="pager" aria-label="Paginación">
+        {% if page.has_previous %}<a class="btn" href="?page={{ page.previous_page_number }}">← Anterior</a>{% endif %}
+        <span class="muted">Página {{ page.number }} de {{ page.paginator.num_pages }}</span>
+        {% if page.has_next %}<a class="btn" href="?page={{ page.next_page_number }}">Siguiente →</a>{% endif %}
+      </nav>
+    {% endif %}
+  </section>
+  {% endwith %}
+{% endblock %}
