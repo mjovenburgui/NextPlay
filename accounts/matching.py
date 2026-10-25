@@ -17,6 +17,7 @@ from games import igdb
 from games.models import Game
 from library.models import LibraryEntry, Review
 from library.reminders import remind_outdated_reviews
+from social.activity import games_imported
 
 from .models import ExternalTitle, ImportedTitle
 
@@ -187,7 +188,7 @@ def save_titles(user, platform, titles, auto_match):
     return {i: saved[i].game for i in ids}
 
 
-def update_library(user, platform, opened_only=False):
+def update_library(user, platform, opened_only=False, record_activity=False):
     """Pasa a la biblioteca las horas de una plataforma a partir de todos los títulos importados del usuario.
 
     Por juego suma los minutos de sus títulos (puede venir de varias cuentas o de la versión de PS4 y
@@ -197,7 +198,9 @@ def update_library(user, platform, opened_only=False):
     conservan su estado (salvo «Pendiente», que pasa a jugado si hay horas). Si un título ha cambiado
     de juego desde la última vez (porque se corrigió el emparejamiento), al juego anterior se le quitan
     sus horas de esta plataforma. Si han cambiado horas, avisa al usuario de las reseñas que se le han quedado
-    atrás (library.reminders). Devuelve (juegos añadidos, juegos actualizados).
+    atrás (library.reminders). Con record_activity (lo piden las importaciones, no las correcciones del
+    emparejamiento), los juegos nuevos se apuntan en su actividad como una sola importación
+    (social.activity.games_imported). Devuelve (juegos añadidos, juegos actualizados).
     """
     rows = list(ImportedTitle.objects.filter(user=user, title__platform=platform).select_related("title"))
     totals = {}
@@ -236,6 +239,8 @@ def update_library(user, platform, opened_only=False):
         for row in moved:
             row.game_id = row.title.game_id
         ImportedTitle.objects.bulk_update(moved, ["game"])
+    if record_activity:
+        games_imported(user, platform, new)
     if updated:
         remind_outdated_reviews(user)
     return len(new), updated

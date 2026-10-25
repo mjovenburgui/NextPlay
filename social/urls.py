@@ -9,4 +9,5 @@ urlpatterns = [
     path("u/<str:username>/seguir/", views.follow, name="follow"),
     path("u/<str:username>/seguidores/", views.followers, name="followers"),
     path("u/<str:username>/siguiendo/", views.following, name="following"),
+    path("u/<str:username>/actividad/", views.activity, name="activity"),
 ]

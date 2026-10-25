@@ -1,11 +1,21 @@
+import io
+from datetime import timedelta
+from urllib.parse import urlencode
+
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
-from accounts.models import Notification
+from accounts import matching
+from accounts.models import ExternalTitle, ImportedTitle, Notification
+from games.models import Game
+from library.models import LibraryEntry, Review
 
-from .models import Follow
+from . import activity
+from .models import Activity, Follow
 
 User = get_user_model()
 
@@ -241,3 +251,218 @@ class PeopleListTests(TestCase):
         self.client.force_login(self.eva)
         response = self.client.get(reverse("social:followers", args=["eva"]))
         self.assertContains(response, "Aún no te sigue nadie.")
+
+
+class ActivityTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.hades = Game.objects.create(name="Hades", slug="hades")
+        cls.celeste = Game.objects.create(name="Celeste", slug="celeste")
+
+    def setUp(self):
+        self.client.force_login(self.ana)
+
+    def set_status(self, game, status):
+        return self.client.post(reverse("library:set_status", args=[game.pk]), {"status": status})
+
+    def rate(self, game, rating):
+        return self.client.post(reverse("library:rate", args=[game.pk]), {"rating": str(rating)})
+
+    def publish(self, game, **fields):
+        return self.client.post(reverse("library:review_new", args=[game.pk]), {"text": "Genial.", "publicar": "", **fields})
+
+    def age(self):
+        """Hace que toda la actividad sea de hace dos horas, para que lo siguiente ya no se junte con ella."""
+        Activity.objects.update(updated_at=timezone.now() - timedelta(hours=2))
+
+    def test_status_changes_are_recorded_and_joined(self):
+        self.set_status(self.hades, "playing")
+        self.set_status(self.hades, "playing")  # el mismo estado otra vez no cuenta
+        self.assertEqual(Activity.objects.count(), 1)
+        self.set_status(self.hades, "completed")
+        item = Activity.objects.get()
+        self.assertEqual((item.kind, item.game, item.status), ("game", self.hades, "completed"))
+        self.assertEqual(item.summary, "terminó Hades")
+        self.age()
+        self.set_status(self.hades, "dropped")
+        self.assertEqual(Activity.objects.count(), 2)
+
+    def test_another_game_in_between_starts_a_new_one(self):
+        self.set_status(self.hades, "playing")
+        self.set_status(self.celeste, "backlog")
+        self.rate(self.hades, 8)
+        self.assertEqual(
+            [item.summary for item in Activity.objects.all()],
+            ["valoró Hades", "añadió Celeste a Pendiente", "empezó a jugar a Hades"],
+        )
+
+    def test_rating_joins_and_removing_it_right_away_undoes_it(self):
+        self.set_status(self.hades, "completed")
+        self.rate(self.hades, 9)
+        item = Activity.objects.get()
+        self.assertEqual((item.status, item.rating), ("completed", 9))
+        self.rate(self.hades, 0)
+        self.assertIsNone(Activity.objects.get().rating)
+        # Una nota sola que se quita enseguida no deja nada.
+        LibraryEntry.objects.create(user=self.ana, game=self.celeste)
+        self.rate(self.celeste, 7)
+        self.assertEqual(Activity.objects.count(), 2)
+        self.rate(self.celeste, 0)
+        self.assertEqual(Activity.objects.count(), 1)
+        # Quitarla más tarde no cambia lo que ya pasó.
+        self.rate(self.celeste, 6)
+        self.age()
+        self.rate(self.celeste, 0)
+        self.assertEqual(Activity.objects.get(game=self.celeste).rating, 6)
+
+    def test_publishing_a_review_joins_the_activity_and_editing_it_does_not_repeat_it(self):
+        self.set_status(self.hades, "completed")
+        self.publish(self.hades, rating="9")
+        review = Review.objects.get()
+        item = Activity.objects.get()
+        self.assertEqual((item.status, item.rating, item.review), ("completed", 9, review))
+        self.client.post(reverse("library:review_edit", args=[review.pk]), {"text": "Genial de verdad.", "publicar": ""})
+        self.assertEqual(Activity.objects.count(), 1)
+
+    def test_drafts_are_not_activity_until_published(self):
+        LibraryEntry.objects.create(user=self.ana, game=self.hades)
+        self.client.post(reverse("library:review_new", args=[self.hades.pk]), {"text": "A medias.", "borrador": ""})
+        self.assertFalse(Activity.objects.exists())
+        review = Review.objects.get()
+        self.client.post(reverse("library:review_edit", args=[review.pk]), {"text": "Ya está.", "publicar": ""})
+        self.assertEqual(Activity.objects.get().review, review)
+        # Vuelta a borrador y publicada otra vez: sigue siendo la misma actividad.
+        self.client.post(reverse("library:review_edit", args=[review.pk]), {"text": "Ya está.", "borrador": ""})
+        self.client.post(reverse("library:review_edit", args=[review.pk]), {"text": "Ya está.", "publicar": ""})
+        self.assertEqual(Activity.objects.count(), 1)
+
+    def test_deleting_a_review_keeps_the_rest_of_its_activity(self):
+        self.set_status(self.hades, "completed")
+        self.publish(self.hades)
+        self.age()
+        self.publish(self.hades, text="Otra partida.")  # más tarde: su actividad es solo la reseña
+        first, second = Review.objects.order_by("pk")
+        self.assertEqual(Activity.objects.count(), 2)
+        self.client.post(reverse("library:review_delete", args=[second.pk]))
+        self.assertEqual(Activity.objects.count(), 1)
+        self.client.post(reverse("library:review_delete", args=[first.pk]))
+        item = Activity.objects.get()
+        self.assertEqual((item.status, item.review), ("completed", None))
+
+    def test_removing_a_game_forgets_its_activity_but_not_its_reviews(self):
+        self.set_status(self.hades, "completed")
+        self.publish(self.hades, rating="8")
+        self.set_status(self.celeste, "playing")
+        self.client.post(reverse("library:remove", args=[self.hades.pk]))
+        self.client.post(reverse("library:remove", args=[self.celeste.pk]))
+        item = Activity.objects.get()
+        self.assertEqual((item.game, item.status, item.rating), (self.hades, "", None))
+        self.assertEqual((item.summary, item.shown_rating), ("reseñó Hades", 8))
+
+    def test_an_import_is_a_single_activity_with_the_most_played_games(self):
+        for name, game, minutes in (("Celeste", self.celeste, 30), ("Hades", self.hades, 600)):
+            title = ExternalTitle.objects.create(platform="steam", external_id=name, name=name, game=game)
+            ImportedTitle.objects.create(user=self.ana, title=title, minutes=minutes)
+        matching.update_library(self.ana, "steam", record_activity=True)
+        item = Activity.objects.get()
+        self.assertEqual(item.data, {"platform": "steam", "count": 2, "games": [self.hades.pk, self.celeste.pk]})
+        self.assertEqual(item.summary, "importó 2 juegos de Steam")
+        # Las correcciones del emparejamiento no la piden.
+        hollow = Game.objects.create(name="Hollow Knight", slug="hollow-knight")
+        title = ExternalTitle.objects.create(platform="steam", external_id="hk", name="Hollow Knight", game=hollow)
+        ImportedTitle.objects.create(user=self.ana, title=title, minutes=60)
+        self.assertEqual(matching.update_library(self.ana, "steam"), (1, 0))
+        self.assertEqual(Activity.objects.get().data["count"], 2)
+
+    def test_imports_right_after_add_up_per_platform(self):
+        activity.games_imported(self.ana, "steam", [LibraryEntry(game=self.hades, steam_playtime_minutes=60)])
+        activity.games_imported(self.ana, "steam", [LibraryEntry(game=self.celeste, steam_playtime_minutes=5)])
+        self.assertEqual(Activity.objects.get().data["count"], 2)
+        activity.games_imported(self.ana, "psn", [LibraryEntry(game=self.celeste, psn_playtime_minutes=5)])
+        activity.games_imported(self.ana, "psn", [])
+        self.assertEqual(Activity.objects.count(), 2)
+
+    def test_status_changes_made_by_an_import_are_not_activity(self):
+        entry = LibraryEntry.objects.create(user=self.ana, game=self.hades)
+        entry.update_import("steam", 90, timezone.now())
+        self.assertEqual(entry.status, "playing")
+        self.assertFalse(Activity.objects.exists())
+
+
+class ActivityTabTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.hades = Game.objects.create(name="Hades", slug="hades")
+
+    def url(self, **params):
+        return f"{reverse('profile', args=['ana'])}?{urlencode({'vista': 'actividad', **params})}"
+
+    def test_shows_what_was_done_with_the_review(self):
+        review = Review.objects.create(user=self.ana, game=self.hades, rating=9, text="Una **joya**.", published_at=timezone.now())
+        Activity.objects.create(user=self.ana, kind="game", game=self.hades, status="completed", rating=9, review=review)
+        response = self.client.get(self.url())
+        self.assertContains(response, "Terminó")
+        self.assertContains(response, f'class="activity-game" href="{self.hades.get_absolute_url()}"')
+        self.assertContains(response, "Una joya.")
+        self.assertContains(response, review.get_absolute_url())
+
+    def test_import_shows_how_many_and_their_covers(self):
+        Activity.objects.create(user=self.ana, kind="import", data={"platform": "steam", "count": 129, "games": [self.hades.pk, 999]})
+        response = self.client.get(self.url())
+        self.assertContains(response, "<strong>129 juegos</strong> de Steam")
+        self.assertContains(response, 'title="Hades"')
+
+    def test_drafts_and_private_profiles_stay_hidden(self):
+        review = Review.objects.create(user=self.ana, game=self.hades, text="Secreta.", published_at=timezone.now())
+        Activity.objects.create(user=self.ana, kind="game", game=self.hades, review=review)
+        Review.objects.filter(pk=review.pk).update(is_draft=True)
+        response = self.client.get(self.url())
+        self.assertNotContains(response, "Secreta.")
+        self.assertContains(response, "ana aún no tiene actividad.")
+        self.ana.profile.is_public = False
+        self.ana.profile.save()
+        self.assertEqual(self.client.get(self.url()).status_code, 404)
+        more = self.client.get(reverse("social:activity", args=["ana"]), HTTP_HX_REQUEST="true")
+        self.assertEqual(more.status_code, 404)
+
+    def test_load_more_brings_the_rest_without_repeating(self):
+        now = timezone.now()
+        # Diez a la misma hora, para comprobar que el cursor también desempata por id.
+        for minutes in [0] * 10 + list(range(1, 16)):
+            Activity.objects.create(
+                user=self.ana, kind="game", game=self.hades, status="playing", updated_at=now - timedelta(minutes=minutes)
+            )
+        response = self.client.get(self.url())
+        first = [item.pk for item in response.context["activities"]]
+        self.assertEqual(len(first), 20)
+        cursor = response.context["next_cursor"]
+        self.assertContains(response, "Cargar más")
+        more = self.client.get(reverse("social:activity", args=["ana"]), {"antes": cursor}, HTTP_HX_REQUEST="true")
+        rest = [item.pk for item in more.context["activities"]]
+        self.assertEqual((len(rest), more.context["next_cursor"]), (5, ""))
+        self.assertNotContains(more, "Cargar más")
+        self.assertEqual(sorted(first + rest), sorted(Activity.objects.values_list("pk", flat=True)))
+        # Sin HTMX lleva a la pestaña desde ese punto; un cursor roto empieza por el principio.
+        self.assertRedirects(self.client.get(reverse("social:activity", args=["ana"]), {"antes": cursor}), self.url(antes=cursor))
+        self.assertEqual(len(self.client.get(self.url(antes=cursor)).context["activities"]), 5)
+        self.assertEqual(len(self.client.get(self.url(antes="nada")).context["activities"]), 20)
+
+
+@override_settings(DEBUG=True)
+class SeedTests(TestCase):
+    def test_seed_builds_activity_and_follows_and_can_run_twice(self):
+        for n in range(8):
+            Game.objects.create(name=f"Juego {n}", slug=f"juego-{n}", cover_image_id=f"co{n}")
+        for name in ("demo1", "demo2", "demo3"):
+            User.objects.create_user(name, f"{name}@example.com", "x")
+        for _ in range(2):
+            call_command("seed_test_profile", stdout=io.StringIO())
+        tester = User.objects.get(username="tester")
+        self.assertEqual(tester.activities.filter(kind="import").count(), 1)
+        self.assertEqual(tester.activities.filter(kind="game").count(), 8)
+        self.assertEqual(tester.activities.exclude(review=None).count(), 4)
+        self.assertEqual((tester.followers.count(), tester.following.count()), (3, 2))
+        self.assertEqual(Notification.objects.filter(user=tester, kind="follow").count(), 3)
+        self.assertEqual(Activity.objects.filter(user__username="demo2").count(), 1)

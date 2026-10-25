@@ -23,7 +23,7 @@ from games.models import LANGUAGE_FILTERS, Game, Genre, igdb_image_url, known_sh
 from library import wishlist
 from library.models import LibraryEntry, Review
 from library.views import mark_liked
-from social.views import follow_context
+from social.views import activity_page, follow_context
 
 from . import images, matching, psn, steam, xbox
 from .forms import IMAGE_FIELDS, PlatformAccountForm, ProfileForm, SignupForm
@@ -71,7 +71,8 @@ def profile(request, username):
     orden y con las secciones que haya elegido. La biblioteca tiene pestañas por estado (Jugando,
     Completado...) con su contador y se filtra con ?estado= y por idioma con ?idioma= (voces o textos en
     castellano); se ordena con ?orden= (recientes, nota, horas o nombre). Con ?vista=resenas muestra sus
-    reseñas en vez de la biblioteca. Un perfil privado da 404 a cualquiera que no sea su dueño.
+    reseñas en vez de la biblioteca, y con ?vista=actividad lo que ha hecho (desde ?antes=, el cursor de
+    «Cargar más»). Un perfil privado da 404 a cualquiera que no sea su dueño.
     """
     owner = get_object_or_404(_profile_owners(), username=username)
     # 404 rather than 403 so private profiles don't confirm that the account exists.
@@ -143,7 +144,13 @@ def _profile_context(request, owner, favorites=None, preview=False):
     # Sus reseñas publicadas (con «me gusta» y comentarios contados) y, si es él quien mira, sus borradores.
     reviews = mark_liked(list(Review.objects.filter(user=owner).visible_to(request.user)), request.user)
     drafts = list(Review.objects.filter(user=owner, is_draft=True).select_related("game")) if is_owner else []
-    view = "resenas" if request.GET.get("vista") == "resenas" else ""
+    view = request.GET.get("vista", "")
+    if view not in ("resenas", "actividad"):
+        view = ""
+    activities, next_cursor = [], ""
+    if view == "actividad":
+        # La actividad solo se pide en su pestaña.
+        activities, next_cursor = activity_page(owner, request.user, request.GET.get("antes", ""))
 
     tabs = [(value, label, counts[value]) for value, label in LibraryEntry.Status.choices]
     return {
@@ -161,6 +168,8 @@ def _profile_context(request, owner, favorites=None, preview=False):
         "view": view,
         "reviews": reviews,
         "drafts": drafts,
+        "activities": activities,
+        "next_cursor": next_cursor,
         # El escaparate solo va en la vista principal: al filtrar u ordenar, la biblioteca sube.
         "show_showcase": not (status or sort or view or language),
         "favorites": list(owner.favorite_games.select_related("game")) if favorites is None else favorites,

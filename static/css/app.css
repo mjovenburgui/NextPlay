@@ -1469,3 +1469,23 @@ p.update-hint { display: flex; border-left-color: var(--gold); }
 .person-bio { margin-top: .15rem !important; }
 .person .pill { margin-left: .35rem; }
 .person > .follow-form, .person > .follow-btn { margin-left: auto; }
+
+/* Actividad: lo que ha hecho cada jugador, en la pestaña Actividad del perfil */
+.activities { margin: 0; padding: 0; list-style: none; }
+.activity { display: flex; align-items: flex-start; gap: .75rem; padding: .9rem 0; border-top: 1px solid var(--border); }
+.activity:first-child { padding-top: 0; border-top: 0; }
+.activity:last-child { padding-bottom: 0; }
+.activity-main { flex: 1; min-width: 0; }
+.activity-line { margin: 0; overflow-wrap: anywhere; }
+.activity-line .stars { margin-left: .3rem; vertical-align: -.1rem; }
+.activity-game, .activity-author { font-weight: 700; color: var(--text); }
+.activity-time { margin: .2rem 0 0; }
+.activity-review { margin-top: .55rem; padding: .6rem .8rem; border-left: 3px solid var(--violet); border-radius: 8px; background: var(--surface-2); }
+.activity-review .review-text { margin: 0; color: #d4d8ee; }
+.activity-review .spoiler { margin: 0; }
+.activity-review .feed-actions { margin-top: .35rem; }
+.activity-review .review-more { margin-top: 0; }
+.activity-covers { display: flex; flex-wrap: wrap; gap: .4rem; margin: .55rem 0 0; padding: 0; list-style: none; }
+.activity-covers .review-thumb { display: block; width: 52px; }
+.activity-cover { width: 48px; }
+.activity-more { display: flex; justify-content: center; padding-top: 1rem; }

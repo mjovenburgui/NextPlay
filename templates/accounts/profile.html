@@ -164,9 +164,21 @@
     <nav class="tabs tabs-main" aria-label="Secciones del perfil">
       <a class="tab{% if not view %} is-active{% endif %}" href="{% url 'profile' owner.username %}">Biblioteca <span>{{ total }}</span></a>
       <a class="tab{% if view == 'resenas' %} is-active{% endif %}" href="?vista=resenas">Reseñas <span>{{ reviews|length }}</span></a>
+      <a class="tab{% if view == 'actividad' %} is-active{% endif %}" href="?vista=actividad">Actividad</a>
     </nav>
 
-    {% if view == "resenas" %}
+    {% if view == "actividad" %}
+      {# Lo que ha hecho, de lo más reciente a lo más antiguo (social.views.activity_page). #}
+      {% if activities %}
+        <section class="card-box">
+          <ol class="activities">{% include "social/_activities.html" %}</ol>
+        </section>
+      {% else %}
+        <p class="empty">
+          {% if is_owner %}Aún no hay actividad. Cuando cambies el estado de un juego, le pongas nota, publiques una reseña o importes tus juegos, saldrá aquí.{% else %}{{ profile.name }} aún no tiene actividad.{% endif %}
+        </p>
+      {% endif %}
+    {% elif view == "resenas" %}
       {% if drafts %}
         {# Sus borradores, que solo ve él. #}
         <div class="widget own-reviews">
