@@ -24,6 +24,15 @@
             <button class="btn" type="button" data-copy-link="{{ request.scheme }}://{{ request.get_host }}{{ game_list.get_absolute_url }}">{% include "_icon.html" with name="link" %} <span data-copy-label>Copiar enlace</span></button>
           {% endif %}
         </div>
+        {# «Me gusta», comentarios y, a los demás, «Denunciar», como al pie de una reseña. #}
+        <div class="review-foot list-foot">
+          {% include "lists/_like.html" with liked=game_list.liked like_count=game_list.like_count %}
+          <a class="review-action" href="#comentarios">{% include "_icon.html" with name="comment" %} <span id="list-comment-count-{{ game_list.pk }}">{{ comments|length }}</span><span class="visually-hidden"> comentarios</span></a>
+          {% if user.is_authenticated and not is_owner %}
+            {% url 'lists:report' game_list.pk as report_url %}
+            {% include "library/_report.html" with kind="lista" target=game_list noun="esta lista" open=open_report %}
+          {% endif %}
+        </div>
       </div>
     </header>
 
@@ -97,6 +106,9 @@
         </ol>
       {% endif %}
     </section>
+
+    {# Los mismos comentarios que en las reseñas y las publicaciones (library/_comments.html). #}
+    <section class="card-box list-comments" id="comentarios">{% include "library/_comments.html" %}</section>
   </div>
   {% endwith %}
 {% endblock %}

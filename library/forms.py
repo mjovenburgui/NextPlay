@@ -257,7 +257,10 @@ class ReportForm(forms.Form):
 
 
 class CommentForm(forms.ModelForm):
-    """Comentario en una reseña, con el mismo formato sencillo que las reseñas."""
+    """Comentario en una reseña, con el mismo formato sencillo que las reseñas.
+
+    El campo quita solo los espacios del principio y del final, así que uno en blanco da el error de «required».
+    """
 
     class Meta:
         model = ReviewComment
@@ -268,10 +271,4 @@ class CommentForm(forms.ModelForm):
                 "rows": 3, "maxlength": COMMENT_MAX_LENGTH, "placeholder": "Escribe un comentario…",
             }),
         }
-
-    def clean_text(self):
-        """Quita los espacios del principio y del final: un comentario en blanco no vale."""
-        text = self.cleaned_data["text"].strip()
-        if not text:
-            raise forms.ValidationError("Escribe algo en el comentario.")
-        return text
+        error_messages = {"text": {"required": "Escribe algo en el comentario."}}

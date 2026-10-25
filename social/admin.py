@@ -63,5 +63,5 @@ class ActivityAdmin(admin.ModelAdmin):
     list_display = ("user", "kind", "summary", "updated_at")
     list_filter = ("kind",)
     search_fields = ("user__username", "game__name")
-    raw_id_fields = ("user", "game", "review")
+    raw_id_fields = ("user", "game", "review", "game_list")
     date_hierarchy = "updated_at"

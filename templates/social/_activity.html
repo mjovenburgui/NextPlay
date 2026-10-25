@@ -1,5 +1,6 @@
 {% load reviews %}
-{# Una actividad: lo que hizo un jugador con un juego (estado, nota y reseña juntos), lo que importó o lo que publicó. Necesita activity; con show_user también se ve quién fue (para el feed). #}
+{# Una actividad: lo que hizo un jugador con un juego (estado, nota y reseña juntos), lo que importó, lo que publicó o una lista que creó o a la que añadió juegos. #}
+{# Necesita activity; con show_user también se ve quién fue (para el feed). #}
 <li class="activity">
   {% if show_user %}{% include "accounts/_avatar.html" with profile=activity.user.profile size="sm" %}{% endif %}
   <div class="activity-main">
@@ -30,6 +31,25 @@
           {% endfor %}
         </ul>
       {% endif %}
+    {% elif activity.kind == "list" %}
+      {% with game_list=activity.game_list %}
+        <p class="activity-line">
+          {% if show_user %}<a class="activity-author" href="{{ activity.user.profile.get_absolute_url }}">{{ activity.user.profile.name }}</a> {% if activity.list_created %}creó{% else %}añadió {{ activity.list_added }} juego{{ activity.list_added|pluralize }} a{% endif %}{% elif activity.list_created %}Creó{% else %}Añadió {{ activity.list_added }} juego{{ activity.list_added|pluralize }} a{% endif %}
+          la lista <a class="activity-game" href="{{ game_list.get_absolute_url }}">{{ game_list.title }}</a>
+        </p>
+        {# La lista: su descripción recortada, cuántos juegos tiene, cuántos ha jugado quien mira y sus «me gusta» y comentarios. #}
+        <div class="activity-review activity-list">
+          {% if game_list.description %}<p class="review-text">{{ game_list.description|review_plain|truncatechars:200 }}</p>{% endif %}
+          <p class="muted small activity-list-meta">
+            {{ game_list.game_count }} juego{{ game_list.game_count|pluralize }}{% if game_list.is_ranked %} · numerada{% endif %}{% if game_list.viewer_played is not None %} · has jugado {{ game_list.viewer_played }}{% endif %}
+          </p>
+          <p class="feed-actions">
+            {% include "lists/_like.html" with liked=game_list.liked like_count=game_list.like_count %}
+            <a class="review-action" href="{{ game_list.get_absolute_url }}#comentarios">{% include "_icon.html" with name="comment" %} {{ game_list.comment_count|default:0 }}<span class="visually-hidden"> comentarios</span></a>
+            <a class="review-more" href="{{ game_list.get_absolute_url }}">Ver la lista</a>
+          </p>
+        </div>
+      {% endwith %}
     {% else %}
       {% with verb=activity.verb rating=activity.shown_rating %}
         <p class="activity-line">
@@ -71,5 +91,7 @@
   </div>
   {% if activity.game %}
     <a class="review-thumb activity-cover" href="{{ activity.game.get_absolute_url }}" tabindex="-1" aria-hidden="true">{% if activity.game.cover_url %}<img src="{{ activity.game.cover_url }}" alt="" loading="lazy">{% endif %}</a>
+  {% elif activity.game_list %}
+    <a class="activity-cover" href="{{ activity.game_list.get_absolute_url }}" tabindex="-1" aria-hidden="true">{% include "lists/_mosaic.html" with game_list=activity.game_list size="sm" %}</a>
   {% endif %}
 </li>

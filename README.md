@@ -228,6 +228,12 @@ de los que no tiene, lo que cuestan hoy en sus tiendas y lo que costarían si es
 histórico, con un botón para pasarlos todos a «Lo quiero» y recibir sus avisos de precio. La ficha de cada juego
 dice en cuántas listas está (`/juegos/<slug>/listas/` las enseña todas) y el escaparate del perfil, las últimas.
 
+Los demás pueden darle «me gusta» a una lista (su dueño recibe un aviso, una vez por persona), comentarla con los
+mismos comentarios que las reseñas y las publicaciones, y denunciarla. Crear una lista y añadirle juegos sale en la
+actividad del perfil y en el feed de la portada («creó la lista…», «añadió 3 juegos a la lista…»; lo que se hace
+seguido con la misma lista va junto), con su mosaico, sus «me gusta», sus comentarios y cuántos de sus juegos ha jugado
+quien mira. Las listas privadas solo salen en la actividad de su dueño, y las vacías no salen.
+
 ## Tareas de cada noche
 
 `nightly` sincroniza la biblioteca de Steam (y su lista de deseos, si no se ha desactivado) de quien tenga

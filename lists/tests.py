@@ -8,10 +8,12 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from accounts.models import Notification
 from games.models import Game, GamePrice
-from library.models import LibraryEntry, WishlistItem
+from library.models import LibraryEntry, Report, WishlistItem
+from social.models import Activity, Follow
 
-from .models import LIST_MAX_GAMES, NOTE_MAX_LENGTH, GameList, ListItem
+from .models import LIST_MAX_GAMES, NOTE_MAX_LENGTH, GameList, ListComment, ListItem, ListLike
 
 User = get_user_model()
 HTMX = {"HTTP_HX_REQUEST": "true"}
@@ -450,3 +452,196 @@ class ListsAroundTheSiteTests(TestCase):
         self.assertNotContains(response, "Lista secreta")
         response = self.client.get(reverse("lists:game", args=[self.celeste.slug]))
         self.assertContains(response, "aún no está en ninguna lista")
+
+
+class ListLikesCommentsAndReportsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.luis = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.admin = User.objects.create_user("admin", "admin@example.com", "x", is_staff=True)
+        cls.hades = make_games("Hades")[0]
+        cls.game_list = GameList.objects.create(user=cls.ana, title="Roguelikes")
+        cls.game_list.add(cls.hades)
+
+    def setUp(self):
+        self.client.force_login(self.luis)
+
+    def url(self, name, pk=None):
+        return reverse(f"lists:{name}", args=[pk or self.game_list.pk])
+
+    def test_like_toggles_and_tells_the_owner_once(self):
+        response = self.client.post(self.url("like"), **HTMX)
+        self.assertTemplateUsed(response, "lists/_like.html")
+        self.assertContains(response, "like-btn is-on")
+        notice = Notification.objects.get(user=self.ana)
+        self.assertEqual(
+            (notice.kind, notice.actor, notice.text),
+            (Notification.Kind.LIST_LIKE, self.luis, "A luis le ha gustado tu lista «Roguelikes»."),
+        )
+        self.client.post(self.url("like"))
+        self.assertFalse(ListLike.objects.exists())
+        self.client.post(self.url("like"))
+        self.assertTrue(ListLike.objects.filter(user=self.luis, game_list=self.game_list).exists())
+        self.assertEqual(Notification.objects.filter(user=self.ana).count(), 1)
+
+    def test_own_and_hidden_lists_cannot_be_liked(self):
+        self.client.force_login(self.ana)
+        self.assertEqual(self.client.post(self.url("like")).status_code, 400)
+        GameList.objects.filter(pk=self.game_list.pk).update(is_public=False)
+        self.client.force_login(self.luis)
+        self.assertEqual(self.client.post(self.url("like")).status_code, 404)
+        self.assertFalse(ListLike.objects.exists())
+
+    def test_comment_tells_the_owner_and_updates_the_counter(self):
+        response = self.client.post(self.url("comment"), {"text": "  Muy buena  "}, **HTMX)
+        self.assertTemplateUsed(response, "library/_comments.html")
+        self.assertContains(response, f'<span id="list-comment-count-{self.game_list.pk}" hx-swap-oob="true">1</span>')
+        comment = ListComment.objects.get()
+        self.assertEqual((comment.user, comment.text), (self.luis, "Muy buena"))
+        notice = Notification.objects.get(user=self.ana)
+        self.assertEqual((notice.kind, notice.url), (Notification.Kind.LIST_COMMENT, f"{self.game_list.get_absolute_url()}#comentarios"))
+        # Otro comentario no repite el aviso mientras no se lea el primero, y el dueño no se avisa a sí mismo.
+        self.client.post(self.url("comment"), {"text": "Y otra cosa"})
+        self.client.force_login(self.ana)
+        self.client.post(self.url("comment"), {"text": "¡Gracias!"})
+        self.assertEqual(Notification.objects.filter(user=self.ana).count(), 1)
+        self.assertEqual(ListComment.objects.count(), 3)
+
+    def test_an_empty_comment_shows_the_error(self):
+        response = self.client.post(self.url("comment"), {"text": "   "}, **HTMX)
+        self.assertContains(response, "Escribe algo en el comentario.")
+        self.assertFalse(ListComment.objects.exists())
+
+    def test_who_can_delete_a_comment(self):
+        mine = ListComment.objects.create(game_list=self.game_list, user=self.luis, text="Mío")
+        eva = User.objects.create_user("eva", "eva@example.com", "x")
+        hers = ListComment.objects.create(game_list=self.game_list, user=eva, text="De Eva")
+        self.assertEqual(self.client.post(self.url("comment_delete", hers.pk)).status_code, 403)
+        self.client.post(self.url("comment_delete", mine.pk))
+        self.assertFalse(ListComment.objects.filter(pk=mine.pk).exists())
+        # El dueño de la lista puede borrar los de los demás.
+        self.client.force_login(self.ana)
+        response = self.client.post(self.url("comment_delete", hers.pk), **HTMX)
+        self.assertTemplateUsed(response, "library/_comments.html")
+        self.assertFalse(ListComment.objects.exists())
+
+    def test_report_a_list_and_a_comment(self):
+        response = self.client.post(self.url("report"), {"reason": "spam"}, **HTMX)
+        self.assertContains(response, "Gracias: lo revisaremos")
+        self.assertEqual(Report.objects.get().target, self.game_list)
+        notice = Notification.objects.get(user=self.admin)
+        self.assertEqual(notice.text, "Han denunciado una lista de ana: Spam o publicidad.")
+        comment = ListComment.objects.create(game_list=self.game_list, user=self.ana, text="Compra aquí")
+        self.client.post(self.url("comment_report", comment.pk), {"reason": "spam"})
+        self.assertEqual(Report.objects.count(), 2)
+        # Lo propio no se puede denunciar.
+        self.client.force_login(self.ana)
+        self.assertEqual(self.client.post(self.url("report"), {"reason": "spam"}).status_code, 400)
+        self.assertEqual(self.client.post(self.url("comment_report", comment.pk), {"reason": "spam"}).status_code, 400)
+
+    def test_admin_shows_reported_lists_and_comments(self):
+        comment = ListComment.objects.create(game_list=self.game_list, user=self.ana, text="Compra aquí")
+        self.client.post(self.url("report"), {"reason": "spam"})
+        self.client.post(self.url("comment_report", comment.pk), {"reason": "spam"})
+        self.client.force_login(User.objects.create_superuser("jefa", "jefa@example.com", "x"))
+        response = self.client.get(reverse("admin:library_report_changelist"))
+        self.assertContains(response, reverse("admin:lists_gamelist_change", args=[self.game_list.pk]))
+        self.assertContains(response, reverse("admin:lists_listcomment_change", args=[comment.pk]))
+        self.assertContains(self.client.get(reverse("admin:lists_gamelist_changelist")), "Roguelikes")
+        response = self.client.get(reverse("admin:lists_gamelist_change", args=[self.game_list.pk]))
+        self.assertContains(response, "Compra aquí")
+
+    def test_reports_and_comments_go_with_the_list(self):
+        ListComment.objects.create(game_list=self.game_list, user=self.luis, text="Hola")
+        self.client.post(self.url("report"), {"reason": "spam"})
+        self.game_list.delete()
+        self.assertFalse(Report.objects.exists())
+        self.assertFalse(ListComment.objects.exists())
+
+    def test_list_page_shows_likes_comments_and_report(self):
+        ListLike.objects.create(user=self.luis, game_list=self.game_list)
+        ListComment.objects.create(game_list=self.game_list, user=self.luis, text="Me encanta *Hades*")
+        response = self.client.get(self.game_list.get_absolute_url())
+        self.assertContains(response, "like-btn is-on")
+        self.assertContains(response, "Me encanta <em>Hades</em>")
+        self.assertContains(response, f'id="denunciar-lista-{self.game_list.pk}"')
+        # Su dueño ve el contador, pero no puede darse «me gusta» ni denunciarla.
+        self.client.force_login(self.ana)
+        response = self.client.get(self.game_list.get_absolute_url())
+        self.assertNotContains(response, "like-btn")
+        self.assertNotContains(response, "denunciar-lista")
+        response = self.client.get(f"{reverse('profile', args=['ana'])}?vista=listas")
+        self.assertContains(response, 'class="list-card-likes"')
+
+
+class ListActivityTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.luis = User.objects.create_user("luis", "luis@example.com", "x")
+        Follow.objects.create(follower=cls.luis, followed=cls.ana)
+        cls.hades, cls.celeste = make_games("Hades", "Celeste")
+
+    def setUp(self):
+        self.client.force_login(self.ana)
+
+    def create(self, game=None, public=True):
+        """Crea como ana la lista «Roguelikes» desde el formulario (con game, desde la ficha de ese juego)."""
+        data = {"title": "Roguelikes", "description": ""}
+        if public:
+            data["is_public"] = "on"
+        if game:
+            data["juego"] = game.pk
+        self.client.post(reverse("lists:new"), data)
+        return GameList.objects.get(title="Roguelikes")
+
+    def test_creating_and_filling_a_list_right_away_is_one_activity(self):
+        game_list = self.create(game=self.hades)
+        self.client.post(reverse("lists:add", args=[game_list.pk, self.celeste.pk]))
+        activity = Activity.objects.get()
+        self.assertEqual(
+            (activity.kind, activity.game_list, activity.list_created, activity.list_added),
+            (Activity.Kind.LIST, game_list, True, 2),
+        )
+        self.client.post(reverse("lists:remove", args=[game_list.pk, self.celeste.pk]))
+        activity.refresh_from_db()
+        self.assertEqual(activity.list_added, 1)
+
+    def test_adding_later_is_a_new_activity_that_can_be_undone(self):
+        game_list = self.create()
+        Activity.objects.update(updated_at=timezone.now() - timedelta(hours=2))
+        self.client.post(reverse("lists:add", args=[game_list.pk, self.hades.pk]))
+        latest = Activity.objects.first()
+        self.assertEqual((Activity.objects.count(), latest.list_created, latest.list_added), (2, False, 1))
+        self.client.post(reverse("lists:remove", args=[game_list.pk, self.hades.pk]))
+        self.assertEqual(list(Activity.objects.values_list("data", flat=True)), [{"created": True}])
+
+    def test_followers_see_it_once_it_has_games(self):
+        game_list = self.create()
+        self.client.force_login(self.luis)
+        self.assertNotContains(self.client.get(reverse("home")), "Roguelikes")
+        game_list.add(self.hades)
+        LibraryEntry.objects.create(user=self.luis, game=self.hades, status=LibraryEntry.Status.PLAYING)
+        ListLike.objects.create(user=self.luis, game_list=game_list)
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, "creó")
+        self.assertContains(response, "Roguelikes")
+        self.assertContains(response, "has jugado 1")
+        self.assertContains(response, "like-btn is-on")
+        self.assertContains(response, f'href="{game_list.get_absolute_url()}#comentarios"')
+
+    def test_private_lists_are_only_in_their_owners_activity(self):
+        self.create(game=self.hades, public=False)
+        self.client.force_login(self.luis)
+        self.assertNotContains(self.client.get(reverse("home")), "Roguelikes")
+        self.assertNotContains(self.client.get(f"{reverse('profile', args=['ana'])}?vista=actividad"), "Roguelikes")
+        self.client.force_login(self.ana)
+        response = self.client.get(f"{reverse('profile', args=['ana'])}?vista=actividad")
+        self.assertContains(response, "Creó")
+        self.assertContains(response, "Roguelikes")
+
+    def test_deleting_the_list_deletes_its_activity(self):
+        game_list = self.create(game=self.hades)
+        self.client.post(reverse("lists:delete", args=[game_list.pk]))
+        self.assertFalse(Activity.objects.exists())

@@ -182,6 +182,8 @@ class Activity(models.Model):
       plataforma («platform», clave de HOURS_SOURCES), cuántos son («count») y los ids de los más jugados
       («games»), para enseñar sus portadas.
     - POST: una publicación (post), con su juego si lo tiene. Se borra con ella.
+    - LIST: una lista (game_list): que la ha creado («created» en data) y cuántos juegos le ha añadido («added»),
+      juntos si van seguidos (MERGE_WINDOW). Se borra con ella; si es privada, solo la ve su dueño.
 
     updated_at es la hora de lo último que se ha juntado: la que se enseña y por la que se ordena.
     """
@@ -190,6 +192,7 @@ class Activity(models.Model):
         GAME = "game", "Juego de la biblioteca"
         IMPORT = "import", "Importación"
         POST = "post", "Publicación"
+        LIST = "list", "Lista"
 
     # Estado al que pasa el juego → lo que dice la actividad, en minúscula y partido en lo que va antes del
     # nombre del juego y lo que va después: «terminó Hades», «añadió Hades a Pendiente».
@@ -217,6 +220,9 @@ class Activity(models.Model):
     post = models.ForeignKey(
         Post, on_delete=models.CASCADE, null=True, blank=True, related_name="+", verbose_name="publicación"
     )
+    game_list = models.ForeignKey(
+        "lists.GameList", on_delete=models.CASCADE, null=True, blank=True, related_name="+", verbose_name="lista"
+    )
     data = models.JSONField("datos", default=dict, blank=True)
     created_at = models.DateTimeField("primera acción", default=timezone.now)
     updated_at = models.DateTimeField("última acción", default=timezone.now)
@@ -242,13 +248,30 @@ class Activity(models.Model):
 
     @property
     def has_content(self):
-        """Indica si hay algo que enseñar de ella a quien la mira: los juegos de una importación, la publicación o,
-        en las de un juego, el estado, la nota o la reseña (si su reseña ya no se puede leer, puede que nada)."""
+        """Indica si hay algo que enseñar de ella a quien la mira: los juegos de una importación, la publicación, la
+        lista (si puede verla y tiene juegos) o, en las de un juego, el estado, la nota o la reseña (si su reseña ya no
+        se puede leer, puede que nada)."""
         if self.kind == self.Kind.IMPORT:
             return bool(self.import_count)
         if self.kind == self.Kind.POST:
             return self.post is not None
+        if self.kind == self.Kind.LIST:
+            game_list = self.game_list
+            if game_list is None:
+                return False
+            count = getattr(game_list, "game_count", None)
+            return game_list.items.exists() if count is None else count > 0
         return bool(self.status or self.rating or self.review)
+
+    @property
+    def list_created(self):
+        """Indica si una actividad de una lista cuenta que la ha creado (si no, solo que le ha añadido juegos)."""
+        return bool(self.data.get("created"))
+
+    @property
+    def list_added(self):
+        """Cuántos juegos ha añadido a la lista en esta actividad."""
+        return self.data.get("added", 0)
 
     @property
     def verb(self):
@@ -280,10 +303,14 @@ class Activity(models.Model):
 
     @property
     def summary(self):
-        """Lo que hizo, en una línea y sin formato, para el admin: «terminó Hades», «importó 12 juegos de Steam» o «publicó»."""
+        """Lo que hizo, en una línea y sin formato, para el admin: «terminó Hades», «importó 12 juegos de Steam»,
+        «publicó» o «creó la lista Indies»."""
         if self.kind == self.Kind.IMPORT:
             return f"importó {self.import_count} juegos de {self.platform_name}"
         if self.kind == self.Kind.POST:
             return f"publicó sobre {self.game}" if self.game_id else "publicó"
+        if self.kind == self.Kind.LIST:
+            title = self.game_list.title if self.game_list else "(borrada)"
+            return f"creó la lista {title}" if self.list_created else f"añadió {self.list_added} juegos a la lista {title}"
         before, after = self.verb
         return " ".join(part for part in (before, str(self.game), after) if part)

@@ -5,6 +5,7 @@
   <span class="list-card-title">{{ game_list.title }}</span>
   <span class="list-card-meta muted small">
     {% if show_user %}De {{ game_list.user.profile.name }} · {% endif %}{{ game_list.game_count }} juego{{ game_list.game_count|pluralize }}{% if game_list.is_ranked %} · numerada{% endif %}
+    {% if game_list.like_count %}<span class="list-card-likes" title="Me gusta">{% include "_icon.html" with name="heart" %} {{ game_list.like_count }}<span class="visually-hidden"> me gusta</span></span>{% endif %}
     {% if not game_list.is_public %}<span class="pill">Privada</span>{% endif %}
   </span>
   {% if game_list.viewer_played is not None and game_list.game_count %}
