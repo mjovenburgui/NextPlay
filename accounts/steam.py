@@ -1,4 +1,4 @@
-"""Vinculación con Steam (inicio de sesión OpenID) e importación de los juegos de su biblioteca."""
+"""Vinculación con Steam (inicio de sesión OpenID) e importación de los juegos de su biblioteca y de su lista de deseos."""
 
 import re
 from datetime import datetime, timezone as dt_timezone
@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from games import igdb
 from games.models import Game
+from library.models import LibraryEntry, WishlistItem
 
 from .matching import add_title, save_titles, update_library
 from .models import ExternalTitle
@@ -122,6 +123,15 @@ def owned_games(steam_id):
     return data["games"]
 
 
+def wishlist(steam_id):
+    """Lista de deseos de la cuenta de Steam: [{"appid", "priority", "date_added"}], o None si no se puede leer.
+
+    No necesita la clave de la API (se manda igual). Steam contesta lo mismo, sin «items», a una lista
+    privada que a una vacía, así que las dos dan None.
+    """
+    return _api("IWishlistService/GetWishlist/v1/", steamid=steam_id).get("items") or None
+
+
 def refresh_account(account):
     """Actualiza el nombre, el avatar y la URL guardados de una cuenta de Steam (sin fallar si Steam no responde)."""
     try:
@@ -213,4 +223,102 @@ def import_library(user, include_unplayed=False):
         "updated": updated,
         "unmatched": sum(1 for game in games.values() if game is None),
         "private": [account.name for account in private],
+    }
+
+
+def _first(values):
+    """El menor de los valores que no son None (el mejor puesto o la fecha más antigua), o None si no hay ninguno."""
+    values = [value for value in values if value is not None]
+    return min(values) if values else None
+
+
+def _wishlist_games(app_ids):
+    """Juegos del catálogo de unos IDs de Steam de la lista de deseos: {ID: Game o None}.
+
+    Si alguien corrigió a mano el juego de esa app (ExternalTitle, también para decir que no es un juego),
+    manda la corrección; los demás se buscan como los de la biblioteca (_match_games).
+    """
+    corrected = {
+        int(title.external_id): title.game
+        for title in ExternalTitle.objects.filter(
+            platform=ExternalTitle.Platform.STEAM, external_id__in=[str(app_id) for app_id in app_ids]
+        ).exclude(source=ExternalTitle.Source.AUTO).select_related("game")
+    }
+    found = _match_games([app_id for app_id in app_ids if app_id not in corrected])
+    return {app_id: corrected[app_id] if app_id in corrected else found.get(app_id) for app_id in app_ids}
+
+
+def import_wishlist(user):
+    """Trae a «Lo quiero» los juegos de la lista de deseos de todas las cuentas de Steam del usuario.
+
+    Los juegos se buscan por su ID de Steam como los de la biblioteca. No se añaden los que ya están en
+    su biblioteca ni los que quitó a mano de «Lo quiero» (Profile.steam_wishlist_skip); de los que ya
+    estaban en «Lo quiero» solo se apuntan su puesto y su fecha en Steam. Si se han podido leer todas sus
+    listas, se quitan los que trajo una importación anterior y ya no están en Steam (los ha comprado o
+    quitado allí); los que añadió él en NextPlay nunca se quitan. Un juego en varias cuentas (o en varias
+    apps, como un relanzamiento) se queda con el mejor puesto y la fecha más antigua.
+
+    Devuelve un dict con los deseados de Steam («total»), los WishlistItem nuevos («added», una lista),
+    cuántos se han quitado («removed»), cuántos no se traen porque ya los tiene («owned») o porque los
+    quitó él («skipped»), cuántos no están en el catálogo («unmatched») y los nombres de las cuentas cuya
+    lista no se pudo leer, porque es privada o está vacía («unreadable»).
+    """
+    wanted, unreadable = {}, []  # ID de Steam → (puesto o None, fecha en que se añadió o None)
+    for account in user.steam_accounts.all():
+        items = wishlist(account.steam_id)
+        if items is None:
+            unreadable.append(account.name)
+            continue
+        for item in items:
+            if not item.get("appid"):
+                continue
+            # Puesto 0: aún no lo ha ordenado en su lista.
+            priority = item.get("priority") or None
+            added = datetime.fromtimestamp(item["date_added"], tz=dt_timezone.utc) if item.get("date_added") else None
+            old_priority, old_added = wanted.get(item["appid"], (None, None))
+            wanted[item["appid"]] = (_first([priority, old_priority]), _first([added, old_added]))
+
+    found = {}  # id del juego → [Game, puesto, fecha]
+    unmatched = 0
+    for app_id, game in (_wishlist_games(list(wanted)) if wanted else {}).items():
+        if game is None:
+            unmatched += 1
+            continue
+        priority, added = wanted[app_id]
+        _, old_priority, old_added = found.get(game.pk, (game, None, None))
+        found[game.pk] = [game, _first([priority, old_priority]), _first([added, old_added])]
+
+    profile = user.profile
+    owned = set(LibraryEntry.objects.filter(user=user, game_id__in=list(found)).values_list("game_id", flat=True))
+    skip = set(profile.steam_wishlist_skip)
+    current = {item.game_id: item for item in WishlistItem.objects.filter(user=user)}
+    new, changed = [], []
+    for game_id, (game, priority, added) in found.items():
+        item = current.get(game_id)
+        if item is not None:
+            if (item.steam_priority, item.steam_added_at) != (priority, added):
+                item.steam_priority, item.steam_added_at = priority, added
+                changed.append(item)
+        elif game_id not in owned and game_id not in skip:
+            new.append(WishlistItem(user=user, game=game, from_steam=True, steam_priority=priority, steam_added_at=added))
+
+    removed = 0
+    with transaction.atomic():
+        WishlistItem.objects.bulk_create(new)
+        WishlistItem.objects.bulk_update(changed, ["steam_priority", "steam_added_at"])
+        # Solo con todas las listas leídas: una privada o vacía no dice qué ha dejado de estar en Steam.
+        if not unreadable:
+            gone = WishlistItem.objects.filter(user=user, steam_added_at__isnull=False).exclude(game_id__in=list(found))
+            removed, _ = gone.filter(from_steam=True).delete()
+            gone.update(steam_added_at=None, steam_priority=None)
+            profile.steam_wishlist_skip = [game_id for game_id in profile.steam_wishlist_skip if game_id in found]
+            profile.save(update_fields=["steam_wishlist_skip"])
+    return {
+        "total": len(wanted),
+        "added": new,
+        "removed": removed,
+        "owned": sum(1 for game_id in found if game_id in owned and game_id not in current),
+        "skipped": sum(1 for game_id in found if game_id in skip and game_id not in current and game_id not in owned),
+        "unmatched": unmatched,
+        "unreadable": unreadable,
     }

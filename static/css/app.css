@@ -528,6 +528,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .wish-info, .notification > div { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .wish-info p, .notification p { margin: 0; }
 .wish-info .pill { margin-left: .4rem; }
+/* Los que vienen de la lista de deseos de Steam */
+.wish-info .pill-steam { display: inline-flex; align-items: center; gap: .25rem; vertical-align: .1rem; }
+.pill-steam .shop-logo, .wish-steam-note .shop-logo { width: .9rem; height: .9rem; flex: none; }
+.wish-steam-note { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem; margin: .5rem 0 0; }
 .wish-flag { color: var(--cyan); font-size: .85rem; font-weight: 600; }
 .wish-price { display: flex; flex-direction: column; align-items: flex-end; text-align: right; }
 .wish-price .cut { margin-left: .3rem; padding: .1rem .4rem; border-radius: 6px; background: var(--pink); color: #fff; font-size: .8rem; font-weight: 700; }

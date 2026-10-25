@@ -31,6 +31,20 @@
           <p class="help">Sincronización nocturna desactivada. <button class="link small" type="submit" name="auto_sync" value="1">Activar</button></p>
         {% endif %}
       </form>
+      {# Lista de deseos de Steam: se trae a «Lo quiero» con cada sincronización, salvo que se desactive. #}
+      <form action="{% url 'steam_wishlist' %}" method="post">
+        {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+        {% if profile.steam_wishlist %}
+          <p class="help">También trae tu lista de deseos de Steam a <a href="{% url 'library:wishlist' %}">«Lo quiero»</a>, para avisarte de sus bajadas en todas las tiendas. <button class="link small" type="submit" name="steam_wishlist" value="0">No traerla</button></p>
+          {% with skipped=profile.steam_wishlist_skip|length %}
+            {% if skipped %}
+              <p class="help">{{ skipped }} juego{{ skipped|pluralize }} que quitaste a mano no se vuelve{{ skipped|pluralize:"n" }} a traer. <button class="link small" type="submit" name="restore" value="1">Volver a traerlo{{ skipped|pluralize }}</button></p>
+            {% endif %}
+          {% endwith %}
+        {% else %}
+          <p class="help">Tu lista de deseos de Steam no se trae a «Lo quiero». <button class="link small" type="submit" name="steam_wishlist" value="1">Traerla</button></p>
+        {% endif %}
+      </form>
     {% else %}
       <p class="help">La importación de juegos no está disponible: falta configurar STEAM_API_KEY.</p>
     {% endif %}

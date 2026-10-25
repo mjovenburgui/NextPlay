@@ -23,6 +23,7 @@ from .models import (
     MAX_IMAGES, REVIEW_MAX_LENGTH, LibraryEntry, Report, Review, ReviewComment, ReviewLike, WishlistItem,
 )
 from .reminders import latest_reviews
+from .wishlist import at_historical_low
 
 
 REVIEWS_SHOWN = 30
@@ -492,12 +493,23 @@ def _wish_response(request, game, wish, error=""):
 @require_POST
 @login_required
 def wish_toggle(request, game_id):
-    """Añade el juego a la lista de deseos del usuario o lo quita si ya estaba."""
+    """Añade el juego a la lista de deseos del usuario o lo quita si ya estaba.
+
+    Si lo quita estando en su lista de deseos de Steam, se apunta para que la importación de Steam no lo
+    vuelva a traer; si lo vuelve a añadir él, se olvida.
+    """
     game = get_object_or_404(Game, pk=game_id)
     wish, created = WishlistItem.objects.get_or_create(user=request.user, game=game)
+    profile = request.user.profile
     if not created:
+        if wish.on_steam and game.pk not in profile.steam_wishlist_skip:
+            profile.steam_wishlist_skip = profile.steam_wishlist_skip + [game.pk]
+            profile.save(update_fields=["steam_wishlist_skip"])
         wish.delete()
         wish = None
+    elif game.pk in profile.steam_wishlist_skip:
+        profile.steam_wishlist_skip = [game_id for game_id in profile.steam_wishlist_skip if game_id != game.pk]
+        profile.save(update_fields=["steam_wishlist_skip"])
     return _wish_response(request, game, wish)
 
 
@@ -524,19 +536,32 @@ def wish_target(request, game_id):
     return _wish_response(request, game, wish)
 
 
+def _steam_order(row):
+    """Clave de orden «Como en Steam»: primero los que ha ordenado allí, por su puesto; después los demás de su lista
+    de Steam, del añadido más recientemente al más antiguo; al final, los que no están en Steam."""
+    wish = row["wish"]
+    if not wish.on_steam:
+        return (2, 0)
+    if wish.steam_priority is None:
+        return (1, -wish.steam_added_at.timestamp())
+    return (0, wish.steam_priority)
+
+
 # Valor de ?orden= en la lista de deseos → (etiqueta, clave de orden). Los que no tienen precio van al final.
 WISHLIST_SORTS = {
     "descuento": ("Mayor descuento", lambda row: -(row["best"].cut if row["best"] else -1)),
     "precio": ("Más baratos", lambda row: (row["best"] is None, row["best"].price if row["best"] else 0)),
     "nombre": ("Nombre", lambda row: row["wish"].game.name.casefold()),
+    "steam": ("Como en tu lista de Steam", _steam_order),
 }
 
 
 @login_required
 def wishlist(request):
     """Lista de deseos del usuario con el mejor precio de hoy de cada juego (en sus tiendas, si las ha
-    elegido), su mínimo histórico y si está por debajo de su límite. Se ordena con ?orden= (recientes
-    por defecto, descuento, precio o nombre) y se filtra por idioma con ?idioma= (ver LANGUAGE_FILTERS)."""
+    elegido), su mínimo histórico, si está por debajo de su límite y si está en su lista de Steam. Se ordena
+    con ?orden= (recientes por defecto, descuento, precio, nombre o como en Steam) y se filtra por idioma
+    con ?idioma= (ver LANGUAGE_FILTERS)."""
     wishes = WishlistItem.objects.filter(user=request.user).select_related("game").prefetch_related("game__prices")
     total = wishes.count()
     language = request.GET.get("idioma", "")
@@ -552,24 +577,27 @@ def wishlist(request):
     rows = []
     for wish in wishes:
         best = wish.game.cheapest(shops)
-        low = wish.game.historical_low
         rows.append({
             "wish": wish,
             "best": best,
             "owned": wish.game_id in owned,
             "below_target": bool(best and wish.target_price is not None and best.price <= wish.target_price),
-            "at_low": bool(best and best.cut and low is not None and best.price <= low),
+            "at_low": at_historical_low(wish.game, best),
         })
     sort = request.GET.get("orden", "")
     if sort in WISHLIST_SORTS:
         rows.sort(key=WISHLIST_SORTS[sort][1])
     else:
         sort = ""
+    on_steam = any(row["wish"].on_steam for row in rows)
     return render(request, "library/wishlist.html", {
         "rows": rows,
         "total": total,
-        "sorts": [(value, label) for value, (label, _) in WISHLIST_SORTS.items()],
+        # «Como en Steam» solo si hay algo de su lista de Steam.
+        "sorts": [(value, label) for value, (label, _) in WISHLIST_SORTS.items() if value != "steam" or on_steam],
         "active_sort": sort,
         "language_filters": LANGUAGE_FILTERS.items(),
         "active_language": language,
+        "on_steam": on_steam,
+        "skipped": len(request.user.profile.steam_wishlist_skip),
     })

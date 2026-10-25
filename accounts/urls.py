@@ -14,6 +14,7 @@ urlpatterns = [
     path("cuenta/steam/vuelta/", views.steam_callback, name="steam_callback"),
     path("cuenta/steam/importar/", views.steam_import, name="steam_import"),
     path("cuenta/steam/automatica/", views.steam_auto_sync, name="steam_auto_sync"),
+    path("cuenta/steam/deseados/", views.steam_wishlist, name="steam_wishlist"),
     path("cuenta/steam/<int:account_id>/desvincular/", views.steam_unlink, name="steam_unlink"),
     path("cuenta/playstation/sincronizar/", views.psn_sync, name="psn_sync"),
     path("cuenta/playstation/desvincular/", views.psn_unlink, name="psn_unlink"),

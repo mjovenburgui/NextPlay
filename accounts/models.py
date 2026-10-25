@@ -106,6 +106,10 @@ class Profile(models.Model):
     # La biblioteca de Steam se vuelve a importar sola cada noche (comando sync_libraries) salvo que lo desactive.
     auto_sync = models.BooleanField("sincronizar Steam cada noche", default=True)
     auto_synced_at = models.DateTimeField("última sincronización automática", null=True, blank=True)
+    # Al importar Steam también se trae su lista de deseos a «Lo quiero» (accounts.steam.import_wishlist), salvo
+    # que lo desactive. Los juegos de esa lista que quitó a mano de «Lo quiero» no se vuelven a traer (ids de Game).
+    steam_wishlist = models.BooleanField("traer la lista de deseos de Steam", default=True)
+    steam_wishlist_skip = models.JSONField("deseados de Steam que no traer", default=list, blank=True)
     # Ids de las tiendas en las que compra (los de GamePrice.shop_id; 0 es Xbox). Vacía = todas.
     shops = models.JSONField("tiendas en las que compro", default=list, blank=True)
     price_alert_emails = models.BooleanField(

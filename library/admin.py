@@ -19,7 +19,8 @@ class LibraryEntryAdmin(admin.ModelAdmin):
 
 @admin.register(WishlistItem)
 class WishlistItemAdmin(admin.ModelAdmin):
-    list_display = ("user", "game", "target_price", "alerted_price", "created_at")
+    list_display = ("user", "game", "target_price", "alerted_price", "from_steam", "steam_added_at", "created_at")
+    list_filter = ("from_steam",)
     search_fields = ("user__username", "game__name")
     raw_id_fields = ("user", "game")
 

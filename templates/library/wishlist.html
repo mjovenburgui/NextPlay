@@ -23,6 +23,10 @@
       {% endif %}
     </div>
     <p class="muted">Te avisamos en la campana{% if user.profile.price_alert_emails %} y por correo{% endif %} cuando un juego baja de tu precio o está rebajado a su mínimo histórico. Los precios son de PC y Xbox{% if user.profile.shops %}, solo de <a href="{% url 'edit_profile' %}#tiendas">tus tiendas</a>{% endif %}: los juegos solo de PlayStation o Switch no avisan.</p>
+    {% if on_steam %}
+      {# Los que vienen de la lista de deseos de Steam (accounts.steam.import_wishlist). #}
+      <p class="help wish-steam-note">{% include "games/shop_icons/steam.svg" %} Los marcados con Steam están en tu lista de deseos de Steam y se actualizan al sincronizar Steam: si quitas aquí uno de ellos, no se vuelve a traer. <a href="{% url 'edit_profile' %}#steam">Ajustes de Steam</a></p>
+    {% endif %}
 
     <ul class="wishlist">
       {% for row in rows %}
@@ -32,6 +36,7 @@
             <div class="wish-info">
               <a href="{{ game.get_absolute_url }}"><strong>{{ game.name }}</strong></a>
               {% if row.owned %}<span class="pill">Ya en tu biblioteca</span>{% endif %}
+              {% if wish.on_steam %}<span class="pill pill-steam" title="En tu lista de deseos de Steam desde el {{ wish.steam_added_at|date:'j \d\e F \d\e Y' }}">{% include "games/shop_icons/steam.svg" %} Steam</span>{% endif %}
               <p class="help">
                 {% if wish.target_price is not None %}Tu límite: {{ wish.target_price|floatformat:2 }} €{% else %}Sin límite: solo avisa del mínimo histórico{% endif %}
                 {% if game.historical_low is not None %} · mínimo histórico {{ game.historical_low|floatformat:2 }} {{ game.historical_low_symbol }}{% endif %}

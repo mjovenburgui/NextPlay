@@ -82,6 +82,13 @@ sus precios (con «Ver todas» para comparar un momento), la gráfica sale por d
 la lista de deseos y los avisos solo cuentan esas. El historial se guarda por tienda, así que la
 gráfica también puede verse de todas o de una tienda concreta.
 
+Cada importación de Steam (al vincular la cuenta, con «Sincronizar» y por la noche) trae también la lista
+de deseos de Steam a «Lo quiero» (`IWishlistService/GetWishlist`, que no necesita clave), salvo los juegos
+que ya están en la biblioteca y los que el usuario quitó a mano. Los que trajo Steam se quitan cuando
+dejan de estar en su lista de Steam; lo añadido en NextPlay no se toca. Al sincronizar se piden ya los
+precios de los nuevos y se avisa de cuántos están en su mínimo histórico o son más baratos fuera de
+Steam. Se desactiva desde el panel de Steam del perfil.
+
 ## Importar de Xbox (aplicación de Azure)
 
 Para el botón «Vincular con Microsoft» hace falta una aplicación de Azure (gratis):
@@ -150,8 +157,9 @@ servir esa carpeta desde el servidor web o usar un almacenamiento externo.
 
 ## Tareas de cada noche
 
-`nightly` sincroniza la biblioteca de Steam de quien tenga activada la sincronización nocturna (se
-desactiva desde el panel de Steam del perfil) y después actualiza los precios:
+`nightly` sincroniza la biblioteca de Steam (y su lista de deseos, si no se ha desactivado) de quien tenga
+activada la sincronización nocturna (se desactiva desde el panel de Steam del perfil) y después actualiza
+los precios:
 
 ```bash
 .venv/Scripts/python manage.py nightly
