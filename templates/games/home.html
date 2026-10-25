@@ -22,6 +22,10 @@
               <div><dt>Completados</dt><dd>{{ summary.completed }}</dd></div>
               <div><dt>Reseñas</dt><dd>{{ summary.reviews }}</dd></div>
             </dl>
+            <p class="me-follows">
+              <a class="follow-stat" href="{% url 'social:followers' user.username %}"><strong>{{ summary.followers }}</strong> seguidor{{ summary.followers|pluralize:"es" }}</a>
+              <a class="follow-stat" href="{% url 'social:following' user.username %}"><strong>{{ summary.following }}</strong> siguiendo</a>
+            </p>
           </section>
           <nav class="card-box side-menu" aria-label="Tu cuenta">
             <a class="is-active" href="{% url 'home' %}">{% include "_icon.html" with name="home" %} Inicio</a>

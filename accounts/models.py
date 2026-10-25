@@ -197,8 +197,25 @@ class Profile(models.Model):
         return reverse("profile", args=[self.user.username])
 
     def visible_to(self, viewer):
-        """Indica si viewer puede ver el perfil: siempre si es público, y si es privado solo su dueño."""
+        """Indica si viewer puede ver el perfil: siempre si es público, y si es privado solo su dueño.
+
+        Es la regla de quién ve qué en todo NextPlay (perfil, biblioteca, reseñas, seguidores...); en las
+        consultas la aplica visible_filter, que tiene que decir lo mismo.
+        """
         return self.is_public or viewer == self.user
+
+    @staticmethod
+    def visible_filter(viewer, path="user"):
+        """La regla de visible_to como condición de consulta (Q): lo de los perfiles públicos y lo de viewer.
+
+        path es el camino desde lo que se filtra hasta su usuario: «user» en las reseñas (el de por defecto),
+        «follower» en los seguidores...; vacío para filtrar los propios usuarios.
+        """
+        prefix = f"{path}__" if path else ""
+        visible = models.Q(**{f"{prefix}profile__is_public": True})
+        if viewer.is_authenticated:
+            visible |= models.Q(**{path or "pk": viewer.pk})
+        return visible
 
     @property
     def steam_accounts(self):
@@ -702,6 +719,7 @@ class Notification(models.Model):
         LIKE = "like", "Me gusta en tu reseña"
         COMMENT = "comment", "Comentario en tu reseña"
         REVIEW_UPDATE = "review_update", "Actualizar una reseña"
+        FOLLOW = "follow", "Nuevo seguidor"
         # Solo para los administradores.
         REPORT = "report", "Denuncia"
 
@@ -711,6 +729,11 @@ class Notification(models.Model):
     url = models.CharField("enlace", max_length=500, blank=True)
     game = models.ForeignKey(
         "games.Game", on_delete=models.CASCADE, null=True, blank=True, related_name="+", verbose_name="juego"
+    )
+    # Quién lo ha provocado (de momento, el nuevo seguidor), para enseñar su foto. Se borra con su cuenta.
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True, related_name="+",
+        verbose_name="quién",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     read_at = models.DateTimeField("leído", null=True, blank=True)

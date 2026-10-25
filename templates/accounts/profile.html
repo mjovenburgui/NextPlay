@@ -28,11 +28,16 @@
             <p class="profile-status">{% if profile.status_emoji %}<span class="profile-status-emoji" aria-hidden="true">{{ profile.status_emoji }}</span>{% endif %}{{ profile.status_text }}</p>
           {% endif %}
           <p class="muted profile-meta">
-            <span>@{{ owner.username }}</span>
+            <span>@{{ owner.username }}{% if follows_you %}<span class="pill">Te sigue</span>{% endif %}</span>
             {% if profile.pronouns %}<span>{{ profile.pronouns }}</span>{% endif %}
             {% if profile.location %}<span>{% include "_icon.html" with name="pin-map" %} {{ profile.location }}</span>{% endif %}
             <span>En NextPlay desde {{ profile.created_at|date:"F Y" }}</span>
             {% if not profile.is_public %}<span class="pill">Perfil privado</span>{% endif %}
+          </p>
+          {# Seguidores y seguidos, con enlace a sus listas. El de seguidores cambia solo al pulsar «Seguir». #}
+          <p class="follow-stats">
+            {% include "social/_follower_count.html" with target=owner %}
+            <a class="follow-stat" href="{% url 'social:following' owner.username %}"><strong>{{ following_count }}</strong> siguiendo</a>
           </p>
           {% if profile.steam_accounts or profile.psn or profile.xbox or profile.platforms %}
             <p class="steam-badges">
@@ -77,6 +82,10 @@
           <div class="profile-actions">
             <a class="btn" href="{% url 'edit_profile' %}">Editar perfil</a>
             <button class="btn btn-link-accounts" type="button" data-open-dialog="link-dialog" aria-haspopup="dialog">Vincular cuentas</button>
+          </div>
+        {% else %}
+          <div class="profile-actions">
+            {% include "social/_follow_button.html" with target=owner where="perfil" %}
           </div>
         {% endif %}
       </div>

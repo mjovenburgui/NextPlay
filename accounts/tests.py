@@ -8,6 +8,7 @@ from decimal import Decimal
 from unittest import mock
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
@@ -122,6 +123,28 @@ class ProfileTests(TestCase):
     def test_edit_profile_requires_login(self):
         response = self.client.get(reverse("edit_profile"))
         self.assertRedirects(response, f"{reverse('login')}?next={reverse('edit_profile')}")
+
+
+class VisibilityTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.public = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.private = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.private.profile.is_public = False
+        cls.private.profile.save()
+
+    def test_visible_filter_says_the_same_as_visible_to(self):
+        game = Game.objects.create(name="Hades", slug="hades")
+        for user in (self.public, self.private):
+            Review.objects.create(user=user, game=game, text="Bien.", published_at=timezone.now())
+        for viewer in (AnonymousUser(), self.public, self.private):
+            expected = {user.pk for user in User.objects.all() if user.profile.visible_to(viewer)}
+            users = User.objects.filter(Profile.visible_filter(viewer, path=""))
+            self.assertEqual(set(users.values_list("pk", flat=True)), expected)
+            reviews = Review.objects.filter(Profile.visible_filter(viewer))
+            self.assertEqual(set(reviews.values_list("user_id", flat=True)), expected)
+        # El dueño del perfil privado se ve a sí mismo; los demás, solo el público.
+        self.assertEqual(expected, {self.public.pk, self.private.pk})
 
 
 def openid_params(steam_id="76561197960287930", state="abc"):

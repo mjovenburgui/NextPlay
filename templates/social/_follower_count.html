@@ -1,0 +1,2 @@
+{# Enlace con el número de seguidores de target (follower_count) para la cabecera del perfil. Con oob, HTMX lo cambia en su sitio al seguir o dejar de seguir desde el perfil. #}
+<a class="follow-stat" id="follower-count" href="{% url 'social:followers' target.username %}"{% if oob %} hx-swap-oob="true"{% endif %}><strong>{{ follower_count }}</strong> seguidor{{ follower_count|pluralize:"es" }}</a>

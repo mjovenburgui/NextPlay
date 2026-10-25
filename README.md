@@ -155,6 +155,19 @@ pierden los datos EXIF. Si una es más grande de lo que se guarda o pesa más de
 la reduce antes de subirla. Se guardan en `media/` (`MEDIA_ROOT`), que en local sirve Django; en producción hay que
 servir esa carpeta desde el servidor web o usar un almacenamiento externo.
 
+## Seguir a otros jugadores
+
+En el perfil de otra persona sale el botón «Seguir» (con HTMX; sin sesión lleva a entrar). Seguir va en un
+solo sentido y sin solicitudes: no hace falta que el otro acepte ni que te siga de vuelta. La cabecera del
+perfil enseña cuántos seguidores tiene y a cuántos sigue, con sus listas en `/u/<usuario>/seguidores/` y
+`/u/<usuario>/siguiendo/`, «Te sigue» cuando esa persona te sigue a ti y «Seguir también» para devolverle
+el seguimiento. Al ganar un seguidor llega un aviso a la campana, con su foto, solo la primera vez aunque
+deje de seguirte y vuelva.
+
+Los perfiles privados no se pueden seguir, pero sus dueños sí pueden seguir a otros: en las listas salen
+con su nombre, sin enlace a su página ni biografía. Quién puede ver qué se decide en un solo sitio:
+`Profile.visible_to` y, en las consultas, `Profile.visible_filter`.
+
 ## Tareas de cada noche
 
 `nightly` sincroniza la biblioteca de Steam (y su lista de deseos, si no se ha desactivado) de quien tenga
@@ -195,9 +208,10 @@ schtasks /Create /TN "NextPlay nightly" /SC DAILY /ST 04:00 /TR "cmd /c cd /d %C
 | `accounts` | Usuario propio, `Profile`, registro, perfil público/privado  |
 | `games`    | `Game`, `Genre`, `Platform`, catálogo y cliente de IGDB      |
 | `library`  | `LibraryEntry`: un estado por usuario y juego                |
+| `social`   | `Follow`: seguir a otros jugadores, seguidores y seguidos    |
 
 ## Siguientes cortes
 
 2. Importación de Steam, puntuaciones y reseñas, tarjeta compartible.
-3. Follows, feed de actividad, likes y comentarios.
-4. Listas, bloqueo y denuncia, beta.
+3. Actividad de cada jugador y feed en la portada (seguir, me gusta y comentarios ya están).
+4. Listas, bloquear y silenciar, beta.

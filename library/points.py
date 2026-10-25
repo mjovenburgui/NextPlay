@@ -8,7 +8,7 @@ cuentan como el mismo si solo cambian las mayúsculas, los espacios o la puntuac
 import re
 from collections import Counter
 
-from django.db.models import Q
+from accounts.models import Profile
 
 from . import markup
 from .models import Review
@@ -44,10 +44,7 @@ def _tally(rows):
 def _visible(game, viewer):
     """Reseñas publicadas del juego que viewer puede leer (las de perfiles públicos y las suyas), de la más
     antigua a la más nueva: así cada punto se enseña como lo escribió el primero."""
-    visible = Q(user__profile__is_public=True)
-    if viewer.is_authenticated:
-        visible |= Q(user=viewer)
-    return Review.objects.filter(game=game).published().filter(visible).order_by("published_at", "id")
+    return Review.objects.filter(game=game).published().filter(Profile.visible_filter(viewer)).order_by("published_at", "id")
 
 
 def suggestions(game, viewer):
