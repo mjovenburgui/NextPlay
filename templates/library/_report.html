@@ -1,6 +1,6 @@
 {% load reviews %}
-{# Botón «Denunciar» de una reseña o un comentario de otro: un desplegable con el motivo, que llega a los administradores. #}
-{# Necesita kind («resena» o «comentario»), target (lo denunciado), noun («esta reseña»), report_url y reported (ya lo ha denunciado). #}
+{# Botón «Denunciar» de una reseña, un comentario o una publicación de otro: un desplegable con el motivo, que llega a los administradores. #}
+{# Necesita kind («resena», «comentario» o «publicacion»), target (lo denunciado), noun («esta reseña»), report_url y reported (ya lo ha denunciado). #}
 {# Con open llega abierto (desde el «Denunciar» de las listas). Con HTMX, al enviarlo se cambia por la respuesta de library.views._report. #}
 {% if reported %}
   <span class="review-action report-done" id="denunciar-{{ kind }}-{{ target.pk }}">{% include "_icon.html" with name="flag" %} {% if thanks %}Gracias: lo revisaremos{% else %}Ya lo has denunciado{% endif %}</span>

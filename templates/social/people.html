@@ -20,27 +20,7 @@
 
     <ul class="people">
       {% for person in people %}
-        <li class="person">
-          {% include "accounts/_avatar.html" with profile=person.profile size="sm" %}
-          <div class="person-info">
-            <p>
-              {# Los perfiles privados salen sin enlace ni biografía: su página da 404 a los demás. #}
-              {% if person.profile_visible %}
-                <a class="person-name" href="{{ person.profile.get_absolute_url }}">{{ person.profile.name }}</a>
-              {% else %}
-                <span class="person-name">{{ person.profile.name }}</span>
-              {% endif %}
-              <span class="muted small">@{{ person.username }}</span>
-              {% if person.follows_viewer %}<span class="pill">Te sigue</span>{% endif %}
-              {% if not person.profile.is_public %}<span class="pill">Perfil privado</span>{% endif %}
-            </p>
-            {% if person.profile_visible and person.profile.bio %}<p class="muted small person-bio">{{ person.profile.bio|truncatechars:120 }}</p>{% endif %}
-          </div>
-          {# A un perfil privado no se le puede seguir, pero sí dejar de seguir si se hizo privado después. #}
-          {% if person.profile_visible or person.viewer_follows %}
-            {% include "social/_follow_button.html" with target=person is_following=person.viewer_follows follows_you=person.follows_viewer where="lista" %}
-          {% endif %}
-        </li>
+        {% include "social/_person.html" %}
       {% empty %}
         <li class="empty">
           {% if view == "seguidores" %}

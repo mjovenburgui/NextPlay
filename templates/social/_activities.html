@@ -1,9 +1,8 @@
-{# Una tanda de actividades (social.views.activity_page) y, si quedan más, «Cargar más», que HTMX cambia por la tanda siguiente; sin JavaScript abre la pestaña desde ahí. #}
-{# Necesita owner, activities y next_cursor, y va dentro de <ol class="activities">. #}
+{# Una tanda de actividades (social.views._batch) y, si quedan más, «Cargar más»: HTMX pide more_url y cambia el botón por la tanda siguiente; sin JavaScript abre more_href. #}
+{# Necesita activities y, si hay más, more_url y more_href; show_user enseña quién hizo cada cosa (en el feed). Va dentro de <ol class="activities">. #}
 {% for activity in activities %}{% include "social/_activity.html" %}{% endfor %}
-{% if next_cursor %}
+{% if more_url %}
   <li class="activity-more">
-    <a class="btn" href="{% url 'profile' owner.username %}?vista=actividad&amp;antes={{ next_cursor }}"
-       hx-get="{% url 'social:activity' owner.username %}?antes={{ next_cursor }}" hx-target="closest li" hx-swap="outerHTML">Cargar más</a>
+    <a class="btn" href="{{ more_href }}" hx-get="{{ more_url }}" hx-target="closest li" hx-swap="outerHTML">Cargar más</a>
   </li>
 {% endif %}

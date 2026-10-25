@@ -1,10 +1,10 @@
-"""Tratamiento de las imágenes que suben los usuarios: la foto, la cabecera y el fondo del perfil y las de las reseñas.
+"""Tratamiento de las imágenes que suben los usuarios: la foto, la cabecera y el fondo del perfil y las de las reseñas y publicaciones.
 
 Cada imagen se comprueba con Pillow, se gira según su EXIF (las fotos del móvil vienen tumbadas), se
 reduce hasta caber en el tamaño de su uso y se guarda en WebP con un nombre aleatorio. No se recorta: se
 guarda entera y el usuario elige qué parte se ve, o que se vea entera, con el encuadre del perfil
 (Profile.avatar_x, avatar_y, avatar_zoom, avatar_fit y los de la cabecera y el fondo). De las imágenes de
-las reseñas se guardan dos tamaños: la grande, para el visor, y una miniatura. Al volver a codificarla se
+las reseñas y de las publicaciones se guardan dos tamaños: la grande, para el visor, y una miniatura. Al volver a codificarla se
 pierden los metadatos EXIF, que en las fotos del móvil pueden llevar la ubicación.
 """
 
@@ -33,6 +33,8 @@ KINDS = {
     "background": Kind(1920, 1200, 8),
     "review": Kind(1920, 1920, 8),
     "review_thumb": Kind(720, 720, 8),
+    "post": Kind(1920, 1920, 8),
+    "post_thumb": Kind(720, 720, 8),
 }
 FORMATS = {"JPEG", "PNG", "WEBP", "GIF"}
 # Las más grandes se rechazan antes de descomprimirlas: una imagen pequeña en disco puede ocupar gigas en memoria.

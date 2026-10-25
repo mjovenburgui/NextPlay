@@ -84,6 +84,14 @@ def game_removed(user, game):
     activities.update(status="", rating=None)
 
 
+def post_published(post):
+    """Apunta la publicación post en la actividad de su autor. Cada una va sola: no se junta con nada."""
+    return Activity.objects.create(
+        user=post.user, kind=Activity.Kind.POST, post=post, game=post.game,
+        created_at=post.created_at, updated_at=post.created_at,
+    )
+
+
 def games_imported(user, platform, entries):
     """Apunta como una sola actividad los juegos que acaban de entrar en la biblioteca de user con una importación.
 

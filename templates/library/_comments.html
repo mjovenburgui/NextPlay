@@ -1,7 +1,7 @@
 {% load reviews %}
-{# Comentarios de una reseña y el formulario para comentar. Necesita review, comments y comment_form. Con HTMX se cambia entero al comentar o borrar #}
-{# y, con oob, también cambia el contador de comentarios de la tarjeta de la reseña. #}
-{% if oob %}<span id="comment-count-{{ review.pk }}" hx-swap-oob="true">{{ comments|length }}</span>{% endif %}
+{# Comentarios de una reseña o de una publicación (parent) y el formulario para comentar. Necesita comment_form y las variables de library.views.comment_thread. #}
+{# Con HTMX se cambia entero al comentar o borrar y, con oob, también cambia el contador de comentarios de la tarjeta (count_id). #}
+{% if oob %}<span id="{{ count_id }}" hx-swap-oob="true">{{ comments|length }}</span>{% endif %}
 <div class="comments" id="comments-box">
   <h2>Comentarios <span class="muted">{{ comments|length }}</span></h2>
   {% for comment in comments %}
@@ -10,22 +10,22 @@
       <div class="comment-body">
         <p class="comment-meta">
           <a class="review-author" href="{{ comment.user.profile.get_absolute_url }}">{{ comment.user.profile.name }}</a>
-          {% if comment.user_id == review.user_id %}<span class="own-tag">Autor</span>{% endif %}
+          {% if comment.user_id == parent.user_id %}<span class="own-tag">Autor</span>{% endif %}
           <span class="muted small">· hace {{ comment.created_at|timesince }}</span>
         </p>
         <div class="comment-text">{{ comment.text|review_html }}</div>
-        {# Lo borran quien lo escribió y el autor de la reseña; los demás pueden denunciarlo. #}
+        {# Lo borran quien lo escribió y el autor de lo comentado; los demás pueden denunciarlo. #}
         <div class="comment-actions">
           {% if comment|can_delete:user %}
-            <form action="{% url 'library:comment_delete' comment.pk %}" method="post"
-                  hx-post="{% url 'library:comment_delete' comment.pk %}" hx-target="#comments-box" hx-swap="outerHTML"
+            <form action="{% url delete_url_name comment.pk %}" method="post"
+                  hx-post="{% url delete_url_name comment.pk %}" hx-target="#comments-box" hx-swap="outerHTML"
                   hx-confirm="¿Borrar este comentario?">
               {% csrf_token %}
               <button class="link small" type="submit">Borrar</button>
             </form>
           {% endif %}
           {% if user.is_authenticated and comment.user_id != user.pk %}
-            {% url 'library:comment_report' comment.pk as report_url %}
+            {% url report_url_name comment.pk as report_url %}
             {% include "library/_report.html" with kind="comentario" target=comment noun="este comentario" reported=comment.reported open=False %}
           {% endif %}
         </div>
@@ -36,8 +36,8 @@
   {% endfor %}
 
   {% if user.is_authenticated %}
-    <form class="comment-form" action="{% url 'library:review_comment' review.pk %}" method="post"
-          hx-post="{% url 'library:review_comment' review.pk %}" hx-target="#comments-box" hx-swap="outerHTML">
+    <form class="comment-form" action="{{ comment_url }}" method="post"
+          hx-post="{{ comment_url }}" hx-target="#comments-box" hx-swap="outerHTML">
       {% csrf_token %}
       <label class="visually-hidden" for="{{ comment_form.text.id_for_label }}">Tu comentario</label>
       {{ comment_form.text }}

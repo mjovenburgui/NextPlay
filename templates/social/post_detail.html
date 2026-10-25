@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load reviews %}
+
+{% block title %}Publicación de {{ post.user.profile.name }}{% if post.game %} sobre {{ post.game.name }}{% endif %} · NextPlay{% endblock %}
+{% block description %}{{ post.text|review_plain|truncatechars:155 }}{% endblock %}
+
+{% block content %}
+  {# Página propia de una publicación, para enlazarla: quién, cuándo, de qué juego, el texto entero y sus imágenes. #}
+  <article class="panel panel-wide post-page">
+    <header class="post-head">
+      {% include "accounts/_avatar.html" with profile=post.user.profile size="md" %}
+      <div>
+        <p><a class="activity-author" href="{{ post.user.profile.get_absolute_url }}">{{ post.user.profile.name }}</a> <span class="muted small">@{{ post.user.username }}</span></p>
+        <p class="muted small">
+          <time datetime="{{ post.created_at|date:'c' }}">{{ post.created_at|date:"j \d\e F \d\e Y, H:i" }}</time>
+          {% if post.game %} · sobre <a href="{{ post.game.get_absolute_url }}">{{ post.game.name }}</a>{% endif %}
+        </p>
+      </div>
+      {% if post.game %}
+        <a class="review-thumb" href="{{ post.game.get_absolute_url }}" tabindex="-1" aria-hidden="true">{% if post.game.cover_url %}<img src="{{ post.game.cover_url }}" alt="" loading="lazy">{% endif %}</a>
+      {% endif %}
+    </header>
+    {% include "social/_post_body.html" %}
+    <footer class="review-foot">
+      {% include "social/_post_like.html" with liked=post.liked like_count=post.like_count %}
+      <a class="review-action" href="#comentarios">{% include "_icon.html" with name="comment" %} <span id="post-comment-count-{{ post.pk }}">{{ post.comment_count|default:0 }}</span><span class="visually-hidden"> comentarios</span></a>
+      <button class="review-action" type="button" data-copy-link="{{ request.scheme }}://{{ request.get_host }}{{ post.get_absolute_url }}">{% include "_icon.html" with name="link" %} <span data-copy-label>Copiar enlace</span></button>
+      {% if is_author %}
+        <form class="post-delete" method="post" action="{% url 'social:post_delete' post.pk %}"
+              onsubmit="return confirm('¿Borrar esta publicación con sus imágenes y sus me gusta? No se puede deshacer.');">
+          {% csrf_token %}
+          <button class="review-action post-delete-btn" type="submit">{% include "_icon.html" with name="close" %} Borrar</button>
+        </form>
+      {% elif user.is_authenticated %}
+        {% url 'social:post_report' post.pk as report_url %}
+        {% include "library/_report.html" with kind="publicacion" target=post noun="esta publicación" open=open_report %}
+      {% endif %}
+    </footer>
+  </article>
+  {# Los mismos comentarios que en las reseñas (library/_comments.html). #}
+  <section class="panel panel-wide post-comments" id="comentarios">{% include "library/_comments.html" %}</section>
+{% endblock %}

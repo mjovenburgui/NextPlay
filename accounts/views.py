@@ -23,7 +23,7 @@ from games.models import LANGUAGE_FILTERS, Game, Genre, igdb_image_url, known_sh
 from library import wishlist
 from library.models import LibraryEntry, Review
 from library.views import mark_liked
-from social.views import activity_page, follow_context
+from social.views import activity_context, follow_context
 
 from . import images, matching, psn, steam, xbox
 from .forms import IMAGE_FIELDS, PlatformAccountForm, ProfileForm, SignupForm
@@ -147,10 +147,8 @@ def _profile_context(request, owner, favorites=None, preview=False):
     view = request.GET.get("vista", "")
     if view not in ("resenas", "actividad"):
         view = ""
-    activities, next_cursor = [], ""
-    if view == "actividad":
-        # La actividad solo se pide en su pestaña.
-        activities, next_cursor = activity_page(owner, request.user, request.GET.get("antes", ""))
+    # La actividad solo se pide en su pestaña.
+    activity_tab = activity_context(owner, request.user, request.GET.get("antes", "")) if view == "actividad" else {}
 
     tabs = [(value, label, counts[value]) for value, label in LibraryEntry.Status.choices]
     return {
@@ -168,8 +166,9 @@ def _profile_context(request, owner, favorites=None, preview=False):
         "view": view,
         "reviews": reviews,
         "drafts": drafts,
-        "activities": activities,
-        "next_cursor": next_cursor,
+        "activities": [],
+        "next_cursor": "",
+        **activity_tab,
         # El escaparate solo va en la vista principal: al filtrar u ordenar, la biblioteca sube.
         "show_showcase": not (status or sort or view or language),
         "favorites": list(owner.favorite_games.select_related("game")) if favorites is None else favorites,

@@ -1,9 +1,23 @@
 {% load reviews %}
-{# Una actividad: lo que hizo un jugador con un juego (estado, nota y reseña juntos) o lo que importó. Necesita activity; con show_user también se ve quién fue (para el feed). #}
+{# Una actividad: lo que hizo un jugador con un juego (estado, nota y reseña juntos), lo que importó o lo que publicó. Necesita activity; con show_user también se ve quién fue (para el feed). #}
 <li class="activity">
   {% if show_user %}{% include "accounts/_avatar.html" with profile=activity.user.profile size="sm" %}{% endif %}
   <div class="activity-main">
-    {% if activity.kind == "import" %}
+    {% if activity.kind == "post" %}
+      {% with post=activity.post %}
+        <p class="activity-line">
+          {% if show_user %}<a class="activity-author" href="{{ activity.user.profile.get_absolute_url }}">{{ activity.user.profile.name }}</a> publicó{% else %}Publicó{% endif %}{% if post.game %} sobre <a class="activity-game" href="{{ post.game.get_absolute_url }}">{{ post.game.name }}</a>{% endif %}
+        </p>
+        <div class="activity-post">
+          {% include "social/_post_body.html" with truncate=True %}
+          <p class="feed-actions">
+            {% include "social/_post_like.html" with liked=post.liked like_count=post.like_count %}
+            <a class="review-action" href="{{ post.get_absolute_url }}#comentarios">{% include "_icon.html" with name="comment" %} {{ post.comment_count|default:0 }}<span class="visually-hidden"> comentarios</span></a>
+            <a class="review-more" href="{{ post.get_absolute_url }}">Ver la publicación</a>
+          </p>
+        </div>
+      {% endwith %}
+    {% elif activity.kind == "import" %}
       <p class="activity-line">
         {% if show_user %}<a class="activity-author" href="{{ activity.user.profile.get_absolute_url }}">{{ activity.user.profile.name }}</a> importó{% else %}Importó{% endif %}
         <strong>{{ activity.import_count }} juego{{ activity.import_count|pluralize }}</strong> de {{ activity.platform_name }}
@@ -26,15 +40,23 @@
       {% endwith %}
       {% if activity.review %}
         {% with review=activity.review %}
-          {# La reseña, recortada y sin formato, con sus «me gusta» y comentarios. #}
+          {# La reseña, recortada y sin formato, con lo primero de «Lo mejor» y «Lo peor», sus imágenes, sus «me gusta» y sus comentarios. #}
           <div class="activity-review">
             {% if review.has_spoilers %}
               <details class="spoiler">
                 <summary>Toda la reseña es un spoiler · Leerla</summary>
                 <p class="review-text">{{ review.text|review_plain|truncatechars:280 }}</p>
+                {% include "library/_review_images.html" %}
               </details>
             {% else %}
               <p class="review-text">{{ review.text|review_plain|truncatechars:280 }}</p>
+              {% if review.pros or review.cons %}
+                <p class="feed-points small">
+                  {% if review.pros %}<span class="points-pros">{% include "_icon.html" with name="check" %} {{ review.pros.0|review_plain }}</span>{% endif %}
+                  {% if review.cons %}<span class="points-cons">{% include "_icon.html" with name="close" %} {{ review.cons.0|review_plain }}</span>{% endif %}
+                </p>
+              {% endif %}
+              {% include "library/_review_images.html" %}
             {% endif %}
             <p class="feed-actions">
               {% include "library/_like.html" with liked=review.liked like_count=review.like_count %}

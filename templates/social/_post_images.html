@@ -1,0 +1,16 @@
+{# Imágenes de una publicación: miniaturas que se abren en el visor a pantalla completa (el visor y su script están en base.html). #}
+{# Necesita post, con sus imágenes ya cargadas (social.views._posts). #}
+{% with images=post.images.all %}
+  {% if images %}
+    <div class="review-gallery count-{{ images|length }}" data-gallery data-heading="Publicación de {{ post.user.profile.name }}{% if post.game %} · {{ post.game.name }}{% endif %}">
+      {% for image in images %}
+        <button class="gallery-tile" type="button" data-gallery-item
+                data-full="{{ image.url }}" data-alt="Imagen {{ forloop.counter }} de la publicación de {{ post.user.profile.name }}"
+                data-detail="Subida por {{ post.user.profile.name }}" data-label="Ampliar la imagen {{ forloop.counter }} de {{ images|length }}"
+                aria-label="Ampliar la imagen {{ forloop.counter }} de {{ images|length }}">
+          <img src="{{ image.thumb_url }}" alt="" loading="lazy">
+        </button>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}

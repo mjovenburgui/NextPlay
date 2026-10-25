@@ -12,6 +12,7 @@ from django.utils import timezone
 from PIL import Image
 
 from library.models import LibraryEntry, Review, WishlistItem
+from social.models import Activity
 
 from . import history, igdb, media, prices, spanish, xbox
 from .models import STEAM_DECK_SLUG, Game, GamePrice, Genre, Platform
@@ -369,18 +370,26 @@ class CatalogTests(TestCase):
         luis.profile.is_public = False
         luis.profile.save()
         LibraryEntry.objects.create(user=ana, game=self.hades, status=LibraryEntry.Status.PLAYING)
-        Review.objects.create(user=ana, game=self.hades, text="Genial", published_at=timezone.now())
-        Review.objects.create(user=ana, game=self.celeste, text="Borrador sin publicar", is_draft=True)
-        Review.objects.create(user=luis, game=self.celeste, text="Secreta", published_at=timezone.now())
+        # Las reseñas llegan a la portada por la actividad de quien las escribe (el feed).
+        reviews = [
+            Review.objects.create(user=ana, game=self.hades, text="Genial", published_at=timezone.now()),
+            Review.objects.create(user=ana, game=self.celeste, text="Borrador sin publicar", is_draft=True),
+            Review.objects.create(user=luis, game=self.celeste, text="Secreta", published_at=timezone.now()),
+        ]
+        for review in reviews:
+            Activity.objects.create(user=review.user, kind=Activity.Kind.GAME, game=review.game, review=review)
         self.client.force_login(ana)
         response = self.client.get(reverse("home"))
         self.assertEqual(
             response.context["summary"], {"games": 1, "completed": 0, "reviews": 1, "followers": 0, "following": 0}
         )
-        self.assertEqual([e.game for e in response.context["playing"]], [self.hades])
-        self.assertContains(response, "Genial")
-        self.assertNotContains(response, "Secreta")
-        self.assertNotContains(response, "Borrador sin publicar")
+        # La caja de publicar ofrece los juegos que está jugando.
+        self.assertEqual(response.context["composer_games"], [self.hades])
+        for tab in ("siguiendo", "descubrir"):
+            response = self.client.get(reverse("home"), {"ver": tab})
+            self.assertContains(response, "Genial")
+            self.assertNotContains(response, "Secreta")
+            self.assertNotContains(response, "Borrador sin publicar")
 
     def test_search_and_filters(self):
         url = reverse("games:catalog")

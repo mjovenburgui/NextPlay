@@ -1,23 +1,37 @@
 import io
+import shutil
+import tempfile
 from datetime import timedelta
+from pathlib import Path
 from urllib.parse import urlencode
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.db import IntegrityError, transaction
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from PIL import Image
 
 from accounts import matching
 from accounts.models import ExternalTitle, ImportedTitle, Notification
 from games.models import Game
-from library.models import LibraryEntry, Review
+from library.models import LibraryEntry, Report, Review
 
 from . import activity
-from .models import Activity, Follow
+from .models import Activity, Follow, Post, PostComment, PostLike
 
 User = get_user_model()
+# Carpeta temporal para las imágenes que suben los tests de publicaciones (se borra al terminar la clase).
+TEST_MEDIA = tempfile.mkdtemp(prefix="nextplay-publicaciones-")
+
+
+def image_upload(name="captura.png", size=(2400, 1200)):
+    """Imagen PNG de prueba lista para subir."""
+    buffer = io.BytesIO()
+    Image.new("RGB", size, (30, 90, 200)).save(buffer, "PNG")
+    return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/png")
 
 
 class FollowTests(TestCase):
@@ -448,6 +462,284 @@ class ActivityTabTests(TestCase):
         self.assertRedirects(self.client.get(reverse("social:activity", args=["ana"]), {"antes": cursor}), self.url(antes=cursor))
         self.assertEqual(len(self.client.get(self.url(antes=cursor)).context["activities"]), 5)
         self.assertEqual(len(self.client.get(self.url(antes="nada")).context["activities"]), 20)
+
+
+class FeedTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.luis = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.leo = User.objects.create_user("leo", "leo@example.com", "x")
+        cls.eva = User.objects.create_user("eva", "eva@example.com", "x")
+        cls.eva.profile.is_public = False
+        cls.eva.profile.save()
+        cls.games = {name: Game.objects.create(name=name, slug=name.lower()) for name in ("Hades", "Celeste", "Tunic", "Inside")}
+        # Cada uno ha empezado un juego distinto: así se sabe de quién es cada actividad del feed.
+        for user, name in ((cls.ana, "Hades"), (cls.luis, "Celeste"), (cls.leo, "Tunic"), (cls.eva, "Inside")):
+            Activity.objects.create(user=user, kind="game", game=cls.games[name], status="playing")
+        Follow.objects.create(follower=cls.ana, followed=cls.luis)
+        Follow.objects.create(follower=cls.ana, followed=cls.eva)
+
+    def games_in(self, response):
+        """Juegos de las actividades que enseña el feed de response."""
+        return {item.game.name for item in response.context["activities"]}
+
+    def test_following_shows_yours_and_the_people_you_follow(self):
+        self.client.force_login(self.ana)
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.context["feed_tab"], "siguiendo")
+        # Ana sigue a Eva, pero Eva tiene el perfil privado: lo suyo no sale.
+        self.assertEqual(self.games_in(response), {"Hades", "Celeste"})
+        self.assertContains(response, 'class="activity-author" href="/u/luis/"')
+        self.assertNotContains(response, "Aún no sigues a nadie")
+        self.assertEqual(self.client.get(reverse("home"), {"ver": "otra"}).context["feed_tab"], "siguiendo")
+
+    def test_discover_shows_the_whole_community_except_private_profiles(self):
+        self.client.force_login(self.ana)
+        response = self.client.get(reverse("home"), {"ver": "descubrir"})
+        self.assertEqual(self.games_in(response), {"Hades", "Celeste", "Tunic"})
+        # Sin sesión solo hay Descubrir, con los juegos populares encima.
+        self.client.logout()
+        response = self.client.get(reverse("home"), {"ver": "siguiendo"})
+        self.assertEqual(response.context["feed_tab"], "descubrir")
+        self.assertEqual(self.games_in(response), {"Hades", "Celeste", "Tunic"})
+        self.assertContains(response, "Lo último de la comunidad")
+        self.assertContains(response, "Populares")
+
+    def test_people_to_follow_when_you_follow_nobody(self):
+        for user in (self.leo, self.luis, self.eva):
+            LibraryEntry.objects.create(user=user, game=self.games["Hades"])
+        self.client.force_login(self.leo)
+        response = self.client.get(reverse("home"))
+        self.assertTrue(response.context["follows_nobody"])
+        self.assertContains(response, "Aún no sigues a nadie")
+        # Primero quien tiene juegos en común (Luis) y después quien se mueve (Ana); Eva es privada.
+        suggestions = response.context["suggestions"]
+        self.assertEqual([person.username for person in suggestions], ["luis", "ana"])
+        self.assertEqual(suggestions[0].shared, 1)
+        self.assertContains(response, "1 juego en común")
+        self.assertContains(response, reverse("social:follow", args=["luis"]))
+        # Hasta que siga a alguien solo ve lo suyo; después, ya sin sugerencias.
+        self.assertEqual(self.games_in(response), {"Tunic"})
+        Follow.objects.create(follower=self.leo, followed=self.ana)
+        response = self.client.get(reverse("home"))
+        self.assertNotIn("suggestions", response.context)
+        self.assertEqual(self.games_in(response), {"Tunic", "Hades"})
+
+    def test_load_more_in_the_feed(self):
+        for minutes in range(25):
+            Activity.objects.create(
+                user=self.luis, kind="game", game=self.games["Celeste"], status="completed",
+                updated_at=timezone.now() - timedelta(minutes=minutes + 1),
+            )
+        self.client.force_login(self.ana)
+        response = self.client.get(reverse("home"))
+        self.assertEqual(len(response.context["activities"]), 20)
+        cursor = response.context["next_cursor"]
+        query = urlencode({"ver": "siguiendo", "antes": cursor})
+        self.assertEqual(response.context["more_url"], f"{reverse('social:feed')}?{query}")
+        # Las 27 de Ana y Luis: quedan 7, también con quién hizo cada cosa.
+        more = self.client.get(reverse("social:feed"), {"ver": "siguiendo", "antes": cursor}, HTTP_HX_REQUEST="true")
+        self.assertEqual((len(more.context["activities"]), more.context["next_cursor"]), (7, ""))
+        self.assertContains(more, 'class="activity-author"')
+        # Sin HTMX lleva a la portada desde ese punto.
+        response = self.client.get(reverse("social:feed"), {"ver": "siguiendo", "antes": cursor})
+        self.assertRedirects(response, f"{reverse('home')}?{query}")
+
+
+@override_settings(MEDIA_ROOT=TEST_MEDIA)
+class PostTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.luis = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.hades = Game.objects.create(name="Hades", slug="hades")
+        LibraryEntry.objects.create(user=cls.ana, game=cls.hades, status=LibraryEntry.Status.PLAYING)
+
+    @classmethod
+    def tearDownClass(cls):
+        """Borra las imágenes que han subido los tests."""
+        super().tearDownClass()
+        shutil.rmtree(TEST_MEDIA, ignore_errors=True)
+
+    def setUp(self):
+        self.client.force_login(self.ana)
+
+    def publish(self, **data):
+        return self.client.post(reverse("social:post_new"), {"text": "", "game": "", **data})
+
+    def test_the_home_box_replaces_still_playing_and_offers_your_games(self):
+        response = self.client.get(reverse("home"))
+        self.assertNotContains(response, "Sigues jugando")
+        self.assertContains(response, 'action="/publicar/"')
+        self.assertContains(response, f'name="game" value="{self.hades.pk}"')
+        # Desde la ficha de otro juego, ya va sobre ese juego.
+        celeste = Game.objects.create(name="Celeste", slug="celeste")
+        response = self.client.get(reverse("social:post_new"), {"juego": celeste.pk})
+        self.assertEqual((response.context["composer_games"], response.context["composer_game"]), ([celeste, self.hades], celeste.pk))
+        self.assertContains(self.client.get(celeste.get_absolute_url()), f"/publicar/?juego={celeste.pk}")
+
+    def test_publishing_goes_to_the_feed(self):
+        response = self.publish(text="  Por fin he pasado al **jefe**.  ", game=self.hades.pk)
+        self.assertRedirects(response, reverse("home"), fetch_redirect_response=False)
+        post = Post.objects.get()
+        self.assertEqual((post.user, post.text, post.game), (self.ana, "Por fin he pasado al **jefe**.", self.hades))
+        item = Activity.objects.get()
+        self.assertEqual((item.kind, item.post, item.game, item.summary), ("post", post, self.hades, "publicó sobre Hades"))
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, "Publicado.")
+        self.assertContains(response, "<strong>jefe</strong>")
+        self.assertContains(response, post.get_absolute_url())
+        # Luis la ve en Descubrir y en el perfil de Ana.
+        self.client.force_login(self.luis)
+        self.assertContains(self.client.get(reverse("home"), {"ver": "descubrir"}), "<strong>jefe</strong>")
+        self.assertContains(self.client.get(reverse("profile", args=["ana"]), {"vista": "actividad"}), "<strong>jefe</strong>")
+
+    def test_needs_text_or_images(self):
+        response = self.publish(text="   ")
+        self.assertContains(response, "Escribe algo o añade alguna imagen.")
+        self.assertFalse(Post.objects.exists())
+        response = self.publish(text="x" * 2001)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Post.objects.exists())
+
+    def test_images_are_converted_and_at_most_four(self):
+        self.publish(imagenes=[image_upload("a.png"), image_upload("b.png")])
+        post = Post.objects.get()
+        first, second = post.images.all()
+        self.assertTrue(first.image.name.startswith(f"publicaciones/{self.ana.pk}/post-"))
+        self.assertTrue(first.thumb.name.startswith(f"publicaciones/{self.ana.pk}/post_thumb-"))
+        with Image.open(first.image.path) as big, Image.open(first.thumb.path) as small:
+            self.assertEqual((big.format, big.size, small.size), ("WEBP", (1920, 960), (720, 360)))
+        self.assertContains(self.client.get(post.get_absolute_url()), first.thumb.url)
+        response = self.publish(text="Muchas", imagenes=[image_upload(f"{n}.png") for n in range(5)])
+        self.assertContains(response, "Caben 4 imágenes por publicación")
+        self.assertEqual(Post.objects.count(), 1)
+        # Al borrarla se van también sus archivos y su actividad.
+        path = Path(first.image.path)
+        self.client.post(reverse("social:post_delete", args=[post.pk]))
+        self.assertFalse(path.exists())
+        self.assertFalse(Activity.objects.exists())
+
+    def test_only_its_author_can_delete_it(self):
+        self.publish(text="Mía")
+        post = Post.objects.get()
+        self.client.force_login(self.luis)
+        self.assertEqual(self.client.post(reverse("social:post_delete", args=[post.pk])).status_code, 404)
+        self.assertNotContains(self.client.get(post.get_absolute_url()), reverse("social:post_delete", args=[post.pk]))
+        self.client.force_login(self.ana)
+        self.assertContains(self.client.get(post.get_absolute_url()), reverse("social:post_delete", args=[post.pk]))
+        self.assertRedirects(self.client.post(reverse("social:post_delete", args=[post.pk])), reverse("home"))
+        self.assertFalse(Post.objects.exists())
+
+    def test_private_profiles_posts_stay_hidden(self):
+        self.publish(text="Secreta")
+        post = Post.objects.get()
+        self.ana.profile.is_public = False
+        self.ana.profile.save()
+        self.assertEqual(self.client.get(post.get_absolute_url()).status_code, 200)
+        self.client.force_login(self.luis)
+        self.assertEqual(self.client.get(post.get_absolute_url()).status_code, 404)
+        self.assertNotContains(self.client.get(reverse("home"), {"ver": "descubrir"}), "Secreta")
+        self.assertEqual(self.client.post(reverse("social:post_like", args=[post.pk])).status_code, 404)
+
+    def test_spoilers_are_covered(self):
+        self.publish(text="El final", has_spoilers="on")
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, "Es un spoiler · Verla")
+
+    def test_likes_notify_the_author_once(self):
+        self.publish(text="¿Os gusta?")
+        post = Post.objects.get()
+        url = reverse("social:post_like", args=[post.pk])
+        self.assertEqual(self.client.post(url).status_code, 400)  # la propia, no
+        self.client.force_login(self.luis)
+        response = self.client.post(url, HTTP_HX_REQUEST="true")
+        self.assertContains(response, "is-on")
+        self.assertTrue(PostLike.objects.filter(user=self.luis, post=post).exists())
+        notice = Notification.objects.get(user=self.ana)
+        self.assertEqual((notice.kind, notice.actor, notice.url), ("post_like", self.luis, post.get_absolute_url()))
+        self.assertEqual(notice.text, "A luis le ha gustado tu publicación.")
+        self.client.post(url)
+        self.client.post(url)
+        self.assertEqual(Notification.objects.filter(user=self.ana).count(), 1)
+        self.assertContains(self.client.get(post.get_absolute_url()), "1<span")
+
+    def test_others_can_report_it(self):
+        admin_user = User.objects.create_user("admin", "admin@example.com", "x", is_staff=True)
+        self.publish(text="Spam")
+        post = Post.objects.get()
+        url = reverse("social:post_report", args=[post.pk])
+        self.assertEqual(self.client.post(url, {"reason": "spam"}).status_code, 400)  # la propia, no
+        self.client.force_login(self.luis)
+        self.assertContains(self.client.get(post.get_absolute_url()), "Denunciar")
+        self.assertRedirects(self.client.post(url, {"reason": "spam"}), post.get_absolute_url())
+        report = Report.objects.get()
+        self.assertEqual((report.target, report.reporter, report.target_kind), (post, self.luis, "publicación"))
+        self.assertTrue(Notification.objects.filter(user=admin_user, kind="report").exists())
+        self.assertContains(self.client.get(post.get_absolute_url()), "Ya lo has denunciado")
+
+
+class PostCommentTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.luis = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.eva = User.objects.create_user("eva", "eva@example.com", "x")
+        cls.post = Post.objects.create(user=cls.ana, text="¿A qué jugáis este finde?")
+        activity.post_published(cls.post)
+
+    def comment(self, user, text, htmx=False):
+        self.client.force_login(user)
+        headers = {"HTTP_HX_REQUEST": "true"} if htmx else {}
+        return self.client.post(reverse("social:post_comment", args=[self.post.pk]), {"text": text}, **headers)
+
+    def test_comments_notify_the_author_and_show_their_count(self):
+        response = self.comment(self.luis, "Al **Hades**, como siempre.")
+        self.assertRedirects(response, f"{self.post.get_absolute_url()}#comentarios", fetch_redirect_response=False)
+        self.comment(self.luis, "Y algo de Celeste.")
+        self.comment(self.ana, "¡Buena elección!")  # los suyos no avisan
+        self.assertEqual(PostComment.objects.count(), 3)
+        notice = Notification.objects.get(user=self.ana)
+        self.assertEqual((notice.kind, notice.actor, notice.text), ("post_comment", self.luis, "luis ha comentado tu publicación."))
+        response = self.client.get(self.post.get_absolute_url())
+        self.assertContains(response, "<strong>Hades</strong>")
+        self.assertContains(response, 'class="own-tag">Autor')
+        self.assertEqual(self.client.get(reverse("home")).context["activities"][0].post.comment_count, 3)
+
+    def test_with_htmx_the_thread_and_the_counter_change_in_place(self):
+        response = self.comment(self.luis, "Desde HTMX.", htmx=True)
+        self.assertContains(response, "Desde HTMX.")
+        self.assertContains(response, f'id="post-comment-count-{self.post.pk}" hx-swap-oob="true">1<')
+        # Uno en blanco no se guarda: vuelve el formulario con el error.
+        response = self.comment(self.luis, "   ", htmx=True)
+        self.assertContains(response, 'class="errorlist')
+        self.assertEqual(PostComment.objects.count(), 1)
+
+    def test_only_the_writer_or_the_post_author_can_delete_a_comment(self):
+        self.comment(self.luis, "Borrable.")
+        comment = PostComment.objects.get()
+        url = reverse("social:post_comment_delete", args=[comment.pk])
+        self.client.force_login(self.eva)
+        self.assertEqual(self.client.post(url).status_code, 403)
+        self.client.force_login(self.ana)
+        self.assertRedirects(self.client.post(url), f"{self.post.get_absolute_url()}#comentarios", fetch_redirect_response=False)
+        self.assertFalse(PostComment.objects.exists())
+
+    def test_others_can_report_a_comment(self):
+        self.comment(self.luis, "Spam.")
+        comment = PostComment.objects.get()
+        url = reverse("social:post_comment_report", args=[comment.pk])
+        self.assertEqual(self.client.post(url, {"reason": "spam"}).status_code, 400)  # el propio, no
+        self.client.force_login(self.eva)
+        self.client.post(url, {"reason": "spam"})
+        self.assertEqual(Report.objects.get().target, comment)
+
+    def test_private_posts_cannot_be_commented_by_others(self):
+        self.ana.profile.is_public = False
+        self.ana.profile.save()
+        self.assertEqual(self.comment(self.luis, "Hola").status_code, 404)
+        self.assertEqual(self.comment(self.ana, "Solo yo").status_code, 302)
 
 
 @override_settings(DEBUG=True)

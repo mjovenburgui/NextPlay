@@ -48,53 +48,55 @@
 
     <div class="col-main">
       {% if user.is_authenticated %}
+        {# Lo que quieras contar, con los juegos que estás jugando para decir de cuál hablas (social/_composer.html). #}
+        <section class="card-box">{% include "social/_composer.html" %}</section>
+      {% else %}
+        {# Sin sesión no hay nada tuyo que enseñar: los juegos populares, antes de lo último de la comunidad. #}
         <section class="card-box">
           <header class="box-head">
-            <h2>Sigues jugando</h2>
-            <a href="{% url 'profile' user.username %}?estado=playing">Ver todos {% include "_icon.html" with name="arrow" %}</a>
+            <h2>Populares</h2>
+            <a href="{% url 'games:catalog' %}">Ver catálogo {% include "_icon.html" with name="arrow" %}</a>
           </header>
-          {% if playing %}
-            <ul class="playing">
-              {% for entry in playing %}
-                <li>
-                  <a class="playing-item" href="{{ entry.game.get_absolute_url }}">
-                    <span class="thumb">{% if entry.game.cover_url %}<img src="{{ entry.game.cover_url }}" alt="" loading="lazy">{% endif %}</span>
-                    <span class="playing-info">
-                      <strong>{{ entry.game.name }}</strong>
-                      <span class="muted small">{% if entry.playtime_hours %}{{ entry.playtime_hours|floatformat:"-1" }} h jugadas{% else %}Jugando{% endif %}</span>
-                    </span>
-                    {% include "_icon.html" with name="chevron" %}
-                  </a>
-                </li>
-              {% endfor %}
-            </ul>
+          {% if popular %}
+            <div class="grid grid-compact">
+              {% for game in popular %}{% include "games/_card.html" with status="" %}{% endfor %}
+            </div>
           {% else %}
-            <p class="muted small box-empty">Marca un juego como «Jugando» en su ficha y aparecerá aquí.</p>
+            <p class="muted small box-empty">El catálogo está vacío: importa juegos de IGDB con <code>import_igdb</code>.</p>
           {% endif %}
         </section>
       {% endif %}
 
-      <section class="card-box">
-        <header class="box-head">
-          <h2>Populares</h2>
-          <a href="{% url 'games:catalog' %}">Ver catálogo {% include "_icon.html" with name="arrow" %}</a>
-        </header>
-        {% if popular %}
-          <div class="grid grid-compact">
-            {% for game in popular %}{% include "games/_card.html" with status=game.library_status %}{% endfor %}
-          </div>
+      {# El feed (social.views.feed_context): lo tuyo y lo de la gente que sigues, o lo de toda la comunidad. #}
+      <section class="card-box feed" id="feed">
+        {% if user.is_authenticated %}
+          <nav class="tabs feed-tabs" aria-label="Qué actividad enseñar">
+            {% for value, label in feed_tabs %}
+              <a class="tab{% if feed_tab == value %} is-active{% endif %}" href="?ver={{ value }}"{% if feed_tab == value %} aria-current="page"{% endif %}>{{ label }}</a>
+            {% endfor %}
+          </nav>
         {% else %}
-          <p class="muted small box-empty">El catálogo está vacío: importa juegos de IGDB con <code>import_igdb</code>.</p>
+          <header class="box-head"><h2>Lo último de la comunidad</h2></header>
         {% endif %}
-      </section>
 
-      <section class="card-box">
-        <header class="box-head"><h2>Últimas reseñas</h2></header>
-        {% for review in recent_reviews %}
-          {% include "library/_feed_review.html" %}
-        {% empty %}
-          <p class="muted small box-empty">Todavía no hay reseñas. Abre un juego de tu biblioteca y cuenta qué te parece.</p>
-        {% endfor %}
+        {% if follows_nobody %}
+          {# Quien no sigue a nadie solo vería lo suyo: se le proponen jugadores con sus mismos juegos o que se mueven mucho. #}
+          <div class="feed-suggest">
+            <p><strong>Aún no sigues a nadie.</strong> Sigue a otros jugadores y aquí verás lo que empiezan, terminan y reseñan.</p>
+            {% if suggestions %}
+              <ul class="people">{% for person in suggestions %}{% include "social/_person.html" %}{% endfor %}</ul>
+            {% endif %}
+            <p class="small"><a href="?ver=descubrir">Mira lo último de toda la comunidad en Descubrir {% include "_icon.html" with name="arrow" %}</a></p>
+          </div>
+        {% endif %}
+
+        {% if activities %}
+          <ol class="activities">{% include "social/_activities.html" %}</ol>
+        {% elif feed_tab == "siguiendo" %}
+          <p class="muted small box-empty">Aquí saldrá lo que hagáis tú y la gente que sigues: los juegos que empecéis o terminéis, vuestras notas y vuestras reseñas.</p>
+        {% else %}
+          <p class="muted small box-empty">Todavía no hay actividad en NextPlay.</p>
+        {% endif %}
       </section>
     </div>
 
