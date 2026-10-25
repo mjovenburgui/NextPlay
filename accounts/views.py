@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth import get_user_model, login
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import AnonymousUser
 from django.core.cache import cache
 from django.db.models import Max, Q
 from django.http import Http404
@@ -23,6 +24,7 @@ from games.models import LANGUAGE_FILTERS, Game, Genre, igdb_image_url, known_sh
 from library import wishlist
 from library.models import LibraryEntry, Review
 from library.views import mark_liked
+from lists.views import SHOWCASE_LISTS, profile_lists
 from social.views import activity_context, follow_context
 
 from . import images, matching, psn, steam, xbox
@@ -71,8 +73,8 @@ def profile(request, username):
     orden y con las secciones que haya elegido. La biblioteca tiene pestañas por estado (Jugando,
     Completado...) con su contador y se filtra con ?estado= y por idioma con ?idioma= (voces o textos en
     castellano); se ordena con ?orden= (recientes, nota, horas o nombre). Con ?vista=resenas muestra sus
-    reseñas en vez de la biblioteca, y con ?vista=actividad lo que ha hecho (desde ?antes=, el cursor de
-    «Cargar más»). Un perfil privado da 404 a cualquiera que no sea su dueño.
+    reseñas en vez de la biblioteca, con ?vista=listas sus listas y con ?vista=actividad lo que ha hecho
+    (desde ?antes=, el cursor de «Cargar más»). Un perfil privado da 404 a cualquiera que no sea su dueño.
     """
     owner = get_object_or_404(_profile_owners(), username=username)
     # 404 rather than 403 so private profiles don't confirm that the account exists.
@@ -107,9 +109,10 @@ def _profile_context(request, owner, favorites=None, preview=False):
     """Variables de la plantilla del perfil de owner, con la biblioteca filtrada y ordenada según ?estado=, ?idioma= y ?orden=.
 
     favorites son sus juegos favoritos en orden (si no se dan, los guardados). Con preview es la vista
-    previa de Editar perfil: se ve como la ven los demás, el usuario de la barra superior es owner con los
-    cambios sin guardar y la biblioteca se corta en PREVIEW_LIBRARY juegos. También lleva cuántos seguidores
-    y seguidos tiene owner y si quien mira sigue a owner o al revés (social.views.follow_context).
+    previa de Editar perfil: se ve como la ven los demás (también sus listas: solo las públicas), el usuario
+    de la barra superior es owner con los cambios sin guardar y la biblioteca se corta en PREVIEW_LIBRARY
+    juegos. También lleva cuántos seguidores y seguidos tiene owner y si quien mira sigue a owner o al revés
+    (social.views.follow_context), y sus listas (lists.views.profile_lists) para su pestaña y el escaparate.
     """
     is_owner = request.user == owner and not preview
     entries = list(
@@ -145,10 +148,12 @@ def _profile_context(request, owner, favorites=None, preview=False):
     reviews = mark_liked(list(Review.objects.filter(user=owner).visible_to(request.user)), request.user)
     drafts = list(Review.objects.filter(user=owner, is_draft=True).select_related("game")) if is_owner else []
     view = request.GET.get("vista", "")
-    if view not in ("resenas", "actividad"):
+    if view not in ("resenas", "listas", "actividad"):
         view = ""
     # La actividad solo se pide en su pestaña.
     activity_tab = activity_context(owner, request.user, request.GET.get("antes", "")) if view == "actividad" else {}
+    # En la vista previa, las listas como las vería cualquiera: solo las públicas y sin el progreso de quien mira.
+    lists = profile_lists(owner, AnonymousUser() if preview else request.user, public_only=preview)
 
     tabs = [(value, label, counts[value]) for value, label in LibraryEntry.Status.choices]
     return {
@@ -166,6 +171,8 @@ def _profile_context(request, owner, favorites=None, preview=False):
         "view": view,
         "reviews": reviews,
         "drafts": drafts,
+        "lists": lists,
+        "showcase_lists": lists[:SHOWCASE_LISTS],
         "activities": [],
         "next_cursor": "",
         **activity_tab,

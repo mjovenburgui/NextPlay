@@ -93,6 +93,11 @@ def language_filter(key, prefix=""):
     }.get(key)
 
 
+def search_filter(query):
+    """Condición (Q) de la búsqueda de juegos por nombre: el de IGDB, el de España y sus otros nombres (siglas como «tw3»)."""
+    return models.Q(name__icontains=query) | models.Q(name_es__icontains=query) | models.Q(search_names__icontains=query)
+
+
 class Genre(models.Model):
     igdb_id = models.PositiveIntegerField(unique=True, null=True, blank=True)
     name = models.CharField(max_length=100)

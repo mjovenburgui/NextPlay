@@ -1,0 +1,48 @@
+{# Juegos de una lista en su editor: cada uno con su puesto (que se puede escribir), su comentario y los botones de subir, bajar y quitar. #}
+{# Necesita las variables de lists.views.editor_context. HTMX lo cambia entero al añadir, mover o quitar un juego (los botones llevan id #}
+{# para que HTMX les devuelva el foco); con added_result también cambia, fuera de su sitio, el resultado de la búsqueda desde el que se añadió. #}
+<div id="list-items">
+  <p class="list-items-count muted small">{{ items|length }} de {{ max_games }} juegos{% if game_list.is_ranked %} · el orden es el del ranking{% endif %}</p>
+  {% if list_error %}<p class="errorlist">{{ list_error }}</p>{% endif %}
+  {% if items %}
+    <ol class="reorder-list list-editor-items">
+      {% for item in items %}
+        <li class="reorder-item list-editor-item" id="juego-{{ item.game_id }}">
+          <form class="list-position" method="post" action="{% url 'lists:move' game_list.pk item.game_id %}"
+                hx-post="{% url 'lists:move' game_list.pk item.game_id %}" hx-trigger="change" hx-target="#list-items" hx-swap="outerHTML" hx-sync="#juegos:queue all">
+            {% csrf_token %}
+            <label class="visually-hidden" for="puesto-{{ item.game_id }}">Puesto de {{ item.game.name }}</label>
+            <input id="puesto-{{ item.game_id }}" type="number" name="puesto" min="1" max="{{ items|length }}" value="{{ forloop.counter }}" inputmode="numeric">
+          </form>
+          <a class="thumb" href="{{ item.game.get_absolute_url }}" tabindex="-1" aria-hidden="true">{% if item.game.cover_url %}<img src="{{ item.game.cover_url }}" alt="" loading="lazy">{% endif %}</a>
+          <div class="list-editor-main">
+            <a class="list-editor-name" href="{{ item.game.get_absolute_url }}">{{ item.game.name }}</a>
+            {% include "lists/_note_form.html" %}
+          </div>
+          <span class="reorder-actions">
+            <form method="post" action="{% url 'lists:move' game_list.pk item.game_id %}"
+                  hx-post="{% url 'lists:move' game_list.pk item.game_id %}" hx-target="#list-items" hx-swap="outerHTML" hx-sync="#juegos:queue all">
+              {% csrf_token %}
+              <input type="hidden" name="a" value="arriba">
+              <button class="icon-btn" id="subir-{{ item.game_id }}" type="submit" aria-label="Subir {{ item.game.name }}"{% if forloop.first %} disabled{% endif %}>{% include "_icon.html" with name="up" %}</button>
+            </form>
+            <form method="post" action="{% url 'lists:move' game_list.pk item.game_id %}"
+                  hx-post="{% url 'lists:move' game_list.pk item.game_id %}" hx-target="#list-items" hx-swap="outerHTML" hx-sync="#juegos:queue all">
+              {% csrf_token %}
+              <input type="hidden" name="a" value="abajo">
+              <button class="icon-btn" id="bajar-{{ item.game_id }}" type="submit" aria-label="Bajar {{ item.game.name }}"{% if forloop.last %} disabled{% endif %}>{% include "_icon.html" with name="down" %}</button>
+            </form>
+            <form method="post" action="{% url 'lists:remove' game_list.pk item.game_id %}"
+                  hx-post="{% url 'lists:remove' game_list.pk item.game_id %}" hx-target="#list-items" hx-swap="outerHTML" hx-sync="#juegos:queue all">
+              {% csrf_token %}
+              <button class="icon-btn list-remove" id="quitar-{{ item.game_id }}" type="submit" aria-label="Quitar {{ item.game.name }} de la lista" title="Quitar de la lista">{% include "_icon.html" with name="close" %}</button>
+            </form>
+          </span>
+        </li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <p class="muted box-empty">Aún no hay juegos: búscalos arriba o usa «Añadir a una lista» en la ficha de cualquier juego.</p>
+  {% endif %}
+</div>
+{% if added_result %}{% include "lists/_search_result.html" with game=added_result oob=True %}{% endif %}

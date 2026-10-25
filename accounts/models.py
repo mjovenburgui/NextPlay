@@ -26,6 +26,7 @@ SECTIONS = [
     ("resena", "Reseña destacada"),
     ("estadisticas", "Estadísticas"),
     ("generos", "Géneros que más juega"),
+    ("listas", "Listas"),
 ]
 
 # Redes sociales que se pueden enseñar en el perfil: clave → (nombre, expresión que debe cumplir el usuario,

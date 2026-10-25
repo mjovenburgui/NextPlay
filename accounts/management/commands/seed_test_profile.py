@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from games.models import Game
 from library.models import LibraryEntry, Review, ReviewComment, ReviewLike
+from lists.models import GameList, ListItem
 from social.activity import IMPORT_COVERS
 from social.models import Activity, Follow
 
@@ -60,6 +61,19 @@ FOLLOWS = [
     ("demo1", USERNAME), ("demo2", USERNAME), ("demo3", USERNAME),
     (USERNAME, "demo1"), (USERNAME, "demo2"),
     ("demo1", "demo2"), ("demo2", "demo3"),
+]
+# Listas de ejemplo: (dueño, título, descripción, pública, numerada, [(posición del juego, comentario)]). Las posiciones
+# van sobre los juegos de LIBRARY y, detrás, EXTRA_GAMES juegos más del catálogo que el usuario de prueba no tiene, para
+# ver en la página de una lista lo que le falta y lo que cuesta.
+EXTRA_GAMES = 3
+LISTS = [
+    (USERNAME, "Mis imprescindibles", "Los que **recomendaría a cualquiera**, en orden.", True, True, [
+        (1, "Las misiones secundarias mejor escritas que he jugado."), (0, "Cada rincón esconde algo."), (6, ""), (2, ""),
+    ]),
+    (USERNAME, "Para este invierno", "", False, False, [(5, ""), (3, ""), (8, "")]),
+    ("demo1", "Para jugar con amigos", "Cooperativos y competitivos que funcionan bien en grupo.", True, False, [
+        (0, "Mejor con cuatro."), (3, ""), (8, "Imprescindible en una noche de sofá."), (9, ""), (10, ""),
+    ]),
 ]
 
 
@@ -152,6 +166,9 @@ class Command(BaseCommand):
             if follower in people and followed in people:
                 Follow.objects.follow(people[follower], people[followed])
 
+        extras = list(Game.objects.exclude(cover_image_id="").exclude(pk__in=[game.pk for game in games])[:EXTRA_GAMES])
+        self.lists(user, games + extras)
+
         self.stdout.write(self.style.SUCCESS(
             f"Usuario de prueba «{USERNAME}» listo con {len(games)} juegos. "
             f"La contraseña está en accounts/management/commands/seed_test_profile.py."
@@ -163,6 +180,22 @@ class Command(BaseCommand):
         review.snapshot(entry)
         review.save()
         return review
+
+    def lists(self, user, catalog):
+        """Rehace las listas de ejemplo (LISTS) del usuario de prueba y de los usuarios demo que existan, con sus juegos
+        (catalog: los de su biblioteca y los extra, en orden) y sus comentarios."""
+        GameList.objects.filter(user=user).delete()
+        people = {u.username: u for u in User.objects.filter(username__in={owner for owner, *_ in LISTS})}
+        for owner, title, description, public, ranked, entries in LISTS:
+            if owner not in people:
+                continue
+            GameList.objects.filter(user=people[owner], title=title).delete()
+            game_list = GameList.objects.create(
+                user=people[owner], title=title, description=description, is_public=public, is_ranked=ranked,
+            )
+            for position, (index, note) in enumerate(entries):
+                if index < len(catalog):
+                    ListItem.objects.create(game_list=game_list, game=catalog[index], position=position, note=note)
 
     def activity(self, user, game, when, status, rating, review):
         """Apunta en la actividad de user lo que hizo con game en el momento when: su estado, su nota y su reseña (o None)."""

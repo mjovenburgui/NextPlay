@@ -18,7 +18,7 @@
     </a>
     <nav class="mainnav" aria-label="Principal">
       <a class="{% if section == 'home' %}is-active{% endif %}" href="{% url 'home' %}">{% include "_icon.html" with name="home" %} Inicio</a>
-      <a class="{% if section == 'catalog' or section == 'detail' %}is-active{% endif %}" href="{% url 'games:catalog' %}">{% include "_icon.html" with name="games" %} Juegos</a>
+      <a class="{% if request.resolver_match.namespace == 'games' %}is-active{% endif %}" href="{% url 'games:catalog' %}">{% include "_icon.html" with name="games" %} Juegos</a>
       {% if user.is_authenticated %}
         <a class="{% if section == 'wishlist' %}is-active{% endif %}" href="{% url 'library:wishlist' %}">{% include "_icon.html" with name="heart" %} Deseos</a>
       {% endif %}
@@ -42,6 +42,7 @@
           <div class="account-menu-panel">
             <p class="account-menu-id"><strong>{{ user.profile.name }}</strong><span class="muted small">@{{ user.username }}</span></p>
             <a href="{% url 'profile' user.username %}">{% include "_icon.html" with name="user" %} Mi perfil</a>
+            <a href="{% url 'profile' user.username %}?vista=listas">{% include "_icon.html" with name="list" %} Mis listas</a>
             <a href="{% url 'library:wishlist' %}">{% include "_icon.html" with name="heart" %} Lista de deseos</a>
             <a href="{% url 'edit_profile' %}">{% include "_icon.html" with name="settings" %} Editar perfil</a>
             <form action="{% url 'logout' %}" method="post">
@@ -209,17 +210,18 @@
     {# Barra inferior en el móvil, como en una app. #}
     <nav class="tabbar" aria-label="Principal (móvil)">
       <a class="{% if section == 'home' %}is-active{% endif %}" href="{% url 'home' %}">{% include "_icon.html" with name="home" %}<span>Inicio</span></a>
-      <a class="{% if section == 'catalog' or section == 'detail' %}is-active{% endif %}" href="{% url 'games:catalog' %}">{% include "_icon.html" with name="games" %}<span>Juegos</span></a>
+      <a class="{% if request.resolver_match.namespace == 'games' %}is-active{% endif %}" href="{% url 'games:catalog' %}">{% include "_icon.html" with name="games" %}<span>Juegos</span></a>
       <a class="{% if section == 'wishlist' %}is-active{% endif %}" href="{% url 'library:wishlist' %}">{% include "_icon.html" with name="heart" %}<span>Deseos</span></a>
       <a class="{% if section == 'notifications' %}is-active{% endif %}" href="{% url 'notifications' %}">{% include "_icon.html" with name="bell" %}<span>Avisos</span></a>
       <a class="{% if section == 'profile' or section == 'edit_profile' %}is-active{% endif %}" href="{% url 'profile' user.username %}">{% include "_icon.html" with name="user" %}<span>Perfil</span></a>
     </nav>
     {% if not preview %}
       <script>
-        // Cierra el menú de la cuenta al pulsar fuera de él.
+        // Cierra el menú de la cuenta y el desplegable «Añadir a una lista» de la ficha al pulsar fuera de ellos.
         document.addEventListener("click", function (event) {
-          var menu = document.querySelector(".account-menu[open]");
-          if (menu && !menu.contains(event.target)) menu.removeAttribute("open");
+          document.querySelectorAll(".account-menu[open], .list-picker[open]").forEach(function (menu) {
+            if (!menu.contains(event.target)) menu.removeAttribute("open");
+          });
         });
       </script>
     {% endif %}

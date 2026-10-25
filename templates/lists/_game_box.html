@@ -1,0 +1,23 @@
+{# «En N listas» de la ficha: las más recientes de las que puede ver quien mira en las que está el juego, con enlace a todas si hay más. #}
+{# Necesita game, game_lists y game_lists_count (lists.views.game_page_context). #}
+{% if game_lists %}
+  <section class="widget side-lists">
+    <p class="widget-label">En {{ game_lists_count }} lista{{ game_lists_count|pluralize }}</p>
+    <ul class="mini-lists">
+      {% for game_list in game_lists %}
+        <li>
+          <a class="mini-list" href="{{ game_list.get_absolute_url }}">
+            {% include "lists/_mosaic.html" with size="sm" %}
+            <span class="mini-list-info">
+              <strong>{{ game_list.title }}</strong>
+              <span class="muted small">{{ game_list.user.profile.name }} · {{ game_list.game_count }} juego{{ game_list.game_count|pluralize }}</span>
+            </span>
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+    {% if game_lists_count > game_lists|length %}
+      <a class="side-lists-all small" href="{% url 'lists:game' game.slug %}">Ver las {{ game_lists_count }} listas {% include "_icon.html" with name="arrow" %}</a>
+    {% endif %}
+  </section>
+{% endif %}

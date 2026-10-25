@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Nueva lista · NextPlay{% endblock %}
+
+{% block content %}
+  {# Crear una lista: primero sus datos; después lleva al editor para buscar y añadir los juegos. #}
+  <div class="panel panel-wide list-form">
+    <h1>{% include "_icon.html" with name="list" %} Nueva lista</h1>
+    {% if game %}<p class="muted">Empezará con <strong>{{ game.name }}</strong>; después podrás añadir más.</p>{% endif %}
+    <form method="post" action="{% url 'lists:new' %}">
+      {% csrf_token %}
+      {% if game %}<input type="hidden" name="juego" value="{{ game.pk }}">{% endif %}
+      {% include "lists/_fields.html" %}
+      <div class="list-form-foot">
+        <button class="btn btn-primary" type="submit">Crear lista</button>
+      </div>
+    </form>
+  </div>
+{% endblock %}

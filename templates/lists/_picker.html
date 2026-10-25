@@ -1,0 +1,32 @@
+{# «Añadir a una lista» de la ficha: un desplegable con las listas del usuario; al pulsar una, el juego entra en ella o sale. #}
+{# Necesita game y las variables de lists.views.picker_context; con open llega abierto (después de pulsar una, con HTMX), con el error en picker_error. #}
+<details class="list-picker" id="list-picker"{% if open %} open{% endif %}>
+  <summary class="btn list-picker-btn">
+    {% include "_icon.html" with name="list" %} Añadir a una lista{% if in_lists %} <span class="list-picker-count">En {{ in_lists }}</span>{% endif %}
+  </summary>
+  <div class="list-picker-panel">
+    {% if my_lists %}
+      <ul class="list-picker-items">
+        {% for game_list in my_lists %}
+          <li>
+            {% if game_list.has_game %}{% url 'lists:remove' game_list.pk game.pk as toggle_url %}{% else %}{% url 'lists:add' game_list.pk game.pk as toggle_url %}{% endif %}
+            <form method="post" action="{{ toggle_url }}" hx-post="{{ toggle_url }}" hx-target="#list-picker" hx-swap="outerHTML">
+              {% csrf_token %}
+              <input type="hidden" name="desde" value="ficha">
+              <input type="hidden" name="next" value="{{ game.get_absolute_url }}">
+              <button class="list-picker-item{% if game_list.has_game %} is-on{% endif %}" type="submit" aria-pressed="{% if game_list.has_game %}true{% else %}false{% endif %}">
+                <span class="list-picker-check">{% if game_list.has_game %}{% include "_icon.html" with name="check" %}{% endif %}</span>
+                <span class="list-picker-name">{{ game_list.title }}</span>
+                <span class="muted small">{{ game_list.game_count }}{% if not game_list.is_public %} · privada{% endif %}</span>
+              </button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted small list-picker-empty">Aún no tienes listas.</p>
+    {% endif %}
+    {% if picker_error %}<p class="errorlist">{{ picker_error }}</p>{% endif %}
+    <a class="list-picker-new" href="{% url 'lists:new' %}?juego={{ game.pk }}">{% include "_icon.html" with name="plus" %} Nueva lista con este juego</a>
+  </div>
+</details>

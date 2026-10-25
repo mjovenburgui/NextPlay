@@ -158,16 +158,51 @@
             {% for genre in stats.top_genres %}<span class="chip">{{ genre }}</span>{% endfor %}
           </p>
         {% endif %}
+      {% elif key == "listas" %}
+        {# Sus listas más recientes; a su dueño, aunque no tenga ninguna, para que sepa cómo crearlas. #}
+        {% if showcase_lists or is_owner %}
+          <section class="card-box showcase">
+            <header class="box-head">
+              <h2>{% include "_icon.html" with name="list" %} Listas</h2>
+              {% if lists|length > showcase_lists|length %}
+                <a href="?vista=listas">Ver las {{ lists|length }} {% include "_icon.html" with name="arrow" %}</a>
+              {% elif is_owner %}
+                <a href="{% url 'lists:new' %}">{% include "_icon.html" with name="plus" %} Nueva lista</a>
+              {% endif %}
+            </header>
+            {% if showcase_lists %}
+              <div class="lists-grid">{% for game_list in showcase_lists %}{% include "lists/_card.html" %}{% endfor %}</div>
+            {% else %}
+              <p class="muted small box-empty">Reúne juegos con algo en común, como «Mis imprescindibles» o «Para jugar en pareja»: crea una lista o usa «Añadir a una lista» en la ficha de un juego.</p>
+            {% endif %}
+          </section>
+        {% endif %}
       {% endif %}
     {% endfor %}{% endif %}
 
     <nav class="tabs tabs-main" aria-label="Secciones del perfil">
       <a class="tab{% if not view %} is-active{% endif %}" href="{% url 'profile' owner.username %}">Biblioteca <span>{{ total }}</span></a>
       <a class="tab{% if view == 'resenas' %} is-active{% endif %}" href="?vista=resenas">Reseñas <span>{{ reviews|length }}</span></a>
+      <a class="tab{% if view == 'listas' %} is-active{% endif %}" href="?vista=listas">Listas <span>{{ lists|length }}</span></a>
       <a class="tab{% if view == 'actividad' %} is-active{% endif %}" href="?vista=actividad">Actividad</a>
     </nav>
 
-    {% if view == "actividad" %}
+    {% if view == "listas" %}
+      {# Sus listas, de la que ha cambiado hace menos a la que más; las privadas solo las ve él (lists.views.profile_lists). #}
+      {% if is_owner %}
+        <div class="lists-bar">
+          <p class="muted small">Las privadas solo las ves tú.</p>
+          <a class="btn btn-primary" href="{% url 'lists:new' %}">{% include "_icon.html" with name="plus" %} Nueva lista</a>
+        </div>
+      {% endif %}
+      {% if lists %}
+        <div class="lists-grid">{% for game_list in lists %}{% include "lists/_card.html" %}{% endfor %}</div>
+      {% else %}
+        <p class="empty">
+          {% if is_owner %}Aún no tienes listas. Reúne juegos con algo en común: «Mis imprescindibles», «Para jugar en pareja», «Joyas que nadie conoce»…{% else %}{{ profile.name }} aún no tiene listas.{% endif %}
+        </p>
+      {% endif %}
+    {% elif view == "actividad" %}
       {# Lo que ha hecho, de lo más reciente a lo más antiguo (social.views.activity_page). #}
       {% if activities %}
         <section class="card-box">

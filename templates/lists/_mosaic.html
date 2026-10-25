@@ -1,0 +1,6 @@
+{# Mosaico de portadas de una lista: las de sus primeros juegos en dos filas de dos, con huecos vacíos si tiene menos. #}
+{# Necesita game_list (cargada con GameListQuerySet.with_preview); size: "sm", "" o "lg". #}
+<span class="list-mosaic{% if size %} list-mosaic-{{ size }}{% endif %}" aria-hidden="true">
+  {% for item in game_list.preview_items %}<span class="list-mosaic-cell">{% if item.game.cover_url %}<img src="{{ item.game.cover_url }}" alt="" loading="lazy">{% endif %}</span>{% endfor %}
+  {% for gap in game_list.mosaic_gaps %}<span class="list-mosaic-cell is-empty"></span>{% endfor %}
+</span>

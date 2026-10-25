@@ -14,10 +14,11 @@ from django.views.decorators.http import require_POST
 from accounts.views import favorite_context
 from library.models import LibraryEntry, Review, WishlistItem
 from library.views import review_context
+from lists.views import game_page_context
 from social.views import composer_context, feed_context
 
 from . import history, igdb, media, prices
-from .models import LANGUAGE_FILTERS, Game, GamePrice, Genre, Platform, language_filter
+from .models import LANGUAGE_FILTERS, Game, GamePrice, Genre, Platform, language_filter, search_filter
 
 PAGE_SIZE = 24
 TRENDING_DAYS = 30
@@ -96,9 +97,7 @@ def catalog(request):
 
     games = Game.objects.all()
     if query:
-        games = games.filter(
-            Q(name__icontains=query) | Q(name_es__icontains=query) | Q(search_names__icontains=query)
-        )
+        games = games.filter(search_filter(query))
     if genre:
         games = games.filter(genres__slug=genre)
     if platform:
@@ -138,7 +137,8 @@ def catalog(request):
 
 def detail(request, slug):
     """Ficha de un juego: cabecera con su arte, datos, nota de la crítica, valoración de la comunidad,
-    widget de biblioteca, botón de favoritos del perfil, carrusel de imágenes y vídeos, precios y reseñas.
+    widget de biblioteca, botones de favoritos del perfil y de «Añadir a una lista», las listas en las que
+    está (lists.views.game_page_context), carrusel de imágenes y vídeos, precios y reseñas.
 
     La cabecera y el carrusel salen de games.media: si sus imágenes de IGDB están al día se pintan ya;
     si no, la ficha carga el carrusel después con HTMX (game_media). Los precios llegan ya repartidos por
@@ -185,6 +185,7 @@ def detail(request, slug):
             "community": game.community_rating(),
             **review_context(request, game, entry),
             **(favorite_context(request.user, game) if request.user.is_authenticated else {}),
+            **game_page_context(request, game),
         },
     )
 

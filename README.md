@@ -209,6 +209,25 @@ Los comentarios son los mismos que los de las reseñas (`library/_comments.html`
 (salvo si ya tiene un aviso igual sin leer), los borran quien los escribió y el autor de la publicación, y
 los demás pueden denunciarlos.
 
+## Listas de juegos
+
+Cada jugador hace las listas que quiera («Mejores metroidvanias», «Para jugar en pareja»): título, una descripción
+con el formato de las reseñas y sus juegos en el orden que elija, cada uno con un comentario si quiere. Si es
+numerada, cada juego lleva su puesto, para rankings. Las privadas solo las ve su dueño, y las de un perfil privado
+también: la regla está en `GameList.visible_to` y, en las consultas, en `GameList.objects.visible_to`.
+
+Se crean desde la pestaña Listas del perfil o, en la ficha de cualquier juego, con «Añadir a una lista», que despliega
+las tuyas para meterlo o sacarlo de cada una con un clic y ofrece «Nueva lista con este juego». En el editor
+(`/listas/<id>/editar/`) se buscan juegos del catálogo mientras se escribe y se añaden, se ordenan (subir, bajar o
+escribir el puesto), se comentan y se quitan; cada cambio se guarda al momento. Caben 250 juegos por lista.
+
+La página de cada lista (`/u/<usuario>/listas/<id>/`) lleva el color del perfil de su autor y enseña los juegos en
+portadas o con sus comentarios (se abre con los comentarios si alguno tiene). A quien la mira con sesión le dice
+cuántos ha jugado, cuántos ha terminado y cuántas horas lleva en ellos, el estado de cada juego en su biblioteca y,
+de los que no tiene, lo que cuestan hoy en sus tiendas y lo que costarían si espera a que cada uno baje a su mínimo
+histórico, con un botón para pasarlos todos a «Lo quiero» y recibir sus avisos de precio. La ficha de cada juego
+dice en cuántas listas está (`/juegos/<slug>/listas/` las enseña todas) y el escaparate del perfil, las últimas.
+
 ## Tareas de cada noche
 
 `nightly` sincroniza la biblioteca de Steam (y su lista de deseos, si no se ha desactivado) de quien tenga
@@ -250,8 +269,9 @@ schtasks /Create /TN "NextPlay nightly" /SC DAILY /ST 04:00 /TR "cmd /c cd /d %C
 | `games`    | `Game`, `Genre`, `Platform`, catálogo y cliente de IGDB      |
 | `library`  | `LibraryEntry`: un estado por usuario y juego                |
 | `social`   | `Follow` y `Activity`: seguir a otros jugadores y su actividad |
+| `lists`    | `GameList` y `ListItem`: las listas de juegos de cada usuario |
 
 ## Siguientes cortes
 
 2. Importación de Steam, puntuaciones y reseñas, tarjeta compartible.
-3. Listas, bloquear y silenciar, beta.
+3. Bloquear y silenciar, retos, beta.
