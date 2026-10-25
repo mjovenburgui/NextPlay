@@ -2,7 +2,7 @@
   {
     "titulo": "Sacar .env del repositorio y cambiar las claves",
     "fecha": "2026-10-17",
-    "estado": "pendiente",
+    "estado": "en curso",
     "prioridad": "alta",
     "tipo": "Seguridad",
     "resumen": "Dejar de versionar el archivo .env para que las claves (IGDB, IsThereAnyDeal, Steam...) no acaben en GitHub.",
@@ -13,7 +13,7 @@
       "Cambiar en cada servicio las claves que ya se subieron (están en el historial de git aunque se quite el archivo).",
       "Mantener .env.example con los nombres de las variables y sin valores."
     ],
-    "notas": ""
+    "notas": "25/10/2026: al revisar el proyecto, el repositorio de GitHub es público y el .env de main lleva claves con pinta de reales: el Client ID y el secreto de Twitch (IGDB) y las claves de IsThereAnyDeal, GG.deals y Steam (la de Steam entró con «Update .env», hecho desde la web de GitHub). Hay que cambiar el secreto de Twitch y las claves de IsThereAnyDeal y Steam; la de GG.deals no la usa el código, así que basta con revocarla y quitarla del .env. .claude/launch.json también está versionado y es de cada ordenador: sacarlo a la vez y añadirlo a .gitignore. 25/10/2026: hecho en la rama sacar-env-del-repositorio (PR abierto, sin fusionar): git deja de versionar .env y .claude/launch.json (que pasa a .gitignore) sin borrarlos del ordenador. Falta que el usuario cambie el secreto de Twitch y las claves de IsThereAnyDeal y Steam y revoque la de GG.deals; entonces pasa a «hecha». No se reescribe el historial: con las claves cambiadas, las que se quedan en él ya no sirven."
   },
   {
     "titulo": "Borrar la cuenta, descargar mis datos y privacidad (RGPD)",
@@ -119,7 +119,7 @@
       "Mostrar en la ficha en qué listas públicas aparece el juego.",
       "Mejoras sobre Backloggd: el progreso de quien la mira («has jugado 7 de 20»), modo tier list (S, A, B, C…), listas colaborativas con otros usuarios y portada en mosaico con las carátulas."
     ],
-    "notas": "Ya estaba planeada antes de proponerla. 21/10/2026: sube a alta porque el usuario las quiere ya."
+    "notas": "Ya estaba planeada antes de proponerla. 21/10/2026: sube a alta porque el usuario las quiere ya. 25/10/2026: con lo social ya hecho, crear una lista sale en el feed y en la actividad («Ana creó la lista…»), y los «me gusta» y los comentarios reutilizan los de las reseñas y las publicaciones (library/_comments.html). Mejora que solo puede tener NextPlay: «Lo que te falta», los juegos de la lista que no tienes con lo que cuestan hoy en tus tiendas y en su mínimo histórico (solo los que tienen precio: PC y Xbox) y un botón para pasarlos todos a «Lo quiero», con sus avisos de precio. Y «Convertir en reto», que crea un reto de tipo lista concreta (ver «Retos: crea los tuyos y únete a los de otros»)."
   },
   {
     "titulo": "Retos: crea los tuyos y únete a los de otros",
@@ -136,7 +136,7 @@
       "Insignia en el perfil al terminarlo y sección «Retos» en el escaparate del perfil.",
       "Página de retos con los más populares y los de la gente a la que sigues."
     ],
-    "notas": "El reto anual de «Retos del año y control del pendiente» pasa a ser un tipo más de este; lo del valor del pendiente y el asistente siguen allí."
+    "notas": "El reto anual de «Retos del año y control del pendiente» pasa a ser un tipo más de este; lo del valor del pendiente y el asistente siguen allí. 25/10/2026: visto al revisar el código. El tipo «número de horas» necesita saber cuántas horas se jugaron entre las fechas del reto, y eso solo lo dan las sesiones del paso 1 de «Diario de partidas que se escribe solo» (ahora ImportedTitle.minutes se sobrescribe en cada importación), así que ese paso va antes o con los retos. La fecha de Completado es más fácil de lo que parecía: las importaciones solo ponen Pendiente, Jugando o Jugado (LibraryEntry.imported_status), así que Completado siempre lo pone el jugador y basta con guardar la fecha al cambiar el estado; la actividad ya la tiene desde el 25/10/2026. El tipo «lista de juegos concreta» se apoya en «Listas personalizadas de juegos», que conviene hacer antes."
   },
   {
     "titulo": "Importar juegos y horas de Xbox",
