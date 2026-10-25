@@ -1486,3 +1486,44 @@ p.update-hint { display: flex; border-left-color: var(--gold); }
 @media (max-width: 480px) {
   .feed .activity-cover { display: none; }
 }
+
+/* Publicaciones: la caja para publicar (portada y /publicar/), su tarjeta en el feed y su página */
+.composer { margin: 0; }
+.composer-main { display: flex; align-items: flex-start; gap: .75rem; }
+.composer-text { flex: 1; min-width: 0; }
+.composer-text textarea { min-height: 4.75rem; resize: vertical; }
+.composer-games, .composer-previews, .composer-foot, .composer > .help, .composer > .errorlist { margin-left: calc(40px + .75rem); }
+.composer-games { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-top: .7rem; margin-bottom: 0; padding: 0; border: 0; }
+.composer-games legend { float: left; margin-right: .2rem; padding: 0; }
+/* Cada juego es una ficha que se marca; el botón de radio va escondido pero se puede usar con el teclado. */
+.chip-pick { position: relative; display: inline-flex; align-items: center; padding: .25rem .75rem; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: .85rem; font-weight: 600; cursor: pointer; }
+.chip-pick input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.chip-pick:hover { border-color: var(--violet); color: var(--text); }
+.chip-pick:has(input:checked) { border-color: var(--violet); background: rgba(157, 92, 255, .18); color: #fff; }
+.chip-pick:has(input:focus-visible), .composer-attach:has(input:focus-visible) { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.composer-previews { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .7rem; margin-bottom: 0; padding: 0; list-style: none; }
+.composer-previews li { position: relative; width: 84px; aspect-ratio: 1; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; }
+.composer-previews img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.composer-remove { position: absolute; top: .2rem; right: .2rem; width: 1.5rem; height: 1.5rem; padding: 0; border: 0; border-radius: 50%; background: rgba(7, 9, 18, .8); color: #fff; font-size: 1rem; line-height: 1; cursor: pointer; }
+.composer-foot { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem 1rem; margin-top: .7rem; }
+.composer-foot .check { display: inline-flex; align-items: center; gap: .35rem; cursor: pointer; }
+.composer-attach { display: inline-flex; align-items: center; gap: .35rem; cursor: pointer; }
+.composer-attach .icon { width: 1rem; height: 1rem; }
+.composer-send { margin-left: auto; }
+.composer > .errorlist, .composer-errors p { margin: 0 0 .6rem; }
+.activity-post .review-text { margin: .35rem 0 0; color: #d4d8ee; }
+.activity-post .review-gallery { max-width: 420px; margin-top: .6rem; }
+.activity-post .spoiler { margin-top: .35rem; }
+.post-text p:first-child { margin-top: 0; }
+.post-head { display: flex; align-items: center; gap: .8rem; }
+.post-head > div { flex: 1; min-width: 0; }
+.post-head p { margin: 0; }
+.post-page > .review-text, .post-page > .spoiler { margin-top: 1rem; font-size: 1.02rem; }
+.post-page .review-gallery { margin-top: 1rem; }
+.post-delete { margin: 0 0 0 auto; }
+.post-delete-btn:hover { color: var(--pink); }
+.reviews-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.post-comments .comments { margin-top: 0; }
+@media (max-width: 480px) {
+  .composer-games, .composer-previews, .composer-foot, .composer > .help, .composer > .errorlist { margin-left: 0; }
+}

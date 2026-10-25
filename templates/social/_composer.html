@@ -1,0 +1,118 @@
+{# Caja para publicar (en la portada y en /publicar/): el texto, de qué juego va si se quiere, imágenes y si es un spoiler. #}
+{# Necesita las variables de social.views.composer_context. Funciona sin JavaScript; con él enseña las imágenes elegidas y reduce las muy grandes antes de subirlas. #}
+<form class="composer" method="post" action="{% url 'social:post_new' %}" enctype="multipart/form-data" data-composer
+      data-max="{{ post_max_images }}" data-max-width="{{ post_image_kind.width }}" data-max-height="{{ post_image_kind.height }}" data-max-mb="{{ post_image_kind.max_mb }}">
+  {% csrf_token %}
+  {% if post_form.non_field_errors %}<div class="errorlist composer-errors">{% for error in post_form.non_field_errors %}<p>{{ error }}</p>{% endfor %}</div>{% endif %}
+  <div class="composer-main">
+    {% include "accounts/_avatar.html" with profile=user.profile size="sm" %}
+    <div class="composer-text">
+      <label class="visually-hidden" for="{{ post_form.text.id_for_label }}">{{ post_form.text.label }}</label>
+      {{ post_form.text }}
+      {{ post_form.text.errors }}
+    </div>
+  </div>
+  {% if composer_games %}
+    {# Los juegos que está jugando (y el de la ficha desde la que viene), para decir de cuál habla. #}
+    <fieldset class="composer-games">
+      <legend class="muted small">¿Sobre qué juego?</legend>
+      <label class="chip-pick"><input type="radio" name="game" value=""{% if not composer_game %} checked{% endif %}> Ninguno</label>
+      {% for game in composer_games %}
+        <label class="chip-pick"><input type="radio" name="game" value="{{ game.pk }}"{% if composer_game == game.pk %} checked{% endif %}> {{ game.name }}</label>
+      {% endfor %}
+    </fieldset>
+  {% endif %}
+  <ul class="composer-previews" data-previews hidden></ul>
+  <p class="help" data-images-note hidden></p>
+  {{ post_form.imagenes.errors }}
+  <div class="composer-foot">
+    <label class="btn btn-small composer-attach">
+      {% include "_icon.html" with name="image" %} Imágenes
+      <input class="visually-hidden" type="file" name="imagenes" multiple accept="image/png,image/jpeg,image/webp,image/gif" data-images>
+    </label>
+    <label class="check small"><input type="checkbox" name="has_spoilers"{% if post_form.has_spoilers.value %} checked{% endif %}> Es un spoiler</label>
+    <button class="btn btn-primary composer-send" type="submit">Publicar</button>
+  </div>
+</form>
+<script>
+  // Caja de publicar: enseña las imágenes elegidas (como mucho data-max, que se pueden elegir en varias veces y quitar) y
+  // reduce las que no caben o pesan demasiado antes de subirlas, como hace el editor de reseñas.
+  (function () {
+    var form = document.querySelector("[data-composer]");
+    var input = form.querySelector("[data-images]");
+    var previews = form.querySelector("[data-previews]");
+    var note = form.querySelector("[data-images-note]");
+    var max = Number(form.dataset.max);
+    var files = [];
+    var urls = [];
+
+    // Devuelve (en una promesa) el archivo que se subirá: el mismo o, si es más grande de lo que se guarda o pesa
+    // demasiado, una copia reducida en WebP (en PNG si el navegador no sabe hacer WebP).
+    function shrink(file) {
+      return new Promise(function (resolve) {
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function () {
+          URL.revokeObjectURL(url);
+          var ratio = Math.min(1, form.dataset.maxWidth / img.naturalWidth, form.dataset.maxHeight / img.naturalHeight);
+          if (ratio === 1 && file.size <= form.dataset.maxMb * 1048576) return resolve(file);
+          var canvas = document.createElement("canvas");
+          canvas.width = Math.round(img.naturalWidth * ratio);
+          canvas.height = Math.round(img.naturalHeight * ratio);
+          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob(function (blob) {
+            if (!blob) return resolve(file);
+            var name = file.name.replace(/\.\w+$/, "") + (blob.type === "image/webp" ? ".webp" : ".png");
+            resolve(new File([blob], name, { type: blob.type }));
+          }, "image/webp", 0.9);
+        };
+        // Si el navegador no sabe leerla, que la compruebe el servidor y explique qué le pasa.
+        img.onerror = function () {
+          URL.revokeObjectURL(url);
+          resolve(file);
+        };
+        img.src = url;
+      });
+    }
+
+    // Pone en el selector los archivos elegidos (el servidor recibe esos) y pinta sus miniaturas con un botón para quitarlas.
+    function sync() {
+      var transfer = new DataTransfer();
+      files.forEach(function (file) { transfer.items.add(file); });
+      input.files = transfer.files;
+      urls.forEach(function (url) { URL.revokeObjectURL(url); });
+      urls = [];
+      previews.replaceChildren();
+      previews.hidden = !files.length;
+      files.forEach(function (file, i) {
+        var item = document.createElement("li");
+        var img = document.createElement("img");
+        img.alt = file.name;
+        img.src = URL.createObjectURL(file);
+        urls.push(img.src);
+        var remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "composer-remove";
+        remove.setAttribute("aria-label", "Quitar " + file.name);
+        remove.textContent = "×";
+        remove.addEventListener("click", function () {
+          files.splice(i, 1);
+          note.hidden = true;
+          sync();
+        });
+        item.append(img, remove);
+        previews.append(item);
+      });
+    }
+
+    input.addEventListener("change", function () {
+      Promise.all(Array.prototype.slice.call(input.files).map(shrink)).then(function (picked) {
+        files = files.concat(picked);
+        note.textContent = "Caben " + max + " imágenes por publicación: se han quedado fuera las últimas.";
+        note.hidden = files.length <= max;
+        files = files.slice(0, max);
+        sync();
+      });
+    });
+  })();
+</script>

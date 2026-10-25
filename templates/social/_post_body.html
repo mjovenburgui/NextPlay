@@ -1,0 +1,9 @@
+{% load reviews %}
+{# Texto (con su formato) e imágenes de una publicación; si es un spoiler, van tapados hasta que se pulsa. #}
+{# Necesita post; con truncate (en el feed), el texto se corta a los 500 caracteres y el resto se lee en su página. #}
+{% if post.has_spoilers %}<details class="spoiler"><summary>Es un spoiler · Verla</summary>{% endif %}
+{% if post.text %}
+  <div class="review-text post-text">{% if truncate %}{{ post.text|review_html|truncatechars_html:500 }}{% else %}{{ post.text|review_html }}{% endif %}</div>
+{% endif %}
+{% include "social/_post_images.html" %}
+{% if post.has_spoilers %}</details>{% endif %}

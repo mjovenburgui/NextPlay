@@ -1,9 +1,23 @@
 {% load reviews %}
-{# Una actividad: lo que hizo un jugador con un juego (estado, nota y reseña juntos) o lo que importó. Necesita activity; con show_user también se ve quién fue (para el feed). #}
+{# Una actividad: lo que hizo un jugador con un juego (estado, nota y reseña juntos), lo que importó o lo que publicó. Necesita activity; con show_user también se ve quién fue (para el feed). #}
 <li class="activity">
   {% if show_user %}{% include "accounts/_avatar.html" with profile=activity.user.profile size="sm" %}{% endif %}
   <div class="activity-main">
-    {% if activity.kind == "import" %}
+    {% if activity.kind == "post" %}
+      {% with post=activity.post %}
+        <p class="activity-line">
+          {% if show_user %}<a class="activity-author" href="{{ activity.user.profile.get_absolute_url }}">{{ activity.user.profile.name }}</a> publicó{% else %}Publicó{% endif %}{% if post.game %} sobre <a class="activity-game" href="{{ post.game.get_absolute_url }}">{{ post.game.name }}</a>{% endif %}
+        </p>
+        <div class="activity-post">
+          {% include "social/_post_body.html" with truncate=True %}
+          <p class="feed-actions">
+            {% include "social/_post_like.html" with liked=post.liked like_count=post.like_count %}
+            <a class="review-action" href="{{ post.get_absolute_url }}#comentarios">{% include "_icon.html" with name="comment" %} {{ post.comment_count|default:0 }}<span class="visually-hidden"> comentarios</span></a>
+            <a class="review-more" href="{{ post.get_absolute_url }}">Ver la publicación</a>
+          </p>
+        </div>
+      {% endwith %}
+    {% elif activity.kind == "import" %}
       <p class="activity-line">
         {% if show_user %}<a class="activity-author" href="{{ activity.user.profile.get_absolute_url }}">{{ activity.user.profile.name }}</a> importó{% else %}Importó{% endif %}
         <strong>{{ activity.import_count }} juego{{ activity.import_count|pluralize }}</strong> de {{ activity.platform_name }}

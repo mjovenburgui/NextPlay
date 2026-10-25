@@ -720,6 +720,8 @@ class Notification(models.Model):
         COMMENT = "comment", "Comentario en tu reseña"
         REVIEW_UPDATE = "review_update", "Actualizar una reseña"
         FOLLOW = "follow", "Nuevo seguidor"
+        POST_LIKE = "post_like", "Me gusta en tu publicación"
+        POST_COMMENT = "post_comment", "Comentario en tu publicación"
         # Solo para los administradores.
         REPORT = "report", "Denuncia"
 
@@ -730,7 +732,8 @@ class Notification(models.Model):
     game = models.ForeignKey(
         "games.Game", on_delete=models.CASCADE, null=True, blank=True, related_name="+", verbose_name="juego"
     )
-    # Quién lo ha provocado (de momento, el nuevo seguidor), para enseñar su foto. Se borra con su cuenta.
+    # Quién lo ha provocado (el nuevo seguidor o quien ha dado «me gusta» a una publicación o la ha comentado), para
+    # enseñar su foto. Se borra con su cuenta.
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True, related_name="+",
         verbose_name="quién",

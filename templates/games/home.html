@@ -48,30 +48,8 @@
 
     <div class="col-main">
       {% if user.is_authenticated %}
-        <section class="card-box">
-          <header class="box-head">
-            <h2>Sigues jugando</h2>
-            <a href="{% url 'profile' user.username %}?estado=playing">Ver todos {% include "_icon.html" with name="arrow" %}</a>
-          </header>
-          {% if playing %}
-            <ul class="playing">
-              {% for entry in playing %}
-                <li>
-                  <a class="playing-item" href="{{ entry.game.get_absolute_url }}">
-                    <span class="thumb">{% if entry.game.cover_url %}<img src="{{ entry.game.cover_url }}" alt="" loading="lazy">{% endif %}</span>
-                    <span class="playing-info">
-                      <strong>{{ entry.game.name }}</strong>
-                      <span class="muted small">{% if entry.playtime_hours %}{{ entry.playtime_hours|floatformat:"-1" }} h jugadas{% else %}Jugando{% endif %}</span>
-                    </span>
-                    {% include "_icon.html" with name="chevron" %}
-                  </a>
-                </li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <p class="muted small box-empty">Marca un juego como «Jugando» en su ficha y aparecerá aquí.</p>
-          {% endif %}
-        </section>
+        {# Lo que quieras contar, con los juegos que estás jugando para decir de cuál hablas (social/_composer.html). #}
+        <section class="card-box">{% include "social/_composer.html" %}</section>
       {% else %}
         {# Sin sesión no hay nada tuyo que enseñar: los juegos populares, antes de lo último de la comunidad. #}
         <section class="card-box">

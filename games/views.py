@@ -14,7 +14,7 @@ from django.views.decorators.http import require_POST
 from accounts.views import favorite_context
 from library.models import LibraryEntry, Review, WishlistItem
 from library.views import review_context
-from social.views import feed_context
+from social.views import composer_context, feed_context
 
 from . import history, igdb, media, prices
 from .models import LANGUAGE_FILTERS, Game, GamePrice, Genre, Platform, language_filter
@@ -42,16 +42,17 @@ def trending_games(limit=5):
 
 
 def home(request):
-    """Portada: tu resumen (con tus seguidores y seguidos) y tu menú a la izquierda; en el centro lo que estás
-    jugando y el feed, y los juegos en tendencia a la derecha.
+    """Portada: tu resumen (con tus seguidores y seguidos) y tu menú a la izquierda; en el centro la caja para
+    publicar (social.views.composer_context, con los juegos que estás jugando para elegir de cuál hablas) y el
+    feed, y los juegos en tendencia a la derecha.
 
     El feed tiene dos pestañas (?ver=, ver social.views.feed_context): «siguiendo», lo tuyo y lo de la gente
     que sigues, con sugerencias de gente a la que seguir si no sigues a nadie, y «descubrir», lo de toda la
     comunidad; ?antes= es el cursor de «Cargar más» para quien no tiene JavaScript. Sin sesión, en el centro
     van los juegos populares y lo último de la comunidad.
     """
-    playing = summary = None
-    popular = []
+    summary = None
+    popular, composer = [], {}
     if request.user.is_authenticated:
         library = LibraryEntry.objects.filter(user=request.user)
         summary = library.aggregate(
@@ -61,7 +62,7 @@ def home(request):
         summary["reviews"] = Review.objects.filter(user=request.user).published().count()
         summary["followers"] = request.user.followers.count()
         summary["following"] = request.user.following.count()
-        playing = library.filter(status=LibraryEntry.Status.PLAYING).select_related("game").order_by("-updated_at")[:4]
+        composer = composer_context(request.user)
     else:
         popular = list(Game.objects.order_by("-popularity", "name")[:12])
     return render(
@@ -69,7 +70,7 @@ def home(request):
         "games/home.html",
         {
             "summary": summary,
-            "playing": playing,
+            **composer,
             "popular": popular,
             **feed_context(request.user, request.GET.get("ver", ""), request.GET.get("antes", "")),
             "trending": trending_games(),

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}Publicar · NextPlay{% endblock %}
+
+{% block content %}
+  {# La caja de publicar en su propia página: desde la ficha de un juego (ya sobre ese juego) o si faltaba algo al publicar. #}
+  <section class="panel panel-wide">
+    <h1>{% include "_icon.html" with name="edit" %} Publicar</h1>
+    {% include "social/_composer.html" %}
+  </section>
+{% endblock %}

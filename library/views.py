@@ -37,7 +37,11 @@ LONG_PLAY_HOURS = 10
 # pliega: puede contar lo que le queda.
 AHEAD_HOURS = 10
 # Lo que se puede denunciar: clave → (cómo se nombra en el botón, cómo se nombra en el aviso a los administradores).
-REPORT_TARGETS = {"resena": ("esta reseña", "una reseña"), "comentario": ("este comentario", "un comentario")}
+REPORT_TARGETS = {
+    "resena": ("esta reseña", "una reseña"),
+    "comentario": ("este comentario", "un comentario"),
+    "publicacion": ("esta publicación", "una publicación"),
+}
 
 
 def mark_liked(reviews, user):
@@ -332,22 +336,43 @@ def review_detail(request, username, review_id):
 
 
 def _comments_context(review, viewer):
-    """Comentarios de la reseña con sus autores, en orden, y en cada uno si viewer ya lo ha denunciado (reported)."""
-    comments = list(
-        review.comments.select_related("user__profile", "user__psn_account", "review").prefetch_related("user__steam_accounts")
+    """Variables de library/_comments.html para los comentarios de la reseña (ver comment_thread)."""
+    return comment_thread(
+        review, review.comments.select_related("review"), viewer,
+        comment_url=reverse("library:review_comment", args=[review.pk]),
+        delete_url_name="library:comment_delete", report_url_name="library:comment_report",
+        count_id=f"comment-count-{review.pk}",
     )
+
+
+def comment_thread(parent, comments, viewer, *, comment_url, delete_url_name, report_url_name, count_id):
+    """Variables de library/_comments.html para los comentarios de parent: una reseña o una publicación (social.Post).
+
+    comments son sus comentarios (con su parent ya cargado, para saber quién puede borrarlos); salen con sus
+    autores, en orden, y en cada uno si viewer ya lo ha denunciado (reported). comment_url es la dirección del
+    formulario para comentar; delete_url_name y report_url_name, los nombres de las URL para borrar y denunciar
+    un comentario; y count_id, el id del contador de comentarios que HTMX cambia al comentar o borrar.
+    """
+    comments = list(comments.select_related("user__profile", "user__psn_account").prefetch_related("user__steam_accounts"))
     reported = set()
     if viewer.is_authenticated and comments:
         reported = set(
             Report.objects.filter(
-                reporter=viewer, content_type=ContentType.objects.get_for_model(ReviewComment),
+                reporter=viewer, content_type=ContentType.objects.get_for_model(comments[0]),
                 object_id__in=[comment.pk for comment in comments],
             ).values_list("object_id", flat=True)
         )
     for comment in comments:
         comment.reported = comment.pk in reported
-    review.comment_count = len(comments)
-    return {"comments": comments}
+    parent.comment_count = len(comments)
+    return {
+        "comments": comments,
+        "parent": parent,
+        "comment_url": comment_url,
+        "delete_url_name": delete_url_name,
+        "report_url_name": report_url_name,
+        "count_id": count_id,
+    }
 
 
 def _notify(review, actor, kind):
@@ -451,7 +476,7 @@ def comment_report(request, comment_id):
 
 
 def _report(request, target, kind, game, back_url):
-    """Guarda la denuncia del usuario sobre target (una reseña o un comentario, según kind) y avisa a los administradores.
+    """Guarda la denuncia del usuario sobre target (una reseña, un comentario o una publicación, según kind) y avisa a los administradores.
 
     Si ya lo había denunciado, cambia el motivo y la vuelve a dejar pendiente. Con HTMX devuelve el botón de
     denunciar (library/_report.html) ya como «Gracias» o, si falta el motivo, abierto con el error; si no,
@@ -479,10 +504,12 @@ def _notify_staff(report, what, game):
     """Avisa en la campana a los administradores de la denuncia de what («una reseña de ana») en game, sin
     repetirlo mientras tengan uno igual sin leer.
 
-    El aviso lleva a la denuncia en el admin, desde donde se puede ir a lo denunciado y borrarlo.
+    game puede ser None (una publicación que no habla de ningún juego). El aviso lleva a la denuncia en el
+    admin, desde donde se puede ir a lo denunciado y borrarlo.
     """
     url = reverse("admin:library_report_change", args=[report.pk])
-    text = f"Han denunciado {what} en {game.name}: {report.get_reason_display()}."
+    where = f" en {game.name}" if game else ""
+    text = f"Han denunciado {what}{where}: {report.get_reason_display()}."
     staff = get_user_model().objects.filter(is_staff=True, is_active=True).exclude(pk=report.reporter_id)
     for admin_user in staff:
         notices = Notification.objects.filter(user=admin_user, kind=Notification.Kind.REPORT, url=url, read_at=None)

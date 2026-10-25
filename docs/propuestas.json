@@ -313,7 +313,7 @@
   {
     "titulo": "Publicaciones con imágenes asociadas a un juego",
     "fecha": "2026-10-19",
-    "estado": "pendiente",
+    "estado": "en curso",
     "prioridad": "alta",
     "tipo": "Funcionalidad",
     "resumen": "Que el usuario publique además de reseñar: texto con hasta 4 imágenes, asociado opcionalmente a un juego, con marca de spoiler y visibilidad, y que salga en la portada, en la ficha del juego (pestaña Comunidad) y en su perfil.",
@@ -325,7 +325,7 @@
       "Me gusta y comentarios (reutilizable para las reseñas) y guardar publicaciones.",
       "Borrar las propias y denunciar para el admin; tests de visibilidad y de subida de imágenes."
     ],
-    "notas": "Propuesta por el usuario. Con «Seguir a otros jugadores» la portada tendrá las pestañas Siguiendo y Descubrir de la maqueta."
+    "notas": "Propuesta por el usuario. Con «Seguir a otros jugadores» la portada tendrá las pestañas Siguiendo y Descubrir de la maqueta. 25/10/2026: el usuario pide quitar «Sigues jugando» de la portada y poner en su sitio la caja para publicar. Hecho en la rama feed-en-la-portada (sin commit; la fase 3 del feed está guardada aparte como árbol de git para poder hacer su commit por separado): modelos Post (hasta 2000 caracteres con el formato de las reseñas, juego opcional y spoiler), PostImage (hasta 4, reutilizando AttachedImage y accounts.images, con su miniatura) y PostLike; caja en la portada con los juegos que estás jugando como fichas para elegir de cuál hablas y vista previa de las imágenes (el navegador reduce las muy grandes); /publicar/ con ?juego= desde el botón «Publicar sobre el juego» de la ficha; tarjeta en el feed y en la actividad del perfil (actividad de tipo publicación, que se borra con ella); página propia con «me gusta» (aviso en la campana una vez por persona), «Copiar enlace», «Borrar» y «Denunciar» (Report genérico; el aviso a los administradores ya no necesita juego); admin con imágenes y denuncias pendientes; 9 tests. Falta: comentarios en las publicaciones (los de las reseñas son solo de reseñas), la pestaña Comunidad de la ficha, una pestaña Publicaciones en el perfil, marcar como spoiler cada imagen y guardar publicaciones. 25/10/2026: hechos los comentarios en las publicaciones (modelo PostComment; la plantilla library/_comments.html y library.views.comment_thread sirven ahora para las reseñas y para las publicaciones), con aviso en la campana, borrar (quien lo escribe y el autor de la publicación), denunciar, contador en el feed y en su página, admin y 5 tests. Falta: la pestaña Comunidad de la ficha, una pestaña Publicaciones en el perfil, marcar como spoiler cada imagen y guardar publicaciones."
   },
   {
     "titulo": "Ficha del juego más completa",

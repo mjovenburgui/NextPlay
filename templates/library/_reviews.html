@@ -4,9 +4,15 @@
 <section class="reviews" id="resenas"{% if oob %} hx-swap-oob="true"{% endif %}>
   <div class="reviews-head">
     <h2>Reseñas <span class="muted">{{ review_count }}</span></h2>
-    {% if can_review %}
-      <a class="btn btn-primary" href="{% url 'library:review_new' game.id %}">{% include "_icon.html" with name="edit" %} {% if has_published_review %}Escribir otra (rejugada){% else %}Escribir una reseña{% endif %}</a>
-    {% endif %}
+    <div class="reviews-actions">
+      {# Una publicación libre sobre el juego (social.views.post_new), además de las reseñas. #}
+      {% if user.is_authenticated %}
+        <a class="btn" href="{% url 'social:post_new' %}?juego={{ game.pk }}">{% include "_icon.html" with name="comment" %} Publicar sobre el juego</a>
+      {% endif %}
+      {% if can_review %}
+        <a class="btn btn-primary" href="{% url 'library:review_new' game.id %}">{% include "_icon.html" with name="edit" %} {% if has_published_review %}Escribir otra (rejugada){% else %}Escribir una reseña{% endif %}</a>
+      {% endif %}
+    </div>
   </div>
 
   {% if not can_review %}

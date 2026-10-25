@@ -383,7 +383,8 @@ class CatalogTests(TestCase):
         self.assertEqual(
             response.context["summary"], {"games": 1, "completed": 0, "reviews": 1, "followers": 0, "following": 0}
         )
-        self.assertEqual([e.game for e in response.context["playing"]], [self.hades])
+        # La caja de publicar ofrece los juegos que está jugando.
+        self.assertEqual(response.context["composer_games"], [self.hades])
         for tab in ("siguiendo", "descubrir"):
             response = self.client.get(reverse("home"), {"ver": tab})
             self.assertContains(response, "Genial")

@@ -193,6 +193,22 @@ encima van hasta 5 jugadores a los que seguir: primero los que tienen más juego
 los que más se han movido este mes. Sin sesión, la portada enseña los juegos populares y lo último de la
 comunidad. El feed se calcula al pedirlo, con un índice por fecha (sin Celery ni Redis).
 
+### Publicaciones
+
+Arriba del feed está la caja para publicar lo que quieras: hasta 2000 caracteres con el formato de las
+reseñas, hasta 4 imágenes (pasadas a WebP y sin EXIF, con su miniatura, como las de las reseñas) y, si
+quieres, el juego del que hablas: la caja ofrece los que estás jugando, y desde la ficha de cualquier juego
+«Publicar sobre el juego» abre `/publicar/` con ese juego ya elegido. Se puede marcar como spoiler, y
+entonces el texto y las imágenes van tapados. Cada publicación sale en el feed y en la actividad del
+perfil, y tiene su página (`/u/<usuario>/publicaciones/<id>/`) con «me gusta» (avisan en la campana una
+vez por persona), comentarios, «Copiar enlace», «Borrar» para su autor y «Denunciar» para los demás. Las de
+perfiles privados solo las ve su autor.
+
+Los comentarios son los mismos que los de las reseñas (`library/_comments.html` y
+`library.views.comment_thread` sirven para las dos cosas): con su formato, avisan al autor en la campana
+(salvo si ya tiene un aviso igual sin leer), los borran quien los escribió y el autor de la publicación, y
+los demás pueden denunciarlos.
+
 ## Tareas de cada noche
 
 `nightly` sincroniza la biblioteca de Steam (y su lista de deseos, si no se ha desactivado) de quien tenga
