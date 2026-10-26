@@ -123,9 +123,9 @@ def games_imported(user, platform, entries):
     return activity
 
 
-def _list_activity(game_list):
-    """Lo último que ha hecho el dueño de game_list si fue con esa misma lista hace poco (MERGE_WINDOW); si no, None."""
-    activity = _recent(game_list.user)
+def _list_activity(game_list, user):
+    """Lo último que ha hecho user si fue con game_list hace poco (MERGE_WINDOW); si no, None."""
+    activity = _recent(user)
     if activity and activity.kind == Activity.Kind.LIST and activity.game_list_id == game_list.pk:
         return activity
     return None
@@ -143,12 +143,13 @@ def list_created(game_list):
     )
 
 
-def list_games_added(game_list, count=1):
-    """Apunta que el dueño de game_list le ha añadido count juegos: se suman a lo último que hizo si fue con esta lista
-    hace poco (crearla o añadirle otros); si no, es una actividad nueva («añadió 3 juegos a la lista…»)."""
+def list_games_added(game_list, user, count=1):
+    """Apunta que user (su dueño o quien colabora en ella) ha añadido count juegos a game_list: se suman a lo último que
+    hizo si fue con esta lista hace poco (crearla o añadirle otros); si no, es una actividad nueva («añadió 3 juegos a
+    la lista…»)."""
     now = timezone.now()
-    activity = _list_activity(game_list) or Activity(
-        user=game_list.user, kind=Activity.Kind.LIST, game_list=game_list, data={}, created_at=now,
+    activity = _list_activity(game_list, user) or Activity(
+        user=user, kind=Activity.Kind.LIST, game_list=game_list, data={}, created_at=now,
     )
     activity.data = {**activity.data, "added": activity.data.get("added", 0) + count}
     activity.updated_at = now
@@ -156,10 +157,10 @@ def list_games_added(game_list, count=1):
     return activity
 
 
-def list_game_removed(game_list):
-    """El dueño de game_list le ha quitado un juego: si lo había añadido hace poco, se descuenta de esa actividad (y si
-    solo era eso, se borra), como quitar una nota recién puesta. Lo de antes no se toca."""
-    activity = _list_activity(game_list)
+def list_game_removed(game_list, user):
+    """user ha quitado un juego de game_list: si él le había añadido juegos hace poco, se descuenta de esa actividad (y
+    si solo era eso, se borra), como quitar una nota recién puesta. Lo de antes no se toca."""
+    activity = _list_activity(game_list, user)
     if activity is None or not activity.list_added:
         return
     added = activity.list_added - 1

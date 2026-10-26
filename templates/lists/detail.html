@@ -8,18 +8,38 @@
   {% with profile=owner.profile %}
   {# La lista lleva el color del perfil de su autor, como su perfil. #}
   <div class="list-page" style="--violet: {{ profile.accent }}; --accent-rgb: {{ profile.accent_rgb }}; --accent-text: {{ profile.accent_text }};">
+    {% if invitation %}
+      {# Quien está invitado a editarla y aún no ha dicho nada. #}
+      <div class="card-box list-invitation">
+        <p><strong>{{ profile.name }} te ha invitado a editar esta lista.</strong> <span class="muted">Podrás añadir, ordenar y comentar sus juegos.</span></p>
+        <div class="list-invitation-actions">
+          <form method="post" action="{% url 'lists:accept' game_list.pk %}">{% csrf_token %}<button class="btn btn-primary" type="submit">Aceptar</button></form>
+          <form method="post" action="{% url 'lists:leave' game_list.pk %}">{% csrf_token %}<button class="btn" type="submit">Rechazar</button></form>
+        </div>
+      </div>
+    {% endif %}
     <header class="card-box list-hero">
       {% include "lists/_mosaic.html" with size="lg" %}
       <div class="list-hero-info">
-        <p class="list-kicker">{% include "_icon.html" with name="list" %} Lista{% if game_list.is_ranked %} numerada{% endif %}{% if not game_list.is_public %} <span class="pill">Privada: solo la ves tú</span>{% endif %}</p>
+        <p class="list-kicker">{% include "_icon.html" with name="list" %} {% if game_list.is_tiered %}Tier list{% elif game_list.is_ranked %}Lista numerada{% else %}Lista{% endif %}{% if not game_list.is_public %} <span class="pill">Privada: solo la ves tú{% if collaborators %} y quien colabora{% endif %}</span>{% endif %}</p>
         <h1>{{ game_list.title }}</h1>
         <p class="list-author">
           <a href="{{ profile.get_absolute_url }}">{% include "accounts/_avatar.html" with size="sm" %} {{ profile.name }}</a>
+          {% if collaborators %}
+            {# Quien colabora en ella, después del autor. #}
+            <span class="list-collaborators-line">con
+              {% for collaborator in collaborators %}<a href="{{ collaborator.user.profile.get_absolute_url }}">{{ collaborator.user.profile.name }}</a>{% if not forloop.last %}{% if forloop.revcounter == 2 %} y {% else %}, {% endif %}{% endif %}{% endfor %}
+            </span>
+          {% endif %}
           <span class="muted small">{{ items|length }} juego{{ items|length|pluralize }} · actualizada hace {{ game_list.updated_at|timesince }}</span>
         </p>
         {% if game_list.description %}<div class="list-description review-text">{{ game_list.description|review_html }}</div>{% endif %}
         <div class="list-actions">
-          {% if is_owner %}<a class="btn" href="{% url 'lists:edit' game_list.pk %}">{% include "_icon.html" with name="edit" %} Editar lista</a>{% endif %}
+          {% if is_owner %}
+            <a class="btn" href="{% url 'lists:edit' game_list.pk %}">{% include "_icon.html" with name="edit" %} Editar lista</a>
+          {% elif can_edit %}
+            <a class="btn" href="{% url 'lists:edit' game_list.pk %}#juegos">{% include "_icon.html" with name="edit" %} Editar juegos</a>
+          {% endif %}
           {% if game_list.is_public and profile.is_public %}
             <button class="btn" type="button" data-copy-link="{{ request.scheme }}://{{ request.get_host }}{{ game_list.get_absolute_url }}">{% include "_icon.html" with name="link" %} <span data-copy-label>Copiar enlace</span></button>
           {% endif %}
@@ -82,8 +102,26 @@
       </div>
       {% if not items %}
         <p class="muted box-empty">
-          {% if is_owner %}Aún no tiene juegos. <a href="{% url 'lists:edit' game_list.pk %}#juegos">Búscalos en el editor</a> o usa «Añadir a una lista» en la ficha de cualquier juego.{% else %}Esta lista aún no tiene juegos.{% endif %}
+          {% if can_edit %}Aún no tiene juegos. <a href="{% url 'lists:edit' game_list.pk %}#juegos">Búscalos en el editor</a> o usa «Añadir a una lista» en la ficha de cualquier juego.{% else %}Esta lista aún no tiene juegos.{% endif %}
         </p>
+      {% elif view == "niveles" %}
+        {# Tier list: una fila por nivel, con su nombre en su color y las portadas de sus juegos; al final, los que no están en ninguno. #}
+        <div class="tier-board">
+          {% for level, tier_items in tier_rows %}
+            <div class="tier-row{% if not level %} is-loose{% endif %}">
+              <p class="tier-label"{% if level %} style="--tier: {{ level.color }}; --tier-text: {{ level.text }};"{% endif %}>{% if level %}{{ level.label }}{% else %}Sin clasificar{% endif %}</p>
+              <ol class="tier-games">
+                {% for item in tier_items %}
+                  <li>
+                    <a class="tier-game" href="{{ item.game.get_absolute_url }}" title="{{ item.game.name }}{% if item.viewer_status %} · {{ item.viewer_status }}{% endif %}">
+                      {% if item.game.cover_url %}<img src="{{ item.game.cover_url }}" alt="{{ item.game.name }}" loading="lazy">{% else %}<span class="cover-fallback">{{ item.game.name }}</span>{% endif %}
+                    </a>
+                  </li>
+                {% endfor %}
+              </ol>
+            </div>
+          {% endfor %}
+        </div>
       {% elif view == "detalle" %}
         {# Cada juego en una fila con el comentario de quien hace la lista y, con sesión, el estado en la biblioteca de quien mira. #}
         <ol class="list-rows{% if game_list.is_ranked %} is-ranked{% endif %}">
@@ -92,10 +130,12 @@
               <a class="review-thumb list-row-cover" href="{{ item.game.get_absolute_url }}" tabindex="-1" aria-hidden="true">{% if item.game.cover_url %}<img src="{{ item.game.cover_url }}" alt="" loading="lazy">{% endif %}</a>
               <div class="list-row-main">
                 <p class="list-row-title">
+                  {% if item.tier_info %}<span class="tier-chip is-on" style="--tier: {{ item.tier_info.color }}; --tier-text: {{ item.tier_info.text }};">{{ item.tier_info.label }}</span>{% endif %}
                   <a href="{{ item.game.get_absolute_url }}">{{ item.game.name }}</a>{% if item.game.release_year %} <span class="muted small">{{ item.game.release_year }}</span>{% endif %}
                   {% if item.viewer_status %}<span class="pill">{{ item.viewer_status }}</span>{% endif %}
                 </p>
                 {% if item.note %}<p class="list-row-note">{{ item.note|review_inline }}</p>{% endif %}
+                {% if collaborators and item.added_by_id and item.added_by_id != owner.pk %}<p class="muted small list-row-by">Añadido por {{ item.added_by.profile.name }}</p>{% endif %}
               </div>
             </li>
           {% endfor %}

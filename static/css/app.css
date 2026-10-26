@@ -1700,3 +1700,61 @@ p.update-hint { display: flex; border-left-color: var(--gold); }
   .list-editor-item { flex-wrap: wrap; }
   .list-editor-main { flex-basis: calc(100% - 9rem); }
 }
+
+/* Tier lists: el tablero de la página de la lista (una fila por nivel con su nombre en su color), los botones de nivel
+   del editor y la edición de los niveles en el formulario. --tier es el color del nivel y --tier-text, el de su texto. */
+.tier-board { display: flex; flex-direction: column; gap: 3px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); background: var(--border); }
+.tier-row { display: flex; min-height: 92px; background: var(--surface); }
+.tier-label {
+  display: grid; place-items: center; flex: none; width: 92px; margin: 0; padding: .5rem;
+  background: var(--tier, var(--surface-3)); color: var(--tier-text, var(--muted));
+  font-size: 1.35rem; font-weight: 800; text-align: center; overflow-wrap: anywhere; line-height: 1.15;
+}
+.tier-row.is-loose .tier-label { font-size: .8rem; font-weight: 700; }
+.tier-games { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; flex: 1; min-width: 0; margin: 0; padding: 6px; list-style: none; }
+.tier-game { position: relative; display: block; width: 60px; aspect-ratio: 3 / 4; overflow: hidden; border-radius: 6px; background: linear-gradient(145deg, #1b1440, #0b2740); transition: transform .12s, box-shadow .12s; }
+.tier-game img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.tier-game .cover-fallback { padding: .2rem; font-size: .6rem; }
+.tier-game:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0, 0, 0, .5); }
+.tier-chip {
+  display: inline-grid; place-items: center; min-width: 2rem; height: 1.75rem; padding: 0 .45rem;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px;
+  color: var(--muted); font: inherit; font-size: .8rem; font-weight: 800; cursor: pointer;
+}
+button.tier-chip:hover { border-color: var(--tier); color: var(--text); }
+.tier-chip.is-on { background: var(--tier); border-color: var(--tier); color: var(--tier-text); }
+.tier-chip:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.list-row-title .tier-chip { margin-right: .35rem; vertical-align: .1rem; cursor: default; }
+.tier-pick { display: flex; flex-wrap: wrap; gap: .3rem; }
+.tier-pick form { margin: 0; }
+/* En el formulario, los niveles solo con «Por niveles» elegido; si el navegador no entiende :has, se ven siempre. */
+form:has(input[name="mode"]:checked:not([value="tiers"])) .list-tiers { display: none; }
+.tier-fields { display: grid; gap: .4rem; margin: .6rem 0 0; padding: 0; list-style: none; counter-reset: nivel; }
+.tier-field { display: flex; align-items: center; gap: .5rem; }
+.tier-field input[type=color] { flex: none; }
+.tier-field .errorlist { flex-basis: 100%; }
+.list-mode .choice-chips { margin-top: .3rem; }
+
+/* Listas colaborativas: la invitación en la página de la lista, quién colabora y el formulario para invitar. */
+.list-invitation { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem 1.25rem; border-color: var(--violet); background: linear-gradient(120deg, rgba(var(--accent-rgb, 157, 92, 255), .2), rgba(14, 18, 34, .88) 60%); }
+.list-invitation p { margin: 0; }
+.list-invitation-actions { display: flex; gap: .5rem; }
+.list-invitation-actions form { margin: 0; }
+.list-collaborators-line { color: var(--muted); }
+.list-collaborators-line a { color: var(--text); font-weight: 700; }
+.list-row-by { margin: .25rem 0 0; }
+.list-editor-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: .1rem .5rem; margin: 0; min-width: 0; }
+.list-collab-note { margin: 0; }
+.list-collaborators { margin: .25rem 0 .75rem; }
+.list-collaborators .person form { margin: 0 0 0 auto; }
+.list-invite { display: flex; gap: .5rem; margin: .5rem 0 0; }
+.list-invite input { flex: 1; }
+.list-invite .btn { display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; }
+.list-invite .btn .icon { width: 1.05rem; height: 1.05rem; }
+#list-collaborators h2 { margin: 0 0 .4rem; }
+#list-collaborators > .muted { margin: 0 0 .5rem; }
+@media (max-width: 640px) {
+  .tier-label { width: 64px; font-size: 1.1rem; }
+  .tier-game { width: 48px; }
+  .list-invite { flex-wrap: wrap; }
+}

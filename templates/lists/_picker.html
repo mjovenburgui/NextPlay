@@ -1,4 +1,4 @@
-{# «Añadir a una lista» de la ficha: un desplegable con las listas del usuario; al pulsar una, el juego entra en ella o sale. #}
+{# «Añadir a una lista» de la ficha: un desplegable con las listas que el usuario puede editar (las suyas y en las que colabora); al pulsar una, el juego entra en ella o sale. #}
 {# Necesita game y las variables de lists.views.picker_context; con open llega abierto (después de pulsar una, con HTMX), con el error en picker_error. #}
 <details class="list-picker" id="list-picker"{% if open %} open{% endif %}>
   <summary class="btn list-picker-btn">
@@ -17,7 +17,7 @@
               <button class="list-picker-item{% if game_list.has_game %} is-on{% endif %}" type="submit" aria-pressed="{% if game_list.has_game %}true{% else %}false{% endif %}">
                 <span class="list-picker-check">{% if game_list.has_game %}{% include "_icon.html" with name="check" %}{% endif %}</span>
                 <span class="list-picker-name">{{ game_list.title }}</span>
-                <span class="muted small">{{ game_list.game_count }}{% if not game_list.is_public %} · privada{% endif %}</span>
+                <span class="muted small">{% if game_list.user_id != user.pk %}de {{ game_list.user.profile.name }} · {% endif %}{{ game_list.game_count }}{% if not game_list.is_public %} · privada{% endif %}</span>
               </button>
             </form>
           </li>

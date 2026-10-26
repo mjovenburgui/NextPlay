@@ -1,8 +1,9 @@
-{# Juegos de una lista en su editor: cada uno con su puesto (que se puede escribir), su comentario y los botones de subir, bajar y quitar. #}
-{# Necesita las variables de lists.views.editor_context. HTMX lo cambia entero al añadir, mover o quitar un juego (los botones llevan id #}
-{# para que HTMX les devuelva el foco); con added_result también cambia, fuera de su sitio, el resultado de la búsqueda desde el que se añadió. #}
+{# Juegos de una lista en su editor: cada uno con su puesto (que se puede escribir), su comentario, los botones de subir, bajar y quitar y, en #}
+{# las tier lists, los de sus niveles (pulsar el suyo lo saca). En las colaborativas dice quién añadió cada uno, si no fue su dueño. #}
+{# Necesita las variables de lists.views.editor_context. HTMX lo cambia entero al añadir, mover, poner en un nivel o quitar un juego (los #}
+{# botones llevan id para que HTMX les devuelva el foco); con added_result también cambia, fuera de su sitio, el resultado de la búsqueda. #}
 <div id="list-items">
-  <p class="list-items-count muted small">{{ items|length }} de {{ max_games }} juegos{% if game_list.is_ranked %} · el orden es el del ranking{% endif %}</p>
+  <p class="list-items-count muted small">{{ items|length }} de {{ max_games }} juegos{% if game_list.is_ranked %} · el orden es el del ranking{% elif game_list.is_tiered %} · dentro de cada nivel van en este orden{% endif %}</p>
   {% if list_error %}<p class="errorlist">{{ list_error }}</p>{% endif %}
   {% if items %}
     <ol class="reorder-list list-editor-items">
@@ -16,7 +17,24 @@
           </form>
           <a class="thumb" href="{{ item.game.get_absolute_url }}" tabindex="-1" aria-hidden="true">{% if item.game.cover_url %}<img src="{{ item.game.cover_url }}" alt="" loading="lazy">{% endif %}</a>
           <div class="list-editor-main">
-            <a class="list-editor-name" href="{{ item.game.get_absolute_url }}">{{ item.game.name }}</a>
+            <p class="list-editor-title">
+              <a class="list-editor-name" href="{{ item.game.get_absolute_url }}">{{ item.game.name }}</a>
+              {% if item.added_by_id and item.added_by_id != game_list.user_id %}<span class="muted small">añadido por {{ item.added_by.profile.name }}</span>{% endif %}
+            </p>
+            {% if tiers %}
+              <div class="tier-pick" role="group" aria-label="Nivel de {{ item.game.name }}">
+                {% for level in tiers %}
+                  <form method="post" action="{% url 'lists:tier' game_list.pk item.game_id %}"
+                        hx-post="{% url 'lists:tier' game_list.pk item.game_id %}" hx-target="#list-items" hx-swap="outerHTML" hx-sync="#juegos:queue all">
+                    {% csrf_token %}
+                    <input type="hidden" name="nivel" value="{% if item.tier != level.id %}{{ level.id }}{% endif %}">
+                    <button class="tier-chip{% if item.tier == level.id %} is-on{% endif %}" id="nivel-{{ item.game_id }}-{{ level.id }}" type="submit"
+                            style="--tier: {{ level.color }}; --tier-text: {{ level.text }};" aria-pressed="{% if item.tier == level.id %}true{% else %}false{% endif %}"
+                            title="{% if item.tier == level.id %}Sacar del nivel {{ level.label }}{% else %}Poner en el nivel {{ level.label }}{% endif %}">{{ level.label }}</button>
+                  </form>
+                {% endfor %}
+              </div>
+            {% endif %}
             {% include "lists/_note_form.html" %}
           </div>
           <span class="reorder-actions">
