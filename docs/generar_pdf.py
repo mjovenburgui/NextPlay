@@ -40,7 +40,7 @@ SKIP = ("migrations/", "tests.py", "manage.py", "asgi.py", "wsgi.py", "docs/")
 APPS = {
     "config": "Configuración del proyecto: ajustes y URL principales.",
     "accounts": "Usuarios: registro, inicio de sesión, perfil público o privado, vinculación con Steam, Xbox y PlayStation y cuentas de otras plataformas.",
-    "games": "Catálogo de juegos, importación desde IGDB y precios de PC (IsThereAnyDeal) y Xbox.",
+    "games": "Catálogo de juegos, importación desde IGDB y precios de PC (IsThereAnyDeal), Xbox y Nintendo.",
     "library": "Biblioteca de cada usuario: qué juegos tiene, en qué estado, su valoración y su reseña.",
     "social": "Lo social: seguir a otros jugadores, las listas de seguidores y seguidos y la actividad de cada jugador.",
 }

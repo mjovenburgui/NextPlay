@@ -1,6 +1,6 @@
 """Avisos de la lista de deseos: comparan los precios de hoy con lo que quiere cada usuario.
 
-Se lanzan al terminar update_prices. Un juego avisa cuando su mejor precio (PC o Xbox, solo en las
+Se lanzan al terminar update_prices. Un juego avisa cuando su mejor precio (PC, Xbox o Nintendo, solo en las
 tiendas del usuario si las ha elegido) baja del precio que puso el usuario o cuando está rebajado a su mínimo histórico. No se repite el aviso hasta
 que baje más, o hasta que vuelva a subir y baje otra vez. Los juegos que ya están en la biblioteca
 del usuario no avisan (ya lo tiene).
@@ -19,7 +19,7 @@ from django.db.models import Exists, OuterRef
 
 from accounts.models import Notification
 from games import prices
-from games.models import STEAM_SHOP_ID, XBOX_SHOP_ID, format_price
+from games.models import STEAM_SHOP_ID, GamePrice, format_price
 
 from .models import LibraryEntry, WishlistItem
 
@@ -69,7 +69,8 @@ def steam_deals(user):
         steam = next((price for price in game.prices.all() if price.shop_id == STEAM_SHOP_ID), None)
         pc = [
             price for price in game.prices.all()
-            if price.shop_id not in (STEAM_SHOP_ID, XBOX_SHOP_ID) and (shops is None or price.shop_id in shops)
+            if price.source == GamePrice.Source.ITAD and price.shop_id != STEAM_SHOP_ID
+            and (shops is None or price.shop_id in shops)
         ]
         cheaper += bool(steam and pc and min(price.price for price in pc) < steam.price)
     return len(items), at_low, cheaper

@@ -728,7 +728,7 @@
   {
     "titulo": "Precios de Nintendo eShop y PlayStation Store",
     "fecha": "2026-10-17",
-    "estado": "pendiente",
+    "estado": "en curso",
     "prioridad": "media",
     "tipo": "Funcionalidad",
     "resumen": "Añadir los precios de la eShop de Nintendo y de la tienda de PlayStation en la ficha, igual que ya se hace con PC y Xbox.",
@@ -739,7 +739,7 @@
       "PlayStation (experimental): leer el precio de la API que usa la web de PlayStation Store.",
       "Mostrarlos como dos tiendas más en la ficha y meterlos en update_prices."
     ],
-    "notas": "Las dos son sin documentar, como la de Xbox. La de PlayStation es la más frágil; la de Nintendo la usan desde hace años muchas webs de ofertas."
+    "notas": "Las dos son sin documentar, como la de Xbox. La de PlayStation es la más frágil; la de Nintendo la usan desde hace años muchas webs de ofertas. Nintendo hecha el 26/10/2026 (games/nintendo.py): update_prices busca el NSUID por el nombre exacto del juego y por su nombre en España (sin contar mayúsculas, tildes ni signos) en el buscador de Nintendo Europa, que tiene el título original y sus traducciones; lo guarda en el juego, con un NSUID manual en el admin para corregirlo, y pide el precio a api.ec.nintendo.com de 50 en 50. Si el mismo título está en Switch y en Switch 2 elige el de Switch. La ficha enseña la tienda «Nintendo eShop» en lugar del enlace de búsqueda. Probada con los 400 juegos más populares de IGDB: 66 de los 101 de Switch emparejados y 65 con precio; los demás se venden con otro nombre (Complete Edition, remasters, colecciones), ya no se venden o tienen un homónimo en el catálogo. Falta PlayStation: los términos de playstation.com prohíben el acceso automatizado a sus datos; la alternativa es la API de PlatPrices (clave a petición, gratis sin fines comerciales)."
   },
   {
     "titulo": "¿Cuándo bajará? Próxima rebaja prevista en el veredicto",

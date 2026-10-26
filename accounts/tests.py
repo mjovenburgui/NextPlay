@@ -434,6 +434,12 @@ class SteamImportTests(TestCase):
                 game=game, shop_id=shop_id, shop_name=shop, price=Decimal(price), regular_price=Decimal("24.99"),
                 currency="EUR", cut=cut, url="https://itad.link/x",
             )
+        # La eShop de Nintendo no es una tienda de PC: no cuenta como «más barato fuera de Steam».
+        GamePrice.objects.create(
+            game=self.hades, source=GamePrice.Source.NINTENDO, shop_id=GamePrice.NINTENDO_SHOP_ID,
+            shop_name="Nintendo eShop", price=Decimal("11.99"), regular_price=Decimal("24.99"), currency="EUR", cut=52,
+            url="https://ec.nintendo.com/ES/es/titles/70010000033132",
+        )
         self.client.force_login(self.user)
         with self.owned({"appid": 620, "playtime_forever": 60}), self.wishes(1145360, 504230, 999999):
             response = self.client.post(reverse("steam_import"), follow=True)

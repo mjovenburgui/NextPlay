@@ -21,6 +21,7 @@ class GameAdmin(admin.ModelAdmin):
     inlines = [GamePriceInline]
     readonly_fields = (
         "steam_app_id",
+        "nintendo_nsuid",
         "store_ids",
         "store_alternatives",
         "prices_edition",
