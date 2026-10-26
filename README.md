@@ -234,6 +234,18 @@ actividad del perfil y en el feed de la portada («creó la lista…», «añadi
 seguido con la misma lista va junto), con su mosaico, sus «me gusta», sus comentarios y cuántos de sus juegos ha jugado
 quien mira. Las listas privadas solo salen en la actividad de su dueño, y las vacías no salen.
 
+Una lista puede ser normal, numerada (cada juego con su puesto) o una tier list: cada juego va en uno de sus niveles,
+de mejor a peor (S, A, B, C, D y F de serie, con los colores de NextPlay; hasta 8, con el nombre y el color que se
+quiera). En el editor cada juego lleva los botones de los niveles, y la página de la lista enseña el tablero, con una
+fila por nivel y, al final, los juegos que aún no están en ninguno. Los niveles se guardan en `GameList.tiers` con un
+id fijo, así que renombrarlos no mueve los juegos.
+
+Su dueño puede invitar a otros a editarla con él (hasta 10): les llega un aviso y, cuando aceptan, pueden añadir,
+ordenar, poner en un nivel, comentar y quitar sus juegos, aunque la lista sea privada; sus datos, quién colabora y
+borrarla siguen siendo cosa del dueño. La lista dice quién colabora y quién añadió cada juego, sale en la pestaña
+Listas de quien colabora y en su «Añadir a una lista», y lo que añade cada uno sale en su actividad («añadió 2 juegos a
+la lista… de Ana»). Quien colabora puede irse cuando quiera; lo que añadió se queda.
+
 ## Tareas de cada noche
 
 `nightly` sincroniza la biblioteca de Steam (y su lista de deseos, si no se ha desactivado) de quien tenga

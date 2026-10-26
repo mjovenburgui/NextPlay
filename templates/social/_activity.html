@@ -35,13 +35,13 @@
       {% with game_list=activity.game_list %}
         <p class="activity-line">
           {% if show_user %}<a class="activity-author" href="{{ activity.user.profile.get_absolute_url }}">{{ activity.user.profile.name }}</a> {% if activity.list_created %}creó{% else %}añadió {{ activity.list_added }} juego{{ activity.list_added|pluralize }} a{% endif %}{% elif activity.list_created %}Creó{% else %}Añadió {{ activity.list_added }} juego{{ activity.list_added|pluralize }} a{% endif %}
-          la lista <a class="activity-game" href="{{ game_list.get_absolute_url }}">{{ game_list.title }}</a>
+          la lista <a class="activity-game" href="{{ game_list.get_absolute_url }}">{{ game_list.title }}</a>{% if game_list.user_id != activity.user_id %} de <a class="activity-author" href="{{ game_list.user.profile.get_absolute_url }}">{{ game_list.user.profile.name }}</a>{% endif %}
         </p>
         {# La lista: su descripción recortada, cuántos juegos tiene, cuántos ha jugado quien mira y sus «me gusta» y comentarios. #}
         <div class="activity-review activity-list">
           {% if game_list.description %}<p class="review-text">{{ game_list.description|review_plain|truncatechars:200 }}</p>{% endif %}
           <p class="muted small activity-list-meta">
-            {{ game_list.game_count }} juego{{ game_list.game_count|pluralize }}{% if game_list.is_ranked %} · numerada{% endif %}{% if game_list.viewer_played is not None %} · has jugado {{ game_list.viewer_played }}{% endif %}
+            {{ game_list.game_count }} juego{{ game_list.game_count|pluralize }}{% if game_list.kind_note %} · {{ game_list.kind_note }}{% endif %}{% if game_list.viewer_played is not None %} · has jugado {{ game_list.viewer_played }}{% endif %}
           </p>
           <p class="feed-actions">
             {% include "lists/_like.html" with liked=game_list.liked like_count=game_list.like_count %}

@@ -3,7 +3,7 @@ from django.db.models import Count, Q
 
 from library.admin import ReportInline
 
-from .models import GameList, ListComment, ListItem
+from .models import GameList, ListCollaborator, ListComment, ListItem
 
 
 class ListItemInline(admin.TabularInline):
@@ -11,8 +11,17 @@ class ListItemInline(admin.TabularInline):
 
     model = ListItem
     extra = 0
-    raw_id_fields = ("game",)
-    fields = ("position", "game", "note")
+    raw_id_fields = ("game", "added_by")
+    fields = ("position", "game", "tier", "note", "added_by")
+
+
+class ListCollaboratorInline(admin.TabularInline):
+    """Gente invitada a editar la lista y si ha aceptado."""
+
+    model = ListCollaborator
+    extra = 0
+    raw_id_fields = ("user",)
+    readonly_fields = ("invited_at",)
 
 
 class ListCommentInline(admin.TabularInline):
@@ -25,12 +34,12 @@ class ListCommentInline(admin.TabularInline):
 
 @admin.register(GameList)
 class GameListAdmin(admin.ModelAdmin):
-    list_display = ("title", "user", "is_public", "is_ranked", "game_count", "updated_at", "pending_reports")
-    list_filter = ("is_public", "is_ranked")
+    list_display = ("title", "user", "is_public", "mode", "game_count", "updated_at", "pending_reports")
+    list_filter = ("is_public", "mode")
     search_fields = ("title", "user__username")
     raw_id_fields = ("user",)
     date_hierarchy = "created_at"
-    inlines = [ListItemInline, ListCommentInline, ReportInline]
+    inlines = [ListItemInline, ListCollaboratorInline, ListCommentInline, ReportInline]
 
     def get_queryset(self, request):
         """Las listas con cuántos juegos tiene cada una y cuántas denuncias suyas quedan por revisar."""

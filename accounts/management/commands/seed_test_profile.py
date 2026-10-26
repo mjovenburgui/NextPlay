@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from games.models import Game
 from library.models import LibraryEntry, Review, ReviewComment, ReviewLike
-from lists.models import GameList, ListComment, ListItem, ListLike
+from lists.models import GameList, ListCollaborator, ListComment, ListItem, ListLike
 from social.activity import IMPORT_COVERS
 from social.models import Activity, Follow
 
@@ -62,19 +62,28 @@ FOLLOWS = [
     (USERNAME, "demo1"), (USERNAME, "demo2"),
     ("demo1", "demo2"), ("demo2", "demo3"),
 ]
-# Listas de ejemplo: (dueño, título, descripción, pública, numerada, [(posición del juego, comentario)]). Las posiciones
-# van sobre los juegos de LIBRARY y, detrás, EXTRA_GAMES juegos más del catálogo que el usuario de prueba no tiene, para
-# ver en la página de una lista lo que le falta y lo que cuesta.
+# Listas de ejemplo: (dueño, título, descripción, pública, tipo, [(posición del juego, comentario, nivel)]). Las
+# posiciones van sobre los juegos de LIBRARY y, detrás, EXTRA_GAMES juegos más del catálogo que el usuario de prueba no
+# tiene, para ver en la página de una lista lo que le falta y lo que cuesta. El nivel (el id de uno de los de
+# lists.models.DEFAULT_TIERS, o None) solo cuenta en las tier lists.
 EXTRA_GAMES = 3
 LISTS = [
-    (USERNAME, "Mis imprescindibles", "Los que **recomendaría a cualquiera**, en orden.", True, True, [
-        (1, "Las misiones secundarias mejor escritas que he jugado."), (0, "Cada rincón esconde algo."), (6, ""), (2, ""),
+    (USERNAME, "Mis imprescindibles", "Los que **recomendaría a cualquiera**, en orden.", True, GameList.Mode.RANKED, [
+        (1, "Las misiones secundarias mejor escritas que he jugado.", None), (0, "Cada rincón esconde algo.", None),
+        (6, "", None), (2, "", None),
     ]),
-    (USERNAME, "Para este invierno", "", False, False, [(5, ""), (3, ""), (8, "")]),
-    ("demo1", "Para jugar con amigos", "Cooperativos y competitivos que funcionan bien en grupo.", True, False, [
-        (0, "Mejor con cuatro."), (3, ""), (8, "Imprescindible en una noche de sofá."), (9, ""), (10, ""),
+    (USERNAME, "Para este invierno", "", False, GameList.Mode.LIST, [(5, "", None), (3, "", None), (8, "", None)]),
+    (USERNAME, "Mis juegos, por niveles", "Mi tier list de lo que he jugado.", True, GameList.Mode.TIERS, [
+        (1, "", 0), (6, "", 0), (0, "", 1), (2, "", 1), (3, "", 2), (7, "", 3), (4, "", 5), (5, "", None),
+    ]),
+    ("demo1", "Para jugar con amigos", "Cooperativos y competitivos que funcionan bien en grupo.", True, GameList.Mode.LIST, [
+        (0, "Mejor con cuatro.", None), (3, "", None), (8, "Imprescindible en una noche de sofá.", None), (9, "", None),
+        (10, "", None),
     ]),
 ]
+# Gente que colabora en las listas de ejemplo: (título de la lista, usuario, posiciones en la lista de los juegos que
+# añadió él). El usuario de prueba ayuda a demo1 con la suya.
+LIST_COLLABORATORS = [("Para jugar con amigos", USERNAME, [3, 4])]
 # «Me gusta» en las listas de ejemplo, con un comentario si no está vacío: (usuario, título de la lista, comentario).
 LIST_REACTIONS = [
     ("demo1", "Mis imprescindibles", "¡Gran lista! Me apunto el primero para estas vacaciones."),
@@ -189,23 +198,28 @@ class Command(BaseCommand):
 
     def lists(self, user, catalog):
         """Rehace las listas de ejemplo (LISTS) del usuario de prueba y de los usuarios demo que existan, con sus juegos
-        (catalog: los de su biblioteca y los extra, en orden) y sus comentarios, cada una con su actividad (creada hace
-        unas horas, con sus juegos) y con los «me gusta» y comentarios de LIST_REACTIONS."""
+        (catalog: los de su biblioteca y los extra, en orden), sus comentarios y sus niveles, cada una con su actividad
+        (creada hace unas horas, con sus juegos), con los «me gusta» y comentarios de LIST_REACTIONS y con quien colabora
+        en ellas (LIST_COLLABORATORS)."""
         GameList.objects.filter(user=user).delete()
         names = {owner for owner, *_ in LISTS} | {username for username, *_ in LIST_REACTIONS}
+        names |= {username for _, username, _ in LIST_COLLABORATORS}
         people = {u.username: u for u in User.objects.filter(username__in=names)}
         lists = {}
-        for hours, (owner, title, description, public, ranked, entries) in enumerate(LISTS, start=1):
+        for hours, (owner, title, description, public, mode, entries) in enumerate(LISTS, start=1):
             if owner not in people:
                 continue
             GameList.objects.filter(user=people[owner], title=title).delete()
             game_list = GameList.objects.create(
-                user=people[owner], title=title, description=description, is_public=public, is_ranked=ranked,
+                user=people[owner], title=title, description=description, is_public=public, mode=mode,
             )
-            games = [catalog[index] for index, _ in entries if index < len(catalog)]
-            for position, (index, note) in enumerate(entries):
+            games = [catalog[index] for index, *_ in entries if index < len(catalog)]
+            for position, (index, note, tier) in enumerate(entries):
                 if index < len(catalog):
-                    ListItem.objects.create(game_list=game_list, game=catalog[index], position=position, note=note)
+                    ListItem.objects.create(
+                        game_list=game_list, game=catalog[index], position=position, note=note, tier=tier,
+                        added_by=people[owner],
+                    )
             when = timezone.now() - timedelta(hours=hours)
             Activity.objects.create(
                 user=people[owner], kind=Activity.Kind.LIST, game_list=game_list,
@@ -217,6 +231,10 @@ class Command(BaseCommand):
                 ListLike.objects.get_or_create(user=people[username], game_list=lists[title])
                 if comment:
                     ListComment.objects.create(user=people[username], game_list=lists[title], text=comment)
+        for title, username, positions in LIST_COLLABORATORS:
+            if username in people and title in lists:
+                ListCollaborator.objects.create(game_list=lists[title], user=people[username], accepted_at=timezone.now())
+                lists[title].items.filter(position__in=positions).update(added_by=people[username])
 
     def activity(self, user, game, when, status, rating, review):
         """Apunta en la actividad de user lo que hizo con game en el momento when: su estado, su nota y su reseña (o None)."""

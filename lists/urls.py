@@ -22,4 +22,9 @@ urlpatterns = [
     path("listas/<int:list_id>/juegos/<int:game_id>/quitar/", views.remove, name="remove"),
     path("listas/<int:list_id>/juegos/<int:game_id>/mover/", views.move, name="move"),
     path("listas/<int:list_id>/juegos/<int:game_id>/comentario/", views.note, name="note"),
+    path("listas/<int:list_id>/juegos/<int:game_id>/nivel/", views.tier, name="tier"),
+    path("listas/<int:list_id>/invitar/", views.invite, name="invite"),
+    path("listas/<int:list_id>/colaboradores/<int:user_id>/quitar/", views.collaborator_remove, name="collaborator_remove"),
+    path("listas/<int:list_id>/aceptar/", views.accept, name="accept"),
+    path("listas/<int:list_id>/dejar/", views.leave, name="leave"),
 ]

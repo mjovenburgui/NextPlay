@@ -13,7 +13,9 @@ from games.models import Game, GamePrice
 from library.models import LibraryEntry, Report, WishlistItem
 from social.models import Activity, Follow
 
-from .models import LIST_MAX_GAMES, NOTE_MAX_LENGTH, GameList, ListComment, ListItem, ListLike
+from .models import (
+    LIST_MAX_GAMES, MAX_COLLABORATORS, NOTE_MAX_LENGTH, GameList, ListCollaborator, ListComment, ListItem, ListLike,
+)
 
 User = get_user_model()
 HTMX = {"HTTP_HX_REQUEST": "true"}
@@ -111,7 +113,7 @@ class ListPageTests(TestCase):
         cls.luis = User.objects.create_user("luis", "luis@example.com", "x")
         cls.hades, cls.celeste, cls.tunic = make_games("Hades", "Celeste", "Tunic")
         cls.game_list = GameList.objects.create(
-            user=cls.ana, title="Indies favoritos", description="Los **mejores**.", is_ranked=True,
+            user=cls.ana, title="Indies favoritos", description="Los **mejores**.", mode=GameList.Mode.RANKED,
         )
         for game in (cls.hades, cls.celeste, cls.tunic):
             cls.game_list.add(game)
@@ -245,7 +247,7 @@ class ListEditingTests(TestCase):
 
     def test_edit_saves_the_details(self):
         response = self.client.post(reverse("lists:edit", args=[self.game_list.pk]), {
-            "title": "Indies de culto", "description": "Pequeños y **enormes**.", "is_ranked": "on",
+            "title": "Indies de culto", "description": "Pequeños y **enormes**.", "mode": "ranked",
         })
         self.assertRedirects(response, self.game_list.get_absolute_url(), fetch_redirect_response=False)
         self.game_list.refresh_from_db()
@@ -645,3 +647,227 @@ class ListActivityTests(TestCase):
         game_list = self.create(game=self.hades)
         self.client.post(reverse("lists:delete", args=[game_list.pk]))
         self.assertFalse(Activity.objects.exists())
+
+
+def tier_form(**changes):
+    """Datos del formulario de una tier list «Roguelikes» con los niveles de serie (S, A, B, C, D y F) y changes encima."""
+    data = {"title": "Roguelikes", "description": "", "is_public": "on", "mode": "tiers"}
+    for n, (label, color) in enumerate([("S", "#ff4d5e"), ("A", "#ff8a3d"), ("B", "#ffc84a"), ("C", "#3fbf3f"), ("D", "#4f8bff"), ("F", "#9d5cff")]):
+        data[f"nivel_{n}"], data[f"color_{n}"] = label, color
+    return {**data, **changes}
+
+
+class TierListTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.luis = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.hades, cls.celeste, cls.tunic = make_games("Hades", "Celeste", "Tunic")
+
+    def setUp(self):
+        self.client.force_login(self.ana)
+
+    def create(self, **changes):
+        """Crea como ana la tier list «Roguelikes» desde el formulario, con sus tres juegos."""
+        self.client.post(reverse("lists:new"), tier_form(**changes))
+        game_list = GameList.objects.get(title="Roguelikes")
+        for game in (self.hades, self.celeste, self.tunic):
+            game_list.add(game, self.ana)
+        return game_list
+
+    def tier(self, game_list, game, level, htmx=True):
+        return self.client.post(
+            reverse("lists:tier", args=[game_list.pk, game.pk]), {"nivel": level}, **(HTMX if htmx else {}),
+        )
+
+    def test_a_new_tier_list_has_the_usual_tiers(self):
+        game_list = self.create()
+        self.assertTrue(game_list.is_tiered)
+        self.assertEqual([tier["label"] for tier in game_list.tiers], ["S", "A", "B", "C", "D", "F"])
+        self.assertEqual(game_list.kind_note, "tier list")
+
+    def test_tiers_can_be_renamed_recoloured_and_removed(self):
+        game_list = self.create()
+        self.tier(game_list, self.hades, 0)
+        self.tier(game_list, self.celeste, 1)
+        response = self.client.post(reverse("lists:edit", args=[game_list.pk]), tier_form(
+            nivel_0="  Obras   maestras ", color_0="#E6E8F5", nivel_1="", nivel_6="Ni fu ni fa", color_6="#22e0f0",
+        ))
+        self.assertRedirects(response, game_list.get_absolute_url(), fetch_redirect_response=False)
+        game_list.refresh_from_db()
+        self.assertEqual(game_list.tiers[0], {"id": 0, "label": "Obras maestras", "color": "#e6e8f5"})
+        self.assertEqual([tier["id"] for tier in game_list.tiers], [0, 2, 3, 4, 5, 6])
+        # Celeste estaba en el nivel que se ha quitado: queda sin clasificar.
+        rows = game_list.tier_rows(list(game_list.items.all()))
+        self.assertEqual([item.game.name for item in rows[0][1]], ["Hades"])
+        self.assertEqual((rows[-1][0], [item.game.name for item in rows[-1][1]]), (None, ["Celeste", "Tunic"]))
+        # La etiqueta clara lleva texto oscuro; la violeta (F), blanco.
+        tiers = {tier["id"]: tier for tier in game_list.tier_list}
+        self.assertEqual((tiers[0]["text"], tiers[5]["text"]), ("#0b0d18", "#ffffff"))
+
+    def test_a_tier_list_needs_a_tier_and_valid_colours(self):
+        empty = {f"nivel_{n}": "" for n in range(6)}
+        response = self.client.post(reverse("lists:new"), tier_form(**empty))
+        self.assertContains(response, "Ponle nombre al menos a un nivel.")
+        response = self.client.post(reverse("lists:new"), tier_form(color_0="rojo"))
+        self.assertContains(response, "Elige un color.")
+        self.assertFalse(GameList.objects.exists())
+
+    def test_put_a_game_in_a_tier_and_take_it_out(self):
+        game_list = self.create()
+        response = self.tier(game_list, self.hades, 0)
+        self.assertTemplateUsed(response, "lists/_editor_items.html")
+        self.assertContains(response, f'id="nivel-{self.hades.pk}-0"')
+        self.assertEqual(game_list.items.get(game=self.hades).tier, 0)
+        self.assertContains(response, 'class="tier-chip is-on"')
+        self.tier(game_list, self.hades, "")
+        self.assertIsNone(game_list.items.get(game=self.hades).tier)
+        self.assertEqual(self.tier(game_list, self.hades, 9).status_code, 400)
+        self.assertEqual(self.tier(game_list, make_games("Ori")[0], 0).status_code, 404)
+        self.client.force_login(self.luis)
+        self.assertEqual(self.tier(game_list, self.hades, 0).status_code, 404)
+
+    def test_the_page_shows_the_board(self):
+        game_list = self.create()
+        self.tier(game_list, self.hades, 0)
+        self.tier(game_list, self.celeste, 2)
+        response = self.client.get(game_list.get_absolute_url())
+        self.assertEqual(response.context["view"], "niveles")
+        board = [(level["label"] if level else None, [item.game.name for item in items]) for level, items in response.context["tier_rows"]]
+        self.assertEqual(board, [("S", ["Hades"]), ("A", []), ("B", ["Celeste"]), ("C", []), ("D", []), ("F", []), (None, ["Tunic"])])
+        self.assertContains(response, "Sin clasificar")
+        self.assertContains(response, "Tier list")
+        response = self.client.get(f"{game_list.get_absolute_url()}?vista=detalle")
+        self.assertContains(response, 'class="tier-chip is-on" style="--tier: #ff4d5e; --tier-text: #ffffff;">S</span>', html=False)
+
+    def test_numbered_lists_keep_their_mode(self):
+        game_list = self.create(mode="ranked")
+        self.assertTrue(game_list.is_ranked)
+        response = self.client.get(game_list.get_absolute_url())
+        self.assertEqual(response.context["view"], "portadas")
+        self.assertContains(response, "list-games is-ranked")
+
+
+class CollaborationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.luis = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.eva = User.objects.create_user("eva", "eva@example.com", "x")
+        cls.hades, cls.celeste = make_games("Hades", "Celeste")
+
+    def setUp(self):
+        self.game_list = GameList.objects.create(user=self.ana, title="Para jugar juntos", is_public=False)
+        self.game_list.add(self.hades, self.ana)
+        self.client.force_login(self.ana)
+
+    def invite(self, username, htmx=True):
+        return self.client.post(
+            reverse("lists:invite", args=[self.game_list.pk]), {"usuario": username}, **(HTMX if htmx else {}),
+        )
+
+    def join(self, user):
+        """Invita como ana a user y acepta él; deja la sesión con user."""
+        self.client.force_login(self.ana)
+        self.invite(user.username)
+        self.client.force_login(user)
+        self.client.post(reverse("lists:accept", args=[self.game_list.pk]))
+
+    def test_invite_tells_the_invitee(self):
+        response = self.invite("@Luis")
+        self.assertTemplateUsed(response, "lists/_collaborators.html")
+        self.assertContains(response, "Invitación pendiente")
+        invitation = ListCollaborator.objects.get()
+        self.assertEqual((invitation.user, invitation.accepted_at), (self.luis, None))
+        notice = Notification.objects.get(user=self.luis)
+        self.assertEqual(
+            (notice.kind, notice.actor, notice.text, notice.url),
+            (Notification.Kind.LIST_INVITE, self.ana, "ana te ha invitado a editar su lista «Para jugar juntos».",
+             self.game_list.get_absolute_url()),
+        )
+
+    def test_invite_errors(self):
+        self.assertContains(self.invite("nadie"), "No hay nadie con el nombre de usuario «nadie».")
+        self.assertContains(self.invite("ana"), "Ya puedes editarla: es tuya.")
+        self.invite("luis")
+        self.assertContains(self.invite("luis"), "luis ya está invitado.")
+        others = [User.objects.create_user(f"amigo{n}", f"amigo{n}@example.com", "x") for n in range(MAX_COLLABORATORS)]
+        for other in others[: MAX_COLLABORATORS - 1]:
+            self.invite(other.username)
+        self.assertContains(self.invite(others[-1].username), f"Caben {MAX_COLLABORATORS} personas por lista")
+        self.assertEqual(ListCollaborator.objects.count(), MAX_COLLABORATORS)
+        # Solo invita su dueño.
+        self.client.force_login(self.eva)
+        self.assertEqual(self.invite("eva").status_code, 404)
+
+    def test_the_invitee_sees_the_private_list_and_can_accept(self):
+        self.invite("luis")
+        self.client.force_login(self.eva)
+        self.assertEqual(self.client.get(self.game_list.get_absolute_url()).status_code, 404)
+        self.client.force_login(self.luis)
+        response = self.client.get(self.game_list.get_absolute_url())
+        self.assertContains(response, "ana te ha invitado a editar esta lista.")
+        # Hasta que acepta no puede editarla.
+        self.assertEqual(self.client.post(reverse("lists:add", args=[self.game_list.pk, self.celeste.pk])).status_code, 404)
+        response = self.client.post(reverse("lists:accept", args=[self.game_list.pk]))
+        self.assertRedirects(response, f"{reverse('lists:edit', args=[self.game_list.pk])}#juegos", fetch_redirect_response=False)
+        self.assertIsNotNone(ListCollaborator.objects.get().accepted_at)
+        self.assertNotContains(self.client.get(self.game_list.get_absolute_url()), "te ha invitado")
+
+    def test_collaborators_edit_the_games_but_not_the_list(self):
+        self.join(self.luis)
+        self.client.post(reverse("lists:add", args=[self.game_list.pk, self.celeste.pk]))
+        item = self.game_list.items.get(game=self.celeste)
+        self.assertEqual(item.added_by, self.luis)
+        self.client.post(reverse("lists:note", args=[self.game_list.pk, self.celeste.pk]), {"note": "Lo propuse yo"})
+        self.client.post(reverse("lists:move", args=[self.game_list.pk, self.celeste.pk]), {"a": "arriba"})
+        self.assertEqual(list(self.game_list.items.values_list("game__name", flat=True)), ["Celeste", "Hades"])
+        response = self.client.get(reverse("lists:edit", args=[self.game_list.pk]))
+        self.assertContains(response, "Colaboras en esta lista de")
+        self.assertNotContains(response, "Datos de la lista")
+        self.assertNotContains(response, "Borrar la lista")
+        self.assertEqual(self.client.post(reverse("lists:edit", args=[self.game_list.pk]), {"title": "Mía"}).status_code, 403)
+        self.assertEqual(self.client.post(reverse("lists:delete", args=[self.game_list.pk])).status_code, 404)
+        self.assertEqual(self.client.post(reverse("lists:invite", args=[self.game_list.pk]), {"usuario": "eva"}).status_code, 404)
+        # Su actividad dice de quién es la lista.
+        activity = Activity.objects.get(user=self.luis)
+        self.assertEqual((activity.game_list, activity.list_added), (self.game_list, 1))
+        self.client.force_login(self.ana)
+        response = self.client.get(self.game_list.get_absolute_url())
+        self.assertContains(response, "Añadido por luis")
+        self.assertContains(response, ">luis</a>")
+
+    def test_collaborators_find_the_list_in_the_game_page_and_their_profile(self):
+        self.join(self.luis)
+        response = self.client.get(self.celeste.get_absolute_url())
+        self.assertEqual([game_list.title for game_list in response.context["my_lists"]], ["Para jugar juntos"])
+        self.assertContains(response, "de ana")
+        response = self.client.get(f"{reverse('profile', args=['luis'])}?vista=listas")
+        self.assertContains(response, "De ana")
+        # Los demás no la ven en el perfil de luis: es privada.
+        self.client.force_login(self.eva)
+        self.assertNotContains(self.client.get(f"{reverse('profile', args=['luis'])}?vista=listas"), "Para jugar juntos")
+
+    def test_leaving_and_being_removed(self):
+        self.join(self.luis)
+        self.client.post(reverse("lists:add", args=[self.game_list.pk, self.celeste.pk]))
+        response = self.client.post(reverse("lists:leave", args=[self.game_list.pk]))
+        # Era privada: ya no puede verla, así que vuelve a sus listas. Lo que añadió se queda.
+        self.assertRedirects(response, f"{reverse('profile', args=['luis'])}?vista=listas", fetch_redirect_response=False)
+        self.assertFalse(ListCollaborator.objects.exists())
+        self.assertTrue(self.game_list.items.filter(game=self.celeste).exists())
+        self.join(self.eva)
+        self.client.force_login(self.ana)
+        self.client.post(reverse("lists:collaborator_remove", args=[self.game_list.pk, self.eva.pk]), **HTMX)
+        self.assertFalse(ListCollaborator.objects.exists())
+        self.client.force_login(self.eva)
+        self.assertEqual(self.client.get(reverse("lists:edit", args=[self.game_list.pk])).status_code, 404)
+
+    def test_owner_sees_who_collaborates_in_the_editor(self):
+        Follow.objects.create(follower=self.ana, followed=self.eva)
+        self.invite("luis")
+        response = self.client.get(reverse("lists:edit", args=[self.game_list.pk]))
+        self.assertContains(response, "Quién puede editarla")
+        self.assertContains(response, "Invitación pendiente")
+        # Para escribir el nombre, la gente a la que sigue y aún no ha invitado.
+        self.assertEqual(response.context["suggested"], ["eva"])
