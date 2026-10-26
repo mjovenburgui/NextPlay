@@ -5,8 +5,9 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
-from games.models import Game
-from library.models import LibraryEntry, Review, ReviewComment, ReviewLike
+from challenges.models import Challenge, Participation
+from games.models import Game, Genre
+from library.models import LibraryEntry, PlaySession, Review, ReviewComment, ReviewLike
 from lists.models import GameList, ListCollaborator, ListComment, ListItem, ListLike
 from social.activity import IMPORT_COVERS
 from social.models import Activity, Follow
@@ -84,6 +85,16 @@ LISTS = [
 # Gente que colabora en las listas de ejemplo: (título de la lista, usuario, posiciones en la lista de los juegos que
 # añadió él). El usuario de prueba ayuda a demo1 con la suya.
 LIST_COLLABORATORS = [("Para jugar con amigos", USERNAME, [3, 4])]
+# Retos de ejemplo: (creador, título, tipo, objetivo, slug del género o None, días hasta que empieza y hasta que termina
+# (desde hoy; None, sin fecha), quién más se une). El de juegos concretos sale de la lista «Mis imprescindibles».
+CHALLENGES = [
+    (USERNAME, "Pásate «Mis imprescindibles»", "games", None, None, None, None, ["demo1"]),
+    ("demo1", "Tres de rol antes de Navidad", "count", 3, "role-playing-rpg", -30, 60, [USERNAME, "demo2"]),
+    ("demo2", "Maratón de 20 horas", "hours", 20, None, -7, 23, [USERNAME]),
+]
+# Lo que ha jugado el usuario de prueba estos días, para el reto de horas: (posición del juego en LIBRARY, hace cuántos
+# días, minutos).
+SESSIONS = [(0, 1, 150), (0, 3, 90), (6, 2, 240), (7, 5, 60)]
 # «Me gusta» en las listas de ejemplo, con un comentario si no está vacío: (usuario, título de la lista, comentario).
 LIST_REACTIONS = [
     ("demo1", "Mis imprescindibles", "¡Gran lista! Me apunto el primero para estas vacaciones."),
@@ -144,10 +155,11 @@ class Command(BaseCommand):
             data={"platform": "steam", "count": len(played), "games": [game.pk for game, _ in played[:IMPORT_COVERS]]},
         )
         for days, (game, (status, rating, minutes, text, spoilers)) in enumerate(zip(games, LIBRARY)):
+            when = now - timedelta(days=days)
             entry = LibraryEntry.objects.create(
                 user=user, game=game, status=status, rating=rating, steam_playtime_minutes=minutes,
+                completed_at=when if status == LibraryEntry.Status.COMPLETED else None,
             )
-            when = now - timedelta(days=days)
             if text:
                 reviews[days] = self.review(user, entry, text, spoilers, when)
             self.activity(user, game, when, status, rating, reviews.get(days))
@@ -183,6 +195,7 @@ class Command(BaseCommand):
 
         extras = list(Game.objects.exclude(cover_image_id="").exclude(pk__in=[game.pk for game in games])[:EXTRA_GAMES])
         self.lists(user, games + extras)
+        self.challenges(user, games)
 
         self.stdout.write(self.style.SUCCESS(
             f"Usuario de prueba «{USERNAME}» listo con {len(games)} juegos. "
@@ -235,6 +248,36 @@ class Command(BaseCommand):
             if username in people and title in lists:
                 ListCollaborator.objects.create(game_list=lists[title], user=people[username], accepted_at=timezone.now())
                 lists[title].items.filter(position__in=positions).update(added_by=people[username])
+
+    def challenges(self, user, games):
+        """Rehace los retos de ejemplo (CHALLENGES) con quienes se unen a ellos, y las sesiones de juego del usuario de
+        prueba (SESSIONS, sobre games, los juegos de su biblioteca) para que el reto de horas tenga progreso."""
+        names = {creator for creator, *_ in CHALLENGES} | {name for *_, others in CHALLENGES for name in others}
+        people = {u.username: u for u in User.objects.filter(username__in=names)}
+        today = timezone.localdate()
+        for creator, title, kind, target, genre, starts, ends, others in CHALLENGES:
+            if creator not in people:
+                continue
+            Challenge.objects.filter(creator=people[creator], title=title).delete()
+            challenge = Challenge.objects.create(
+                creator=people[creator], title=title, kind=kind, target=target,
+                genre=Genre.objects.filter(slug=genre).first() if genre else None,
+                starts_on=today + timedelta(days=starts) if starts is not None else None,
+                ends_on=today + timedelta(days=ends) if ends is not None else None,
+            )
+            if kind == Challenge.Kind.GAMES:
+                source = GameList.objects.filter(user=people[creator], title="Mis imprescindibles").first()
+                if source:
+                    challenge.source_list = source
+                    challenge.save(update_fields=["source_list"])
+                    challenge.games.set(source.items.values_list("game_id", flat=True))
+            for name in [creator, *others]:
+                if name in people:
+                    Participation.objects.create(challenge=challenge, user=people[name])
+        PlaySession.objects.filter(user=user).delete()
+        for index, days, minutes in SESSIONS:
+            if index < len(games):
+                PlaySession.add(user, games[index].pk, "steam", today - timedelta(days=days), minutes)
 
     def activity(self, user, game, when, status, rating, review):
         """Apunta en la actividad de user lo que hizo con game en el momento when: su estado, su nota y su reseña (o None)."""

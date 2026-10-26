@@ -13,6 +13,7 @@ from django.views.decorators.http import require_POST
 
 from accounts import images
 from accounts.models import Notification
+from challenges import progress as challenge_progress
 from games import media
 from games.models import LANGUAGE_FILTERS, Game, language_filter
 from social import activity
@@ -146,19 +147,23 @@ def _respond(request, game, entry):
 def set_status(request, game_id):
     """Añade el juego a la biblioteca del usuario con el estado enviado, o cambia el que tenía.
 
-    Si el estado es nuevo, lo apunta en su actividad (social.activity). Responde 400 si el estado no es uno
-    de los permitidos.
+    Si el estado es nuevo, lo apunta en su actividad (social.activity) y, al pasarlo a «Completado», apunta cuándo
+    (completed_at, que se vacía si después cambia de estado) y mira si con eso ha conseguido algún reto
+    (challenges.progress.check). Responde 400 si el estado no es uno de los permitidos.
     """
     game = get_object_or_404(Game, pk=game_id)
     status = request.POST.get("status")
     if status not in LibraryEntry.Status.values:
         return HttpResponseBadRequest("Estado no válido.")
     previous = LibraryEntry.objects.filter(user=request.user, game=game).values_list("status", flat=True).first()
-    entry, _ = LibraryEntry.objects.update_or_create(
-        user=request.user, game=game, defaults={"status": status}
-    )
+    defaults = {"status": status}
+    if status != previous:
+        defaults["completed_at"] = timezone.now() if status == LibraryEntry.Status.COMPLETED else None
+    entry, _ = LibraryEntry.objects.update_or_create(user=request.user, game=game, defaults=defaults)
     if status != previous:
         activity.status_changed(request.user, game, status)
+        if status == LibraryEntry.Status.COMPLETED:
+            challenge_progress.check(request.user)
     return _respond(request, game, entry)
 
 

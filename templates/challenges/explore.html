@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Retos · NextPlay{% endblock %}
+{% block description %}Retos de jugadores de NextPlay: termina juegos, juega horas y compite con la comunidad. El progreso se cuenta solo con tu biblioteca.{% endblock %}
+
+{% block content %}
+  {# Página de retos (challenges.views.explore): los tuyos, los de la gente que sigues, los más populares y los últimos. #}
+  <div class="challenges-page">
+    <header class="page-head">
+      <div>
+        <h1>{% include "_icon.html" with name="trophy" %} Retos</h1>
+        <p class="muted">Ponte metas con tus juegos y únete a las de los demás. Tu progreso se cuenta solo con tu biblioteca.</p>
+      </div>
+      {% if user.is_authenticated %}
+        <a class="btn btn-primary" href="{% url 'challenges:new' %}">{% include "_icon.html" with name="plus" %} Crear un reto</a>
+      {% else %}
+        <a class="btn btn-primary" href="{% url 'login' %}?next={{ request.path|urlencode }}">Entra para crear uno</a>
+      {% endif %}
+    </header>
+
+    {% if user.is_authenticated %}
+      <section class="card-box">
+        <header class="box-head"><h2>Tus retos</h2></header>
+        {% if mine %}
+          <div class="challenges-grid">{% for challenge in mine %}{% include "challenges/_card.html" %}{% endfor %}</div>
+        {% else %}
+          <p class="muted small box-empty">Aún no estás en ninguno. Únete a uno de abajo o crea el tuyo: «Termina 5 juegos de terror en octubre», «20 juegos en 2027», «Pásate todos los Souls»…</p>
+        {% endif %}
+      </section>
+      {% if followed %}
+        <section class="card-box">
+          <header class="box-head"><h2>De la gente que sigues</h2></header>
+          <div class="challenges-grid">{% for challenge in followed %}{% include "challenges/_card.html" %}{% endfor %}</div>
+        </section>
+      {% endif %}
+    {% endif %}
+
+    {% if popular %}
+      <section class="card-box">
+        <header class="box-head"><h2>{% include "_icon.html" with name="flame" %} Los más populares</h2></header>
+        <div class="challenges-grid">{% for challenge in popular %}{% include "challenges/_card.html" %}{% endfor %}</div>
+      </section>
+    {% endif %}
+
+    <section class="card-box">
+      <header class="box-head"><h2>Recién creados</h2></header>
+      {% if recent %}
+        <div class="challenges-grid">{% for challenge in recent %}{% include "challenges/_card.html" %}{% endfor %}</div>
+      {% elif user.is_authenticated %}
+        <p class="muted small box-empty">No hay más retos abiertos en los que no estés. ¡Crea uno nuevo!</p>
+      {% else %}
+        <p class="muted small box-empty">Aún no hay retos abiertos. ¡Crea el primero!</p>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}

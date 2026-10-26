@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load reviews %}
+
+{% block title %}{{ challenge.title }} · Retos · NextPlay{% endblock %}
+{% block description %}{{ challenge.rules_text }}, {{ challenge.dates_text }}. Un reto de {{ challenge.creator.profile.name }} en NextPlay.{% endblock %}
+
+{% block content %}
+  {# Página de un reto (challenges.views.detail): qué hay que hacer, cómo vas tú, sus juegos si son concretos y la clasificación. #}
+  <div class="challenge-page">
+    <header class="card-box challenge-hero">
+      <p class="list-kicker">{% include "_icon.html" with name="trophy" %} Reto · {{ challenge.get_kind_display }}{% if not challenge.is_public %} <span class="pill">Privado: solo lo ves tú</span>{% endif %}</p>
+      <h1>{{ challenge.title }}</h1>
+      <p class="challenge-rules">{{ challenge.rules_text }}, {{ challenge.dates_text }}.</p>
+      <p class="list-author">
+        <a href="{{ challenge.creator.profile.get_absolute_url }}">{% include "accounts/_avatar.html" with profile=challenge.creator.profile size="sm" %} {{ challenge.creator.profile.name }}</a>
+        <span class="muted small">
+          {{ challenge.participant_count }} participante{{ challenge.participant_count|pluralize }}
+          {% if challenge.is_over %}· Terminado{% elif challenge.is_upcoming %}· Empieza el {{ challenge.starts_on|date:"j \d\e F" }}{% elif challenge.days_left %}· Queda{{ challenge.days_left|pluralize:"n" }} {{ challenge.days_left }} día{{ challenge.days_left|pluralize }}{% else %}· En marcha{% endif %}
+        </span>
+      </p>
+      {% if source_list %}<p class="muted small">Con los juegos que tenía la lista <a href="{{ source_list.get_absolute_url }}">«{{ source_list.title }}»</a> al crearlo.</p>{% endif %}
+      {% if challenge.description %}<div class="list-description review-text">{{ challenge.description|review_html }}</div>{% endif %}
+      <div class="list-actions">
+        {% if user.is_authenticated %}
+          {% if mine %}
+            <form method="post" action="{% url 'challenges:leave' challenge.pk %}">
+              {% csrf_token %}
+              <button class="btn" type="submit">Dejar el reto</button>
+            </form>
+          {% elif not challenge.is_over %}
+            <form method="post" action="{% url 'challenges:join' challenge.pk %}">
+              {% csrf_token %}
+              <button class="btn btn-primary" type="submit">{% include "_icon.html" with name="trophy" %} Unirme al reto</button>
+            </form>
+          {% endif %}
+        {% elif not challenge.is_over %}
+          <a class="btn btn-primary" href="{% url 'login' %}?next={{ request.path|urlencode }}">Entra para unirte</a>
+        {% endif %}
+        {% if is_creator %}<a class="btn" href="{% url 'challenges:edit' challenge.pk %}">{% include "_icon.html" with name="edit" %} Editar</a>{% endif %}
+        {% if challenge.is_public %}
+          <button class="btn" type="button" data-copy-link="{{ request.scheme }}://{{ request.get_host }}{{ challenge.get_absolute_url }}">{% include "_icon.html" with name="link" %} <span data-copy-label>Copiar enlace</span></button>
+        {% endif %}
+      </div>
+    </header>
+
+    {% if mine %}
+      {# Cómo vas tú: se cuenta solo con tu biblioteca. #}
+      <section class="card-box challenge-mine{% if mine.completed_at %} is-won{% endif %}" aria-labelledby="challenge-mine-title">
+        <h2 id="challenge-mine-title">{% if mine.completed_at %}{% include "_icon.html" with name="trophy" %} ¡Lo has conseguido!{% else %}Tu progreso{% endif %}</h2>
+        <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ mine.progress.percent }}" aria-labelledby="challenge-mine-title">
+          <span style="width: {{ mine.progress.percent }}%"></span>
+        </div>
+        <p class="challenge-mine-value">
+          <strong>{{ mine.progress.value|floatformat:"-1" }}</strong> de {{ mine.progress.goal_value }}{% if mine.progress.hours %} horas{% else %} juego{{ mine.progress.goal_value|pluralize }}{% endif %}
+          {% if mine.completed_at %}<span class="muted small">· conseguido el {{ mine.completed_at|date:"j \d\e F \d\e Y" }}</span>{% endif %}
+        </p>
+        <p class="help">
+          {% if mine.progress.hours %}Cuenta lo que juegas en Steam, PlayStation y Xbox{% if challenge.starts_on %} desde el {{ challenge.starts_on|date:"j \d\e F" }}{% endif %}: se apunta cada vez que se sincronizan tus horas.{% else %}Cuenta los juegos que pasas a «Completado» en su ficha{% if challenge.starts_on %} desde el {{ challenge.starts_on|date:"j \d\e F" }}{% endif %}{% if challenge.ends_on %} hasta el {{ challenge.ends_on|date:"j \d\e F" }}{% endif %}.{% endif %}
+        </p>
+      </section>
+    {% endif %}
+
+    {% if games %}
+      <section class="card-box">
+        <header class="box-head"><h2>Los juegos <span class="muted">{{ games|length }}</span></h2></header>
+        <ol class="list-games challenge-games">
+          {% for game in games %}
+            <li{% if game.finished %} class="is-done"{% endif %}>{% if game.finished %}{% include "games/_card.html" with status="Terminado" %}{% else %}{% include "games/_card.html" with status="" %}{% endif %}</li>
+          {% endfor %}
+        </ol>
+      </section>
+    {% endif %}
+
+    <section class="card-box">
+      <header class="box-head"><h2>Clasificación <span class="muted">{{ ranking_count }}</span></h2></header>
+      {% if ranking %}
+        <ol class="challenge-ranking">
+          {% for participation in ranking %}
+            <li class="challenge-rank{% if participation.user_id == user.pk %} is-me{% endif %}">
+              <span class="challenge-rank-n">{{ forloop.counter }}</span>
+              {% include "accounts/_avatar.html" with profile=participation.user.profile size="sm" %}
+              <div class="challenge-rank-main">
+                <p>
+                  <a class="person-name" href="{{ participation.user.profile.get_absolute_url }}">{{ participation.user.profile.name }}</a>
+                  {% if participation.completed_at %}<span class="pill pill-won">{% include "_icon.html" with name="check" %} Conseguido</span>{% endif %}
+                </p>
+                <span class="progress-bar" aria-hidden="true"><span style="width: {{ participation.progress.percent }}%"></span></span>
+              </div>
+              <span class="challenge-rank-value">{{ participation.progress.value|floatformat:"-1" }}<span class="muted"> / {{ participation.progress.goal_value }}{% if participation.progress.hours %} h{% endif %}</span></span>
+            </li>
+          {% endfor %}
+        </ol>
+      {% else %}
+        <p class="muted small box-empty">Aún no se ha unido nadie que puedas ver.</p>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}

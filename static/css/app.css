@@ -1758,3 +1758,58 @@ form:has(input[name="mode"]:checked:not([value="tiers"])) .list-tiers { display:
   .tier-game { width: 48px; }
   .list-invite { flex-wrap: wrap; }
 }
+
+/* Retos: la página de retos con sus tarjetas, la de cada reto con tu progreso y la clasificación, y su formulario */
+.challenges-page, .challenge-page { display: flex; flex-direction: column; gap: 1.25rem; }
+.challenges-page .page-head { margin-bottom: 0; }
+.challenges-page .page-head p { margin: .2rem 0 0; }
+.challenges-page h1, .challenge-form h1 { display: flex; align-items: center; gap: .55rem; }
+.challenges-page h1 .icon, .challenge-form h1 .icon { width: 1.5rem; height: 1.5rem; color: var(--gold); }
+.challenges-page .page-head .btn { display: inline-flex; align-items: center; gap: .4rem; }
+.challenges-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .9rem; }
+.challenge-card {
+  display: flex; flex-direction: column; gap: .3rem; padding: 1rem; color: var(--text);
+  background: linear-gradient(160deg, var(--surface-2), rgba(255, 200, 74, .05)); border: 1px solid var(--border); border-radius: 12px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.challenge-card:hover { border-color: var(--gold); box-shadow: 0 0 18px rgba(255, 200, 74, .18); text-decoration: none; }
+.challenge-kicker { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem; color: var(--gold); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.challenge-kicker .icon { width: .95rem; height: .95rem; }
+.challenge-kicker .pill { color: var(--muted); text-transform: none; letter-spacing: 0; }
+.challenge-card-title { font-size: 1.02rem; line-height: 1.3; overflow-wrap: anywhere; }
+.challenge-card-rules { color: #d4d8ee; font-size: .9rem; }
+.challenge-card .progress-bar { margin: .45rem 0 0; }
+.challenge-card-progress { display: inline-flex; align-items: center; gap: .3rem; color: #b5f6fb; font-weight: 600; }
+.challenge-card-progress .icon { width: .95rem; height: .95rem; }
+.challenge-hero h1 { margin: 0; font-size: 1.9rem; overflow-wrap: anywhere; }
+.challenge-hero .list-kicker { color: var(--gold); }
+.challenge-rules { margin: .5rem 0 0; font-size: 1.1rem; color: #e2e5f6; }
+.challenge-hero .list-actions .btn, .challenge-hero .list-actions form { display: inline-flex; align-items: center; gap: .4rem; margin: 0; }
+.challenge-mine h2 { display: flex; align-items: center; gap: .45rem; }
+.challenge-mine.is-won { border-color: var(--gold); background: linear-gradient(120deg, rgba(255, 200, 74, .14), rgba(14, 18, 34, .88) 55%); }
+.challenge-mine.is-won h2 .icon { color: var(--gold); }
+.challenge-mine.is-won .progress-bar span { background: linear-gradient(90deg, var(--gold), #ff8a3d); }
+.challenge-mine-value { margin: .2rem 0 0; }
+.challenge-mine-value strong { font-size: 1.3rem; }
+.challenge-games li.is-done .cover { border-color: var(--cyan); box-shadow: 0 0 14px rgba(34, 224, 240, .25); }
+.challenge-ranking { margin: 0; padding: 0; list-style: none; }
+.challenge-rank { display: flex; align-items: center; gap: .75rem; padding: .65rem .4rem; border-top: 1px solid var(--border); border-radius: 8px; }
+.challenge-rank:first-child { border-top: 0; }
+.challenge-rank.is-me { background: rgba(157, 92, 255, .1); }
+.challenge-rank-n { flex: none; width: 1.6rem; color: var(--muted); font-weight: 800; text-align: right; }
+.challenge-rank:nth-child(1) .challenge-rank-n { color: var(--gold); }
+.challenge-rank-main { flex: 1; min-width: 0; }
+.challenge-rank-main p { display: flex; align-items: center; flex-wrap: wrap; gap: .2rem .5rem; margin: 0 0 .35rem; }
+.challenge-rank-main .progress-bar { margin: 0; }
+.challenge-rank-value { flex: none; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pill-won { display: inline-flex; align-items: center; gap: .2rem; margin: 0; border-color: rgba(255, 200, 74, .6); color: #ffe3a3; }
+.pill-won .icon { width: .85rem; height: .85rem; }
+.challenge-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 0 1rem; }
+.challenge-form fieldset { padding: 0; border: 0; }
+.challenge-form legend { margin-bottom: .4rem; font-weight: 600; font-size: .9rem; }
+.challenge-form .list-form-foot { gap: .5rem; }
+.challenge-form .list-form-foot .btn { display: inline-flex; align-items: center; gap: .4rem; }
+.challenge-delete { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+/* Lo que pide cada tipo: la lista, solo en los de juegos concretos; los filtros, solo en los de número de juegos u horas. */
+form:has(input[name="kind"][value="games"]:checked) .challenge-for-count { display: none; }
+form:has(input[name="kind"]:checked:not([value="games"])) .challenge-for-games { display: none; }

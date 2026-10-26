@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Nuevo reto · NextPlay{% endblock %}
+
+{% block content %}
+  {# Crear un reto (challenges.forms.ChallengeForm). Lo que se enseña depende del tipo elegido (lo hace el CSS con :has). #}
+  <div class="panel panel-wide challenge-form">
+    <h1>{% include "_icon.html" with name="trophy" %} Nuevo reto</h1>
+    {% if game_list %}<p class="muted">Con los juegos de la lista «{{ game_list.title }}» de {{ game_list.user.profile.name }}.</p>{% endif %}
+    <form method="post" action="{% url 'challenges:new' %}">
+      {% csrf_token %}
+      {% if game_list %}<input type="hidden" name="lista" value="{{ game_list.pk }}">{% endif %}
+      {{ form.non_field_errors }}
+      {% include "challenges/_field.html" with field=form.title %}
+      {% include "challenges/_field.html" with field=form.description help="Puedes usar **negrita**, *cursiva*, ||spoiler|| y [enlaces](https://…)." %}
+      <fieldset class="field">
+        <legend>{{ form.kind.label }}</legend>
+        <div class="choice-list">
+          {% for radio in form.kind %}<label class="choice-row">{{ radio.tag }} {{ radio.choice_label }}</label>{% endfor %}
+        </div>
+        {{ form.kind.errors }}
+      </fieldset>
+      <div class="challenge-for-games">
+        {% include "challenges/_field.html" with field=form.source_list help="Se copian los juegos que tiene ahora: si la lista cambia después, el reto no." %}
+      </div>
+      {% include "challenges/_field.html" with field=form.target help="Cuántos juegos hay que terminar o cuántas horas hay que jugar. En uno de juegos concretos, vacío es todos." %}
+      <fieldset class="field challenge-for-count">
+        <legend>Qué juegos cuentan <span class="muted small">(opcional)</span></legend>
+        <div class="challenge-filters">
+          {% include "challenges/_field.html" with field=form.genre %}
+          {% include "challenges/_field.html" with field=form.platform %}
+          {% include "challenges/_field.html" with field=form.released_from %}
+          {% include "challenges/_field.html" with field=form.released_to %}
+        </div>
+      </fieldset>
+      <fieldset class="field">
+        <legend>Fechas <span class="muted small">(opcional)</span></legend>
+        <div class="challenge-filters">
+          {% include "challenges/_field.html" with field=form.starts_on %}
+          {% include "challenges/_field.html" with field=form.ends_on %}
+        </div>
+        <p class="help">Sin fecha de inicio cuenta también lo de antes. Las horas se cuentan desde que existen en NextPlay: se apuntan cada vez que se sincronizan Steam, PlayStation o Xbox.</p>
+      </fieldset>
+      <label class="switch-row" for="{{ form.is_public.id_for_label }}">
+        <span><strong>{{ form.is_public.label }}</strong><span class="help">{{ form.is_public.help_text }}</span></span>
+        <span class="switch">{{ form.is_public }}</span>
+      </label>
+      <div class="list-form-foot">
+        <button class="btn btn-primary" type="submit">{% include "_icon.html" with name="trophy" %} Crear reto</button>
+      </div>
+    </form>
+  </div>
+{% endblock %}

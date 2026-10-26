@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Editar «{{ challenge.title }}» · NextPlay{% endblock %}
+
+{% block content %}
+  {# Editar un reto (challenges.forms.ChallengeEditForm): su título, su descripción y si es público. Sus reglas no se cambian. #}
+  <div class="panel panel-wide challenge-form">
+    <h1>{% include "_icon.html" with name="trophy" %} Editar reto</h1>
+    <p class="muted">{{ challenge.rules_text }}, {{ challenge.dates_text }}. Las reglas no se pueden cambiar, para que sea justo con quien ya se ha unido.</p>
+    <form method="post" action="{% url 'challenges:edit' challenge.pk %}">
+      {% csrf_token %}
+      {% include "challenges/_field.html" with field=form.title %}
+      {% include "challenges/_field.html" with field=form.description help="Puedes usar **negrita**, *cursiva*, ||spoiler|| y [enlaces](https://…)." %}
+      <label class="switch-row" for="{{ form.is_public.id_for_label }}">
+        <span><strong>{{ form.is_public.label }}</strong><span class="help">{{ form.is_public.help_text }}</span></span>
+        <span class="switch">{{ form.is_public }}</span>
+      </label>
+      <div class="list-form-foot">
+        <a class="btn" href="{{ challenge.get_absolute_url }}">Cancelar</a>
+        <button class="btn btn-primary" type="submit">Guardar</button>
+      </div>
+    </form>
+    <form class="challenge-delete" method="post" action="{% url 'challenges:delete' challenge.pk %}"
+          onsubmit="return confirm('¿Borrar el reto «{{ challenge.title|escapejs }}» con quienes se han unido? No se puede deshacer.');">
+      {% csrf_token %}
+      <button class="btn btn-danger" type="submit">Borrar el reto</button>
+    </form>
+  </div>
+{% endblock %}

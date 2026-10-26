@@ -246,6 +246,22 @@ borrarla siguen siendo cosa del dueño. La lista dice quién colabora y quién a
 Listas de quien colabora y en su «Añadir a una lista», y lo que añade cada uno sale en su actividad («añadió 2 juegos a
 la lista… de Ana»). Quien colabora puede irse cuando quiera; lo que añadió se queda.
 
+## Retos
+
+Cualquiera puede crear un reto y unirse a los de los demás (`/retos/`). Hay tres tipos: terminar unos juegos concretos
+(los de una lista, con «Convertir en reto» en su página; se copian al crearlo), terminar un número de juegos (de un
+género, una plataforma o unos años, si se quiere) o jugar un número de horas, con fechas o sin ellas. Sus reglas no
+cambian después de crearlo, para que sea justo con quien ya se ha unido; el título, la descripción y si es público, sí.
+Los privados solo los ve quien los crea.
+
+El progreso de cada uno se cuenta solo con su biblioteca (`challenges/progress.py`): los juegos que pasa a «Completado»
+entre las fechas del reto (`LibraryEntry.completed_at`, que se apunta al cambiar el estado; sin fecha de inicio cuentan
+también los de antes) y, en los de horas, lo que juega entre ellas. Las horas salen de las sesiones de juego
+(`PlaySession`): en cada sincronización de Steam, PlayStation o Xbox se apunta lo que ha subido el tiempo de los juegos
+que ya tenían horas de esa plataforma, el día de su última partida. Lo de la primera importación no cuenta, porque no
+se sabe cuándo se jugó. La página de cada reto enseña cómo vas, sus juegos (en los de juegos concretos) y la
+clasificación, y quien llega al objetivo queda apuntado como que lo ha conseguido.
+
 ## Tareas de cada noche
 
 `nightly` sincroniza la biblioteca de Steam (y su lista de deseos, si no se ha desactivado) de quien tenga
@@ -288,8 +304,9 @@ schtasks /Create /TN "NextPlay nightly" /SC DAILY /ST 04:00 /TR "cmd /c cd /d %C
 | `library`  | `LibraryEntry`: un estado por usuario y juego                |
 | `social`   | `Follow` y `Activity`: seguir a otros jugadores y su actividad |
 | `lists`    | `GameList` y `ListItem`: las listas de juegos de cada usuario |
+| `challenges` | `Challenge` y `Participation`: los retos y quién está en cada uno |
 
 ## Siguientes cortes
 
 2. Importación de Steam, puntuaciones y reseñas, tarjeta compartible.
-3. Bloquear y silenciar, retos, beta.
+3. Bloquear y silenciar, beta.

@@ -43,6 +43,10 @@
           {% if game_list.is_public and profile.is_public %}
             <button class="btn" type="button" data-copy-link="{{ request.scheme }}://{{ request.get_host }}{{ game_list.get_absolute_url }}">{% include "_icon.html" with name="link" %} <span data-copy-label>Copiar enlace</span></button>
           {% endif %}
+          {# Un reto de terminar sus juegos (challenges.views.new con lista=). #}
+          {% if user.is_authenticated and items %}
+            <a class="btn" href="{% url 'challenges:new' %}?lista={{ game_list.pk }}">{% include "_icon.html" with name="trophy" %} Convertir en reto</a>
+          {% endif %}
         </div>
         {# «Me gusta», comentarios y, a los demás, «Denunciar», como al pie de una reseña. #}
         <div class="review-foot list-foot">

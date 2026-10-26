@@ -62,6 +62,9 @@ class LibraryEntry(models.Model):
     # Los rellena la importación de Xbox; nulos si el juego no viene de Xbox.
     xbox_playtime_minutes = models.PositiveIntegerField("minutos jugados en Xbox", null=True, blank=True)
     xbox_last_played = models.DateTimeField(null=True, blank=True)
+    # Cuándo lo pasó a «Completado» (lo pone library.views.set_status y se vacía si cambia de estado). Las
+    # importaciones nunca lo completan, así que siempre es una fecha que puso el jugador. Lo miden los retos.
+    completed_at = models.DateTimeField("terminado", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -147,6 +150,44 @@ HOURS_SOURCES = {"steam": "Steam", "psn": "PlayStation", "xbox": "Xbox"}
 HOURS_LOGOS = {
     "steam": "games/shop_icons/steam.svg", "psn": "games/shop_icons/playstation.svg", "xbox": "games/shop_icons/xbox.svg",
 }
+class PlaySession(models.Model):
+    """Lo que ha jugado un usuario a un juego en una plataforma un día: lo que ha subido su tiempo entre dos
+    sincronizaciones, apuntado el día de su última partida (varias el mismo día se suman).
+
+    Lo apunta la importación (accounts.matching.update_library) solo si ya se conocían las horas de esa plataforma:
+    lo que trae la primera importación es de antes y no se sabe cuándo se jugó. Es lo que miden los retos de horas y,
+    más adelante, el diario de partidas.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="play_sessions")
+    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="play_sessions", verbose_name="juego")
+    platform = models.CharField("plataforma", max_length=10, choices=list(HOURS_SOURCES.items()))
+    day = models.DateField("día")
+    minutes = models.PositiveIntegerField("minutos")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-day", "-id"]
+        constraints = [
+            models.UniqueConstraint(fields=["user", "game", "platform", "day"], name="unique_session_per_day"),
+        ]
+        indexes = [models.Index(fields=["user", "day"], name="session_user_day")]
+        verbose_name = "sesión de juego"
+        verbose_name_plural = "sesiones de juego"
+
+    def __str__(self):
+        """Texto en el admin: «usuario · juego · día · minutos»."""
+        return f"{self.user} · {self.game} · {self.day} · {self.minutes} min"
+
+    @classmethod
+    def add(cls, user, game_id, platform, day, minutes):
+        """Suma minutes a lo que user ha jugado a game_id en platform el día day (la crea si es la primera de ese día)."""
+        if not cls.objects.filter(user=user, game_id=game_id, platform=platform, day=day).update(
+            minutes=models.F("minutes") + minutes,
+        ):
+            cls.objects.create(user=user, game_id=game_id, platform=platform, day=day, minutes=minutes)
+
+
 # Estado de la biblioteca al publicar una reseña → cómo se cuenta en ella (Pendiente no dice nada).
 STATUS_NOTES = {
     LibraryEntry.Status.COMPLETED: "Lo terminó",
