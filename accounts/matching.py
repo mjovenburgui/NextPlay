@@ -13,9 +13,10 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from challenges import progress as challenge_progress
 from games import igdb
 from games.models import Game
-from library.models import LibraryEntry, Review
+from library.models import LibraryEntry, PlaySession, Review
 from library.reminders import remind_outdated_reviews
 from social.activity import games_imported
 
@@ -200,7 +201,9 @@ def update_library(user, platform, opened_only=False, record_activity=False):
     sus horas de esta plataforma. Si han cambiado horas, avisa al usuario de las reseñas que se le han quedado
     atrás (library.reminders). Con record_activity (lo piden las importaciones, no las correcciones del
     emparejamiento), los juegos nuevos se apuntan en su actividad como una sola importación
-    (social.activity.games_imported). Devuelve (juegos añadidos, juegos actualizados).
+    (social.activity.games_imported) y lo que ha subido el tiempo de los que ya tenían horas de esta plataforma se
+    apunta como sesiones de juego (library.models.PlaySession), con las que se mira si ha conseguido algún reto de
+    horas (challenges.progress.check). Devuelve (juegos añadidos, juegos actualizados).
     """
     rows = list(ImportedTitle.objects.filter(user=user, title__platform=platform).select_related("title"))
     totals = {}
@@ -219,6 +222,8 @@ def update_library(user, platform, opened_only=False, record_activity=False):
         for entry in LibraryEntry.objects.filter(user=user, game_id__in=list(totals) + list(stale))
     }
     new, updated = [], 0
+    # (juego, última partida, minutos) de lo que ha subido el tiempo de los juegos que ya tenían horas de esta plataforma.
+    played = []
     with transaction.atomic():
         for game_id, (minutes, last_played) in totals.items():
             entry = existing.get(game_id)
@@ -229,8 +234,12 @@ def update_library(user, platform, opened_only=False, record_activity=False):
                 new.append(LibraryEntry(
                     user=user, game_id=game_id, status=status, **{minutes_field: minutes, last_field: last_played}
                 ))
-            elif entry.update_import(platform, minutes, last_played):
+                continue
+            before = getattr(entry, minutes_field)
+            if entry.update_import(platform, minutes, last_played):
                 updated += 1
+                if before is not None and minutes > before:
+                    played.append((game_id, last_played, minutes - before))
         for game_id in stale:
             entry = existing.get(game_id)
             if entry is not None and entry.update_import(platform, None, None):
@@ -239,8 +248,14 @@ def update_library(user, platform, opened_only=False, record_activity=False):
         for row in moved:
             row.game_id = row.title.game_id
         ImportedTitle.objects.bulk_update(moved, ["game"])
+        if record_activity:
+            for game_id, last_played, minutes in played:
+                day = timezone.localdate(last_played) if last_played and timezone.is_aware(last_played) else timezone.localdate()
+                PlaySession.add(user, game_id, platform, day, minutes)
     if record_activity:
         games_imported(user, platform, new)
+        if played:
+            challenge_progress.check(user)
     if updated:
         remind_outdated_reviews(user)
     return len(new), updated

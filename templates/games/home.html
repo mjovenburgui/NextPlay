@@ -31,6 +31,7 @@
             <a class="is-active" href="{% url 'home' %}">{% include "_icon.html" with name="home" %} Inicio</a>
             <a href="{% url 'profile' user.username %}">{% include "_icon.html" with name="library" %} Mi biblioteca</a>
             <a href="{% url 'profile' user.username %}?vista=listas">{% include "_icon.html" with name="list" %} Mis listas</a>
+            <a href="{% url 'challenges:explore' %}">{% include "_icon.html" with name="trophy" %} Retos</a>
             <a href="{% url 'library:wishlist' %}">{% include "_icon.html" with name="heart" %} Lista de deseos</a>
             <a href="{% url 'notifications' %}">{% include "_icon.html" with name="bell" %} Avisos{% if unread_notifications %} <span class="count">{{ unread_notifications }}</span>{% endif %}</a>
             <a href="{% url 'edit_profile' %}">{% include "_icon.html" with name="settings" %} Editar perfil</a>

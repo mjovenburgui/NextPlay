@@ -1,0 +1,7 @@
+{# Un campo del formulario de un reto: su etiqueta, el campo, su ayuda (help, o la del campo) y sus errores. Necesita field. #}
+<div class="field{% if field.errors %} has-error{% endif %}">
+  <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+  {{ field }}
+  {% if help %}<p class="help">{{ help }}</p>{% elif field.help_text %}<p class="help">{{ field.help_text }}</p>{% endif %}
+  {{ field.errors }}
+</div>

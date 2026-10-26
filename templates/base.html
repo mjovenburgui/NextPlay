@@ -19,6 +19,7 @@
     <nav class="mainnav" aria-label="Principal">
       <a class="{% if section == 'home' %}is-active{% endif %}" href="{% url 'home' %}">{% include "_icon.html" with name="home" %} Inicio</a>
       <a class="{% if request.resolver_match.namespace == 'games' %}is-active{% endif %}" href="{% url 'games:catalog' %}">{% include "_icon.html" with name="games" %} Juegos</a>
+      <a class="{% if request.resolver_match.namespace == 'challenges' %}is-active{% endif %}" href="{% url 'challenges:explore' %}">{% include "_icon.html" with name="trophy" %} Retos</a>
       {% if user.is_authenticated %}
         <a class="{% if section == 'wishlist' %}is-active{% endif %}" href="{% url 'library:wishlist' %}">{% include "_icon.html" with name="heart" %} Deseos</a>
       {% endif %}
@@ -43,6 +44,7 @@
             <p class="account-menu-id"><strong>{{ user.profile.name }}</strong><span class="muted small">@{{ user.username }}</span></p>
             <a href="{% url 'profile' user.username %}">{% include "_icon.html" with name="user" %} Mi perfil</a>
             <a href="{% url 'profile' user.username %}?vista=listas">{% include "_icon.html" with name="list" %} Mis listas</a>
+            <a href="{% url 'challenges:explore' %}">{% include "_icon.html" with name="trophy" %} Retos</a>
             <a href="{% url 'library:wishlist' %}">{% include "_icon.html" with name="heart" %} Lista de deseos</a>
             <a href="{% url 'edit_profile' %}">{% include "_icon.html" with name="settings" %} Editar perfil</a>
             <form action="{% url 'logout' %}" method="post">

@@ -15,6 +15,7 @@ urlpatterns = [
     path("u/<str:username>/resenas/<int:review_id>/", library_views.review_detail, name="review_detail"),
     path("", include("social.urls")),
     path("", include("lists.urls")),
+    path("", include("challenges.urls")),
     path("", include("accounts.urls")),
 ]
 
