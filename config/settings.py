@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "games",
     "library",
     "social",
+    "lists",
 ]
 
 MIDDLEWARE = [

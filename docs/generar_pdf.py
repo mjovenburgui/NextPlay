@@ -43,6 +43,7 @@ APPS = {
     "games": "Catálogo de juegos, importación desde IGDB y precios de PC (IsThereAnyDeal) y Xbox.",
     "library": "Biblioteca de cada usuario: qué juegos tiene, en qué estado, su valoración y su reseña.",
     "social": "Lo social: seguir a otros jugadores, las listas de seguidores y seguidos y la actividad de cada jugador.",
+    "lists": "Listas de juegos de cada usuario: crearlas, ordenarlas y comentarlas, y verlas en su página, en el perfil y en la ficha de cada juego.",
 }
 ACCENT = colors.HexColor("#7c3aed")
 MUTED = colors.HexColor("#6b7280")

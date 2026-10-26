@@ -1234,7 +1234,7 @@ class ProfileCustomizationTests(TestCase):
     def test_sections_order_and_visibility(self):
         FavoriteGame.objects.create(user=self.user, game=self.games[0])
         self.post_profile(
-            secciones=["estadisticas", "favoritos", "jugando", "resena", "generos"],
+            secciones=["estadisticas", "favoritos", "jugando", "resena", "generos", "listas"],
             secciones_visibles=["estadisticas", "jugando"],
         )
         profile = self.profile()
@@ -1248,13 +1248,19 @@ class ProfileCustomizationTests(TestCase):
         profile = Profile(sections=[["no-existe", True], "basura", ["jugando", False], ["jugando", True]])
         layout = profile.section_layout
         self.assertEqual(layout[0], ("jugando", "Jugando ahora", False))
-        self.assertEqual([key for key, _, _ in layout[1:]], ["favoritos", "resena", "estadisticas", "generos"])
+        self.assertEqual([key for key, _, _ in layout[1:]], ["favoritos", "resena", "estadisticas", "generos", "listas"])
 
     def test_showcase_is_only_on_the_main_view(self):
         url = reverse("profile", args=["ana"])
         self.assertContains(self.client.get(url), "Jugando ahora")
         self.assertNotContains(self.client.get(url, {"estado": "playing"}), "Jugando ahora")
         self.assertNotContains(self.client.get(url, {"vista": "resenas"}), "Jugando ahora")
+        self.assertNotContains(self.client.get(url, {"vista": "listas"}), "Jugando ahora")
+
+    def test_library_cards_show_the_stars_of_the_rating(self):
+        LibraryEntry.objects.filter(user=self.user, game=self.games[0]).update(rating=9)
+        response = self.client.get(reverse("profile", args=["ana"]), {"estado": "playing"})
+        self.assertContains(response, 'class="stars stars-sm" role="img" aria-label="4,5 estrellas"')
 
     def test_favorites_toggle_with_limit(self):
         for game in self.games[:5]:

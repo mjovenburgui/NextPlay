@@ -1,0 +1,22 @@
+{# Campos de los datos de una lista (lists.forms.GameListForm): el título, la descripción y los interruptores de visible y numerada. Necesita form. #}
+<div class="field{% if form.title.errors %} has-error{% endif %}">
+  <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+  {{ form.title }}
+  {{ form.title.errors }}
+</div>
+<div class="field{% if form.description.errors %} has-error{% endif %}">
+  <label for="{{ form.description.id_for_label }}">{{ form.description.label }} <span class="muted small">(opcional)</span></label>
+  {{ form.description }}
+  <p class="help">Puedes usar **negrita**, *cursiva*, ||spoiler|| y [enlaces](https://…).</p>
+  {{ form.description.errors }}
+</div>
+{% for field in form.switches %}
+  <label class="switch-row" for="{{ field.id_for_label }}">
+    <span>
+      <strong>{{ field.label }}</strong>
+      {% if field.help_text %}<span class="help">{{ field.help_text }}</span>{% endif %}
+    </span>
+    <span class="switch">{{ field }}</span>
+  </label>
+  {{ field.errors }}
+{% endfor %}

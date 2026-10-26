@@ -1,0 +1,17 @@
+{# Un resultado del buscador del editor: el juego y «Añadir», o «En la lista» si ya está. Necesita game_list y game (con in_list). #}
+{# Con oob, HTMX lo cambia fuera de su sitio cuando se acaba de añadir (lists/_editor_items.html). #}
+<li class="list-result" id="resultado-{{ game.pk }}"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <span class="thumb">{% if game.cover_url %}<img src="{{ game.cover_url }}" alt="" loading="lazy">{% endif %}</span>
+  <span class="list-result-name"><strong>{{ game.name }}</strong>{% if game.release_year %} <span class="muted small">{{ game.release_year }}</span>{% endif %}</span>
+  {% if game.in_list %}
+    <span class="list-result-done small">{% include "_icon.html" with name="check" %} En la lista</span>
+  {% else %}
+    <form method="post" action="{% url 'lists:add' game_list.pk game.pk %}"
+          hx-post="{% url 'lists:add' game_list.pk game.pk %}" hx-target="#list-items" hx-swap="outerHTML" hx-sync="#juegos:queue all">
+      {% csrf_token %}
+      <input type="hidden" name="desde" value="buscador">
+      <input type="hidden" name="next" value="{% url 'lists:edit' game_list.pk %}?q={{ search_query|urlencode }}#juegos">
+      <button class="btn btn-small" type="submit">{% include "_icon.html" with name="plus" %} Añadir</button>
+    </form>
+  {% endif %}
+</li>

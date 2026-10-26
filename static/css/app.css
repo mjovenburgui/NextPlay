@@ -1527,3 +1527,168 @@ p.update-hint { display: flex; border-left-color: var(--gold); }
 @media (max-width: 480px) {
   .composer-games, .composer-previews, .composer-foot, .composer > .help, .composer > .errorlist { margin-left: 0; }
 }
+
+/* Listas: el mosaico de portadas, sus tarjetas, su página, el editor y, en la ficha, «Añadir a una lista» y «En N listas» */
+/* Mosaico: las portadas de los primeros juegos en dos filas de dos, con la proporción de una portada. */
+.list-mosaic {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 2px;
+  aspect-ratio: 3 / 4; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); background: var(--border);
+  transition: border-color .15s, box-shadow .15s;
+}
+.list-mosaic-cell { display: block; min-width: 0; min-height: 0; overflow: hidden; background: linear-gradient(145deg, #1b1440, #0b2740); }
+.list-mosaic-cell img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.list-mosaic-sm { flex: none; width: 46px; gap: 1px; border-radius: 7px; }
+.list-mosaic-lg { flex: none; width: 190px; box-shadow: 0 14px 40px rgba(0, 0, 0, .45), 0 0 22px rgba(var(--accent-rgb, 157, 92, 255), .3); }
+.lists-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 1.25rem 1rem; }
+.list-card { display: flex; flex-direction: column; gap: .15rem; min-width: 0; color: var(--text); }
+.list-card:hover { text-decoration: none; }
+.list-card:hover .list-mosaic { border-color: var(--violet); box-shadow: 0 0 18px rgba(157, 92, 255, .35); }
+.list-card-title { margin-top: .45rem; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.list-card-meta .pill { margin-left: .2rem; }
+.list-card-progress { color: #b5f6fb; font-weight: 600; }
+.lists-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem; margin-bottom: 1.25rem; }
+.lists-bar p { margin: 0; }
+.lists-bar .btn, .list-actions .btn, .list-form-foot .btn { display: inline-flex; align-items: center; gap: .4rem; }
+
+/* Página de una lista: la cabecera con el mosaico, el progreso de quien mira y los juegos. Lleva el color del perfil de su autor. */
+.list-page { display: flex; flex-direction: column; gap: 1.25rem; }
+.list-page h2 { margin: 0; font-size: 1.1rem; }
+.list-hero { display: flex; align-items: flex-start; gap: 1.5rem; }
+.list-hero-info { flex: 1; min-width: 0; }
+.list-hero h1 { margin: 0; font-size: 1.9rem; overflow-wrap: anywhere; }
+.list-kicker {
+  display: flex; align-items: center; flex-wrap: wrap; gap: .35rem; margin: 0 0 .35rem;
+  color: var(--violet); font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em;
+}
+.list-kicker .icon { width: 1rem; height: 1rem; }
+.list-kicker .pill { color: var(--muted); font-weight: 600; text-transform: none; letter-spacing: 0; }
+.list-author { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .7rem; margin: .7rem 0 0; }
+.list-author a { display: inline-flex; align-items: center; gap: .5rem; color: var(--text); font-weight: 700; }
+.list-author .avatar { width: 32px; height: 32px; font-size: .95rem; }
+.list-description { margin-top: .9rem; max-width: 70ch; color: #d4d8ee; }
+.list-description p:first-child { margin-top: 0; }
+.list-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.1rem; }
+.progress-bar { height: .55rem; margin: .75rem 0 .2rem; overflow: hidden; border-radius: 999px; background: var(--surface-3); }
+.progress-bar span { display: block; height: 100%; min-width: .55rem; border-radius: inherit; background: linear-gradient(90deg, var(--violet), var(--cyan)); }
+.list-missing { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem 1.25rem; margin-top: 1rem; padding-top: .9rem; border-top: 1px solid var(--border); }
+.list-missing p { margin: 0; }
+.list-missing .help { margin-top: .2rem; }
+.list-missing form { margin: 0; }
+.list-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .6rem 1rem; margin-bottom: 1rem; }
+/* Juegos en portadas; en las numeradas, cada uno con su puesto en una esquina, con el color del autor (como los favoritos). */
+.list-games { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1.25rem 1rem; margin: 0; padding: 0; list-style: none; counter-reset: puesto; }
+.list-games li { position: relative; min-width: 0; counter-increment: puesto; }
+.list-games.is-ranked { padding: .5rem 0 0 .5rem; }
+.list-games.is-ranked li::before, .list-rows.is-ranked .list-row::before {
+  content: counter(puesto); box-sizing: border-box; display: grid; place-items: center; min-width: 1.75rem; height: 1.75rem; padding: 0 .35rem; border-radius: 999px;
+  background: var(--violet); color: var(--accent-text, #fff); font-size: .82rem; font-weight: 800;
+  box-shadow: 0 0 12px rgba(var(--accent-rgb, 157, 92, 255), .55);
+}
+.list-games.is-ranked li::before { position: absolute; top: -.55rem; left: -.55rem; z-index: 1; }
+/* Juegos con el comentario de quien hace la lista. */
+.list-rows { margin: 0; padding: 0; list-style: none; counter-reset: puesto; }
+.list-row { display: flex; align-items: flex-start; gap: .85rem; padding: .85rem 0; border-top: 1px solid var(--border); counter-increment: puesto; }
+.list-row:first-child { padding-top: 0; border-top: 0; }
+.list-rows.is-ranked .list-row::before { flex: none; margin-top: .9rem; }
+.list-row-cover { width: 58px; }
+.list-row-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.list-row-main { flex: 1; min-width: 0; }
+.list-row-title { margin: .1rem 0 0; font-weight: 700; overflow-wrap: anywhere; }
+.list-row-title a { color: var(--text); }
+.list-row-title .pill { border-color: rgba(34, 224, 240, .45); color: #b5f6fb; font-weight: 600; }
+.list-row-note { margin: .35rem 0 0; color: #d4d8ee; overflow-wrap: anywhere; }
+
+/* Crear y editar una lista */
+.list-form h1 .icon, .list-editor h1 .icon { color: var(--violet); }
+.list-form-foot { display: flex; justify-content: flex-end; margin-top: 1.25rem; }
+.list-editor { display: flex; flex-direction: column; gap: 1.25rem; max-width: 760px; margin: 0 auto; }
+.list-editor .page-head { margin-bottom: 0; }
+.list-editor h1 { display: flex; align-items: center; gap: .55rem; margin: 0; }
+.list-editor h2 { margin: 0 0 .9rem; font-size: 1.1rem; }
+.list-editor .page-head .btn { display: inline-flex; align-items: center; gap: .35rem; }
+.list-search { position: relative; margin: 0 0 .75rem; }
+.list-search > .icon { position: absolute; left: .75rem; top: 50%; transform: translateY(-50%); color: var(--muted); }
+.list-search input { padding-left: 2.5rem; }
+.list-results { margin: 0 0 1rem; padding: 0; list-style: none; }
+.list-result { display: flex; align-items: center; gap: .75rem; padding: .45rem 0; border-top: 1px solid var(--border); }
+.list-result:first-child { border-top: 0; }
+.list-result .thumb { width: 34px; }
+.list-result form { margin: 0; }
+.list-result .btn { display: inline-flex; align-items: center; gap: .3rem; }
+.list-result .btn .icon { width: 1rem; height: 1rem; }
+.list-result-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.list-result-done { display: inline-flex; align-items: center; gap: .3rem; color: #b5f6fb; font-weight: 600; }
+.list-result-done .icon { width: 1rem; height: 1rem; }
+.list-results-empty { margin: 0 0 1rem; }
+.list-items-count { margin: 0 0 .6rem; }
+.list-editor-item { align-items: flex-start; }
+.list-editor-item > .thumb { width: 40px; }
+.list-position { margin: 0; }
+.list-position input { width: 3.5rem; padding: .35rem .3rem; text-align: center; }
+.list-editor-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .35rem; }
+.list-editor-name { overflow: hidden; color: var(--text); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.list-note { display: flex; align-items: center; flex-wrap: wrap; gap: .25rem .6rem; margin: 0; }
+.list-note input { flex: 1 1 12rem; padding: .35rem .6rem; font-size: .88rem; }
+.list-note .errorlist { margin: 0; }
+.list-note-saved { display: inline-flex; align-items: center; gap: .25rem; color: #b5f6fb; font-size: .78rem; font-weight: 600; }
+.list-note-saved .icon { width: .9rem; height: .9rem; }
+.reorder-actions form { margin: 0; }
+.icon-btn:disabled { opacity: .35; cursor: default; }
+.icon-btn:disabled:hover { border-color: var(--border); }
+.list-remove:hover { border-color: var(--pink); color: #ffc2de; }
+.list-danger h2 { color: #ffc2de; }
+.list-danger p { margin: 0 0 .9rem; }
+.btn-danger { border-color: rgba(255, 79, 163, .55); color: #ffc2de; }
+.btn-danger:hover { border-color: var(--pink); box-shadow: 0 0 14px rgba(255, 79, 163, .35); }
+
+/* En la ficha: «Añadir a mis favoritos» y «Añadir a una lista» en una fila, y el desplegable con las listas del usuario. */
+.game-actions { display: flex; align-items: flex-start; flex-wrap: wrap; gap: .75rem 1.25rem; margin: -.5rem 0 1.25rem; }
+.game-actions .favorite { margin: 0; }
+.list-picker { position: relative; }
+.list-picker > summary { display: inline-flex; align-items: center; gap: .45rem; list-style: none; border-radius: 999px; }
+.list-picker > summary::-webkit-details-marker { display: none; }
+.list-picker > summary .icon { width: 1.1rem; height: 1.1rem; color: var(--violet); }
+.list-picker[open] > summary { border-color: var(--violet); }
+.list-picker-count { padding: 0 .45rem; border-radius: 999px; background: rgba(157, 92, 255, .25); color: #e2d1ff; font-size: .75rem; }
+.list-picker-panel {
+  position: absolute; left: 0; top: calc(100% + .45rem); z-index: 15; width: min(21rem, calc(100vw - 2rem)); padding: .4rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 18px 50px rgba(0, 0, 0, .55);
+}
+.list-picker-items { max-height: 17rem; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.list-picker-items form { margin: 0; }
+.list-picker-item {
+  display: flex; align-items: center; gap: .6rem; width: 100%; padding: .5rem .6rem;
+  background: none; border: 0; border-radius: 9px; color: var(--text); font: inherit; font-size: .92rem; text-align: left; cursor: pointer;
+}
+.list-picker-item:hover { background: var(--surface-2); }
+.list-picker-item:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
+.list-picker-check { display: grid; place-items: center; flex: none; width: 1.3rem; height: 1.3rem; border: 1px solid var(--border); border-radius: 6px; }
+.list-picker-check .icon { width: .95rem; height: .95rem; }
+.list-picker-item.is-on .list-picker-check { background: var(--violet); border-color: var(--violet); color: #fff; }
+.list-picker-name { flex: 1; min-width: 0; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.list-picker-empty { margin: 0; padding: .5rem .6rem; }
+.list-picker-panel .errorlist { margin: .3rem .6rem; }
+.list-picker-new { display: flex; align-items: center; gap: .5rem; margin-top: .3rem; padding: .6rem .6rem .45rem; border-top: 1px solid var(--border); font-size: .92rem; font-weight: 600; }
+.list-picker-new .icon { width: 1rem; height: 1rem; }
+/* «En N listas», en la columna de la carátula. */
+.game-side .side-lists { margin: 1rem 0 0; }
+.mini-lists { margin: 0; padding: 0; list-style: none; }
+.mini-lists li + li { margin-top: .55rem; }
+.mini-list { display: flex; align-items: center; gap: .7rem; color: var(--text); }
+.mini-list:hover { text-decoration: none; }
+.mini-list:hover strong { color: var(--violet); }
+.mini-list-info { display: flex; flex-direction: column; min-width: 0; line-height: 1.35; }
+.mini-list-info strong { overflow: hidden; font-size: .92rem; text-overflow: ellipsis; white-space: nowrap; }
+.side-lists-all { display: inline-flex; align-items: center; gap: .3rem; margin-top: .8rem; }
+.side-lists-all .icon { width: 1rem; height: 1rem; }
+@media (max-width: 640px) {
+  .list-hero { flex-direction: column; }
+  .list-mosaic-lg { width: 150px; }
+  .list-hero h1 { font-size: 1.55rem; }
+  .lists-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1rem .75rem; }
+  .list-games { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 1rem .75rem; }
+  /* En el móvil la columna de la carátula es una rejilla de dos: las listas ocupan las dos columnas. */
+  .game-side .side-lists { grid-column: 1 / -1; margin: 0; }
+  .list-editor-item { flex-wrap: wrap; }
+  .list-editor-main { flex-basis: calc(100% - 9rem); }
+}
