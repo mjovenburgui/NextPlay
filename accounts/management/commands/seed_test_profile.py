@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from games.models import Game
 from library.models import LibraryEntry, Review, ReviewComment, ReviewLike
-from lists.models import GameList, ListItem
+from lists.models import GameList, ListComment, ListItem, ListLike
 from social.activity import IMPORT_COVERS
 from social.models import Activity, Follow
 
@@ -74,6 +74,12 @@ LISTS = [
     ("demo1", "Para jugar con amigos", "Cooperativos y competitivos que funcionan bien en grupo.", True, False, [
         (0, "Mejor con cuatro."), (3, ""), (8, "Imprescindible en una noche de sofá."), (9, ""), (10, ""),
     ]),
+]
+# «Me gusta» en las listas de ejemplo, con un comentario si no está vacío: (usuario, título de la lista, comentario).
+LIST_REACTIONS = [
+    ("demo1", "Mis imprescindibles", "¡Gran lista! Me apunto el primero para estas vacaciones."),
+    ("demo2", "Mis imprescindibles", ""),
+    (USERNAME, "Para jugar con amigos", "Le añadiría alguno de carreras."),
 ]
 
 
@@ -183,19 +189,34 @@ class Command(BaseCommand):
 
     def lists(self, user, catalog):
         """Rehace las listas de ejemplo (LISTS) del usuario de prueba y de los usuarios demo que existan, con sus juegos
-        (catalog: los de su biblioteca y los extra, en orden) y sus comentarios."""
+        (catalog: los de su biblioteca y los extra, en orden) y sus comentarios, cada una con su actividad (creada hace
+        unas horas, con sus juegos) y con los «me gusta» y comentarios de LIST_REACTIONS."""
         GameList.objects.filter(user=user).delete()
-        people = {u.username: u for u in User.objects.filter(username__in={owner for owner, *_ in LISTS})}
-        for owner, title, description, public, ranked, entries in LISTS:
+        names = {owner for owner, *_ in LISTS} | {username for username, *_ in LIST_REACTIONS}
+        people = {u.username: u for u in User.objects.filter(username__in=names)}
+        lists = {}
+        for hours, (owner, title, description, public, ranked, entries) in enumerate(LISTS, start=1):
             if owner not in people:
                 continue
             GameList.objects.filter(user=people[owner], title=title).delete()
             game_list = GameList.objects.create(
                 user=people[owner], title=title, description=description, is_public=public, is_ranked=ranked,
             )
+            games = [catalog[index] for index, _ in entries if index < len(catalog)]
             for position, (index, note) in enumerate(entries):
                 if index < len(catalog):
                     ListItem.objects.create(game_list=game_list, game=catalog[index], position=position, note=note)
+            when = timezone.now() - timedelta(hours=hours)
+            Activity.objects.create(
+                user=people[owner], kind=Activity.Kind.LIST, game_list=game_list,
+                data={"created": True, "added": len(games)}, created_at=when, updated_at=when,
+            )
+            lists[title] = game_list
+        for username, title, comment in LIST_REACTIONS:
+            if username in people and title in lists:
+                ListLike.objects.get_or_create(user=people[username], game_list=lists[title])
+                if comment:
+                    ListComment.objects.create(user=people[username], game_list=lists[title], text=comment)
 
     def activity(self, user, game, when, status, rating, review):
         """Apunta en la actividad de user lo que hizo con game en el momento when: su estado, su nota y su reseña (o None)."""

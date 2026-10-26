@@ -1,8 +1,10 @@
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.urls import reverse
 
 from games.models import Game
+from library.models import COMMENT_MAX_LENGTH
 
 # Lo que cabe en una lista: cuántos juegos y lo largo que pueden ser el título, la descripción y el comentario de cada juego.
 LIST_MAX_GAMES = 250
@@ -26,15 +28,20 @@ class GameListQuerySet(models.QuerySet):
 
     def with_preview(self):
         """Listas con lo que enseñan sus tarjetas ya cargado: su autor (con su foto), cuántos juegos tienen
-        (game_count) y los MOSAIC_COVERS primeros para el mosaico (preview_items).
+        (game_count), sus «me gusta» (like_count) y comentarios (comment_count) y los MOSAIC_COVERS primeros juegos
+        para el mosaico (preview_items).
 
-        Van de la más reciente a la más antigua: con el recuento, Django ya no aplica el orden de Meta.
+        Van de la más reciente a la más antigua: con los recuentos, Django ya no aplica el orden de Meta.
         """
         first = ListItem.objects.select_related("game").order_by("position", "id")[:MOSAIC_COVERS]
         return (
             self.select_related("user__profile", "user__psn_account", "user__xbox_account")
             .prefetch_related("user__steam_accounts", models.Prefetch("items", queryset=first, to_attr="preview_items"))
-            .annotate(game_count=models.Count("items", distinct=True))
+            .annotate(
+                game_count=models.Count("items", distinct=True),
+                like_count=models.Count("likes", distinct=True),
+                comment_count=models.Count("comments", distinct=True),
+            )
             .order_by("-updated_at", "-id")
         )
 
@@ -44,7 +51,8 @@ class GameList(models.Model):
 
     Los juegos van en el orden que elija (ListItem.position), cada uno con su comentario si quiere. Si es
     numerada, cada juego lleva su puesto, para rankings. La ven los demás si es pública y su perfil también
-    (visible_to); las privadas solo las ve su dueño.
+    (visible_to); las privadas solo las ve su dueño. Los demás pueden darle «me gusta», comentarla y denunciarla,
+    y sale en la actividad de su dueño (social.activity.list_created).
     """
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="game_lists")
@@ -56,6 +64,8 @@ class GameList(models.Model):
     created_at = models.DateTimeField("creada", auto_now_add=True)
     # Cambia también al añadir, quitar, mover o comentar sus juegos (touch).
     updated_at = models.DateTimeField("actualizada", auto_now=True)
+    # Sus denuncias se borran con ella.
+    reports = GenericRelation("library.Report", related_query_name="game_list")
 
     objects = GameListQuerySet.as_manager()
 
@@ -151,3 +161,49 @@ class ListItem(models.Model):
     def __str__(self):
         """Texto en el admin: «lista · juego»."""
         return f"{self.game_list.title} · {self.game}"
+
+
+class ListLike(models.Model):
+    """«Me gusta» de un usuario en una lista de otro (uno por usuario y lista)."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="list_likes")
+    game_list = models.ForeignKey(GameList, on_delete=models.CASCADE, related_name="likes", verbose_name="lista")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "game_list"], name="unique_like_per_user_list")]
+        verbose_name = "me gusta de una lista"
+        verbose_name_plural = "me gusta de las listas"
+
+    def __str__(self):
+        """Texto en el admin: «usuario → lista»."""
+        return f"{self.user} → {self.game_list}"
+
+
+class ListComment(models.Model):
+    """Comentario en una lista, como los de las reseñas y las publicaciones. Lo pueden borrar quien lo escribió y el
+    dueño de la lista."""
+
+    game_list = models.ForeignKey(GameList, on_delete=models.CASCADE, related_name="comments", verbose_name="lista")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="list_comments")
+    text = models.TextField("comentario", max_length=COMMENT_MAX_LENGTH)
+    created_at = models.DateTimeField(auto_now_add=True)
+    # Sus denuncias se borran con él.
+    reports = GenericRelation("library.Report", related_query_name="list_comment")
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        verbose_name = "comentario de una lista"
+        verbose_name_plural = "comentarios de las listas"
+
+    def __str__(self):
+        """Texto en el admin: «usuario en lista: comienzo del comentario»."""
+        return f"{self.user} en {self.game_list.title}: {self.text[:40]}"
+
+    def get_absolute_url(self):
+        """URL del comentario dentro de la página de su lista."""
+        return f"{self.game_list.get_absolute_url()}#comentario-{self.pk}"
+
+    def can_delete(self, user):
+        """Indica si user puede borrar el comentario: es suyo o es el dueño de la lista."""
+        return user.is_authenticated and user.pk in (self.user_id, self.game_list.user_id)

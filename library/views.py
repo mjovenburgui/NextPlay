@@ -41,6 +41,7 @@ REPORT_TARGETS = {
     "resena": ("esta reseña", "una reseña"),
     "comentario": ("este comentario", "un comentario"),
     "publicacion": ("esta publicación", "una publicación"),
+    "lista": ("esta lista", "una lista"),
 }
 
 
@@ -476,7 +477,7 @@ def comment_report(request, comment_id):
 
 
 def _report(request, target, kind, game, back_url):
-    """Guarda la denuncia del usuario sobre target (una reseña, un comentario o una publicación, según kind) y avisa a los administradores.
+    """Guarda la denuncia del usuario sobre target (una reseña, un comentario, una publicación o una lista, según kind) y avisa a los administradores.
 
     Si ya lo había denunciado, cambia el motivo y la vuelve a dejar pendiente. Con HTMX devuelve el botón de
     denunciar (library/_report.html) ya como «Gracias» o, si falta el motivo, abierto con el error; si no,

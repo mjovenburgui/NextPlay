@@ -1,6 +1,15 @@
 from django import forms
 
-from .models import DESCRIPTION_MAX_LENGTH, TITLE_MAX_LENGTH, GameList
+from library.forms import CommentForm
+
+from .models import DESCRIPTION_MAX_LENGTH, TITLE_MAX_LENGTH, GameList, ListComment
+
+
+class ListCommentForm(CommentForm):
+    """Comentario en una lista: el mismo que el de las reseñas y las publicaciones (texto con su formato sencillo)."""
+
+    class Meta(CommentForm.Meta):
+        model = ListComment
 
 
 class GameListForm(forms.ModelForm):

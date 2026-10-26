@@ -1568,6 +1568,14 @@ p.update-hint { display: flex; border-left-color: var(--gold); }
 .list-description { margin-top: .9rem; max-width: 70ch; color: #d4d8ee; }
 .list-description p:first-child { margin-top: 0; }
 .list-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.1rem; }
+.list-foot { margin-top: 1rem; }
+.list-comments .comments { margin-top: 0; }
+.list-card-likes { display: inline-flex; align-items: center; gap: .2rem; margin-left: .3rem; color: #ffb3d6; }
+.list-card-likes .icon { width: .85rem; height: .85rem; fill: currentColor; }
+/* En el feed y en la actividad del perfil: la lista con su mosaico a la derecha, como la portada de un juego. */
+.activity-list .review-text { margin-bottom: .2rem; }
+.activity-list-meta { margin: 0; }
+.activity-cover .list-mosaic-sm { width: 48px; }
 .progress-bar { height: .55rem; margin: .75rem 0 .2rem; overflow: hidden; border-radius: 999px; background: var(--surface-3); }
 .progress-bar span { display: block; height: 100%; min-width: .55rem; border-radius: inherit; background: linear-gradient(90deg, var(--violet), var(--cyan)); }
 .list-missing { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem 1.25rem; margin-top: 1rem; padding-top: .9rem; border-top: 1px solid var(--border); }
