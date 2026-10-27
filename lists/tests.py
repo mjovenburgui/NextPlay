@@ -167,7 +167,7 @@ class ListPageTests(TestCase):
         self.assertContains(response, "Has jugado 1 de 3")
         self.assertContains(response, "Te falta 1")
         # El estado de cada juego en la biblioteca de quien mira.
-        self.assertContains(response, '<span class="badge">Completado</span>', html=True)
+        self.assertContains(response, '<span class="badge st-completed">Completado</span>', html=True)
 
     def test_what_is_missing_and_what_it_costs(self):
         add_price(self.celeste, "4.99")

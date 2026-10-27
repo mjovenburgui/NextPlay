@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}NextPlay{% endblock %}</title>
   <meta name="description" content="{% block description %}Tu vida gamer. En un solo lugar.{% endblock %}">
+  <link rel="icon" href="{% static 'favicon.svg' %}" type="image/svg+xml">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
   {# La vista previa de Editar perfil no lleva scripts: su marco no los ejecuta y el navegador se quejaría de cada uno. #}
   {% if not preview %}<script src="https://unpkg.com/htmx.org@2.0.4" defer></script>{% endif %}
@@ -203,6 +204,56 @@
           var moved = event.changedTouches[0].clientX - startX;
           startX = null;
           if (Math.abs(moved) > 50 && tiles.length > 1) show(current + (moved < 0 ? 1 : -1));
+        });
+      })();
+    </script>
+
+    {# Avisos de abajo: lo que no se ha podido guardar o cargar con HTMX (antes fallaba sin decir nada). #}
+    <div class="toasts" data-toasts aria-live="assertive"></div>
+    <script>
+      // Si una petición de HTMX falla, lo dice: un aviso abajo que se va solo o, en lo que se carga al abrir la página
+      // (imágenes, historial de precios), un texto en su sitio en vez de «Cargando…» para siempre.
+      (function () {
+        var region = document.querySelector("[data-toasts]");
+
+        // Enseña text en un aviso que desaparece a los seis segundos.
+        function toast(text) {
+          var item = document.createElement("p");
+          item.className = "media-toast is-error";
+          item.textContent = text;
+          region.append(item);
+          setTimeout(function () { item.remove(); }, 6000);
+        }
+
+        // Cambia lo que estaba cargando por un aviso con un enlace para recargar la página.
+        function failed(elt) {
+          var note = document.createElement("p");
+          note.className = "help";
+          note.append("No se ha podido cargar. ");
+          var again = document.createElement("a");
+          again.href = "";
+          again.textContent = "Recargar la página";
+          note.append(again);
+          elt.replaceChildren(note);
+        }
+
+        document.addEventListener("htmx:responseError", function (event) {
+          var xhr = event.detail.xhr;
+          var elt = event.detail.elt;
+          if (elt && elt.getAttribute("hx-trigger") === "load") return failed(elt);
+          var body = (xhr.responseText || "").trim();
+          var reading = event.detail.requestConfig && event.detail.requestConfig.verb === "get";
+          // Los 400 y 403 de las vistas traen una frase pensada para el usuario («No puedes borrar este comentario.»);
+          // un 403 con una página entera es el del CSRF, que salta cuando la sesión ha caducado.
+          if (xhr.status < 500 && body && body.length < 200 && body.indexOf("<") === -1) toast(body);
+          else if (xhr.status === 403) toast("Tu sesión ha caducado. Recarga la página y vuelve a intentarlo.");
+          else if (reading) toast("No se ha podido cargar. Inténtalo otra vez en un momento.");
+          else toast("No se ha podido guardar el cambio. Inténtalo otra vez en un momento.");
+        });
+        document.addEventListener("htmx:sendError", function (event) {
+          var elt = event.detail.elt;
+          if (elt && elt.getAttribute("hx-trigger") === "load") return failed(elt);
+          toast("No hay conexión con NextPlay. Comprueba tu red y vuelve a intentarlo.");
         });
       })();
     </script>

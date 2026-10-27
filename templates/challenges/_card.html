@@ -1,7 +1,7 @@
 {# Tarjeta de un reto: su tipo, el título, qué hay que hacer, cuándo y cuánta gente está y, si estás dentro, cómo vas. #}
 {# Necesita challenge (con with_counts); con mine (challenges.views._with_progress) también enseña tu progreso. #}
 <a class="challenge-card" href="{{ challenge.get_absolute_url }}">
-  <span class="challenge-kicker">{% include "_icon.html" with name="trophy" %} {{ challenge.get_kind_display }}{% if not challenge.is_public %} <span class="pill">Solo tú</span>{% endif %}</span>
+  <span class="challenge-kicker">{% include "_icon.html" with name="trophy" %}<span>{{ challenge.get_kind_display }}{% if not challenge.is_public %} <span class="pill">Solo tú</span>{% endif %}</span></span>
   <strong class="challenge-card-title">{{ challenge.title }}</strong>
   <span class="challenge-card-rules">{{ challenge.rules_text }}</span>
   <span class="muted small">

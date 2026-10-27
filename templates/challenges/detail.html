@@ -65,7 +65,7 @@
         <header class="box-head"><h2>Los juegos <span class="muted">{{ games|length }}</span></h2></header>
         <ol class="list-games challenge-games">
           {% for game in games %}
-            <li{% if game.finished %} class="is-done"{% endif %}>{% if game.finished %}{% include "games/_card.html" with status="Terminado" %}{% else %}{% include "games/_card.html" with status="" %}{% endif %}</li>
+            <li{% if game.finished %} class="is-done"{% endif %}>{% if game.finished %}{% include "games/_card.html" with status="Terminado" status_key="completed" %}{% else %}{% include "games/_card.html" with status="" %}{% endif %}</li>
           {% endfor %}
         </ol>
       </section>
@@ -77,7 +77,12 @@
         <ol class="challenge-ranking">
           {% for participation in ranking %}
             <li class="challenge-rank{% if participation.user_id == user.pk %} is-me{% endif %}">
-              <span class="challenge-rank-n">{{ forloop.counter }}</span>
+              {# Sin progreso no hay puesto que dar: con todos a cero, nadie va primero. #}
+              {% if participation.progress.value %}
+                <span class="challenge-rank-n has-progress">{{ forloop.counter }}</span>
+              {% else %}
+                <span class="challenge-rank-n" aria-label="Sin progreso">–</span>
+              {% endif %}
               {% include "accounts/_avatar.html" with profile=participation.user.profile size="sm" %}
               <div class="challenge-rank-main">
                 <p>

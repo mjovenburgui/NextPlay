@@ -86,7 +86,8 @@ def catalog(request):
     Filtra por nombre (?q=, que también busca el nombre en España y los otros nombres del juego, como
     sus siglas), género (?genero=), plataforma (?plataforma=) e idioma (?idioma=, ver LANGUAGE_FILTERS)
     y pagina de 24 en 24. Si hay sesión, marca en cada tarjeta el estado del juego en la biblioteca del
-    usuario. Ofrece importar de IGDB cuando hay búsqueda, sesión y credenciales de IGDB.
+    usuario (library_status, su nombre, y library_status_key, su valor, que le da el color). Ofrece importar
+    de IGDB cuando hay búsqueda, sesión y credenciales de IGDB.
     """
     query = request.GET.get("q", "").strip()
     genre = request.GET.get("genero", "")
@@ -107,12 +108,15 @@ def catalog(request):
 
     page = Paginator(games, PAGE_SIZE).get_page(request.GET.get("page"))
 
-    statuses = {}
+    entries = {}
     if request.user.is_authenticated:
-        entries = LibraryEntry.objects.filter(user=request.user, game__in=page.object_list)
-        statuses = {entry.game_id: entry.get_status_display() for entry in entries}
+        entries = {
+            entry.game_id: entry for entry in LibraryEntry.objects.filter(user=request.user, game__in=page.object_list)
+        }
     for game in page.object_list:
-        game.library_status = statuses.get(game.id, "")
+        entry = entries.get(game.id)
+        game.library_status = entry.get_status_display() if entry else ""
+        game.library_status_key = entry.status if entry else ""
 
     filters = {
         k: v for k, v in (("q", query), ("genero", genre), ("plataforma", platform), ("idioma", language)) if v

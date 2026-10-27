@@ -236,8 +236,9 @@
       <div class="library-bar">
         <nav class="tabs tabs-sub" aria-label="Estados de la biblioteca">
           <a class="tab{% if not active_status %} is-active{% endif %}" href="?{{ keep_qs }}">Todos <span>{{ total }}</span></a>
+          {# Cada estado con el punto de su color, el mismo que llevan las portadas. #}
           {% for value, label, count in tabs %}
-            <a class="tab{% if active_status == value %} is-active{% endif %}" href="?estado={{ value }}{% if keep_qs %}&{{ keep_qs }}{% endif %}">{{ label }} <span>{{ count }}</span></a>
+            <a class="tab status-dot st-{{ value }}{% if active_status == value %} is-active{% endif %}" href="?estado={{ value }}{% if keep_qs %}&{{ keep_qs }}{% endif %}">{{ label }} <span>{{ count }}</span></a>
           {% endfor %}
         </nav>
         {# En la vista previa de Editar perfil van sin onchange: su marco no ejecuta JavaScript y el navegador se quejaría. #}
@@ -263,7 +264,7 @@
             {% if active_status %}
               {% include "games/_card.html" with game=entry.game status="" %}
             {% else %}
-              {% include "games/_card.html" with game=entry.game status=entry.get_status_display %}
+              {% include "games/_card.html" with game=entry.game status=entry.get_status_display status_key=entry.status %}
             {% endif %}
           {% endfor %}
         </div>
