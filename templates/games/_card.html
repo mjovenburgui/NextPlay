@@ -5,7 +5,8 @@
     {% else %}
       <span class="cover-fallback">{{ game.name }}</span>
     {% endif %}
-    {% if status %}<span class="badge">{{ status }}</span>{% endif %}
+    {# status es el nombre del estado y status_key, su valor (playing, completed…), que le da su color (st-*). #}
+    {% if status %}<span class="badge{% if status_key %} st-{{ status_key }}{% endif %}">{{ status }}</span>{% endif %}
   </div>
   <p class="card-title">{{ game.name }}</p>
   {% if entry.rating or entry.playtime_hours %}

@@ -121,6 +121,16 @@
           {% if game.is_free %}Dónde jugarlo <span class="free-badge">Free to play</span>{% else %}Dónde comprarlo{% endif %}
         </p>
         {% if game.prices_edition %}<p class="help edition">Edición a la venta: {{ game.prices_edition }}</p>{% endif %}
+        {# Lo primero, lo que se busca al mirar precios: el más barato ahora (aunque su tienda esté plegada) y su mínimo. #}
+        {% if best_price %}{% if featured_prices or listed_prices %}
+          <p class="best-price">
+            <span>Mejor precio ahora: <strong>{% if best_price.is_free %}Gratis{% else %}{{ best_price.price|floatformat:2 }} {{ best_price.symbol }}{% endif %}</strong>
+              en <a href="{{ best_price.url }}" target="_blank" rel="nofollow sponsored noopener">{{ best_price.shop_name }}</a></span>
+            {% if game.historical_low is not None and not game.is_free %}
+              <span class="muted small">Mínimo histórico en PC: {{ game.historical_low|floatformat:2 }} {{ game.historical_low_symbol }}</span>
+            {% endif %}
+          </p>
+        {% endif %}{% endif %}
         {% if user.is_authenticated and not game.is_free %}{% include "library/_wish.html" %}{% endif %}
         {% if featured_prices or store_searches %}
           <div class="shop-tiles">
@@ -152,12 +162,6 @@
           </ul>
         {% endif %}
         {% if featured_prices or listed_prices %}
-          {% if best_price %}
-            <p class="best-price">
-              Mejor precio: <strong>{% if best_price.is_free %}Gratis{% else %}{{ best_price.price|floatformat:2 }} {{ best_price.symbol }}{% endif %}</strong> en
-              <a href="{{ best_price.url }}" target="_blank" rel="nofollow sponsored noopener">{{ best_price.shop_name }}</a>
-            </p>
-          {% endif %}
           {% if folded_prices %}
             <details class="more-prices">
               <summary>Ver {{ folded_prices|length }} tienda{{ folded_prices|length|pluralize }} más</summary>
@@ -167,7 +171,8 @@
             </details>
           {% endif %}
           <p class="help">
-            {% if game.historical_low is not None and not game.is_free %}
+            {# El mínimo ya va arriba, junto al mejor precio, cuando lo hay. #}
+            {% if game.historical_low is not None and not game.is_free and not best_price %}
               Mínimo histórico en PC: {{ game.historical_low|floatformat:2 }} {{ game.historical_low_symbol }} ·
             {% endif %}
             {% if game.prices_updated_at %}Actualizado hace {{ game.prices_updated_at|timesince }} ·{% endif %}

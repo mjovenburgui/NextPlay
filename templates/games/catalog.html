@@ -33,12 +33,11 @@
   </div>
 
   {% if page.object_list %}
-    <div class="card-box">
+    {# Las portadas, directamente sobre la página: dentro de una caja solo perdían sitio (en el móvil, una columna). #}
     <div class="grid">
       {% for game in page.object_list %}
-        {% include "games/_card.html" with status=game.library_status %}
+        {% include "games/_card.html" with status=game.library_status status_key=game.library_status_key %}
       {% endfor %}
-    </div>
     </div>
 
     {% if page.has_other_pages %}
@@ -53,7 +52,19 @@
       </nav>
     {% endif %}
   {% else %}
-    <p class="empty">No hay juegos que coincidan.</p>
+    {# Vacío: qué se ha buscado y cómo seguir (quitar los filtros o, más abajo, buscarlo en IGDB). #}
+    <div class="empty">
+      <p>
+        {% if query %}Ningún juego del catálogo coincide con «{{ query }}»{% if active_genre or active_platform or active_language %} con esos filtros{% endif %}.
+        {% elif active_genre or active_platform or active_language %}Ningún juego cumple esos filtros.
+        {% else %}El catálogo está vacío: importa juegos de IGDB con <code>import_igdb</code>.{% endif %}
+      </p>
+      {% if active_genre or active_platform or active_language %}
+        <div class="empty-actions">
+          <a class="btn" href="{% url 'games:catalog' %}{% if query %}?q={{ query|urlencode }}{% endif %}">Quitar filtros</a>
+        </div>
+      {% endif %}
+    </div>
   {% endif %}
 
   {% if can_import %}

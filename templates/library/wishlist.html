@@ -64,7 +64,18 @@
         {% if active_language %}
           <li class="empty">Ningún juego de tu lista cumple ese filtro de idioma. <a href="?{% if active_sort %}orden={{ active_sort }}{% endif %}">Ver todos</a></li>
         {% else %}
-          <li class="empty">Tu lista está vacía. En la ficha de un juego pulsa «Lo quiero» para que te avisemos cuando baje de precio.</li>
+          {# Vacía: cómo se llena (desde la ficha o trayendo la de Steam) y el botón para empezar. #}
+          <li class="empty">
+            <p>Aún no hay juegos en tu lista. Pulsa «Lo quiero» en la ficha de un juego y te avisaremos cuando baje de precio.</p>
+            <div class="empty-actions">
+              <a class="btn btn-primary" href="{% url 'games:catalog' %}">{% include "_icon.html" with name="search" %} Buscar juegos</a>
+              {% if not user.profile.steam_linked %}
+                <a class="btn" href="{% url 'edit_profile' %}#steam">{% include "games/shop_icons/steam.svg" %} Traer mi lista de Steam</a>
+              {% elif not user.profile.steam_wishlist %}
+                <a class="btn" href="{% url 'edit_profile' %}#steam">{% include "games/shop_icons/steam.svg" %} Traer la de Steam</a>
+              {% endif %}
+            </div>
+          </li>
         {% endif %}
       {% endfor %}
     </ul>

@@ -6,7 +6,7 @@
     {% csrf_token %}
     <div class="status-row">
       {% for value, label in statuses %}
-        <button class="btn status status-{{ value }}{% if entry.status == value %} is-active{% endif %}"
+        <button class="btn status status-{{ value }} status-dot st-{{ value }}{% if entry.status == value %} is-active{% endif %}"
                 type="submit" name="status" value="{{ value }}"
                 {% if entry.status == value %}aria-pressed="true"{% else %}aria-pressed="false"{% endif %}>{{ label }}</button>
       {% endfor %}
@@ -31,7 +31,7 @@
     <form action="{% url 'library:remove' game.id %}" method="post"
           hx-post="{% url 'library:remove' game.id %}" hx-target="#library-widget" hx-swap="outerHTML">
       {% csrf_token %}
-      <button class="link small" type="submit">Quitar de la biblioteca</button>
+      <button class="link small link-quiet" type="submit">Quitar de la biblioteca</button>
     </form>
     {% if entry.playtime_minutes is not None %}
       {# Solo los que vienen de una importación: puede que se emparejaran con un juego que se llama igual. #}

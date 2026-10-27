@@ -158,6 +158,7 @@ def detail(request, username, list_id):
     tiers = {level["id"]: level for level in game_list.tier_list} if game_list.is_tiered else {}
     for item in items:
         item.viewer_status = progress["statuses"].get(item.game_id, "") if progress else ""
+        item.viewer_status_key = progress["status_keys"].get(item.game_id, "") if progress else ""
         item.tier_info = tiers.get(item.tier)
     views = TIER_VIEWS if game_list.is_tiered else VIEWS
     view = request.GET.get("vista", "")
@@ -319,7 +320,7 @@ def list_progress(games, viewer):
     Cuántos son (total), cuántos tiene en su biblioteca (owned), cuántos ha jugado (played: cualquier estado
     menos Pendiente; percent, en porcentaje), terminado (completed) y tiene en Pendiente (backlog), las horas que
     lleva en ellos (hours: las de Steam, PlayStation y Xbox), el estado de cada uno (statuses: id del juego →
-    nombre del estado) y lo que le falta (ver _missing).
+    nombre del estado; status_keys: id del juego → valor del estado, para su color) y lo que le falta (ver _missing).
     """
     entries = {entry.game_id: entry for entry in LibraryEntry.objects.filter(user=viewer, game__in=games)}
     played = sum(1 for entry in entries.values() if entry.status in PLAYED_STATUSES)
@@ -333,6 +334,7 @@ def list_progress(games, viewer):
         "backlog": sum(1 for entry in entries.values() if entry.status == LibraryEntry.Status.BACKLOG),
         "hours": round(minutes / 60),
         "statuses": {game_id: entry.get_status_display() for game_id, entry in entries.items()},
+        "status_keys": {game_id: entry.status for game_id, entry in entries.items()},
         **_missing([game for game in games if game.pk not in entries], viewer),
     }
 

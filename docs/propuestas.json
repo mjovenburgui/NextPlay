@@ -288,7 +288,7 @@
       "Versión móvil con barra de navegación inferior.",
       "Solo se muestran datos reales: los huecos de publicaciones, seguidores o guardados se rellenan cuando existan esas funciones."
     ],
-    "notas": "Propuesta por el usuario con maquetas de móvil y escritorio. Se hace antes que las publicaciones para que estas nazcan ya con el diseño nuevo. 25/10/2026: con «Seguir a otros jugadores y feed de actividad» ya se rellenan los huecos de seguidores (perfil y resumen de la portada) y la portada tiene las pestañas Siguiendo y Descubrir de las maquetas (ramas sin fusionar)."
+    "notas": "Propuesta por el usuario con maquetas de móvil y escritorio. Se hace antes que las publicaciones para que estas nazcan ya con el diseño nuevo. 25/10/2026: con «Seguir a otros jugadores y feed de actividad» ya se rellenan los huecos de seguidores (perfil y resumen de la portada) y la portada tiene las pestañas Siguiendo y Descubrir de las maquetas (ramas sin fusionar). 27/10/2026: repaso con el método anti-ui-slop en la rama pulido-del-front: un color por estado de la biblioteca en todas partes, aviso cuando falla un cambio con HTMX y atenuado mientras espera, en el móvil ya nada se sale de lado (la barra inferior se ensanchaba) y en la ficha va antes el estado que las cajas secundarias, el mejor precio arriba de «Dónde comprarlo», vacíos con botón (catálogo y lista de deseos), retos sin «primero» con todos a cero y textos con tokens de color."
   },
   {
     "titulo": "Rediseño de la ficha: cabecera con arte y carrusel de imágenes y vídeos",
@@ -381,6 +381,21 @@
       "Filtros con HTMX que cambian la URL, para poder compartir una búsqueda («RPG de 2015 por menos de 10 €»)."
     ],
     "notas": "Los filtros de idioma y de Game Pass dependen de «Fichas en castellano» y de «Saber qué juegos están en Game Pass»."
+  },
+  {
+    "titulo": "Biblioteca del perfil por tandas en vez de entera",
+    "fecha": "2026-10-27",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Diseño",
+    "resumen": "La pestaña Biblioteca del perfil enseña ahora todos los juegos de una vez: con una importación de Steam de 259 juegos la página mide unos 16.000 píxeles. Enseñar los primeros 48 y un «Cargar más» con HTMX (y sin JavaScript, con ?pagina=), como ya hace la pestaña Actividad.",
+    "motivo": "Al repasar el front con anti-ui-slop se vio que quien importa una biblioteca grande recibe cientos de portadas en una sola página: tarda en cargar, el pie no se alcanza y en el móvil es interminable. Las importaciones de Steam, PlayStation y Xbox hacen que lo normal sean cientos de juegos.",
+    "pasos": [
+      "accounts.views.profile: cortar la lista ya filtrada y ordenada en tandas de 48 (el recuento de las pestañas sigue siendo el total).",
+      "Botón «Cargar más» al final de la rejilla que pide la siguiente tanda con HTMX y la añade debajo, con el mismo patrón que social/_activities.html.",
+      "Mantener el estado, el idioma y el orden elegidos al pedir cada tanda."
+    ],
+    "notas": "La vista previa de Editar perfil ya enseña solo los primeros (PREVIEW_LIBRARY), así que no le afecta."
   },
   {
     "titulo": "Listas colaborativas: invitar solo a quien te sigue y avisar al aceptar",

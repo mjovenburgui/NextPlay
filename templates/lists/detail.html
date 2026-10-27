@@ -136,7 +136,7 @@
                 <p class="list-row-title">
                   {% if item.tier_info %}<span class="tier-chip is-on" style="--tier: {{ item.tier_info.color }}; --tier-text: {{ item.tier_info.text }};">{{ item.tier_info.label }}</span>{% endif %}
                   <a href="{{ item.game.get_absolute_url }}">{{ item.game.name }}</a>{% if item.game.release_year %} <span class="muted small">{{ item.game.release_year }}</span>{% endif %}
-                  {% if item.viewer_status %}<span class="pill">{{ item.viewer_status }}</span>{% endif %}
+                  {% if item.viewer_status %}<span class="pill pill-status st-{{ item.viewer_status_key }}">{{ item.viewer_status }}</span>{% endif %}
                 </p>
                 {% if item.note %}<p class="list-row-note">{{ item.note|review_inline }}</p>{% endif %}
                 {% if collaborators and item.added_by_id and item.added_by_id != owner.pk %}<p class="muted small list-row-by">Añadido por {{ item.added_by.profile.name }}</p>{% endif %}
@@ -146,7 +146,7 @@
         </ol>
       {% else %}
         <ol class="list-games{% if game_list.is_ranked %} is-ranked{% endif %}">
-          {% for item in items %}<li>{% include "games/_card.html" with game=item.game status=item.viewer_status %}</li>{% endfor %}
+          {% for item in items %}<li>{% include "games/_card.html" with game=item.game status=item.viewer_status status_key=item.viewer_status_key %}</li>{% endfor %}
         </ol>
       {% endif %}
     </section>
