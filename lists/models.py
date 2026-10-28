@@ -150,14 +150,15 @@ class GameList(models.Model):
         """Sus niveles, de mejor a peor, cada uno con el color de su texto (text, ver accounts.models.text_on)."""
         return [{**tier, "text": text_on(tier["color"])} for tier in self.tiers]
 
-    def tier_rows(self, items):
+    def tier_rows(self, items, keep_loose=False):
         """Los juegos items (ListItem, en su orden) repartidos por niveles: [(nivel, juegos)] en el orden de los
-        niveles y, al final, los que no están en ninguno con el nivel None, si hay alguno."""
+        niveles y, al final, los que no están en ninguno con el nivel None, si hay alguno (con keep_loose, aunque no
+        haya ninguno: en el tablero que se puede editar es donde se sueltan los que se sacan de su nivel)."""
         rows = {tier["id"]: (tier, []) for tier in self.tier_list}
         loose = []
         for item in items:
             (rows[item.tier][1] if item.tier in rows else loose).append(item)
-        return list(rows.values()) + ([(None, loose)] if loose else [])
+        return list(rows.values()) + ([(None, loose)] if loose or keep_loose else [])
 
     @property
     def mosaic_gaps(self):
@@ -200,6 +201,36 @@ class GameList(models.Model):
             return False
         items.remove(current)
         items.insert(max(0, min(position, len(items))), current)
+        self._save_order(items)
+        self.touch()
+        return True
+
+    def place(self, game, level, row):
+        """Pone game en el nivel level (su id; None, sin clasificar) y lo deja en ese nivel donde lo han soltado al
+        arrastrarlo en el tablero: row son los ids de los juegos de esa fila en su nuevo orden, con el suyo.
+
+        Queda justo detrás del juego que tiene delante en la fila o, si es el primero, justo delante del que le sigue;
+        solo en la fila, sin nadie más, conserva su puesto. Los demás juegos no cambian de orden entre sí. De row solo
+        cuentan los juegos que están de verdad en ese nivel (quien arrastra puede tener la página sin actualizar).
+        Devuelve True si game está en la lista; no mira si level es uno de sus niveles: eso lo hace quien la llama.
+        """
+        items = list(self.items.order_by("position", "id"))
+        current = next((item for item in items if item.game_id == game.pk), None)
+        if current is None:
+            return False
+        index = items.index(current)
+        items.remove(current)
+        in_row = {item.game_id: item for item in items if item.tier == level}
+        neighbours = [game_id for game_id in dict.fromkeys(row) if game_id in in_row or game_id == game.pk]
+        at = neighbours.index(game.pk) if game.pk in neighbours else len(neighbours)
+        if at > 0:
+            index = items.index(in_row[neighbours[at - 1]]) + 1
+        elif len(neighbours) > 1:
+            index = items.index(in_row[neighbours[1]])
+        items.insert(index, current)
+        if current.tier != level:
+            current.tier = level
+            current.save(update_fields=["tier"])
         self._save_order(items)
         self.touch()
         return True

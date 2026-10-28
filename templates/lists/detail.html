@@ -87,7 +87,7 @@
             {% if progress.to_wish %}
               <form method="post" action="{% url 'lists:wish_missing' game_list.pk %}">
                 {% csrf_token %}
-                <button class="btn wish-btn" type="submit"><span aria-hidden="true">♡</span> {% if progress.to_wish == 1 %}Añadir el que te falta a «Lo quiero»{% else %}Añadir los {{ progress.to_wish }} a «Lo quiero»{% endif %}</button>
+                <button class="btn wish-btn" type="submit">{% include "_icon.html" with name="heart" %} {% if progress.to_wish == 1 %}Añadir el que te falta a «Lo quiero»{% else %}Añadir los {{ progress.to_wish }} a «Lo quiero»{% endif %}</button>
               </form>
             {% endif %}
           </div>
@@ -109,23 +109,10 @@
           {% if can_edit %}Aún no tiene juegos. <a href="{% url 'lists:edit' game_list.pk %}#juegos">Búscalos en el editor</a> o usa «Añadir a una lista» en la ficha de cualquier juego.{% else %}Esta lista aún no tiene juegos.{% endif %}
         </p>
       {% elif view == "niveles" %}
-        {# Tier list: una fila por nivel, con su nombre en su color y las portadas de sus juegos; al final, los que no están en ninguno. #}
-        <div class="tier-board">
-          {% for level, tier_items in tier_rows %}
-            <div class="tier-row{% if not level %} is-loose{% endif %}">
-              <p class="tier-label"{% if level %} style="--tier: {{ level.color }}; --tier-text: {{ level.text }};"{% endif %}>{% if level %}{{ level.label }}{% else %}Sin clasificar{% endif %}</p>
-              <ol class="tier-games">
-                {% for item in tier_items %}
-                  <li>
-                    <a class="tier-game" href="{{ item.game.get_absolute_url }}" title="{{ item.game.name }}{% if item.viewer_status %} · {{ item.viewer_status }}{% endif %}">
-                      {% if item.game.cover_url %}<img src="{{ item.game.cover_url }}" alt="{{ item.game.name }}" loading="lazy">{% else %}<span class="cover-fallback">{{ item.game.name }}</span>{% endif %}
-                    </a>
-                  </li>
-                {% endfor %}
-              </ol>
-            </div>
-          {% endfor %}
-        </div>
+        {# Tier list por niveles; quien puede editarla arrastra aquí mismo las portadas de un nivel a otro. #}
+        {% if can_edit %}<p class="tier-hint muted small">{% include "_icon.html" with name="grip" %} Arrastra las portadas para cambiarlas de nivel o de sitio: se guarda al soltarlas.</p>{% endif %}
+        {% include "lists/_tier_board.html" with editable=can_edit where="tablero" %}
+        {% if can_edit %}{% include "lists/_drag.html" %}{% endif %}
       {% elif view == "detalle" %}
         {# Cada juego en una fila con el comentario de quien hace la lista y, con sesión, el estado en la biblioteca de quien mira. #}
         <ol class="list-rows{% if game_list.is_ranked %} is-ranked{% endif %}">

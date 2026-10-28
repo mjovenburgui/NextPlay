@@ -747,6 +747,87 @@ class TierListTests(TestCase):
         self.assertEqual(response.context["view"], "portadas")
         self.assertContains(response, "list-games is-ranked")
 
+    def place(self, game_list, game, level, row, where="tablero"):
+        """Suelta game en el nivel level del tablero con su fila como row (juegos en orden), como lo manda lists/_drag.html."""
+        return self.client.post(
+            reverse("lists:tier", args=[game_list.pk, game.pk]),
+            {"nivel": level, "orden": ",".join(str(other.pk) for other in row), "desde": where}, **HTMX,
+        )
+
+    def board(self, game_list):
+        """El tablero guardado: [(nombre del nivel o None, [juegos])], con «Sin clasificar» al final."""
+        rows = game_list.tier_rows(list(game_list.items.select_related("game")), keep_loose=True)
+        return [(level["label"] if level else None, [item.game.name for item in items]) for level, items in rows if items]
+
+    def test_drag_a_cover_to_its_place(self):
+        game_list = self.create()
+        self.tier(game_list, self.hades, 0)
+        self.tier(game_list, self.celeste, 0)
+        # Tunic, sin clasificar, entre Hades y Celeste: desde la página de la lista vuelve el tablero.
+        response = self.place(game_list, self.tunic, 0, [self.hades, self.tunic, self.celeste])
+        self.assertTemplateUsed(response, "lists/_tier_board.html")
+        self.assertContains(response, 'data-desde="tablero"')
+        self.assertEqual(self.board(game_list), [("S", ["Hades", "Tunic", "Celeste"])])
+        # Hades al final de su fila y Celeste fuera de su nivel.
+        self.place(game_list, self.hades, 0, [self.tunic, self.celeste, self.hades])
+        self.place(game_list, self.celeste, "", [self.celeste])
+        self.assertEqual(self.board(game_list), [("S", ["Tunic", "Hades"]), (None, ["Celeste"])])
+        # Celeste a la cabeza de A, con ids que no son de esa fila (un juego de otra lista y uno de S): no cuentan.
+        ori = make_games("Ori")[0]
+        response = self.place(game_list, self.celeste, 1, [self.celeste, ori, self.hades], where="editor")
+        self.assertTemplateUsed(response, "lists/_editor_items.html")
+        self.assertEqual(self.board(game_list), [("S", ["Tunic", "Hades"]), ("A", ["Celeste"])])
+        self.assertEqual(self.place(game_list, self.hades, 9, [self.hades]).status_code, 400)
+
+    def test_placing_a_game_does_not_reorder_the_rest(self):
+        game_list = self.create()
+        dead_cells, ori = make_games("Dead Cells", "Ori")
+        for game in (dead_cells, ori):
+            game_list.add(game, self.ana)
+        for game in (self.hades, dead_cells):
+            self.tier(game_list, game, 0)
+        # Orden de la lista: Hades (S), Celeste, Tunic, Dead Cells (S), Ori. Ori entre Hades y Dead Cells en S queda
+        # justo detrás de Hades; los demás siguen en su orden.
+        self.place(game_list, ori, 0, [self.hades, ori, dead_cells])
+        order = ["Hades", "Ori", "Celeste", "Tunic", "Dead Cells"]
+        self.assertEqual([item.game.name for item in game_list.items.all()], order)
+        self.assertEqual(self.board(game_list)[0], ("S", ["Hades", "Ori", "Dead Cells"]))
+        # Solo en una fila vacía, conserva su puesto.
+        self.place(game_list, self.celeste, 2, [self.celeste])
+        self.assertEqual([item.game.name for item in game_list.items.all()], order)
+        self.assertEqual(game_list.items.get(game=self.celeste).tier, 2)
+
+    def test_only_who_can_edit_gets_a_board_to_drag(self):
+        game_list = self.create()
+        self.tier(game_list, self.hades, 0)
+        for game in (self.celeste, self.tunic):
+            self.tier(game_list, game, 1)
+        response = self.client.get(game_list.get_absolute_url())
+        self.assertContains(response, 'data-tier-board data-desde="tablero"')
+        self.assertContains(response, "sortablejs@")
+        # Sin juegos sueltos, la fila «Sin clasificar» sigue ahí para poder sacarlos de su nivel.
+        self.assertEqual(response.context["tier_rows"][-1], (None, []))
+        self.client.force_login(self.luis)
+        response = self.client.get(game_list.get_absolute_url())
+        self.assertNotContains(response, "data-tier-board")
+        self.assertNotContains(response, "sortablejs@")
+        self.assertNotContains(response, "Sin clasificar")
+        self.assertEqual(self.place(game_list, self.hades, 1, [self.hades]).status_code, 404)
+
+    def test_the_editor_drags_covers_or_rows(self):
+        game_list = self.create()
+        # Los atributos tal como salen en el HTML (el script de lists/_drag.html también nombra sus selectores).
+        response = self.client.get(reverse("lists:edit", args=[game_list.pk]))
+        self.assertContains(response, 'data-tier-board data-desde="editor"')
+        self.assertNotContains(response, "data-sortable-rows>")
+        ranked = GameList.objects.create(user=self.ana, title="Ranking", mode=GameList.Mode.RANKED)
+        for game in (self.hades, self.celeste, self.tunic):
+            ranked.add(game, self.ana)
+        response = self.client.get(reverse("lists:edit", args=[ranked.pk]))
+        self.assertNotContains(response, "data-tier-board data-desde")
+        self.assertContains(response, "data-sortable-rows>")
+        self.assertContains(response, 'class="drag-handle"', count=3)
+
 
 class CollaborationTests(TestCase):
     @classmethod

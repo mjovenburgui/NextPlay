@@ -476,8 +476,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .auth-sub { margin: 0 0 1.5rem; }
 .auth-panel form { text-align: left; }
 .auth-panel .btn-primary { width: 100%; padding: .65rem; }
+/* Los grupos de opciones (fieldset) sin el recuadro del navegador, con su leyenda como las etiquetas de los campos. */
+fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .field { margin-bottom: 1rem; }
 .field label { display: block; margin-bottom: .3rem; font-weight: 600; font-size: .9rem; }
+.field > legend { display: block; margin-bottom: .3rem; padding: 0; font-weight: 600; font-size: .9rem; }
 .field .check { display: flex; align-items: center; gap: .5rem; }
 .help { margin: .3rem 0 0; font-size: .8rem; color: var(--muted); }
 .help ul { margin: 0; padding-left: 1.1rem; }
@@ -1747,6 +1750,12 @@ p.update-hint { display: flex; border-left-color: var(--gold); }
 .list-note-saved { display: inline-flex; align-items: center; gap: .25rem; color: var(--cyan-text); font-size: .78rem; font-weight: 600; }
 .list-note-saved .icon { width: .9rem; height: .9rem; }
 .reorder-actions form { margin: 0; }
+/* Asa para arrastrar las filas del editor de las listas que no son tier lists (lists/_drag.html), a la altura del puesto. */
+.drag-handle { display: flex; flex: none; align-items: center; margin: 0 -.25rem 0 -.15rem; padding: .45rem .1rem; color: var(--muted); cursor: grab; touch-action: none; }
+.drag-handle:hover { color: var(--text); }
+.drag-handle .icon { width: 1.15rem; height: 1.15rem; }
+.list-editor-items > .is-ghost { opacity: .4; outline: 2px dashed var(--violet-text); outline-offset: -2px; }
+.list-editor-item.is-floating { box-shadow: 0 12px 28px rgba(0, 0, 0, .55); }
 .icon-btn:disabled { opacity: .35; cursor: default; }
 .icon-btn:disabled:hover { border-color: var(--border); }
 .list-remove:hover { border-color: var(--pink); color: var(--pink-text); }
@@ -1810,7 +1819,7 @@ p.update-hint { display: flex; border-left-color: var(--gold); }
 /* Tier lists: el tablero de la página de la lista (una fila por nivel con su nombre en su color), los botones de nivel
    del editor y la edición de los niveles en el formulario. --tier es el color del nivel y --tier-text, el de su texto. */
 .tier-board { display: flex; flex-direction: column; gap: 3px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); background: var(--border); }
-.tier-row { display: flex; min-height: 92px; background: var(--surface); }
+.tier-row { display: flex; min-height: 92px; background: var(--surface); transition: background .15s; }
 .tier-label {
   display: grid; place-items: center; flex: none; width: 92px; margin: 0; padding: .5rem;
   background: var(--tier, var(--surface-3)); color: var(--tier-text, var(--muted));
@@ -1833,6 +1842,24 @@ button.tier-chip:hover { border-color: var(--tier); color: var(--text); }
 .list-row-title .tier-chip { margin-right: .35rem; vertical-align: .1rem; cursor: default; }
 .tier-pick { display: flex; flex-wrap: wrap; gap: .3rem; }
 .tier-pick form { margin: 0; }
+/* Tablero que se puede editar (lists/_drag.html): las portadas se cogen y se sueltan en otra fila, que se ilumina; el
+   hueco donde caerá va con borde de puntos, la copia que sigue al puntero lleva sombra y, mientras se guarda, lo soltado
+   se atenúa. Vacía, la fila «Sin clasificar» dice para qué sirve. */
+.tier-hint { display: flex; align-items: flex-start; gap: .4rem; margin: 0 0 .6rem; }
+.tier-hint .icon { flex: none; width: 1rem; height: 1rem; margin-top: .1rem; color: var(--violet); }
+.list-editor .tier-board { margin-bottom: 1rem; }
+.tier-board.is-editable .tier-game { cursor: grab; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.tier-board.is-sorting .tier-game { cursor: grabbing; }
+.tier-board.is-sorting .tier-game:hover { transform: none; box-shadow: none; }
+.tier-board.is-sorting .tier-row:has(.is-ghost) { background: color-mix(in srgb, var(--violet) 14%, var(--surface)); }
+.tier-games > .is-ghost .tier-game { opacity: .35; outline: 2px dashed var(--violet-text); outline-offset: -2px; }
+.tier-board.is-editable .is-loose .tier-games:not(:has(li)) { align-content: center; }
+.tier-board.is-editable .is-loose .tier-games:not(:has(li))::before {
+  content: "Suelta aquí lo que quieras sacar de su nivel"; align-self: center; padding: 0 .4rem; color: var(--muted); font-size: .82rem;
+}
+.is-floating { list-style: none; }
+.is-floating .tier-game { box-shadow: 0 12px 28px rgba(0, 0, 0, .55); }
+.tier-games > li.htmx-request, .list-editor-items > li.htmx-request { opacity: .55; transition: opacity .15s .12s; }
 /* En el formulario, los niveles solo con «Por niveles» elegido; si el navegador no entiende :has, se ven siempre. */
 form:has(input[name="mode"]:checked:not([value="tiers"])) .list-tiers { display: none; }
 .tier-fields { display: grid; gap: .4rem; margin: .6rem 0 0; padding: 0; list-style: none; counter-reset: nivel; }
@@ -1861,6 +1888,8 @@ form:has(input[name="mode"]:checked:not([value="tiers"])) .list-tiers { display:
 #list-collaborators > .muted { margin: 0 0 .5rem; }
 @media (max-width: 640px) {
   .tier-label { width: 64px; font-size: 1.1rem; }
+  /* Que «clasificar» quepa entero en la etiqueta estrecha, sin dejar una letra suelta. */
+  .tier-row.is-loose .tier-label { padding-inline: .25rem; font-size: .72rem; }
   .tier-game { width: 48px; }
   .list-invite { flex-wrap: wrap; }
 }
