@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth import get_user_model, login
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import AnonymousUser
 from django.core.cache import cache
 from django.db.models import Max, Q
 from django.http import Http404
@@ -23,9 +24,10 @@ from games.models import LANGUAGE_FILTERS, Game, Genre, igdb_image_url, known_sh
 from library import wishlist
 from library.models import LibraryEntry, Review
 from library.views import mark_liked
+from lists.views import SHOWCASE_LISTS, profile_lists
 from social.views import activity_context, follow_context
 
-from . import images, matching, psn, steam, xbox
+from . import achievements, images, matching, psn, steam, xbox
 from .forms import IMAGE_FIELDS, PlatformAccountForm, ProfileForm, SignupForm
 from .models import (
     ACCENT_PRESETS, SECTIONS, FavoriteGame, ImportedTitle, PlatformAccount, Profile, PSNAccount, SteamAccount,
@@ -71,8 +73,8 @@ def profile(request, username):
     orden y con las secciones que haya elegido. La biblioteca tiene pestañas por estado (Jugando,
     Completado...) con su contador y se filtra con ?estado= y por idioma con ?idioma= (voces o textos en
     castellano); se ordena con ?orden= (recientes, nota, horas o nombre). Con ?vista=resenas muestra sus
-    reseñas en vez de la biblioteca, y con ?vista=actividad lo que ha hecho (desde ?antes=, el cursor de
-    «Cargar más»). Un perfil privado da 404 a cualquiera que no sea su dueño.
+    reseñas en vez de la biblioteca, con ?vista=listas sus listas y con ?vista=actividad lo que ha hecho
+    (desde ?antes=, el cursor de «Cargar más»). Un perfil privado da 404 a cualquiera que no sea su dueño.
     """
     owner = get_object_or_404(_profile_owners(), username=username)
     # 404 rather than 403 so private profiles don't confirm that the account exists.
@@ -107,9 +109,12 @@ def _profile_context(request, owner, favorites=None, preview=False):
     """Variables de la plantilla del perfil de owner, con la biblioteca filtrada y ordenada según ?estado=, ?idioma= y ?orden=.
 
     favorites son sus juegos favoritos en orden (si no se dan, los guardados). Con preview es la vista
-    previa de Editar perfil: se ve como la ven los demás, el usuario de la barra superior es owner con los
-    cambios sin guardar y la biblioteca se corta en PREVIEW_LIBRARY juegos. También lleva cuántos seguidores
-    y seguidos tiene owner y si quien mira sigue a owner o al revés (social.views.follow_context).
+    previa de Editar perfil: se ve como la ven los demás (también sus listas: solo las públicas), el usuario
+    de la barra superior es owner con los cambios sin guardar y la biblioteca se corta en PREVIEW_LIBRARY
+    juegos. También lleva cuántos seguidores y seguidos tiene owner y si quien mira sigue a owner o al revés
+    (social.views.follow_context), y sus listas (lists.views.profile_lists) para su pestaña y el escaparate. Con sus
+    logros importados (accounts.achievements), cada juego de la biblioteca lleva su insignia de «Platino» o «100 %»
+    (achievement_badge) y las cifras de la cabecera, sus platinos y sus juegos al 100 %.
     """
     is_owner = request.user == owner and not preview
     entries = list(
@@ -118,6 +123,10 @@ def _profile_context(request, owner, favorites=None, preview=False):
     counts = {value: 0 for value, _ in LibraryEntry.Status.choices}
     for entry in entries:
         counts[entry.status] += 1
+    # Sus logros importados: la insignia de «Platino» o «100 %» de cada portada y las cifras de la cabecera.
+    progress = achievements.progress_by_game(owner, [entry.game_id for entry in entries])
+    for entry in entries:
+        entry.achievement_badge = achievements.badge(progress.get(entry.game_id, []))
 
     status = request.GET.get("estado")
     if status in counts:
@@ -145,10 +154,12 @@ def _profile_context(request, owner, favorites=None, preview=False):
     reviews = mark_liked(list(Review.objects.filter(user=owner).visible_to(request.user)), request.user)
     drafts = list(Review.objects.filter(user=owner, is_draft=True).select_related("game")) if is_owner else []
     view = request.GET.get("vista", "")
-    if view not in ("resenas", "actividad"):
+    if view not in ("resenas", "listas", "actividad"):
         view = ""
     # La actividad solo se pide en su pestaña.
     activity_tab = activity_context(owner, request.user, request.GET.get("antes", "")) if view == "actividad" else {}
+    # En la vista previa, las listas como las vería cualquiera: solo las públicas y sin el progreso de quien mira.
+    lists = profile_lists(owner, AnonymousUser() if preview else request.user, public_only=preview)
 
     tabs = [(value, label, counts[value]) for value, label in LibraryEntry.Status.choices]
     return {
@@ -166,6 +177,8 @@ def _profile_context(request, owner, favorites=None, preview=False):
         "view": view,
         "reviews": reviews,
         "drafts": drafts,
+        "lists": lists,
+        "showcase_lists": lists[:SHOWCASE_LISTS],
         "activities": [],
         "next_cursor": "",
         **activity_tab,
@@ -175,7 +188,7 @@ def _profile_context(request, owner, favorites=None, preview=False):
         "max_favorites": FavoriteGame.MAX_PER_USER,
         "playing": [e for e in entries if e.status == LibraryEntry.Status.PLAYING][:PLAYING_SHOWN],
         "pinned": next((review for review in reviews if review.pk == owner.profile.pinned_review_id), None),
-        "stats": _profile_stats(owner, entries, counts, len(reviews)),
+        "stats": {**_profile_stats(owner, entries, counts, len(reviews)), **achievements.totals(progress)},
         "is_owner": is_owner,
         "unmatched_count": (
             owner.imported_titles.filter(title__game__isnull=True, hidden=False).count() if is_owner else 0
@@ -445,12 +458,18 @@ def _report_import(request, result):
     text = f"Steam: {result['added']} juego{pluralize(result['added'])} añadido{pluralize(result['added'])}"
     if result["updated"]:
         text += f", {result['updated']} con horas actualizadas"
+    text += _achievements_note(result.get("achievements"))
     messages.success(request, _with_unmatched(text, result["unmatched"]))
     if result["private"]:
         messages.error(
             request,
             f"No se pudieron leer los juegos de {', '.join(result['private'])}. {STEAM_PRIVATE_HINT}",
         )
+
+
+def _achievements_note(count, noun="logros"):
+    """Coletilla del mensaje de una importación con los juegos de los que se han leído los logros (o los trofeos)."""
+    return f", {noun} de {count} juego{pluralize(count)}" if count else ""
 
 
 def _with_unmatched(text, unmatched):
@@ -679,6 +698,7 @@ def psn_sync(request):
     text = f"PlayStation ({result['account'].name}): {added} juego{pluralize(added)} añadido{pluralize(added)}"
     if updated:
         text += f", {updated} con horas actualizadas"
+    text += _achievements_note(result.get("trophies"), "trofeos")
     messages.success(request, _with_unmatched(text, result["unmatched"]))
     return redirect("profile", username=request.user.username)
 
@@ -773,6 +793,7 @@ def xbox_callback(request):
     text = f"Xbox ({result['account'].name}): {added} juego{pluralize(added)} añadido{pluralize(added)}"
     if updated:
         text += f", {updated} con horas actualizadas"
+    text += _achievements_note(result.get("achievements"))
     messages.success(request, _with_unmatched(text, result["unmatched"]))
     return redirect("profile", username=request.user.username)
 

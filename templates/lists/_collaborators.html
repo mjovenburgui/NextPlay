@@ -1,0 +1,37 @@
+{# «Quién puede editarla», en el editor de una lista para su dueño: la gente invitada (y si ha aceptado) y el formulario para invitar a alguien. #}
+{# Necesita las variables de lists.views.collaborators_context y, si lo hay, collaborator_error. HTMX lo cambia entero al invitar o quitar a alguien. #}
+<div id="list-collaborators">
+  <h2>Quién puede editarla</h2>
+  <p class="muted small">Invita a alguien a añadir, ordenar y comentar los juegos de la lista contigo: le llega un aviso y, cuando acepte, podrá editarla. Los datos de la lista los cambias solo tú.</p>
+  {% if collaborators %}
+    <ul class="people list-collaborators">
+      {% for collaborator in collaborators %}
+        <li class="person">
+          {% include "accounts/_avatar.html" with profile=collaborator.user.profile size="sm" %}
+          <div class="person-info">
+            <p><a class="person-name" href="{{ collaborator.user.profile.get_absolute_url }}">{{ collaborator.user.profile.name }}</a> <span class="muted small">@{{ collaborator.user.username }}</span></p>
+            <p class="muted small">{% if collaborator.accepted_at %}Colabora desde hace {{ collaborator.accepted_at|timesince }}{% else %}<span class="pill">Invitación pendiente</span>{% endif %}</p>
+          </div>
+          <form method="post" action="{% url 'lists:collaborator_remove' game_list.pk collaborator.user_id %}"
+                hx-post="{% url 'lists:collaborator_remove' game_list.pk collaborator.user_id %}" hx-target="#list-collaborators" hx-swap="outerHTML">
+            {% csrf_token %}
+            <button class="btn btn-small" type="submit">{% if collaborator.accepted_at %}Quitar{% else %}Retirar invitación{% endif %}</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+  {% if collaborators|length < max_collaborators %}
+    <form class="list-invite" method="post" action="{% url 'lists:invite' game_list.pk %}"
+          hx-post="{% url 'lists:invite' game_list.pk %}" hx-target="#list-collaborators" hx-swap="outerHTML">
+      {% csrf_token %}
+      <label class="visually-hidden" for="invitar-usuario">Nombre de usuario de quien quieres invitar</label>
+      <input id="invitar-usuario" type="text" name="usuario" placeholder="Su nombre de usuario (@…)" autocomplete="off" list="gente-que-sigues" required>
+      {% if suggested %}<datalist id="gente-que-sigues">{% for username in suggested %}<option value="{{ username }}"></option>{% endfor %}</datalist>{% endif %}
+      <button class="btn btn-primary" type="submit">{% include "_icon.html" with name="user-plus" %} Invitar</button>
+    </form>
+  {% else %}
+    <p class="muted small">Ya has invitado a {{ max_collaborators }} personas, el máximo.</p>
+  {% endif %}
+  {% if collaborator_error %}<p class="errorlist">{{ collaborator_error }}</p>{% endif %}
+</div>

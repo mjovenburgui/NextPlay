@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% load reviews %}
+
+{% block title %}{{ game_list.title }}, lista de {{ owner.profile.name }} · NextPlay{% endblock %}
+{% block description %}{% if game_list.description %}{{ game_list.description|review_plain|truncatechars:155 }}{% else %}{{ items|length }} juego{{ items|length|pluralize }} en la lista «{{ game_list.title }}» de {{ owner.profile.name }} en NextPlay.{% endif %}{% endblock %}
+
+{% block content %}
+  {% with profile=owner.profile %}
+  {# La lista lleva el color del perfil de su autor, como su perfil. #}
+  <div class="list-page" style="--violet: {{ profile.accent }}; --accent-rgb: {{ profile.accent_rgb }}; --accent-text: {{ profile.accent_text }};">
+    {% if invitation %}
+      {# Quien está invitado a editarla y aún no ha dicho nada. #}
+      <div class="card-box list-invitation">
+        <p><strong>{{ profile.name }} te ha invitado a editar esta lista.</strong> <span class="muted">Podrás añadir, ordenar y comentar sus juegos.</span></p>
+        <div class="list-invitation-actions">
+          <form method="post" action="{% url 'lists:accept' game_list.pk %}">{% csrf_token %}<button class="btn btn-primary" type="submit">Aceptar</button></form>
+          <form method="post" action="{% url 'lists:leave' game_list.pk %}">{% csrf_token %}<button class="btn" type="submit">Rechazar</button></form>
+        </div>
+      </div>
+    {% endif %}
+    <header class="card-box list-hero">
+      {% include "lists/_mosaic.html" with size="lg" %}
+      <div class="list-hero-info">
+        <p class="list-kicker">{% include "_icon.html" with name="list" %} {% if game_list.is_tiered %}Tier list{% elif game_list.is_ranked %}Lista numerada{% else %}Lista{% endif %}{% if not game_list.is_public %} <span class="pill">Privada: solo la ves tú{% if collaborators %} y quien colabora{% endif %}</span>{% endif %}</p>
+        <h1>{{ game_list.title }}</h1>
+        <p class="list-author">
+          <a href="{{ profile.get_absolute_url }}">{% include "accounts/_avatar.html" with size="sm" %} {{ profile.name }}</a>
+          {% if collaborators %}
+            {# Quien colabora en ella, después del autor. #}
+            <span class="list-collaborators-line">con
+              {% for collaborator in collaborators %}<a href="{{ collaborator.user.profile.get_absolute_url }}">{{ collaborator.user.profile.name }}</a>{% if not forloop.last %}{% if forloop.revcounter == 2 %} y {% else %}, {% endif %}{% endif %}{% endfor %}
+            </span>
+          {% endif %}
+          <span class="muted small">{{ items|length }} juego{{ items|length|pluralize }} · actualizada hace {{ game_list.updated_at|timesince }}</span>
+        </p>
+        {% if game_list.description %}<div class="list-description review-text">{{ game_list.description|review_html }}</div>{% endif %}
+        <div class="list-actions">
+          {% if is_owner %}
+            <a class="btn" href="{% url 'lists:edit' game_list.pk %}">{% include "_icon.html" with name="edit" %} Editar lista</a>
+          {% elif can_edit %}
+            <a class="btn" href="{% url 'lists:edit' game_list.pk %}#juegos">{% include "_icon.html" with name="edit" %} Editar juegos</a>
+          {% endif %}
+          {% if game_list.is_public and profile.is_public %}
+            <button class="btn" type="button" data-copy-link="{{ request.scheme }}://{{ request.get_host }}{{ game_list.get_absolute_url }}">{% include "_icon.html" with name="link" %} <span data-copy-label>Copiar enlace</span></button>
+          {% endif %}
+          {# Un reto de terminar sus juegos (challenges.views.new con lista=). #}
+          {% if user.is_authenticated and items %}
+            <a class="btn" href="{% url 'challenges:new' %}?lista={{ game_list.pk }}">{% include "_icon.html" with name="trophy" %} Convertir en reto</a>
+          {% endif %}
+        </div>
+        {# «Me gusta», comentarios y, a los demás, «Denunciar», como al pie de una reseña. #}
+        <div class="review-foot list-foot">
+          {% include "lists/_like.html" with liked=game_list.liked like_count=game_list.like_count %}
+          <a class="review-action" href="#comentarios">{% include "_icon.html" with name="comment" %} <span id="list-comment-count-{{ game_list.pk }}">{{ comments|length }}</span><span class="visually-hidden"> comentarios</span></a>
+          {% if user.is_authenticated and not is_owner %}
+            {% url 'lists:report' game_list.pk as report_url %}
+            {% include "library/_report.html" with kind="lista" target=game_list noun="esta lista" open=open_report %}
+          {% endif %}
+        </div>
+      </div>
+    </header>
+
+    {% if progress.total %}
+      {# Cuánto ha jugado quien mira de la lista y, de lo que no tiene, lo que cuesta (lists.views.list_progress). #}
+      <section class="card-box list-progress" aria-labelledby="list-progress-title">
+        <h2 id="list-progress-title">{% if progress.played == progress.total %}¡Los has jugado todos!{% else %}Has jugado {{ progress.played }} de {{ progress.total }}{% endif %}</h2>
+        <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ progress.percent }}" aria-labelledby="list-progress-title">
+          <span style="width: {{ progress.percent }}%"></span>
+        </div>
+        <ul class="review-facts list-facts">
+          <li class="fact">{{ progress.percent }} %</li>
+          {% if progress.completed %}<li class="fact fact-done">{% include "_icon.html" with name="check" %} {{ progress.completed }} terminado{{ progress.completed|pluralize }}</li>{% endif %}
+          {% if progress.hours %}<li class="fact fact-hours">{% include "_icon.html" with name="clock" %} {{ progress.hours }} h jugadas</li>{% endif %}
+          {% if progress.backlog %}<li class="fact">{{ progress.backlog }} en Pendiente</li>{% endif %}
+        </ul>
+        {% if progress.missing %}
+          <div class="list-missing">
+            <div>
+              <p><strong>Te falta{{ progress.missing|pluralize:"n" }} {{ progress.missing }}</strong>{% if progress.priced %}: {{ progress.today }} hoy en tus tiendas{% if progress.saving %} o {{ progress.at_lows }} si esperas a sus mínimos históricos{% endif %}{% endif %}.</p>
+              {% if progress.unpriced or progress.wished %}
+                <p class="help">
+                  {% if progress.unpriced %}{{ progress.unpriced }} sin precio en tus tiendas{% endif %}{% if progress.unpriced and progress.wished %} · {% endif %}
+                  {% if progress.wished %}{{ progress.wished }} ya en tu <a href="{% url 'library:wishlist' %}">lista de deseos</a>{% endif %}
+                </p>
+              {% endif %}
+            </div>
+            {% if progress.to_wish %}
+              <form method="post" action="{% url 'lists:wish_missing' game_list.pk %}">
+                {% csrf_token %}
+                <button class="btn wish-btn" type="submit">{% include "_icon.html" with name="heart" %} {% if progress.to_wish == 1 %}Añadir el que te falta a «Lo quiero»{% else %}Añadir los {{ progress.to_wish }} a «Lo quiero»{% endif %}</button>
+              </form>
+            {% endif %}
+          </div>
+        {% endif %}
+      </section>
+    {% endif %}
+
+    <section class="card-box">
+      <div class="list-bar">
+        <h2>Juegos <span class="muted">{{ items|length }}</span></h2>
+        {% if items %}
+          <nav class="chip-links" aria-label="Cómo ver los juegos">
+            {% for value, label in views %}<a class="chip-link{% if view == value %} is-active{% endif %}" href="?vista={{ value }}"{% if view == value %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+          </nav>
+        {% endif %}
+      </div>
+      {% if not items %}
+        <p class="muted box-empty">
+          {% if can_edit %}Aún no tiene juegos. <a href="{% url 'lists:edit' game_list.pk %}#juegos">Búscalos en el editor</a> o usa «Añadir a una lista» en la ficha de cualquier juego.{% else %}Esta lista aún no tiene juegos.{% endif %}
+        </p>
+      {% elif view == "niveles" %}
+        {# Tier list por niveles; quien puede editarla arrastra aquí mismo las portadas de un nivel a otro. #}
+        {% if can_edit %}<p class="tier-hint muted small">{% include "_icon.html" with name="grip" %} Arrastra las portadas para cambiarlas de nivel o de sitio: se guarda al soltarlas.</p>{% endif %}
+        {% include "lists/_tier_board.html" with editable=can_edit where="tablero" %}
+        {% if can_edit %}{% include "lists/_drag.html" %}{% endif %}
+      {% elif view == "detalle" %}
+        {# Cada juego en una fila con el comentario de quien hace la lista y, con sesión, el estado en la biblioteca de quien mira. #}
+        <ol class="list-rows{% if game_list.is_ranked %} is-ranked{% endif %}">
+          {% for item in items %}
+            <li class="list-row">
+              <a class="review-thumb list-row-cover" href="{{ item.game.get_absolute_url }}" tabindex="-1" aria-hidden="true">{% if item.game.cover_url %}<img src="{{ item.game.cover_url }}" alt="" loading="lazy">{% endif %}</a>
+              <div class="list-row-main">
+                <p class="list-row-title">
+                  {% if item.tier_info %}<span class="tier-chip is-on" style="--tier: {{ item.tier_info.color }}; --tier-text: {{ item.tier_info.text }};">{{ item.tier_info.label }}</span>{% endif %}
+                  <a href="{{ item.game.get_absolute_url }}">{{ item.game.name }}</a>{% if item.game.release_year %} <span class="muted small">{{ item.game.release_year }}</span>{% endif %}
+                  {% if item.viewer_status %}<span class="pill pill-status st-{{ item.viewer_status_key }}">{{ item.viewer_status }}</span>{% endif %}
+                </p>
+                {% if item.note %}<p class="list-row-note">{{ item.note|review_inline }}</p>{% endif %}
+                {% if collaborators and item.added_by_id and item.added_by_id != owner.pk %}<p class="muted small list-row-by">Añadido por {{ item.added_by.profile.name }}</p>{% endif %}
+              </div>
+            </li>
+          {% endfor %}
+        </ol>
+      {% else %}
+        <ol class="list-games{% if game_list.is_ranked %} is-ranked{% endif %}">
+          {% for item in items %}<li>{% include "games/_card.html" with game=item.game status=item.viewer_status status_key=item.viewer_status_key %}</li>{% endfor %}
+        </ol>
+      {% endif %}
+    </section>
+
+    {# Los mismos comentarios que en las reseñas y las publicaciones (library/_comments.html). #}
+    <section class="card-box list-comments" id="comentarios">{% include "library/_comments.html" %}</section>
+  </div>
+  {% endwith %}
+{% endblock %}

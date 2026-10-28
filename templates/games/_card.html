@@ -5,13 +5,16 @@
     {% else %}
       <span class="cover-fallback">{{ game.name }}</span>
     {% endif %}
-    {% if status %}<span class="badge">{{ status }}</span>{% endif %}
+    {# status es el nombre del estado y status_key, su valor (playing, completed…), que le da su color (st-*). #}
+    {% if status %}<span class="badge{% if status_key %} st-{{ status_key }}{% endif %}">{{ status }}</span>{% endif %}
+    {# En la biblioteca del perfil, «Platino» o «100 %» si su dueño tiene todos los logros (accounts.achievements.badge). #}
+    {% if entry.achievement_badge %}<span class="card-trophy{% if entry.achievement_badge == 'Platino' %} is-platinum{% endif %}">{% include "_icon.html" with name="trophy" %} {{ entry.achievement_badge }}</span>{% endif %}
   </div>
   <p class="card-title">{{ game.name }}</p>
   {% if entry.rating or entry.playtime_hours %}
     {# En los perfiles: las estrellas y las horas jugadas (Steam + PlayStation + Xbox) del dueño en lugar del año. #}
     <p class="muted small card-extra">
-      {% if entry.rating %}<span class="gold" aria-label="{{ entry.rating }} de 5 estrellas">{% for value in entry.RATING_STARS %}{% if value <= entry.rating %}★{% endif %}{% endfor %}</span>{% endif %}
+      {% if entry.rating %}{% include "library/_stars.html" with rating=entry.rating %}{% endif %}
       {% if entry.playtime_hours %}<span>{{ entry.playtime_hours|floatformat:"-1" }} h</span>{% endif %}
     </p>
   {% elif game.release_year %}<p class="muted small">{{ game.release_year }}</p>{% endif %}

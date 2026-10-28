@@ -1,0 +1,73 @@
+{# Juegos de una lista en su editor: cada uno con su puesto (que se puede escribir), su comentario, los botones de subir, bajar y quitar y, en #}
+{# las tier lists, los de sus niveles (pulsar el suyo lo saca). Las tier lists llevan encima su tablero, donde se arrastran las portadas #}
+{# (lists/_tier_board.html), y en las demás cada fila se arrastra por su asa (lists/_drag.html); los botones siguen para el teclado. En #}
+{# las colaborativas dice quién añadió cada uno, si no fue su dueño. Necesita las variables de lists.views.editor_context. HTMX lo #}
+{# cambia entero al añadir, mover, poner en un nivel o quitar un juego (los botones llevan id para que HTMX les devuelva el foco); con #}
+{# added_result también cambia, fuera de su sitio, el resultado de la búsqueda. #}
+<div id="list-items">
+  <p class="list-items-count muted small">{{ items|length }} de {{ max_games }} juegos{% if game_list.is_ranked %} · el orden es el del ranking{% endif %}{% if items and not game_list.is_tiered %}{% if game_list.is_ranked %};{% else %} ·{% endif %} arrastra cada fila por su asa para cambiarla de puesto{% endif %}</p>
+  {% if list_error %}<p class="errorlist">{{ list_error }}</p>{% endif %}
+  {% if items and game_list.is_tiered %}
+    <p class="tier-hint muted small">{% include "_icon.html" with name="grip" %} Arrastra las portadas a su nivel y, dentro de él, a su sitio. Debajo, cada juego tiene también los botones de su nivel.</p>
+    {% include "lists/_tier_board.html" with editable=True where="editor" %}
+  {% endif %}
+  {% if items %}
+    <ol class="reorder-list list-editor-items"{% if not game_list.is_tiered %} data-sortable-rows{% endif %}>
+      {% for item in items %}
+        <li class="reorder-item list-editor-item" id="juego-{{ item.game_id }}"{% if not game_list.is_tiered %} data-game="{{ item.game_id }}" data-url="{% url 'lists:move' game_list.pk item.game_id %}"{% endif %}>
+          {% if not game_list.is_tiered %}<span class="drag-handle" title="Arrastra para cambiarlo de puesto" aria-hidden="true">{% include "_icon.html" with name="grip" %}</span>{% endif %}
+          <form class="list-position" method="post" action="{% url 'lists:move' game_list.pk item.game_id %}"
+                hx-post="{% url 'lists:move' game_list.pk item.game_id %}" hx-trigger="change" hx-target="#list-items" hx-swap="outerHTML" hx-sync="#juegos:queue all">
+            {% csrf_token %}
+            <label class="visually-hidden" for="puesto-{{ item.game_id }}">Puesto de {{ item.game.name }}</label>
+            <input id="puesto-{{ item.game_id }}" type="number" name="puesto" min="1" max="{{ items|length }}" value="{{ forloop.counter }}" inputmode="numeric">
+          </form>
+          <a class="thumb" href="{{ item.game.get_absolute_url }}" tabindex="-1" aria-hidden="true">{% if item.game.cover_url %}<img src="{{ item.game.cover_url }}" alt="" loading="lazy">{% endif %}</a>
+          <div class="list-editor-main">
+            <p class="list-editor-title">
+              <a class="list-editor-name" href="{{ item.game.get_absolute_url }}">{{ item.game.name }}</a>
+              {% if item.added_by_id and item.added_by_id != game_list.user_id %}<span class="muted small">añadido por {{ item.added_by.profile.name }}</span>{% endif %}
+            </p>
+            {% if tiers %}
+              <div class="tier-pick" role="group" aria-label="Nivel de {{ item.game.name }}">
+                {% for level in tiers %}
+                  <form method="post" action="{% url 'lists:tier' game_list.pk item.game_id %}"
+                        hx-post="{% url 'lists:tier' game_list.pk item.game_id %}" hx-target="#list-items" hx-swap="outerHTML" hx-sync="#juegos:queue all">
+                    {% csrf_token %}
+                    <input type="hidden" name="nivel" value="{% if item.tier != level.id %}{{ level.id }}{% endif %}">
+                    <button class="tier-chip{% if item.tier == level.id %} is-on{% endif %}" id="nivel-{{ item.game_id }}-{{ level.id }}" type="submit"
+                            style="--tier: {{ level.color }}; --tier-text: {{ level.text }};" aria-pressed="{% if item.tier == level.id %}true{% else %}false{% endif %}"
+                            title="{% if item.tier == level.id %}Sacar del nivel {{ level.label }}{% else %}Poner en el nivel {{ level.label }}{% endif %}">{{ level.label }}</button>
+                  </form>
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% include "lists/_note_form.html" %}
+          </div>
+          <span class="reorder-actions">
+            <form method="post" action="{% url 'lists:move' game_list.pk item.game_id %}"
+                  hx-post="{% url 'lists:move' game_list.pk item.game_id %}" hx-target="#list-items" hx-swap="outerHTML" hx-sync="#juegos:queue all">
+              {% csrf_token %}
+              <input type="hidden" name="a" value="arriba">
+              <button class="icon-btn" id="subir-{{ item.game_id }}" type="submit" aria-label="Subir {{ item.game.name }}"{% if forloop.first %} disabled{% endif %}>{% include "_icon.html" with name="up" %}</button>
+            </form>
+            <form method="post" action="{% url 'lists:move' game_list.pk item.game_id %}"
+                  hx-post="{% url 'lists:move' game_list.pk item.game_id %}" hx-target="#list-items" hx-swap="outerHTML" hx-sync="#juegos:queue all">
+              {% csrf_token %}
+              <input type="hidden" name="a" value="abajo">
+              <button class="icon-btn" id="bajar-{{ item.game_id }}" type="submit" aria-label="Bajar {{ item.game.name }}"{% if forloop.last %} disabled{% endif %}>{% include "_icon.html" with name="down" %}</button>
+            </form>
+            <form method="post" action="{% url 'lists:remove' game_list.pk item.game_id %}"
+                  hx-post="{% url 'lists:remove' game_list.pk item.game_id %}" hx-target="#list-items" hx-swap="outerHTML" hx-sync="#juegos:queue all">
+              {% csrf_token %}
+              <button class="icon-btn list-remove" id="quitar-{{ item.game_id }}" type="submit" aria-label="Quitar {{ item.game.name }} de la lista" title="Quitar de la lista">{% include "_icon.html" with name="close" %}</button>
+            </form>
+          </span>
+        </li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <p class="muted box-empty">Aún no hay juegos: búscalos arriba o usa «Añadir a una lista» en la ficha de cualquier juego.</p>
+  {% endif %}
+</div>
+{% if added_result %}{% include "lists/_search_result.html" with game=added_result oob=True %}{% endif %}

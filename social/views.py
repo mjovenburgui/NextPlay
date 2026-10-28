@@ -21,6 +21,8 @@ from accounts.models import Notification, Profile
 from games.models import Game
 from library.models import LibraryEntry, Report, Review
 from library.views import _report, comment_thread, mark_liked
+from lists.models import GameList
+from lists.views import mark_liked_lists, mark_progress
 
 from .activity import post_published
 from .forms import PostCommentForm, PostForm
@@ -156,8 +158,9 @@ def _batch(activities, viewer, cursor):
     Devuelve (actividades, cursor de la tanda siguiente o "" si no hay más). cursor dice desde dónde seguir:
     lo da la tanda anterior, y vacío (o roto) es desde el principio. Cada actividad trae su reseña solo si
     viewer puede leerla (si su autor la volvió a dejar en borrador, no), con sus imágenes y sus «me gusta» y
-    comentarios contados, y las importaciones traen sus juegos (import_games). Las que se quedan sin nada que
-    enseñar no salen. No mira de quién son: eso lo decide quien la llama.
+    comentarios contados; su lista, solo si viewer puede verla, con su mosaico, sus «me gusta» y cuánto ha jugado
+    de ella viewer; y las importaciones traen sus juegos (import_games). Las que se quedan sin nada que enseñar no
+    salen. No mira de quién son: eso lo decide quien la llama.
     """
     start = _parse_cursor(cursor)
     if start:
@@ -168,12 +171,15 @@ def _batch(activities, viewer, cursor):
         .prefetch_related(
             Prefetch("review", queryset=Review.objects.visible_to(viewer)),
             Prefetch("post", queryset=_posts()),
+            Prefetch("game_list", queryset=GameList.objects.visible_to(viewer).with_preview()),
         )[: ACTIVITY_PAGE + 1]
     )
     next_cursor = _cursor(activities[ACTIVITY_PAGE - 1]) if len(activities) > ACTIVITY_PAGE else ""
     activities = activities[:ACTIVITY_PAGE]
     mark_liked([activity.review for activity in activities if activity.review], viewer)
     mark_liked_posts([activity.post for activity in activities if activity.post], viewer)
+    lists = list({activity.game_list.pk: activity.game_list for activity in activities if activity.game_list}.values())
+    mark_progress(mark_liked_lists(lists, viewer), viewer)
     imported = [activity for activity in activities if activity.kind == Activity.Kind.IMPORT]
     games = Game.objects.in_bulk({pk for activity in imported for pk in activity.data.get("games", [])})
     for activity in imported:

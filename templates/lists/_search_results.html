@@ -1,0 +1,9 @@
+{# Resultados del buscador del editor de una lista (lists.views.search_context): cada juego con «Añadir», o marcado si ya está. #}
+{# Necesita game_list, search_query y results. #}
+{% if search_query %}
+  {% if results %}
+    <ul class="list-results">{% for game in results %}{% include "lists/_search_result.html" %}{% endfor %}</ul>
+  {% else %}
+    <p class="muted small list-results-empty">No hay ningún juego con «{{ search_query }}» en NextPlay. <a href="{% url 'games:catalog' %}?q={{ search_query|urlencode }}">Búscalo en el catálogo</a>, desde donde puedes traerlo de IGDB.</p>
+  {% endif %}
+{% endif %}

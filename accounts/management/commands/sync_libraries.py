@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
     help = (
-        "Vuelve a importar la biblioteca de Steam (horas y juegos nuevos) y, si lo tienen activado, la lista de "
+        "Vuelve a importar la biblioteca de Steam (horas, juegos nuevos y logros) y, si lo tienen activado, la lista de "
         "deseos de Steam de los usuarios con la sincronización nocturna activada. Pensado para lanzarlo cada "
         "noche (comando nightly), antes de actualizar los precios."
     )
@@ -75,6 +75,8 @@ class Command(BaseCommand):
                 self.stderr.write(f"{user.username}: falló la sincronización (detalles en el log).")
                 failed += 1
                 continue
+            # La importación solo lee los logros de los juegos jugados hace menos: de noche, todos los que falten.
+            steam.import_achievements(user, limit=None)
             user.profile.auto_synced_at = timezone.now()
             user.profile.save(update_fields=["auto_synced_at"])
             done += 1

@@ -5,12 +5,14 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
-from games.models import Game
-from library.models import LibraryEntry, Review, ReviewComment, ReviewLike
+from challenges.models import Challenge, Participation
+from games.models import Game, Genre
+from library.models import LibraryEntry, PlaySession, Review, ReviewComment, ReviewLike
+from lists.models import GameList, ListCollaborator, ListComment, ListItem, ListLike
 from social.activity import IMPORT_COVERS
 from social.models import Activity, Follow
 
-from ...models import PSNAccount, XboxAccount
+from ...models import ExternalTitle, ImportedTitle, PSNAccount, XboxAccount
 
 User = get_user_model()
 
@@ -60,6 +62,53 @@ FOLLOWS = [
     ("demo1", USERNAME), ("demo2", USERNAME), ("demo3", USERNAME),
     (USERNAME, "demo1"), (USERNAME, "demo2"),
     ("demo1", "demo2"), ("demo2", "demo3"),
+]
+# Listas de ejemplo: (dueño, título, descripción, pública, tipo, [(posición del juego, comentario, nivel)]). Las
+# posiciones van sobre los juegos de LIBRARY y, detrás, EXTRA_GAMES juegos más del catálogo que el usuario de prueba no
+# tiene, para ver en la página de una lista lo que le falta y lo que cuesta. El nivel (el id de uno de los de
+# lists.models.DEFAULT_TIERS, o None) solo cuenta en las tier lists.
+EXTRA_GAMES = 3
+LISTS = [
+    (USERNAME, "Mis imprescindibles", "Los que **recomendaría a cualquiera**, en orden.", True, GameList.Mode.RANKED, [
+        (1, "Las misiones secundarias mejor escritas que he jugado.", None), (0, "Cada rincón esconde algo.", None),
+        (6, "", None), (2, "", None),
+    ]),
+    (USERNAME, "Para este invierno", "", False, GameList.Mode.LIST, [(5, "", None), (3, "", None), (8, "", None)]),
+    (USERNAME, "Mis juegos, por niveles", "Mi tier list de lo que he jugado.", True, GameList.Mode.TIERS, [
+        (1, "", 0), (6, "", 0), (0, "", 1), (2, "", 1), (3, "", 2), (7, "", 3), (4, "", 5), (5, "", None),
+    ]),
+    ("demo1", "Para jugar con amigos", "Cooperativos y competitivos que funcionan bien en grupo.", True, GameList.Mode.LIST, [
+        (0, "Mejor con cuatro.", None), (3, "", None), (8, "Imprescindible en una noche de sofá.", None), (9, "", None),
+        (10, "", None),
+    ]),
+]
+# Gente que colabora en las listas de ejemplo: (título de la lista, usuario, posiciones en la lista de los juegos que
+# añadió él). El usuario de prueba ayuda a demo1 con la suya.
+LIST_COLLABORATORS = [("Para jugar con amigos", USERNAME, [3, 4])]
+# Retos de ejemplo: (creador, título, tipo, objetivo, slug del género o None, días hasta que empieza y hasta que termina
+# (desde hoy; None, sin fecha), quién más se une). El de juegos concretos sale de la lista «Mis imprescindibles».
+CHALLENGES = [
+    (USERNAME, "Pásate «Mis imprescindibles»", "games", None, None, None, None, ["demo1"]),
+    ("demo1", "Tres de rol antes de Navidad", "count", 3, "role-playing-rpg", -30, 60, [USERNAME, "demo2"]),
+    ("demo2", "Maratón de 20 horas", "hours", 20, None, -7, 23, [USERNAME]),
+]
+# Lo que ha jugado el usuario de prueba estos días, para el reto de horas: (posición del juego en LIBRARY, hace cuántos
+# días, minutos).
+SESSIONS = [(0, 1, 150), (0, 3, 90), (6, 2, 240), (7, 5, 60)]
+# Logros importados de ejemplo, para ver «Tus logros» en la ficha y las insignias y cifras del perfil: (posición del
+# juego en LIBRARY, plataforma, conseguidos, totales, platino). Van en títulos importados de prueba («demo-<id>»).
+ACHIEVEMENTS = [
+    (0, "steam", 31, 78, False),
+    (1, "steam", 78, 78, False),
+    (1, "psn", 52, 52, True),
+    (2, "xbox", 40, 50, False),
+    (6, "psn", 41, 47, False),
+]
+# «Me gusta» en las listas de ejemplo, con un comentario si no está vacío: (usuario, título de la lista, comentario).
+LIST_REACTIONS = [
+    ("demo1", "Mis imprescindibles", "¡Gran lista! Me apunto el primero para estas vacaciones."),
+    ("demo2", "Mis imprescindibles", ""),
+    (USERNAME, "Para jugar con amigos", "Le añadiría alguno de carreras."),
 ]
 
 
@@ -115,10 +164,11 @@ class Command(BaseCommand):
             data={"platform": "steam", "count": len(played), "games": [game.pk for game, _ in played[:IMPORT_COVERS]]},
         )
         for days, (game, (status, rating, minutes, text, spoilers)) in enumerate(zip(games, LIBRARY)):
+            when = now - timedelta(days=days)
             entry = LibraryEntry.objects.create(
                 user=user, game=game, status=status, rating=rating, steam_playtime_minutes=minutes,
+                completed_at=when if status == LibraryEntry.Status.COMPLETED else None,
             )
-            when = now - timedelta(days=days)
             if text:
                 reviews[days] = self.review(user, entry, text, spoilers, when)
             self.activity(user, game, when, status, rating, reviews.get(days))
@@ -152,10 +202,30 @@ class Command(BaseCommand):
             if follower in people and followed in people:
                 Follow.objects.follow(people[follower], people[followed])
 
+        extras = list(Game.objects.exclude(cover_image_id="").exclude(pk__in=[game.pk for game in games])[:EXTRA_GAMES])
+        self.lists(user, games + extras)
+        self.challenges(user, games)
+        self.achievements(user, games)
+
         self.stdout.write(self.style.SUCCESS(
             f"Usuario de prueba «{USERNAME}» listo con {len(games)} juegos. "
             f"La contraseña está en accounts/management/commands/seed_test_profile.py."
         ))
+
+    def achievements(self, user, games):
+        """Rehace los títulos importados de prueba del usuario con sus logros (ACHIEVEMENTS), sin tocar los de verdad."""
+        ImportedTitle.objects.filter(user=user, title__external_id__startswith="demo-").delete()
+        now = timezone.now()
+        for index, platform, unlocked, total, platinum in ACHIEVEMENTS:
+            if index >= len(games):
+                continue
+            game = games[index]
+            title, _ = ExternalTitle.objects.update_or_create(
+                platform=platform, external_id=f"demo-{game.pk}", defaults={"name": game.name, "game": game},
+            )
+            imported = ImportedTitle(user=user, title=title, game=game)
+            imported.set_achievements(unlocked, total, platinum, at=now)
+            imported.save()
 
     def review(self, user, entry, text, spoilers, when):
         """Publica una reseña de user sobre el juego de entry con fecha when, con su nota, horas y estado."""
@@ -163,6 +233,76 @@ class Command(BaseCommand):
         review.snapshot(entry)
         review.save()
         return review
+
+    def lists(self, user, catalog):
+        """Rehace las listas de ejemplo (LISTS) del usuario de prueba y de los usuarios demo que existan, con sus juegos
+        (catalog: los de su biblioteca y los extra, en orden), sus comentarios y sus niveles, cada una con su actividad
+        (creada hace unas horas, con sus juegos), con los «me gusta» y comentarios de LIST_REACTIONS y con quien colabora
+        en ellas (LIST_COLLABORATORS)."""
+        GameList.objects.filter(user=user).delete()
+        names = {owner for owner, *_ in LISTS} | {username for username, *_ in LIST_REACTIONS}
+        names |= {username for _, username, _ in LIST_COLLABORATORS}
+        people = {u.username: u for u in User.objects.filter(username__in=names)}
+        lists = {}
+        for hours, (owner, title, description, public, mode, entries) in enumerate(LISTS, start=1):
+            if owner not in people:
+                continue
+            GameList.objects.filter(user=people[owner], title=title).delete()
+            game_list = GameList.objects.create(
+                user=people[owner], title=title, description=description, is_public=public, mode=mode,
+            )
+            games = [catalog[index] for index, *_ in entries if index < len(catalog)]
+            for position, (index, note, tier) in enumerate(entries):
+                if index < len(catalog):
+                    ListItem.objects.create(
+                        game_list=game_list, game=catalog[index], position=position, note=note, tier=tier,
+                        added_by=people[owner],
+                    )
+            when = timezone.now() - timedelta(hours=hours)
+            Activity.objects.create(
+                user=people[owner], kind=Activity.Kind.LIST, game_list=game_list,
+                data={"created": True, "added": len(games)}, created_at=when, updated_at=when,
+            )
+            lists[title] = game_list
+        for username, title, comment in LIST_REACTIONS:
+            if username in people and title in lists:
+                ListLike.objects.get_or_create(user=people[username], game_list=lists[title])
+                if comment:
+                    ListComment.objects.create(user=people[username], game_list=lists[title], text=comment)
+        for title, username, positions in LIST_COLLABORATORS:
+            if username in people and title in lists:
+                ListCollaborator.objects.create(game_list=lists[title], user=people[username], accepted_at=timezone.now())
+                lists[title].items.filter(position__in=positions).update(added_by=people[username])
+
+    def challenges(self, user, games):
+        """Rehace los retos de ejemplo (CHALLENGES) con quienes se unen a ellos, y las sesiones de juego del usuario de
+        prueba (SESSIONS, sobre games, los juegos de su biblioteca) para que el reto de horas tenga progreso."""
+        names = {creator for creator, *_ in CHALLENGES} | {name for *_, others in CHALLENGES for name in others}
+        people = {u.username: u for u in User.objects.filter(username__in=names)}
+        today = timezone.localdate()
+        for creator, title, kind, target, genre, starts, ends, others in CHALLENGES:
+            if creator not in people:
+                continue
+            Challenge.objects.filter(creator=people[creator], title=title).delete()
+            challenge = Challenge.objects.create(
+                creator=people[creator], title=title, kind=kind, target=target,
+                genre=Genre.objects.filter(slug=genre).first() if genre else None,
+                starts_on=today + timedelta(days=starts) if starts is not None else None,
+                ends_on=today + timedelta(days=ends) if ends is not None else None,
+            )
+            if kind == Challenge.Kind.GAMES:
+                source = GameList.objects.filter(user=people[creator], title="Mis imprescindibles").first()
+                if source:
+                    challenge.source_list = source
+                    challenge.save(update_fields=["source_list"])
+                    challenge.games.set(source.items.values_list("game_id", flat=True))
+            for name in [creator, *others]:
+                if name in people:
+                    Participation.objects.create(challenge=challenge, user=people[name])
+        PlaySession.objects.filter(user=user).delete()
+        for index, days, minutes in SESSIONS:
+            if index < len(games):
+                PlaySession.add(user, games[index].pk, "steam", today - timedelta(days=days), minutes)
 
     def activity(self, user, game, when, status, rating, review):
         """Apunta en la actividad de user lo que hizo con game en el momento when: su estado, su nota y su reseña (o None)."""

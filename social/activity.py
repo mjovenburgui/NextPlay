@@ -1,8 +1,9 @@
-"""La actividad de cada jugador: lo que hace con los juegos de su biblioteca y lo que importa.
+"""La actividad de cada jugador: lo que hace con los juegos de su biblioteca, lo que importa, lo que publica y sus listas.
 
 Se apunta desde lo que hace el jugador (cambiar el estado de un juego, valorarlo, publicar una reseña, quitarlo
-de la biblioteca) y desde las importaciones de Steam, PlayStation y Xbox, nunca con señales: la sincronización
-de cada noche también guarda juegos y les cambia el estado, y eso no lo ha hecho el jugador.
+de la biblioteca, crear una lista o añadirle juegos) y desde las importaciones de Steam, PlayStation y Xbox, nunca
+con señales: la sincronización de cada noche también guarda juegos y les cambia el estado, y eso no lo ha hecho el
+jugador.
 
 Lo que hace con un mismo juego en poco rato se junta en una sola actividad («Terminó Hades ★★★★½» con su
 reseña debajo), y cada importación es una sola aunque traiga cientos de juegos. La lista de deseos no sale:
@@ -120,3 +121,51 @@ def games_imported(user, platform, entries):
     activity.updated_at = now
     activity.save()
     return activity
+
+
+def _list_activity(game_list, user):
+    """Lo último que ha hecho user si fue con game_list hace poco (MERGE_WINDOW); si no, None."""
+    activity = _recent(user)
+    if activity and activity.kind == Activity.Kind.LIST and activity.game_list_id == game_list.pk:
+        return activity
+    return None
+
+
+def list_created(game_list):
+    """Apunta que su dueño ha creado game_list. Los juegos que le añada enseguida se juntan con esto (list_games_added).
+
+    Si la lista es privada (o lo es después), la actividad solo la ve su dueño; mientras no tenga juegos no se enseña.
+    """
+    now = timezone.now()
+    return Activity.objects.create(
+        user=game_list.user, kind=Activity.Kind.LIST, game_list=game_list, data={"created": True},
+        created_at=now, updated_at=now,
+    )
+
+
+def list_games_added(game_list, user, count=1):
+    """Apunta que user (su dueño o quien colabora en ella) ha añadido count juegos a game_list: se suman a lo último que
+    hizo si fue con esta lista hace poco (crearla o añadirle otros); si no, es una actividad nueva («añadió 3 juegos a
+    la lista…»)."""
+    now = timezone.now()
+    activity = _list_activity(game_list, user) or Activity(
+        user=user, kind=Activity.Kind.LIST, game_list=game_list, data={}, created_at=now,
+    )
+    activity.data = {**activity.data, "added": activity.data.get("added", 0) + count}
+    activity.updated_at = now
+    activity.save()
+    return activity
+
+
+def list_game_removed(game_list, user):
+    """user ha quitado un juego de game_list: si él le había añadido juegos hace poco, se descuenta de esa actividad (y
+    si solo era eso, se borra), como quitar una nota recién puesta. Lo de antes no se toca."""
+    activity = _list_activity(game_list, user)
+    if activity is None or not activity.list_added:
+        return
+    added = activity.list_added - 1
+    if added or activity.list_created:
+        activity.data = {**activity.data, "added": added}
+        activity.save(update_fields=["data"])
+    else:
+        activity.delete()

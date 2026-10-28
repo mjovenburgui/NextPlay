@@ -1,0 +1,10 @@
+{# Comentario de un juego de la lista en el editor («por qué está en ella»). Se guarda solo al cambiarlo, o con Intro. Necesita game_list, item y note_max. #}
+{# Con HTMX la respuesta es este mismo formulario, marcado como guardado (saved) o con el error (note_error, con lo que se había escrito en draft). #}
+<form class="list-note" method="post" action="{% url 'lists:note' game_list.pk item.game_id %}"
+      hx-post="{% url 'lists:note' game_list.pk item.game_id %}" hx-trigger="change, submit" hx-target="this" hx-swap="outerHTML" hx-sync="#juegos:queue all">
+  {% csrf_token %}
+  <label class="visually-hidden" for="comentario-{{ item.game_id }}">Comentario sobre {{ item.game.name }}</label>
+  <input id="comentario-{{ item.game_id }}" type="text" name="note" maxlength="{{ note_max }}" placeholder="Por qué está en la lista (opcional)"
+         value="{% if draft is not None %}{{ draft }}{% else %}{{ item.note }}{% endif %}">
+  {% if note_error %}<span class="errorlist">{{ note_error }}</span>{% elif saved %}<span class="list-note-saved" role="status">{% include "_icon.html" with name="check" %} Guardado</span>{% endif %}
+</form>

@@ -16,7 +16,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from .matching import add_title, clean_name, match_by_name, normalize, save_titles, update_library
-from .models import ExternalTitle, PSNAccount
+from .models import ExternalTitle, ImportedTitle, PSNAccount
 
 AUTH_URL = "https://ca.account.sony.com/api/authz/v3/oauth"
 # Cliente público de la app oficial de PlayStation para Android (el mismo que usan las librerías no oficiales).
@@ -26,6 +26,10 @@ REDIRECT_URI = "com.scee.psxandroid.scecompcall://redirect"
 SCOPE = "psn:mobile.v2.core psn:clientapp"
 PROFILE_URL = "https://us-prof.np.community.playstation.net/userProfile/v1/users/me/profile2"
 GAMES_URL = "https://m.np.playstation.com/api/gamelist/v2/users/me/titles"
+# Lista de juegos con trofeos de la cuenta, con cuántos tiene y ha conseguido de cada tipo (del bronce al platino).
+TROPHIES_URL = "https://m.np.playstation.com/api/trophy/v1/users/me/trophyTitles"
+TROPHIES_PAGE_SIZE = 800
+TROPHY_GRADES = ("bronze", "silver", "gold", "platinum")
 NPSSO_URL = "https://ca.account.sony.com/api/v1/ssocookie"
 NPSSO = re.compile(r"^[A-Za-z0-9]{64}$")
 TIMEOUT = 20
@@ -152,6 +156,50 @@ def played_games(token):
             return titles
 
 
+def trophy_titles(token):
+    """Juegos con trofeos de la cuenta (también de PS3 y PS Vita): cada uno con su nombre («trophyTitleName») y, por
+    tipo (bronze, silver, gold y platinum), los trofeos que tiene («definedTrophies») y los conseguidos
+    («earnedTrophies»)."""
+    titles, offset = [], 0
+    while True:
+        data = _get(TROPHIES_URL, token, limit=TROPHIES_PAGE_SIZE, offset=offset)
+        titles += data.get("trophyTitles") or []
+        offset = data.get("nextOffset")
+        if not offset or not data.get("trophyTitles"):
+            return titles
+
+
+def save_trophies(user, trophies):
+    """Apunta en los títulos de PlayStation importados del usuario sus trofeos (los de trophy_titles) y devuelve en
+    cuántos.
+
+    PlayStation da los trofeos con otro identificador que los juegos, así que se emparejan por nombre: el del título o
+    el del juego del catálogo que tiene. Si un juego tiene trofeos aparte en PS4 y en PS5, cuenta la versión que más
+    lleva (primero el platino). Los títulos sin trofeos leídos se quedan como estaban.
+    """
+    found = {}
+    for trophy in trophies:
+        name = normalize(clean_name(trophy.get("trophyTitleName")))
+        defined, earned = trophy.get("definedTrophies") or {}, trophy.get("earnedTrophies") or {}
+        total = sum(defined.get(grade) or 0 for grade in TROPHY_GRADES)
+        if not name or not total:
+            continue
+        result = (min(sum(earned.get(grade) or 0 for grade in TROPHY_GRADES), total), total, bool(earned.get("platinum")))
+        old = found.get(name)
+        if old is None or (result[2], result[0] / result[1]) > (old[2], old[0] / old[1]):
+            found[name] = result
+    now = timezone.now()
+    rows = []
+    for row in ImportedTitle.objects.filter(user=user, title__platform=ExternalTitle.Platform.PSN).select_related("title__game"):
+        names = [row.title.name] + ([row.title.game.name] if row.title.game else [])
+        result = next((found[key] for key in map(normalize, names) if key in found), None)
+        if result is not None:
+            row.set_achievements(*result, at=now)
+            rows.append(row)
+    ImportedTitle.objects.bulk_update(rows, ["achievements_unlocked", "achievements_total", "platinum", "achievements_at"])
+    return len(rows)
+
+
 def duration_minutes(value):
     """Minutos de una duración ISO 8601 de PSN («PT228H56M33S» → 13736); 0 si no se entiende."""
     match = DURATION.match(value or "")
@@ -176,8 +224,12 @@ def import_library(user, npsso):
     PS4 y la de PS5 de un juego se suman. Lanza PSNAuthError si el código no vale y ValueError si esa
     cuenta de PSN ya es de otro usuario.
 
-    Devuelve un dict con la cuenta («account») y cuántos juegos se han añadido («added»), actualizado
-    («updated») y no se han encontrado en el catálogo («unmatched»).
+    Con el mismo token lee después los trofeos de cada juego (trophy_titles y save_trophies); si fallan, la
+    importación de los juegos sigue valiendo.
+
+    Devuelve un dict con la cuenta («account»), cuántos juegos se han añadido («added»), actualizado
+    («updated») y no se han encontrado en el catálogo («unmatched»), y de cuántos se han leído los trofeos
+    («trophies»).
     """
     token = access_token(npsso)
     info = profile(token)
@@ -220,4 +272,9 @@ def import_library(user, npsso):
         # PSN solo lista juegos que se han abierto: nunca entran como «Pendiente».
         added, updated = update_library(user, ExternalTitle.Platform.PSN, opened_only=True, record_activity=True)
     unmatched = sum(1 for game in games.values() if game is None)
-    return {"account": account, "added": added, "updated": updated, "unmatched": unmatched}
+    try:
+        trophies = save_trophies(user, trophy_titles(token))
+    except PSNError:
+        # Sin los trofeos, lo importado de los juegos sigue valiendo: se intentan en la próxima sincronización.
+        trophies = 0
+    return {"account": account, "added": added, "updated": updated, "unmatched": unmatched, "trophies": trophies}

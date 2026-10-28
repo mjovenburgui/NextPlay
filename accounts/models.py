@@ -6,6 +6,7 @@ from django.contrib.auth.models import AbstractUser
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.urls import reverse
+from django.utils import timezone
 
 from games.models import igdb_image_url
 
@@ -26,6 +27,7 @@ SECTIONS = [
     ("resena", "Reseña destacada"),
     ("estadisticas", "Estadísticas"),
     ("generos", "Géneros que más juega"),
+    ("listas", "Listas"),
 ]
 
 # Redes sociales que se pueden enseñar en el perfil: clave → (nombre, expresión que debe cumplir el usuario,
@@ -55,6 +57,21 @@ def normalize_handle(network, value):
         value = segments[0] if segments else ""
     value = value.removeprefix("@")
     return value.lower() if network == "discord" else value
+
+
+def text_on(color):
+    """Color del texto encima de un fondo del color color («#rrggbb»): blanco, como en el resto de la web, salvo en los
+    colores claros (contraste con el blanco por debajo de 3:1, el mínimo de WCAG para texto en negrita), que llevan
+    texto casi negro."""
+
+    def linear(channel):
+        """Canal sRGB (0-255) en luz lineal, como pide la fórmula de luminancia de WCAG."""
+        value = channel / 255
+        return value / 12.92 if value <= 0.03928 else ((value + 0.055) / 1.055) ** 2.4
+
+    r, g, b = (linear(int(color[i:i + 2], 16)) for i in (1, 3, 5))
+    luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    return "#ffffff" if 1.05 / (luminance + 0.05) >= 3 else "#0b0d18"
 
 
 def profile_upload_to(instance, filename):
@@ -286,18 +303,8 @@ class Profile(models.Model):
 
     @property
     def accent_text(self):
-        """Color del texto encima del color del perfil: blanco, como en el resto de la web, salvo en los
-        colores claros (contraste con el blanco por debajo de 3:1, el mínimo de WCAG para texto en
-        negrita), que llevan texto casi negro."""
-
-        def linear(channel):
-            """Canal sRGB (0-255) en luz lineal, como pide la fórmula de luminancia de WCAG."""
-            value = channel / 255
-            return value / 12.92 if value <= 0.03928 else ((value + 0.055) / 1.055) ** 2.4
-
-        r, g, b = (linear(int(self.accent[i:i + 2], 16)) for i in (1, 3, 5))
-        luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
-        return "#ffffff" if 1.05 / (luminance + 0.05) >= 3 else "#0b0d18"
+        """Color del texto encima del color del perfil (ver text_on)."""
+        return text_on(self.accent)
 
     @property
     def banner_url(self):
@@ -692,6 +699,13 @@ class ImportedTitle(models.Model):
     # El usuario lo quita de «Sin emparejar» (herramientas, demos, apps...).
     hidden = models.BooleanField("oculto", default=False)
     imported_at = models.DateTimeField(auto_now=True)
+    # Logros del título en su plataforma (en PlayStation, trofeos): los conseguidos y los que tiene, vacíos hasta
+    # leerlos y 0 de 0 si el juego no tiene; platinum, si tiene el platino (solo PlayStation). achievements_at es
+    # cuándo se leyeron: Steam los vuelve a pedir si se ha jugado después (steam.import_achievements).
+    achievements_unlocked = models.PositiveIntegerField("logros conseguidos", null=True, blank=True)
+    achievements_total = models.PositiveIntegerField("logros en total", null=True, blank=True)
+    platinum = models.BooleanField("platino", default=False)
+    achievements_at = models.DateTimeField("logros leídos", null=True, blank=True)
 
     class Meta:
         ordering = ["title__name"]
@@ -710,6 +724,14 @@ class ImportedTitle(models.Model):
         """Horas jugadas redondeadas a una décima."""
         return round(self.minutes / 60, 1)
 
+    def set_achievements(self, unlocked, total, platinum=False, at=None):
+        """Apunta los logros leídos de la plataforma (sin guardar): unlocked de total, con o sin platino, leídos en at
+        (ahora, si no se da). Devuelve True si ha cambiado algo de lo que se enseña."""
+        changed = (self.achievements_unlocked, self.achievements_total, self.platinum) != (unlocked, total, platinum)
+        self.achievements_unlocked, self.achievements_total, self.platinum = unlocked, total, platinum
+        self.achievements_at = at or timezone.now()
+        return changed
+
 
 class Notification(models.Model):
     """Aviso para un usuario: se ve en la campana de la cabecera hasta que abre la página de avisos."""
@@ -722,6 +744,9 @@ class Notification(models.Model):
         FOLLOW = "follow", "Nuevo seguidor"
         POST_LIKE = "post_like", "Me gusta en tu publicación"
         POST_COMMENT = "post_comment", "Comentario en tu publicación"
+        LIST_LIKE = "list_like", "Me gusta en tu lista"
+        LIST_COMMENT = "list_comment", "Comentario en tu lista"
+        LIST_INVITE = "list_invite", "Invitación a editar una lista"
         # Solo para los administradores.
         REPORT = "report", "Denuncia"
 
@@ -732,8 +757,8 @@ class Notification(models.Model):
     game = models.ForeignKey(
         "games.Game", on_delete=models.CASCADE, null=True, blank=True, related_name="+", verbose_name="juego"
     )
-    # Quién lo ha provocado (el nuevo seguidor o quien ha dado «me gusta» a una publicación o la ha comentado), para
-    # enseñar su foto. Se borra con su cuenta.
+    # Quién lo ha provocado (el nuevo seguidor o quien ha dado «me gusta» a una publicación o una lista o la ha
+    # comentado), para enseñar su foto. Se borra con su cuenta.
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True, related_name="+",
         verbose_name="quién",

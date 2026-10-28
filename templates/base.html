@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}NextPlay{% endblock %}</title>
   <meta name="description" content="{% block description %}Tu vida gamer. En un solo lugar.{% endblock %}">
+  <link rel="icon" href="{% static 'favicon.svg' %}" type="image/svg+xml">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
   {# La vista previa de Editar perfil no lleva scripts: su marco no los ejecuta y el navegador se quejaría de cada uno. #}
   {% if not preview %}<script src="https://unpkg.com/htmx.org@2.0.4" defer></script>{% endif %}
@@ -18,7 +19,8 @@
     </a>
     <nav class="mainnav" aria-label="Principal">
       <a class="{% if section == 'home' %}is-active{% endif %}" href="{% url 'home' %}">{% include "_icon.html" with name="home" %} Inicio</a>
-      <a class="{% if section == 'catalog' or section == 'detail' %}is-active{% endif %}" href="{% url 'games:catalog' %}">{% include "_icon.html" with name="games" %} Juegos</a>
+      <a class="{% if request.resolver_match.namespace == 'games' %}is-active{% endif %}" href="{% url 'games:catalog' %}">{% include "_icon.html" with name="games" %} Juegos</a>
+      <a class="{% if request.resolver_match.namespace == 'challenges' %}is-active{% endif %}" href="{% url 'challenges:explore' %}">{% include "_icon.html" with name="trophy" %} Retos</a>
       {% if user.is_authenticated %}
         <a class="{% if section == 'wishlist' %}is-active{% endif %}" href="{% url 'library:wishlist' %}">{% include "_icon.html" with name="heart" %} Deseos</a>
       {% endif %}
@@ -42,6 +44,8 @@
           <div class="account-menu-panel">
             <p class="account-menu-id"><strong>{{ user.profile.name }}</strong><span class="muted small">@{{ user.username }}</span></p>
             <a href="{% url 'profile' user.username %}">{% include "_icon.html" with name="user" %} Mi perfil</a>
+            <a href="{% url 'profile' user.username %}?vista=listas">{% include "_icon.html" with name="list" %} Mis listas</a>
+            <a href="{% url 'challenges:explore' %}">{% include "_icon.html" with name="trophy" %} Retos</a>
             <a href="{% url 'library:wishlist' %}">{% include "_icon.html" with name="heart" %} Lista de deseos</a>
             <a href="{% url 'edit_profile' %}">{% include "_icon.html" with name="settings" %} Editar perfil</a>
             <form action="{% url 'logout' %}" method="post">
@@ -203,23 +207,74 @@
         });
       })();
     </script>
+
+    {# Avisos de abajo: lo que no se ha podido guardar o cargar con HTMX (antes fallaba sin decir nada). #}
+    <div class="toasts" data-toasts aria-live="assertive"></div>
+    <script>
+      // Si una petición de HTMX falla, lo dice: un aviso abajo que se va solo o, en lo que se carga al abrir la página
+      // (imágenes, historial de precios), un texto en su sitio en vez de «Cargando…» para siempre.
+      (function () {
+        var region = document.querySelector("[data-toasts]");
+
+        // Enseña text en un aviso que desaparece a los seis segundos.
+        function toast(text) {
+          var item = document.createElement("p");
+          item.className = "media-toast is-error";
+          item.textContent = text;
+          region.append(item);
+          setTimeout(function () { item.remove(); }, 6000);
+        }
+
+        // Cambia lo que estaba cargando por un aviso con un enlace para recargar la página.
+        function failed(elt) {
+          var note = document.createElement("p");
+          note.className = "help";
+          note.append("No se ha podido cargar. ");
+          var again = document.createElement("a");
+          again.href = "";
+          again.textContent = "Recargar la página";
+          note.append(again);
+          elt.replaceChildren(note);
+        }
+
+        document.addEventListener("htmx:responseError", function (event) {
+          var xhr = event.detail.xhr;
+          var elt = event.detail.elt;
+          if (elt && elt.getAttribute("hx-trigger") === "load") return failed(elt);
+          var body = (xhr.responseText || "").trim();
+          var reading = event.detail.requestConfig && event.detail.requestConfig.verb === "get";
+          // Los 400 y 403 de las vistas traen una frase pensada para el usuario («No puedes borrar este comentario.»);
+          // un 403 con una página entera es el del CSRF, que salta cuando la sesión ha caducado.
+          if (xhr.status < 500 && body && body.length < 200 && body.indexOf("<") === -1) toast(body);
+          else if (xhr.status === 403) toast("Tu sesión ha caducado. Recarga la página y vuelve a intentarlo.");
+          else if (reading) toast("No se ha podido cargar. Inténtalo otra vez en un momento.");
+          else toast("No se ha podido guardar el cambio. Inténtalo otra vez en un momento.");
+        });
+        document.addEventListener("htmx:sendError", function (event) {
+          var elt = event.detail.elt;
+          if (elt && elt.getAttribute("hx-trigger") === "load") return failed(elt);
+          toast("No hay conexión con NextPlay. Comprueba tu red y vuelve a intentarlo.");
+        });
+      })();
+    </script>
   {% endif %}
 
   {% if user.is_authenticated %}
     {# Barra inferior en el móvil, como en una app. #}
     <nav class="tabbar" aria-label="Principal (móvil)">
       <a class="{% if section == 'home' %}is-active{% endif %}" href="{% url 'home' %}">{% include "_icon.html" with name="home" %}<span>Inicio</span></a>
-      <a class="{% if section == 'catalog' or section == 'detail' %}is-active{% endif %}" href="{% url 'games:catalog' %}">{% include "_icon.html" with name="games" %}<span>Juegos</span></a>
+      <a class="{% if request.resolver_match.namespace == 'games' %}is-active{% endif %}" href="{% url 'games:catalog' %}">{% include "_icon.html" with name="games" %}<span>Juegos</span></a>
       <a class="{% if section == 'wishlist' %}is-active{% endif %}" href="{% url 'library:wishlist' %}">{% include "_icon.html" with name="heart" %}<span>Deseos</span></a>
       <a class="{% if section == 'notifications' %}is-active{% endif %}" href="{% url 'notifications' %}">{% include "_icon.html" with name="bell" %}<span>Avisos</span></a>
       <a class="{% if section == 'profile' or section == 'edit_profile' %}is-active{% endif %}" href="{% url 'profile' user.username %}">{% include "_icon.html" with name="user" %}<span>Perfil</span></a>
     </nav>
     {% if not preview %}
       <script>
-        // Cierra el menú de la cuenta al pulsar fuera de él.
+        // Cierra el menú de la cuenta y el desplegable «Añadir a una lista» de la ficha al pulsar fuera de ellos.
         document.addEventListener("click", function (event) {
-          var menu = document.querySelector(".account-menu[open]");
-          if (menu && !menu.contains(event.target)) menu.removeAttribute("open");
+          document.querySelectorAll(".account-menu[open], .list-picker[open]").forEach(function (menu) {
+            if (!menu.contains(event.target)) menu.removeAttribute("open");
+          });
         });
       </script>
     {% endif %}

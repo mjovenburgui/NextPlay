@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Editar «{{ game_list.title }}» · NextPlay{% endblock %}
+
+{% block content %}
+  <div class="list-editor">
+    <header class="page-head">
+      <h1>{% include "_icon.html" with name="list" %} {% if is_owner %}Editar lista{% else %}Editar «{{ game_list.title }}»{% endif %}</h1>
+      <a class="btn" href="{{ game_list.get_absolute_url }}">Ver la lista {% include "_icon.html" with name="arrow" %}</a>
+    </header>
+
+    {% if is_owner %}
+      <section class="card-box">
+        <h2>Datos de la lista</h2>
+        <form class="list-details" method="post" action="{% url 'lists:edit' game_list.pk %}">
+          {% csrf_token %}
+          {% include "lists/_fields.html" %}
+          <div class="list-form-foot">
+            <button class="btn btn-primary" type="submit">Guardar</button>
+          </div>
+        </form>
+      </section>
+    {% else %}
+      <p class="widget list-collab-note">Colaboras en esta lista de <a href="{{ game_list.user.profile.get_absolute_url }}">{{ game_list.user.profile.name }}</a>: puedes añadir, ordenar, comentar y quitar sus juegos. Sus datos los cambia su dueño.</p>
+    {% endif %}
+
+    {# Los juegos se guardan uno a uno al momento (lists.views.add, move, tier, note y remove); sus peticiones van en cola en esta sección (hx-sync). #}
+    {# Lo que se arrastra (el tablero de las tier lists y las filas de las demás) se guarda al soltarlo (lists/_drag.html, una vez por página). #}
+    <section class="card-box" id="juegos">
+      <h2>Juegos</h2>
+      {# Busca mientras se escribe; sin JavaScript, el formulario vuelve a esta página con la búsqueda hecha. #}
+      <form class="list-search" method="get" action="{% url 'lists:edit' game_list.pk %}" role="search"
+            hx-get="{% url 'lists:search' game_list.pk %}" hx-target="#list-search-results">
+        {% include "_icon.html" with name="search" %}
+        <label class="visually-hidden" for="buscar-juego">Buscar un juego para añadirlo</label>
+        <input id="buscar-juego" type="search" name="q" value="{{ search_query }}" placeholder="Busca un juego para añadirlo…" autocomplete="off"
+               hx-get="{% url 'lists:search' game_list.pk %}" hx-trigger="input changed delay:300ms, search" hx-target="#list-search-results">
+      </form>
+      <div id="list-search-results">{% include "lists/_search_results.html" %}</div>
+      {% include "lists/_editor_items.html" %}
+    </section>
+    {% include "lists/_drag.html" %}
+
+    {% if is_owner %}
+      <section class="card-box" id="colaboradores">{% include "lists/_collaborators.html" %}</section>
+
+      <section class="card-box list-danger">
+        <h2>Borrar la lista</h2>
+        <p class="muted small">Se borra la lista, no sus juegos: siguen en tu biblioteca y en el catálogo.</p>
+        <form method="post" action="{% url 'lists:delete' game_list.pk %}"
+              onsubmit="return confirm('¿Borrar la lista «{{ game_list.title|escapejs }}»? No se puede deshacer.');">
+          {% csrf_token %}
+          <button class="btn btn-danger" type="submit">Borrar la lista</button>
+        </form>
+      </section>
+    {% else %}
+      <section class="card-box list-danger">
+        <h2>Dejar de colaborar</h2>
+        <p class="muted small">Los juegos que has añadido se quedan en la lista.</p>
+        <form method="post" action="{% url 'lists:leave' game_list.pk %}">
+          {% csrf_token %}
+          <button class="btn btn-danger" type="submit">Dejar de colaborar</button>
+        </form>
+      </section>
+    {% endif %}
+  </div>
+{% endblock %}

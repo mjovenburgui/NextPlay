@@ -1,0 +1,43 @@
+{# Campos de los datos de una lista (lists.forms.GameListForm): el título, la descripción, si es visible, su tipo y, en las tier lists, sus niveles. Necesita form. #}
+<div class="field{% if form.title.errors %} has-error{% endif %}">
+  <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+  {{ form.title }}
+  {{ form.title.errors }}
+</div>
+<div class="field{% if form.description.errors %} has-error{% endif %}">
+  <label for="{{ form.description.id_for_label }}">{{ form.description.label }} <span class="muted small">(opcional)</span></label>
+  {{ form.description }}
+  <p class="help">Puedes usar **negrita**, *cursiva*, ||spoiler|| y [enlaces](https://…).</p>
+  {{ form.description.errors }}
+</div>
+<fieldset class="field list-mode">
+  <legend>{{ form.mode.label }}</legend>
+  <div class="choice-chips">
+    {% for radio in form.mode %}<label class="choice-chip">{{ radio.tag }} {{ radio.choice_label }}</label>{% endfor %}
+  </div>
+  <p class="help">Numerada: cada juego lleva su puesto, para rankings como «Mis 10 favoritos». Por niveles: cada juego va en un nivel (S, A, B…), como en una tier list.</p>
+</fieldset>
+{# Los niveles solo se ven con «Por niveles» elegido (lo hace el CSS con :has; si el navegador no lo entiende, se ven siempre). #}
+<fieldset class="field list-tiers">
+  <legend>Niveles, de mejor a peor</legend>
+  <p class="help">Cambia sus nombres y colores. Los que dejes sin nombre se quitan y sus juegos quedan sin clasificar.</p>
+  <ol class="tier-fields">
+    {% for label, color in form.tier_fields %}
+      <li class="tier-field{% if label.errors or color.errors %} has-error{% endif %}">
+        <label class="visually-hidden" for="{{ color.id_for_label }}">{{ color.label }}</label>{{ color }}
+        <label class="visually-hidden" for="{{ label.id_for_label }}">{{ label.label }}</label>{{ label }}
+        {{ label.errors }}{{ color.errors }}
+      </li>
+    {% endfor %}
+  </ol>
+</fieldset>
+{% for field in form.switches %}
+  <label class="switch-row" for="{{ field.id_for_label }}">
+    <span>
+      <strong>{{ field.label }}</strong>
+      {% if field.help_text %}<span class="help">{{ field.help_text }}</span>{% endif %}
+    </span>
+    <span class="switch">{{ field }}</span>
+  </label>
+  {{ field.errors }}
+{% endfor %}

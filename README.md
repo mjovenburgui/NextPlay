@@ -122,6 +122,17 @@ mal emparejados (remakes que se llaman igual). La corrección sirve para todos l
 próxima importación. En `/admin/` › Títulos importados se revisan las correcciones («emparejado por:
 Usuario»), se corrigen al momento para todos y se pueden bloquear.
 
+### Logros y trofeos
+
+Cada `ImportedTitle` guarda también cuántos logros lleva el usuario de cuántos hay (en PlayStation, trofeos)
+y si tiene el platino. Xbox los trae en el mismo historial de juegos (decoración `achievement` de titlehub) y
+PlayStation, con el mismo token, en su lista de trofeos (`trophyTitles`), que se empareja por nombre porque usa
+otro identificador que los juegos; si falla, la importación de los juegos sigue valiendo. Steam necesita una
+llamada por juego (`GetPlayerAchievements`): cada importación lee los 40 juegos jugados hace menos de los que
+haya algo nuevo (8 a la vez) y la sincronización de cada noche, el resto. La ficha enseña «Tus logros» por
+plataforma y las portadas del perfil, una insignia de «Platino» o «100 %», con sus cifras en la cabecera
+(`accounts/achievements.py`).
+
 ## Fichas en castellano
 
 Cada ficha dice si el juego tiene voces o textos en castellano (o solo en español latino), con una tabla
@@ -221,11 +232,67 @@ Los comentarios son los mismos que los de las reseñas (`library/_comments.html`
 (salvo si ya tiene un aviso igual sin leer), los borran quien los escribió y el autor de la publicación, y
 los demás pueden denunciarlos.
 
+## Listas de juegos
+
+Cada jugador hace las listas que quiera («Mejores metroidvanias», «Para jugar en pareja»): título, una descripción
+con el formato de las reseñas y sus juegos en el orden que elija, cada uno con un comentario si quiere. Si es
+numerada, cada juego lleva su puesto, para rankings. Las privadas solo las ve su dueño, y las de un perfil privado
+también: la regla está en `GameList.visible_to` y, en las consultas, en `GameList.objects.visible_to`.
+
+Se crean desde la pestaña Listas del perfil o, en la ficha de cualquier juego, con «Añadir a una lista», que despliega
+las tuyas para meterlo o sacarlo de cada una con un clic y ofrece «Nueva lista con este juego». En el editor
+(`/listas/<id>/editar/`) se buscan juegos del catálogo mientras se escribe y se añaden, se ordenan (subir, bajar o
+escribir el puesto), se comentan y se quitan; cada cambio se guarda al momento. Caben 250 juegos por lista.
+
+La página de cada lista (`/u/<usuario>/listas/<id>/`) lleva el color del perfil de su autor y enseña los juegos en
+portadas o con sus comentarios (se abre con los comentarios si alguno tiene). A quien la mira con sesión le dice
+cuántos ha jugado, cuántos ha terminado y cuántas horas lleva en ellos, el estado de cada juego en su biblioteca y,
+de los que no tiene, lo que cuestan hoy en sus tiendas y lo que costarían si espera a que cada uno baje a su mínimo
+histórico, con un botón para pasarlos todos a «Lo quiero» y recibir sus avisos de precio. La ficha de cada juego
+dice en cuántas listas está (`/juegos/<slug>/listas/` las enseña todas) y el escaparate del perfil, las últimas.
+
+Los demás pueden darle «me gusta» a una lista (su dueño recibe un aviso, una vez por persona), comentarla con los
+mismos comentarios que las reseñas y las publicaciones, y denunciarla. Crear una lista y añadirle juegos sale en la
+actividad del perfil y en el feed de la portada («creó la lista…», «añadió 3 juegos a la lista…»; lo que se hace
+seguido con la misma lista va junto), con su mosaico, sus «me gusta», sus comentarios y cuántos de sus juegos ha jugado
+quien mira. Las listas privadas solo salen en la actividad de su dueño, y las vacías no salen.
+
+Una lista puede ser normal, numerada (cada juego con su puesto) o una tier list: cada juego va en uno de sus niveles,
+de mejor a peor (S, A, B, C, D y F de serie, con los colores de NextPlay; hasta 8, con el nombre y el color que se
+quiera). La página de la lista enseña el tablero, con una fila por nivel y, al final, los juegos que aún no están en
+ninguno. Quien puede editarla arrastra las portadas de un nivel a otro, y a su sitio dentro de cada uno, en ese mismo
+tablero o en el del editor (SortableJS, con el ratón o con el dedo; se guarda al soltar con `GameList.place`, que no
+cambia el orden de los demás). En el editor de las listas normales y numeradas, cada fila se arrastra por su asa. Los
+botones de nivel y los de subir y bajar de cada juego siguen ahí para quien usa el teclado. Los niveles se guardan en
+`GameList.tiers` con un id fijo, así que renombrarlos no mueve los juegos.
+
+Su dueño puede invitar a otros a editarla con él (hasta 10): les llega un aviso y, cuando aceptan, pueden añadir,
+ordenar, poner en un nivel, comentar y quitar sus juegos, aunque la lista sea privada; sus datos, quién colabora y
+borrarla siguen siendo cosa del dueño. La lista dice quién colabora y quién añadió cada juego, sale en la pestaña
+Listas de quien colabora y en su «Añadir a una lista», y lo que añade cada uno sale en su actividad («añadió 2 juegos a
+la lista… de Ana»). Quien colabora puede irse cuando quiera; lo que añadió se queda.
+
+## Retos
+
+Cualquiera puede crear un reto y unirse a los de los demás (`/retos/`). Hay tres tipos: terminar unos juegos concretos
+(los de una lista, con «Convertir en reto» en su página; se copian al crearlo), terminar un número de juegos (de un
+género, una plataforma o unos años, si se quiere) o jugar un número de horas, con fechas o sin ellas. Sus reglas no
+cambian después de crearlo, para que sea justo con quien ya se ha unido; el título, la descripción y si es público, sí.
+Los privados solo los ve quien los crea.
+
+El progreso de cada uno se cuenta solo con su biblioteca (`challenges/progress.py`): los juegos que pasa a «Completado»
+entre las fechas del reto (`LibraryEntry.completed_at`, que se apunta al cambiar el estado; sin fecha de inicio cuentan
+también los de antes) y, en los de horas, lo que juega entre ellas. Las horas salen de las sesiones de juego
+(`PlaySession`): en cada sincronización de Steam, PlayStation o Xbox se apunta lo que ha subido el tiempo de los juegos
+que ya tenían horas de esa plataforma, el día de su última partida. Lo de la primera importación no cuenta, porque no
+se sabe cuándo se jugó. La página de cada reto enseña cómo vas, sus juegos (en los de juegos concretos) y la
+clasificación, y quien llega al objetivo queda apuntado como que lo ha conseguido.
+
 ## Tareas de cada noche
 
-`nightly` sincroniza la biblioteca de Steam (y su lista de deseos, si no se ha desactivado) de quien tenga
-activada la sincronización nocturna (se desactiva desde el panel de Steam del perfil) y después actualiza
-los precios:
+`nightly` sincroniza la biblioteca de Steam (con los logros que falten por leer y su lista de deseos, si no se
+ha desactivado) de quien tenga activada la sincronización nocturna (se desactiva desde el panel de Steam del
+perfil) y después actualiza los precios:
 
 ```bash
 .venv/Scripts/python manage.py nightly
@@ -262,8 +329,10 @@ schtasks /Create /TN "NextPlay nightly" /SC DAILY /ST 04:00 /TR "cmd /c cd /d %C
 | `games`    | `Game`, `Genre`, `Platform`, catálogo y cliente de IGDB      |
 | `library`  | `LibraryEntry`: un estado por usuario y juego                |
 | `social`   | `Follow` y `Activity`: seguir a otros jugadores y su actividad |
+| `lists`    | `GameList` y `ListItem`: las listas de juegos de cada usuario |
+| `challenges` | `Challenge` y `Participation`: los retos y quién está en cada uno |
 
 ## Siguientes cortes
 
 2. Importación de Steam, puntuaciones y reseñas, tarjeta compartible.
-3. Listas, bloquear y silenciar, beta.
+3. Bloquear y silenciar, beta.

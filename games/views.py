@@ -14,10 +14,11 @@ from django.views.decorators.http import require_POST
 from accounts.views import favorite_context
 from library.models import LibraryEntry, Review, WishlistItem
 from library.views import review_context
+from lists.views import game_page_context
 from social.views import composer_context, feed_context
 
 from . import history, igdb, media, prices
-from .models import LANGUAGE_FILTERS, Game, GamePrice, Genre, Platform, language_filter
+from .models import LANGUAGE_FILTERS, Game, GamePrice, Genre, Platform, language_filter, search_filter
 
 PAGE_SIZE = 24
 TRENDING_DAYS = 30
@@ -85,7 +86,8 @@ def catalog(request):
     Filtra por nombre (?q=, que también busca el nombre en España y los otros nombres del juego, como
     sus siglas), género (?genero=), plataforma (?plataforma=) e idioma (?idioma=, ver LANGUAGE_FILTERS)
     y pagina de 24 en 24. Si hay sesión, marca en cada tarjeta el estado del juego en la biblioteca del
-    usuario. Ofrece importar de IGDB cuando hay búsqueda, sesión y credenciales de IGDB.
+    usuario (library_status, su nombre, y library_status_key, su valor, que le da el color). Ofrece importar
+    de IGDB cuando hay búsqueda, sesión y credenciales de IGDB.
     """
     query = request.GET.get("q", "").strip()
     genre = request.GET.get("genero", "")
@@ -96,9 +98,7 @@ def catalog(request):
 
     games = Game.objects.all()
     if query:
-        games = games.filter(
-            Q(name__icontains=query) | Q(name_es__icontains=query) | Q(search_names__icontains=query)
-        )
+        games = games.filter(search_filter(query))
     if genre:
         games = games.filter(genres__slug=genre)
     if platform:
@@ -108,12 +108,15 @@ def catalog(request):
 
     page = Paginator(games, PAGE_SIZE).get_page(request.GET.get("page"))
 
-    statuses = {}
+    entries = {}
     if request.user.is_authenticated:
-        entries = LibraryEntry.objects.filter(user=request.user, game__in=page.object_list)
-        statuses = {entry.game_id: entry.get_status_display() for entry in entries}
+        entries = {
+            entry.game_id: entry for entry in LibraryEntry.objects.filter(user=request.user, game__in=page.object_list)
+        }
     for game in page.object_list:
-        game.library_status = statuses.get(game.id, "")
+        entry = entries.get(game.id)
+        game.library_status = entry.get_status_display() if entry else ""
+        game.library_status_key = entry.status if entry else ""
 
     filters = {
         k: v for k, v in (("q", query), ("genero", genre), ("plataforma", platform), ("idioma", language)) if v
@@ -138,7 +141,8 @@ def catalog(request):
 
 def detail(request, slug):
     """Ficha de un juego: cabecera con su arte, datos, nota de la crítica, valoración de la comunidad,
-    widget de biblioteca, botón de favoritos del perfil, carrusel de imágenes y vídeos, precios y reseñas.
+    widget de biblioteca, botones de favoritos del perfil y de «Añadir a una lista», las listas en las que
+    está (lists.views.game_page_context), carrusel de imágenes y vídeos, precios y reseñas.
 
     La cabecera y el carrusel salen de games.media: si sus imágenes de IGDB están al día se pintan ya;
     si no, la ficha carga el carrusel después con HTMX (game_media). Los precios llegan ya repartidos por
@@ -185,6 +189,7 @@ def detail(request, slug):
             "community": game.community_rating(),
             **review_context(request, game, entry),
             **(favorite_context(request.user, game) if request.user.is_authenticated else {}),
+            **game_page_context(request, game),
         },
     )
 

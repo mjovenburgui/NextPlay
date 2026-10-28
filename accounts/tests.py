@@ -31,6 +31,26 @@ from .models import (
 
 User = get_user_model()
 
+# Las importaciones de Steam y de PlayStation también leen los logros y los trofeos, que serían llamadas de verdad: en
+# todo el módulo no leen nada, salvo en AchievementsTests, que dice qué contestan (y prueba las funciones de verdad).
+REAL_PLAYER_ACHIEVEMENTS, REAL_TROPHY_TITLES = steam.player_achievements, psn.trophy_titles
+NETWORK_PATCHES = [
+    mock.patch.object(steam, "player_achievements", return_value=None),
+    mock.patch.object(psn, "trophy_titles", return_value=[]),
+]
+
+
+def setUpModule():
+    """Corta las lecturas de logros y trofeos de todo el módulo (NETWORK_PATCHES)."""
+    for patcher in NETWORK_PATCHES:
+        patcher.start()
+
+
+def tearDownModule():
+    """Deshace los parches de setUpModule."""
+    for patcher in NETWORK_PATCHES:
+        patcher.stop()
+
 
 class SignupTests(TestCase):
     def test_signup_creates_user_with_profile_and_logs_in(self):
@@ -310,7 +330,7 @@ class SteamImportTests(TestCase):
             {"appid": 999999, "playtime_forever": 5},
         ):
             result = steam.import_library(self.user)
-        self.assertEqual(result, {"added": 2, "updated": 0, "unmatched": 1, "private": []})
+        self.assertEqual(result, {"added": 2, "updated": 0, "unmatched": 1, "private": [], "achievements": 0})
         entries = {e.game: e for e in LibraryEntry.objects.filter(user=self.user)}
         self.assertEqual(entries[self.portal].status, LibraryEntry.Status.PLAYED)
         self.assertEqual(entries[self.portal].steam_hours, 15)
@@ -358,7 +378,7 @@ class SteamImportTests(TestCase):
         LibraryEntry.objects.create(user=self.user, game=self.portal, status=LibraryEntry.Status.COMPLETED, rating=5)
         with self.owned({"appid": 620, "playtime_forever": 120}):
             result = steam.import_library(self.user)
-        self.assertEqual(result, {"added": 0, "updated": 1, "unmatched": 0, "private": []})
+        self.assertEqual(result, {"added": 0, "updated": 1, "unmatched": 0, "private": [], "achievements": 0})
         entry = LibraryEntry.objects.get(user=self.user)
         self.assertEqual((entry.status, entry.rating, entry.steam_playtime_minutes), ("completed", 5, 120))
 
@@ -1240,7 +1260,7 @@ class ProfileCustomizationTests(TestCase):
     def test_sections_order_and_visibility(self):
         FavoriteGame.objects.create(user=self.user, game=self.games[0])
         self.post_profile(
-            secciones=["estadisticas", "favoritos", "jugando", "resena", "generos"],
+            secciones=["estadisticas", "favoritos", "jugando", "resena", "generos", "listas"],
             secciones_visibles=["estadisticas", "jugando"],
         )
         profile = self.profile()
@@ -1254,13 +1274,19 @@ class ProfileCustomizationTests(TestCase):
         profile = Profile(sections=[["no-existe", True], "basura", ["jugando", False], ["jugando", True]])
         layout = profile.section_layout
         self.assertEqual(layout[0], ("jugando", "Jugando ahora", False))
-        self.assertEqual([key for key, _, _ in layout[1:]], ["favoritos", "resena", "estadisticas", "generos"])
+        self.assertEqual([key for key, _, _ in layout[1:]], ["favoritos", "resena", "estadisticas", "generos", "listas"])
 
     def test_showcase_is_only_on_the_main_view(self):
         url = reverse("profile", args=["ana"])
         self.assertContains(self.client.get(url), "Jugando ahora")
         self.assertNotContains(self.client.get(url, {"estado": "playing"}), "Jugando ahora")
         self.assertNotContains(self.client.get(url, {"vista": "resenas"}), "Jugando ahora")
+        self.assertNotContains(self.client.get(url, {"vista": "listas"}), "Jugando ahora")
+
+    def test_library_cards_show_the_stars_of_the_rating(self):
+        LibraryEntry.objects.filter(user=self.user, game=self.games[0]).update(rating=9)
+        response = self.client.get(reverse("profile", args=["ana"]), {"estado": "playing"})
+        self.assertContains(response, 'class="stars stars-sm" role="img" aria-label="4,5 estrellas"')
 
     def test_favorites_toggle_with_limit(self):
         for game in self.games[:5]:
@@ -1529,3 +1555,173 @@ class ProfileCustomizationTests(TestCase):
         self.assertEqual(self.client.get(url).status_code, 405)
         self.client.logout()
         self.assertRedirects(self.client.post(url), f"{reverse('login')}?next={url}")
+
+
+def trophy_title(name, defined, earned):
+    """Juego con trofeos tal como lo devuelve PSN: los que tiene y los conseguidos, de bronce a platino."""
+    return {
+        "trophyTitleName": name,
+        "definedTrophies": dict(zip(psn.TROPHY_GRADES, defined)),
+        "earnedTrophies": dict(zip(psn.TROPHY_GRADES, earned)),
+    }
+
+
+@override_settings(STEAM_API_KEY="key", IGDB_CLIENT_ID="", IGDB_CLIENT_SECRET="")
+class AchievementsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("ana", "ana@example.com", "x")
+        SteamAccount.objects.create(user=cls.user, steam_id="76561197960287930", persona="Ana")
+        cls.portal = Game.objects.create(name="Portal 2", slug="portal-2", steam_app_id=620)
+        cls.hades = Game.objects.create(name="Hades", slug="hades", steam_app_id=1145360)
+        cls.celeste = Game.objects.create(name="Celeste", slug="celeste", steam_app_id=504230)
+
+    def import_steam(self, games, achievements):
+        """Importa de Steam games (como los da GetOwnedGames) con los logros de achievements ({appid: resultado})."""
+        with mock.patch.object(steam, "owned_games", return_value=games), mock.patch.object(
+            steam, "player_achievements", side_effect=lambda steam_id, app_id: achievements.get(int(app_id)),
+        ) as read:
+            result = steam.import_library(self.user)
+        return result, read
+
+    def achievements_of(self, game):
+        """(conseguidos, totales, platino) del título importado de game."""
+        row = ImportedTitle.objects.get(user=self.user, title__game=game)
+        return row.achievements_unlocked, row.achievements_total, row.platinum
+
+    def steam_games(self):
+        """Los tres juegos jugados en Steam: Hades hace un día, Celeste hace dos y Portal 2 hace tres."""
+        now = int(time.time())
+        return [
+            {"appid": 620, "playtime_forever": 900, "rtime_last_played": now - 3 * 86400},
+            {"appid": 1145360, "playtime_forever": 60, "rtime_last_played": now - 86400},
+            {"appid": 504230, "playtime_forever": 30, "rtime_last_played": now - 2 * 86400},
+        ]
+
+    def test_steam_reads_what_was_played_since_last_time(self):
+        games = self.steam_games()
+        # Hades no tiene logros y los de Celeste no se pueden leer.
+        result, read = self.import_steam(games, {620: (10, 51), 1145360: (0, 0)})
+        self.assertEqual((result["achievements"], read.call_count), (2, 3))
+        self.assertEqual(self.achievements_of(self.portal), (10, 51, False))
+        self.assertEqual(self.achievements_of(self.hades), (0, 0, False))
+        self.assertIsNone(ImportedTitle.objects.get(title__game=self.celeste).achievements_at)
+        # La vez siguiente solo se pide lo que no se pudo leer y lo que se ha vuelto a jugar.
+        games[0]["rtime_last_played"] = int(time.time()) + 60
+        result, read = self.import_steam(games, {620: (12, 51), 504230: (5, 31)})
+        self.assertEqual(sorted(call.args[1] for call in read.call_args_list), ["504230", "620"])
+        self.assertEqual(self.achievements_of(self.portal), (12, 51, False))
+        self.assertEqual(self.achievements_of(self.celeste), (5, 31, False))
+
+    def test_steam_reads_the_latest_first_and_the_best_account(self):
+        self.import_steam(self.steam_games(), {})
+        with mock.patch.object(steam, "player_achievements", return_value=(1, 2)) as read:
+            self.assertEqual(steam.import_achievements(self.user, limit=1), 1)
+        self.assertEqual(read.call_args.args[1], "1145360")
+        # Con dos cuentas de Steam, cuenta la que más lleva de cada juego.
+        SteamAccount.objects.create(user=self.user, steam_id="76561197960287931", persona="Ana 2")
+        with mock.patch.object(
+            steam, "player_achievements", side_effect=lambda steam_id, app_id: (3, 31) if steam_id.endswith("31") else (1, 31),
+        ):
+            self.assertEqual(steam.import_achievements(self.user, limit=None), 2)
+        self.assertEqual(self.achievements_of(self.celeste), (3, 31, False))
+        self.assertEqual(self.achievements_of(self.hades), (1, 2, False))
+
+    def test_steam_answers(self):
+        answers = [
+            fake_response(data={"playerstats": {"success": True, "achievements": [{"achieved": 1}, {"achieved": 0}, {"achieved": 1}]}}),
+            fake_response(status=400, data={"playerstats": {"success": False, "error": "Requested app has no stats"}}),
+            fake_response(status=403, data={"playerstats": {"success": False, "error": "Profile is not public"}}),
+            steam.requests.ConnectionError("caído"),
+        ]
+        with mock.patch("accounts.steam.requests.get", side_effect=answers):
+            results = [REAL_PLAYER_ACHIEVEMENTS("76561197960287930", 620) for _ in answers]
+        self.assertEqual(results, [(2, 3), (0, 0), None, None])
+
+    def fake_psn(self, trophies):
+        """Simula Sony con Hades y God of War Ragnarök jugados y la lista de trofeos trophies (o el error que lanza)."""
+        gow = Game.objects.create(name="God of War Ragnarök", slug="god-of-war-ragnarok")
+        played = [psn_title("Hades", "PT10H"), psn_title("God of War Ragnarök PS4 & PS5", "PT40H")]
+        answer = {"side_effect": trophies} if isinstance(trophies, Exception) else {"return_value": trophies}
+        return gow, mock.patch.multiple(
+            psn,
+            access_token=mock.Mock(return_value="tok"),
+            profile=mock.Mock(return_value={"account_id": "111", "online_id": "AnaPSN", "avatar": ""}),
+            played_games=mock.Mock(return_value=played),
+            trophy_titles=mock.Mock(**answer),
+        )
+
+    def test_psn_trophies_are_matched_by_name(self):
+        gow, fake = self.fake_psn([
+            trophy_title("Hades", (30, 10, 5, 1), (30, 10, 5, 1)),
+            # La versión de PS4 y la de PS5 tienen trofeos aparte: cuenta la que más lleva.
+            trophy_title("God of War Ragnarök", (25, 8, 2, 1), (10, 2, 0, 0)),
+            trophy_title("God of War® Ragnarök", (25, 8, 2, 1), (20, 5, 1, 0)),
+            trophy_title("Juego Sin Importar", (10, 0, 0, 0), (5, 0, 0, 0)),
+        ])
+        with fake:
+            result = psn.import_library(self.user, NPSSO)
+        self.assertEqual(result["trophies"], 2)
+        self.assertEqual(self.achievements_of(self.hades), (46, 46, True))
+        self.assertEqual(self.achievements_of(gow), (26, 36, False))
+
+    def test_psn_games_still_import_if_trophies_fail(self):
+        _, fake = self.fake_psn(psn.PSNError("caído"))
+        with fake:
+            result = psn.import_library(self.user, NPSSO)
+        self.assertEqual((result["added"], result["trophies"]), (2, 0))
+
+    def test_psn_trophy_titles_go_page_by_page(self):
+        pages = [{"trophyTitles": [{"trophyTitleName": "A"}], "nextOffset": 1}, {"trophyTitles": [{"trophyTitleName": "B"}]}]
+        with mock.patch.object(psn, "_get", side_effect=pages) as get:
+            titles = REAL_TROPHY_TITLES("tok")
+        self.assertEqual([title["trophyTitleName"] for title in titles], ["A", "B"])
+        self.assertEqual(get.call_args_list[1].kwargs["offset"], 1)
+
+    def test_xbox_achievements_come_with_the_history(self):
+        halo = Game.objects.create(name="Halo Infinite", slug="halo-infinite")
+        recent = (timezone.now() - timedelta(days=1)).isoformat()
+        titles = [
+            {"titleId": "1", "name": "Halo Infinite", "type": "Game", "titleHistory": {"lastTimePlayed": recent},
+             "achievement": {"currentAchievements": 20, "totalAchievements": 119}},
+            {"titleId": "2", "name": "Juego Raro", "type": "Game", "titleHistory": {}},
+        ]
+        with mock.patch.multiple(
+            xbox,
+            xbox_tokens=mock.Mock(return_value={"xuid": "2535", "gamertag": "AnaGT", "auth": "a"}),
+            played_titles=mock.Mock(return_value=titles),
+            minutes_played=mock.Mock(return_value={"1": 120}),
+            avatar=mock.Mock(return_value=""),
+        ):
+            result = xbox.import_library(self.user, "code", "http://testserver/vuelta/")
+        self.assertEqual(result["achievements"], 1)
+        self.assertEqual(self.achievements_of(halo), (20, 119, False))
+
+    def imported(self, platform, external_id, game, unlocked, total, platinum=False):
+        """Título importado de game con sus logros ya leídos."""
+        title = ExternalTitle.objects.create(platform=platform, external_id=external_id, name=game.name, game=game)
+        row = ImportedTitle(user=self.user, title=title, game=game)
+        row.set_achievements(unlocked, total, platinum)
+        row.save()
+
+    def test_the_game_page_and_the_profile_show_them(self):
+        self.client.force_login(self.user)
+        LibraryEntry.objects.create(user=self.user, game=self.hades, status=LibraryEntry.Status.COMPLETED)
+        LibraryEntry.objects.create(user=self.user, game=self.portal, status=LibraryEntry.Status.PLAYING)
+        self.imported("steam", "1145360", self.hades, 49, 49)
+        # Versión de PS5 a medias y de PS4 con el platino: cuenta la de PS4.
+        self.imported("psn", "PPSA00001_00", self.hades, 30, 46)
+        self.imported("psn", "CUSA00001_00", self.hades, 46, 46, platinum=True)
+        self.imported("steam", "620", self.portal, 10, 51)
+        response = self.client.get(self.hades.get_absolute_url())
+        self.assertContains(response, "Tus logros")
+        progress = [(item["label"], item["unlocked"], item["platinum"]) for item in response.context["entry"].achievements]
+        self.assertEqual(progress, [("Steam", 49, False), ("PlayStation", 46, True)])
+        # El widget que devuelve HTMX al cambiar el estado los sigue enseñando.
+        response = self.client.post(
+            reverse("library:set_status", args=[self.portal.pk]), {"status": "completed"}, HTTP_HX_REQUEST="true",
+        )
+        self.assertContains(response, "10 de 51 logros")
+        response = self.client.get(reverse("profile", args=["ana"]))
+        self.assertContains(response, '<span class="card-trophy is-platinum">', count=1)
+        self.assertEqual((response.context["stats"]["platinums"], response.context["stats"]["complete"]), (1, 1))

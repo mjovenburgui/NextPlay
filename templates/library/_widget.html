@@ -6,7 +6,7 @@
     {% csrf_token %}
     <div class="status-row">
       {% for value, label in statuses %}
-        <button class="btn status status-{{ value }}{% if entry.status == value %} is-active{% endif %}"
+        <button class="btn status status-{{ value }} status-dot st-{{ value }}{% if entry.status == value %} is-active{% endif %}"
                 type="submit" name="status" value="{{ value }}"
                 {% if entry.status == value %}aria-pressed="true"{% else %}aria-pressed="false"{% endif %}>{{ label }}</button>
       {% endfor %}
@@ -28,10 +28,30 @@
       </span>
       {% if entry.rating %}<span class="rate-value">{{ entry.rating|stars_label }}</span>{% endif %}
     </form>
+    {# Logros importados de cada plataforma (accounts.achievements): cuántos lleva, o el 100 % y el platino de PlayStation. #}
+    {% with achievements=entry.achievements %}
+      {% if achievements %}
+        <div class="achievements">
+          <span class="rate-label">Tus logros</span>
+          <ul class="achievement-list">
+            {% for item in achievements %}
+              <li class="achievement{% if item.complete %} is-complete{% endif %}{% if item.platinum %} is-platinum{% endif %}">
+                <span class="achievement-platform">{{ item.label }}</span>
+                <span class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="{{ item.total }}" aria-valuenow="{{ item.unlocked }}"
+                      aria-label="{{ item.noun|capfirst }} de {{ item.label }}"><span style="width: {{ item.percent }}%"></span></span>
+                <span class="achievement-count">
+                  {% if item.platinum %}{% include "_icon.html" with name="trophy" %} Platino{% elif item.complete %}{% include "_icon.html" with name="trophy" %} 100 %{% else %}{{ item.unlocked }} de {{ item.total }} {{ item.noun }}{% endif %}
+                </span>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+    {% endwith %}
     <form action="{% url 'library:remove' game.id %}" method="post"
           hx-post="{% url 'library:remove' game.id %}" hx-target="#library-widget" hx-swap="outerHTML">
       {% csrf_token %}
-      <button class="link small" type="submit">Quitar de la biblioteca</button>
+      <button class="link small link-quiet" type="submit">Quitar de la biblioteca</button>
     </form>
     {% if entry.playtime_minutes is not None %}
       {# Solo los que vienen de una importación: puede que se emparejaran con un juego que se llama igual. #}

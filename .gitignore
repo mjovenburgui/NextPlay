@@ -63,6 +63,8 @@ db.sqlite3
 db.sqlite3-journal
 # Imágenes que suben los usuarios (MEDIA_ROOT)
 media/
+# Servidores de la vista previa de Claude Code: cada ordenador tiene los suyos
+.claude/launch.json
 
 # Flask stuff:
 instance/

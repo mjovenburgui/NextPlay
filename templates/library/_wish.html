@@ -4,7 +4,7 @@
         hx-post="{% url 'library:wish_toggle' game.id %}" hx-target="#wish-widget" hx-swap="outerHTML">
     {% csrf_token %}
     <button class="btn wish-btn{% if wish %} is-active{% endif %}" type="submit" aria-pressed="{% if wish %}true{% else %}false{% endif %}">
-      <span aria-hidden="true">{% if wish %}♥{% else %}♡{% endif %}</span> {% if wish %}En tu lista de deseos{% else %}Lo quiero{% endif %}
+      {% include "_icon.html" with name="heart" %} {% if wish %}En tu lista de deseos{% else %}Lo quiero{% endif %}
     </button>
   </form>
   {% if wish %}

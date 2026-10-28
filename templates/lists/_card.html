@@ -1,0 +1,14 @@
+{# Tarjeta de una lista: su mosaico, el título, cuántos juegos tiene y, con sesión, cuántos de ellos ha jugado quien mira. #}
+{# Necesita game_list (con with_preview y lists.views.mark_progress); con show_user (o si es de otro, from_other) también dice de quién es. #}
+<a class="list-card" href="{{ game_list.get_absolute_url }}">
+  {% include "lists/_mosaic.html" with size="" %}
+  <span class="list-card-title">{{ game_list.title }}</span>
+  <span class="list-card-meta muted small">
+    {% if show_user or game_list.from_other %}De {{ game_list.user.profile.name }} · {% endif %}{{ game_list.game_count }} juego{{ game_list.game_count|pluralize }}{% if game_list.kind_note %} · {{ game_list.kind_note }}{% endif %}
+    {% if game_list.like_count %}<span class="list-card-likes" title="Me gusta">{% include "_icon.html" with name="heart" %} {{ game_list.like_count }}<span class="visually-hidden"> me gusta</span></span>{% endif %}
+    {% if not game_list.is_public %}<span class="pill">Privada</span>{% endif %}
+  </span>
+  {% if game_list.viewer_played is not None and game_list.game_count %}
+    <span class="list-card-progress small">Has jugado {{ game_list.viewer_played }} de {{ game_list.game_count }}</span>
+  {% endif %}
+</a>
