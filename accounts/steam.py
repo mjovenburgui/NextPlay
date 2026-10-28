@@ -1,13 +1,14 @@
 """Vinculación con Steam (inicio de sesión OpenID) e importación de los juegos de su biblioteca y de su lista de deseos."""
 
 import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone as dt_timezone
 from urllib.parse import urlencode
 
 import requests
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone
 
 from games import igdb
@@ -15,7 +16,7 @@ from games.models import Game
 from library.models import LibraryEntry, WishlistItem
 
 from .matching import add_title, save_titles, update_library
-from .models import ExternalTitle
+from .models import ExternalTitle, ImportedTitle
 
 OPENID_URL = "https://steamcommunity.com/openid/login"
 OPENID_NS = "http://specs.openid.net/auth/2.0"
@@ -25,6 +26,11 @@ API_URL = "https://api.steampowered.com"
 TIMEOUT = 15
 # Plataforma de IGDB de lo que se juega en Steam, para rellenar la de las reseñas.
 STEAM_PLATFORM = "PC (Microsoft Windows)"
+# Los logros se piden juego a juego: al importar, los de los ACHIEVEMENTS_PER_IMPORT jugados hace menos (el resto, en
+# la sincronización de cada noche), con ACHIEVEMENTS_WORKERS peticiones a la vez.
+ACHIEVEMENTS_URL = f"{API_URL}/ISteamUserStats/GetPlayerAchievements/v1/"
+ACHIEVEMENTS_PER_IMPORT = 40
+ACHIEVEMENTS_WORKERS = 8
 
 
 class SteamError(Exception):
@@ -185,8 +191,11 @@ def import_library(user, include_unplayed=False):
     pueden emparejar a mano. Las cuentas que no dejan ver sus juegos se saltan; si no deja ninguna,
     lanza SteamPrivateError.
 
+    Después lee los logros de los juegos jugados hace menos (import_achievements).
+
     Devuelve un dict con cuántos juegos se han añadido («added»), actualizado («updated») y no se han
-    encontrado en el catálogo («unmatched»), y los nombres de las cuentas privadas («private»).
+    encontrado en el catálogo («unmatched»), los nombres de las cuentas privadas («private») y de cuántos
+    juegos se han leído los logros («achievements»).
     """
     accounts = list(user.steam_accounts.all())
     owned, private = [], []
@@ -223,7 +232,70 @@ def import_library(user, include_unplayed=False):
         "updated": updated,
         "unmatched": sum(1 for game in games.values() if game is None),
         "private": [account.name for account in private],
+        "achievements": import_achievements(user),
     }
+
+
+def player_achievements(steam_id, app_id):
+    """Logros de un juego en una cuenta de Steam: (conseguidos, totales), (0, 0) si el juego no tiene o None si no se
+    pueden leer (perfil o detalles de juego privados, o Steam no responde).
+
+    A un juego sin logros Steam le contesta con un 400 y «Requested app has no stats», así que no se mira el código
+    de la respuesta sino su «playerstats».
+    """
+    try:
+        response = requests.get(
+            ACHIEVEMENTS_URL, params={"key": settings.STEAM_API_KEY, "steamid": steam_id, "appid": app_id},
+            timeout=TIMEOUT,
+        )
+        stats = response.json().get("playerstats") or {}
+    except (requests.RequestException, ValueError, AttributeError):
+        return None
+    if not stats.get("success"):
+        return (0, 0) if "no stats" in (stats.get("error") or "").lower() else None
+    achievements = stats.get("achievements") or []
+    return sum(1 for achievement in achievements if achievement.get("achieved")), len(achievements)
+
+
+def import_achievements(user, limit=ACHIEVEMENTS_PER_IMPORT):
+    """Lee de Steam los logros de los juegos del usuario que ha jugado desde la última vez que se leyeron (o que nunca
+    se han leído), de la partida más reciente a la más antigua y como mucho limit (None: todos), y los apunta en sus
+    títulos importados (ImportedTitle). Con varias cuentas de Steam se queda con la que más lleva de cada juego; lo que
+    no se puede leer se intenta la próxima vez. Van ACHIEVEMENTS_WORKERS peticiones a la vez.
+
+    Devuelve de cuántos juegos se han leído.
+    """
+    steam_ids = list(user.steam_accounts.values_list("steam_id", flat=True))
+    if not steam_ids or not is_configured():
+        return 0
+    rows = (
+        ImportedTitle.objects.filter(user=user, title__platform=ExternalTitle.Platform.STEAM, minutes__gt=0)
+        .filter(Q(achievements_at__isnull=True) | Q(last_played__gt=F("achievements_at")))
+        .select_related("title")
+        .order_by(F("last_played").desc(nulls_last=True), "pk")
+    )
+    rows = list(rows if limit is None else rows[:limit])
+    if not rows:
+        return 0
+
+    def read(row):
+        """Lo que más lleva de ese juego entre las cuentas de Steam del usuario, o None si ninguna deja leerlo."""
+        found = [player_achievements(steam_id, row.title.external_id) for steam_id in steam_ids]
+        return max((result for result in found if result is not None), default=None)
+
+    # Solo las peticiones van en otros hilos: lo que se guarda, en este.
+    with ThreadPoolExecutor(max_workers=ACHIEVEMENTS_WORKERS) as pool:
+        results = list(pool.map(read, rows))
+    now = timezone.now()
+    read_rows = []
+    for row, result in zip(rows, results):
+        if result is not None:
+            row.set_achievements(*result, at=now)
+            read_rows.append(row)
+    ImportedTitle.objects.bulk_update(
+        read_rows, ["achievements_unlocked", "achievements_total", "platinum", "achievements_at"],
+    )
+    return len(read_rows)
 
 
 def _first(values):

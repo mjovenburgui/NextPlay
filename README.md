@@ -110,6 +110,17 @@ mal emparejados (remakes que se llaman igual). La corrección sirve para todos l
 próxima importación. En `/admin/` › Títulos importados se revisan las correcciones («emparejado por:
 Usuario»), se corrigen al momento para todos y se pueden bloquear.
 
+### Logros y trofeos
+
+Cada `ImportedTitle` guarda también cuántos logros lleva el usuario de cuántos hay (en PlayStation, trofeos)
+y si tiene el platino. Xbox los trae en el mismo historial de juegos (decoración `achievement` de titlehub) y
+PlayStation, con el mismo token, en su lista de trofeos (`trophyTitles`), que se empareja por nombre porque usa
+otro identificador que los juegos; si falla, la importación de los juegos sigue valiendo. Steam necesita una
+llamada por juego (`GetPlayerAchievements`): cada importación lee los 40 juegos jugados hace menos de los que
+haya algo nuevo (8 a la vez) y la sincronización de cada noche, el resto. La ficha enseña «Tus logros» por
+plataforma y las portadas del perfil, una insignia de «Platino» o «100 %», con sus cifras en la cabecera
+(`accounts/achievements.py`).
+
 ## Fichas en castellano
 
 Cada ficha dice si el juego tiene voces o textos en castellano (o solo en español latino), con una tabla
@@ -267,9 +278,9 @@ clasificación, y quien llega al objetivo queda apuntado como que lo ha consegui
 
 ## Tareas de cada noche
 
-`nightly` sincroniza la biblioteca de Steam (y su lista de deseos, si no se ha desactivado) de quien tenga
-activada la sincronización nocturna (se desactiva desde el panel de Steam del perfil) y después actualiza
-los precios:
+`nightly` sincroniza la biblioteca de Steam (con los logros que falten por leer y su lista de deseos, si no se
+ha desactivado) de quien tenga activada la sincronización nocturna (se desactiva desde el panel de Steam del
+perfil) y después actualiza los precios:
 
 ```bash
 .venv/Scripts/python manage.py nightly

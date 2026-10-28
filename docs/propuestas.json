@@ -136,7 +136,7 @@
       "Los botones de nivel y los de subir y bajar se quedan para quien usa el teclado o un lector de pantalla.",
       "Mientras se guarda no se puede arrastrar otra; si falla, la carátula vuelve a su sitio y sale el aviso."
     ],
-    "notas": "28/10/2026: hecha en la rama listas-arrastrar y revisada por el usuario (commit en local, sin subir). SortableJS 1.15.6 se carga de jsDelivr solo en el editor y en la página de las tier lists de quien puede editarlas (lists/_drag.html), como htmx se carga de unpkg. Con el ratón se arrastra en cuanto se mueve y un clic sigue abriendo el juego; con el dedo hay que mantener pulsado un momento para que deslizar siga desplazando la página. Probado con el ratón en el navegador integrado (entre niveles, dentro de un nivel, a «Sin clasificar», en el editor y con un fallo simulado) y a 390 px; falta probarlo en un móvil de verdad. De paso, los fieldset ya no llevan el recuadro del navegador (ver «Detalles sueltos…»). 4 tests nuevos."
+    "notas": "28/10/2026: hecha en la rama listas-arrastrar y revisada por el usuario. SortableJS 1.15.6 se carga de jsDelivr solo en el editor y en la página de las tier lists de quien puede editarlas (lists/_drag.html), como htmx se carga de unpkg. Con el ratón se arrastra en cuanto se mueve y un clic sigue abriendo el juego; con el dedo hay que mantener pulsado un momento para que deslizar siga desplazando la página. Probado con el ratón en el navegador integrado (entre niveles, dentro de un nivel, a «Sin clasificar», en el editor y con un fallo simulado) y a 390 px; falta probarlo en un móvil de verdad. De paso, los fieldset ya no llevan el recuadro del navegador (ver «Detalles sueltos…»). 4 tests nuevos."
   },
   {
     "titulo": "Retos: crea los tuyos y únete a los de otros",
@@ -725,7 +725,7 @@
   {
     "titulo": "Importar logros y trofeos",
     "fecha": "2026-10-17",
-    "estado": "pendiente",
+    "estado": "hecha",
     "prioridad": "media",
     "tipo": "Funcionalidad",
     "resumen": "Traer el porcentaje de logros de Steam, trofeos de PlayStation y logros de Xbox y mostrarlo en la biblioteca y el perfil (platinos, 100 %).",
@@ -736,7 +736,7 @@
       "Xbox: endpoint de logros por título.",
       "Campo de progreso en LibraryEntry e insignia de platino / 100 % en las tarjetas."
     ],
-    "notas": "Conviene antes tener tareas en segundo plano (Celery o django-q) porque la sincronización de Steam sería larga. Ya estaba planeada antes de proponerla."
+    "notas": "Conviene antes tener tareas en segundo plano (Celery o django-q) porque la sincronización de Steam sería larga. Ya estaba planeada antes de proponerla. 28/10/2026: hecha a petición del usuario en la rama importar-logros, encima de listas-arrastrar. Sin tareas en segundo plano: cada importación de Steam lee los logros de los 40 juegos jugados hace menos de los que haya algo nuevo, con 8 peticiones a la vez (unos segundos más), y la sincronización de cada noche lee el resto. Se guardan por título importado (ImportedTitle: conseguidos, totales, platino y cuándo se leyeron), no en LibraryEntry, porque cada plataforma lleva los suyos. Xbox los trae con su historial (decoración achievement) y PlayStation con su lista de trofeos, emparejada por nombre; como no se guarda el NPSSO ni el token de Microsoft, se actualizan al sincronizar a mano. La ficha enseña «Tus logros» por plataforma con su barra; las portadas del perfil, «Platino» o «100 %», y la cabecera, cuántos platinos y juegos al 100 % tiene. Probado con respuestas simuladas de las tres APIs (8 tests nuevos) y con datos de prueba en seed_test_profile. Steam, también con la cuenta de verdad de tester_steam: 133 juegos leídos en 11,6 s (127 con logros, 6 sin, 1 que no se pudo leer; 5 al 100 %). Faltan PlayStation y Xbox con una sincronización de verdad. Siguiente paso posible: «¿Cuánta gente lo termina?», que usa los logros de Steam."
   },
   {
     "titulo": "Vistas previas al compartir y tarjeta para incrustar",

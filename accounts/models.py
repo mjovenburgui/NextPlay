@@ -6,6 +6,7 @@ from django.contrib.auth.models import AbstractUser
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.urls import reverse
+from django.utils import timezone
 
 from games.models import igdb_image_url
 
@@ -698,6 +699,13 @@ class ImportedTitle(models.Model):
     # El usuario lo quita de «Sin emparejar» (herramientas, demos, apps...).
     hidden = models.BooleanField("oculto", default=False)
     imported_at = models.DateTimeField(auto_now=True)
+    # Logros del título en su plataforma (en PlayStation, trofeos): los conseguidos y los que tiene, vacíos hasta
+    # leerlos y 0 de 0 si el juego no tiene; platinum, si tiene el platino (solo PlayStation). achievements_at es
+    # cuándo se leyeron: Steam los vuelve a pedir si se ha jugado después (steam.import_achievements).
+    achievements_unlocked = models.PositiveIntegerField("logros conseguidos", null=True, blank=True)
+    achievements_total = models.PositiveIntegerField("logros en total", null=True, blank=True)
+    platinum = models.BooleanField("platino", default=False)
+    achievements_at = models.DateTimeField("logros leídos", null=True, blank=True)
 
     class Meta:
         ordering = ["title__name"]
@@ -715,6 +723,14 @@ class ImportedTitle(models.Model):
     def hours(self):
         """Horas jugadas redondeadas a una décima."""
         return round(self.minutes / 60, 1)
+
+    def set_achievements(self, unlocked, total, platinum=False, at=None):
+        """Apunta los logros leídos de la plataforma (sin guardar): unlocked de total, con o sin platino, leídos en at
+        (ahora, si no se da). Devuelve True si ha cambiado algo de lo que se enseña."""
+        changed = (self.achievements_unlocked, self.achievements_total, self.platinum) != (unlocked, total, platinum)
+        self.achievements_unlocked, self.achievements_total, self.platinum = unlocked, total, platinum
+        self.achievements_at = at or timezone.now()
+        return changed
 
 
 class Notification(models.Model):

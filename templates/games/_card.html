@@ -7,6 +7,8 @@
     {% endif %}
     {# status es el nombre del estado y status_key, su valor (playing, completed…), que le da su color (st-*). #}
     {% if status %}<span class="badge{% if status_key %} st-{{ status_key }}{% endif %}">{{ status }}</span>{% endif %}
+    {# En la biblioteca del perfil, «Platino» o «100 %» si su dueño tiene todos los logros (accounts.achievements.badge). #}
+    {% if entry.achievement_badge %}<span class="card-trophy{% if entry.achievement_badge == 'Platino' %} is-platinum{% endif %}">{% include "_icon.html" with name="trophy" %} {{ entry.achievement_badge }}</span>{% endif %}
   </div>
   <p class="card-title">{{ game.name }}</p>
   {% if entry.rating or entry.playtime_hours %}

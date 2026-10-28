@@ -151,6 +151,9 @@
           {% if stats.hours %}<div><dt>Horas jugadas</dt><dd>{{ stats.hours }}</dd></div>{% endif %}
           <div><dt>Nota media</dt><dd>{% if stats.average_rating %}<span class="gold">★</span> {{ stats.average_rating|floatformat:1 }}{% else %}–{% endif %}</dd></div>
           <div><dt>Reseñas</dt><dd>{{ stats.reviews }}</dd></div>
+          {# De sus logros importados (accounts.achievements.totals): solo si tiene alguno. #}
+          {% if stats.platinums %}<div><dt>Platinos</dt><dd>{{ stats.platinums }}</dd></div>{% endif %}
+          {% if stats.complete %}<div><dt>Al 100 %</dt><dd>{{ stats.complete }}</dd></div>{% endif %}
         </dl>
       {% elif key == "generos" %}
         {% if stats.top_genres %}

@@ -30,6 +30,8 @@
   --gold-text: #ffe3a3;
   --pink-text: #ffc2de;
   --violet-text: #cdb4ff;
+  /* Platino de los trofeos de PlayStation (el 100 % de los logros va en oro). */
+  --platinum: #dfe6ff;
   /* Color de cada estado de la biblioteca (fijos: no cambian con el color de un perfil). */
   --st-playing: var(--cyan);
   --st-completed: var(--green);
@@ -319,6 +321,18 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   white-space: nowrap; overflow: hidden;
 }
 .badge::before { content: ""; flex: none; width: .4rem; height: .4rem; border-radius: 50%; background: currentColor; }
+/* Logros sobre la portada (biblioteca del perfil): oro para el 100 % y el color del platino para el de PlayStation. */
+.card-trophy {
+  position: absolute; top: .4rem; right: .4rem;
+  display: inline-flex; align-items: center; gap: .25rem;
+  padding: .12rem .45rem;
+  background: rgba(7, 10, 20, .88);
+  border: 1px solid color-mix(in srgb, var(--gold) 70%, transparent);
+  border-radius: 999px;
+  color: var(--gold-text); font-size: .7rem; font-weight: 700; white-space: nowrap;
+}
+.card-trophy .icon { width: .8rem; height: .8rem; }
+.card-trophy.is-platinum { border-color: color-mix(in srgb, var(--platinum) 70%, transparent); color: var(--platinum); }
 .pager { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 2rem; }
 .import { display: flex; align-items: center; justify-content: center; gap: .75rem; flex-wrap: wrap; margin-top: 2rem; }
 
@@ -553,6 +567,18 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 /* Your own rating in the library widget; buttons go 5→1 so hover lights the star and those before it */
 .rate { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
 .rate-label { font-size: .9rem; color: var(--muted); }
+/* Logros importados en el widget de la ficha: una fila por plataforma, con la barra de progreso de las listas. */
+.achievements { display: grid; gap: .4rem; margin: .9rem 0 .7rem; }
+.achievement-list { display: grid; gap: .45rem; margin: 0; padding: 0; list-style: none; }
+.achievement { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr) auto; align-items: center; gap: .65rem; font-size: .88rem; }
+.achievement .progress-bar { margin: 0; }
+.achievement-platform { color: var(--text-2); font-weight: 600; }
+.achievement-count { display: inline-flex; align-items: center; gap: .3rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.achievement-count .icon { width: .95rem; height: .95rem; }
+.achievement.is-complete .achievement-count { color: var(--gold-text); font-weight: 700; }
+.achievement.is-complete .progress-bar span { background: var(--gold); }
+.achievement.is-platinum .achievement-count { color: var(--platinum); }
+.achievement.is-platinum .progress-bar span { background: linear-gradient(90deg, var(--violet-text), var(--platinum)); }
 .rate-stars { display: inline-flex; flex-direction: row-reverse; }
 .rate-star { padding: 0 .1rem; background: none; border: 0; font-size: 1.5rem; line-height: 1; color: var(--star-off); cursor: pointer; }
 .rate-star.is-on { color: var(--gold); }
