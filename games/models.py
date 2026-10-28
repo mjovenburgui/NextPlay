@@ -1,5 +1,6 @@
 from urllib.parse import quote
 
+from django.core.validators import RegexValidator
 from django.db import models
 from django.urls import reverse
 from django.utils.text import slugify
@@ -175,6 +176,21 @@ class Game(models.Model):
             "Sustituye a los de IGDB y a la búsqueda por nombre."
         ),
     )
+    # NSUID (ID de la eShop) del juego de Switch o Switch 2 en la tienda europea: update_prices lo busca por
+    # el nombre y lo guarda para no volver a buscarlo. IGDB no lo tiene.
+    nintendo_nsuid = models.CharField("NSUID de Nintendo", max_length=14, blank=True)
+    # Se pone a mano cuando la búsqueda no lo encuentra o encuentra otro juego; update_prices no lo toca.
+    nintendo_nsuid_override = models.CharField(
+        "NSUID de Nintendo manual",
+        max_length=14,
+        blank=True,
+        validators=[RegexValidator(r"^\d{14}$", "El NSUID son 14 cifras.")],
+        help_text=(
+            "NSUID del juego en la eShop europea: 14 cifras que empiezan por 7001 (p. ej. 70010000003207 para "
+            "Hollow Knight). Sale como «nsuid» en el código de su página de nintendo.com/es-es. Sustituye al "
+            "que se encuentra buscando por el nombre."
+        ),
+    )
     # Name of the edition whose prices are shown, empty when they are the game's own.
     prices_edition = models.CharField(max_length=255, blank=True)
     historical_low = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
@@ -322,8 +338,13 @@ class Game(models.Model):
         return any(platform.name in CURRENT_XBOX_PLATFORMS for platform in self.platforms.all())
 
     @property
+    def nintendo_lookup_nsuid(self):
+        """NSUID con el que pedir el precio de la eShop: el manual si lo hay, si no el encontrado por el nombre."""
+        return self.nintendo_nsuid_override or self.nintendo_nsuid
+
+    @property
     def best_price(self):
-        """Oferta más barata de todas las tiendas (PC y Xbox), o None si no hay precios."""
+        """Oferta más barata de todas las tiendas (PC, Xbox y Nintendo), o None si no hay precios."""
         return self.cheapest()
 
     def cheapest(self, shops=None):
@@ -342,7 +363,7 @@ class Game(models.Model):
     def price_groups(self, shops=None):
         """Reparte los precios de esas tiendas (ids; None = todas) para la ficha en (destacados, listados, plegados, mejor).
 
-        destacados: las tiendas más conocidas (Steam, Epic, Microsoft, GOG, Xbox) en un orden fijo.
+        destacados: las tiendas más conocidas (Steam, Epic, Microsoft, GOG, Xbox, Nintendo) en un orden fijo.
         listados: las demás más baratas, solo si el juego no está en ninguna destacada.
         plegados: el resto por precio, dentro de «Ver N tiendas más».
         mejor: la oferta más barata cuando ha quedado plegada, para poder señalarla igualmente.
@@ -359,14 +380,14 @@ class Game(models.Model):
     def store_searches(self):
         """(tienda, plantilla del logo, URL de búsqueda) de las consolas en las que está el juego pero sin precio.
 
-        Son PlayStation Store, Nintendo eShop y, si no se encontró precio de Xbox, Xbox Store.
+        Son PlayStation Store y, si no se encontró su precio, Nintendo eShop y Xbox Store.
         """
         platforms = {platform.name for platform in self.platforms.all()}
-        has_xbox_price = any(price.shop_id == XBOX_SHOP_ID for price in self.prices.all())
+        priced = {price.shop_id for price in self.prices.all()}
         return [
             (store, f"games/shop_icons/{logo}.svg", url.format(quote(self.name)))
-            for store, logo, consoles, url in STORE_SEARCHES
-            if platforms.intersection(consoles) and not (store == "Xbox Store" and has_xbox_price)
+            for store, logo, consoles, url, shop_id in STORE_SEARCHES
+            if platforms.intersection(consoles) and shop_id not in priced
         ]
 
     def community_rating(self):
@@ -411,30 +432,43 @@ class Game(models.Model):
 
 
 XBOX_SHOP_ID = 0  # not an IsThereAnyDeal shop: Xbox prices come from the Microsoft catalog
+# Tampoco es de IsThereAnyDeal (las suyas son números pequeños): los precios salen de la eShop de Nintendo.
+NINTENDO_SHOP_ID = 1000
 # ID de Steam en IsThereAnyDeal.
 STEAM_SHOP_ID = 61
 
 # Shop IDs of the best-known stores, in display order, with their logo template.
-FEATURED_SHOPS = {STEAM_SHOP_ID: "steam", 16: "epic", 48: "microsoft", 35: "gog", XBOX_SHOP_ID: "xbox"}
+FEATURED_SHOPS = {
+    STEAM_SHOP_ID: "steam", 16: "epic", 48: "microsoft", 35: "gog", XBOX_SHOP_ID: "xbox", NINTENDO_SHOP_ID: "nintendo",
+}
 
 CURRENT_XBOX_PLATFORMS = ("Xbox One", "Xbox Series X|S")
+NINTENDO_PLATFORMS = ("Nintendo Switch", "Nintendo Switch 2")
 
-# Consoles whose stores have no price source: the game page links to a search there instead.
-# (store, logo, consoles, search URL)
+# Console stores: when the game has no price from one of them, its page links to a search there instead.
+# (store, logo, consoles, search URL, shop ID of its prices or None if it has no price source)
 STORE_SEARCHES = [
     (
         "PlayStation Store",
         "playstation",
         ("PlayStation 4", "PlayStation 5"),
         "https://store.playstation.com/es-es/search/{}",
+        None,
     ),
     (
         "Nintendo eShop",
         "nintendo",
-        ("Nintendo Switch", "Nintendo Switch 2"),
+        NINTENDO_PLATFORMS,
         "https://www.nintendo.com/es-es/Buscar/Buscar-299117.html?q={}",
+        NINTENDO_SHOP_ID,
     ),
-    ("Xbox Store", "xbox", CURRENT_XBOX_PLATFORMS, "https://www.xbox.com/es-ES/search/results/games?q={}"),
+    (
+        "Xbox Store",
+        "xbox",
+        CURRENT_XBOX_PLATFORMS,
+        "https://www.xbox.com/es-ES/search/results/games?q={}",
+        XBOX_SHOP_ID,
+    ),
 ]
 FALLBACK_SHOWN = 5  # stores shown when a game is in none of the featured ones
 
@@ -469,8 +503,10 @@ class GamePrice(models.Model):
     class Source(models.TextChoices):
         ITAD = "itad", "IsThereAnyDeal"
         XBOX = "xbox", "Xbox"
+        NINTENDO = "nintendo", "Nintendo"
 
     XBOX_SHOP_ID = XBOX_SHOP_ID
+    NINTENDO_SHOP_ID = NINTENDO_SHOP_ID
 
     game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="prices")
     source = models.CharField(max_length=10, choices=Source.choices, default=Source.ITAD)
@@ -502,7 +538,7 @@ class GamePrice(models.Model):
 
     @property
     def is_featured(self):
-        """Indica si la tienda es una de las destacadas (Steam, Epic, Microsoft, GOG, Xbox)."""
+        """Indica si la tienda es una de las destacadas (Steam, Epic, Microsoft, GOG, Xbox, Nintendo)."""
         return self.shop_id in FEATURED_SHOPS
 
     @property

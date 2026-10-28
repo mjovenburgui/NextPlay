@@ -55,8 +55,20 @@ Steam de cada juego. Con ese ID, la ficha del juego muestra los precios actuales
 
 El precio de Xbox (consola) sale del catálogo público de la tienda de Microsoft, con los IDs de producto
 que da IGDB; no necesita clave y usa el mismo país que `ITAD_COUNTRY`. Es una API sin documentar, así que
-podría cambiar. Para PlayStation y Nintendo no hay fuente de precios: la ficha enlaza a una búsqueda en
-su tienda si el juego está en esas consolas.
+podría cambiar.
+
+El de Nintendo (Switch y Switch 2) sale de la eShop europea, también sin clave, sin documentar y con el
+país de `ITAD_COUNTRY`, que tiene que ser de la tienda europea. IGDB no tiene el ID de los juegos en la
+eShop (el NSUID), así que `update_prices` lo busca por el nombre del juego y por su nombre en España en el
+buscador de Nintendo Europa, lo guarda y pide el precio a la API de precios de la eShop. Solo empareja
+nombres exactos (sin contar mayúsculas, tildes ni signos) y, si el mismo título está en Switch y en
+Switch 2, elige el de Switch, que funciona en las dos. Si la eShop lo vende con otro nombre (una «Complete
+Edition», un remaster o una colección), hay otro juego del catálogo que se llama igual o encuentra el que
+no es, pon su NSUID en el campo «NSUID de Nintendo manual» del juego en `/admin/`: sale como «nsuid» en el
+código de la página del juego en nintendo.com/es-es.
+
+Para PlayStation no hay fuente de precios: la ficha enlaza a una búsqueda en su tienda si el juego está
+en PS4 o PS5.
 
 Si la versión original de un juego ya no se vende (p. ej. Skyrim), se muestran los precios de su edición
 o remaster que sí está a la venta, según la relación que mantiene IGDB. Cuando IGDB no la tiene (p. ej.

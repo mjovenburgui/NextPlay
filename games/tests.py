@@ -5,6 +5,7 @@ from decimal import Decimal
 from unittest import mock
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.core.management import CommandError, call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -14,7 +15,7 @@ from PIL import Image
 from library.models import LibraryEntry, Review, WishlistItem
 from social.models import Activity
 
-from . import history, igdb, media, prices, spanish, xbox
+from . import history, igdb, media, nintendo, prices, spanish, xbox
 from .models import STEAM_DECK_SLUG, Game, GamePrice, Genre, Platform
 
 User = get_user_model()
@@ -541,10 +542,12 @@ class PricesTests(TestCase):
     @override_settings(ITAD_API_KEY="")
     def test_command_without_api_key_skips_pc_prices(self):
         stderr = io.StringIO()
-        with mock.patch("games.xbox.update_xbox_prices", return_value=0) as update_xbox:
+        with mock.patch("games.xbox.update_xbox_prices", return_value=0) as update_xbox, \
+                mock.patch("games.nintendo.update_nintendo_prices", return_value=0) as update_nintendo:
             call_command("update_prices", stdout=io.StringIO(), stderr=stderr)
         self.assertIn("ITAD_API_KEY", stderr.getvalue())
         update_xbox.assert_called_once()
+        update_nintendo.assert_called_once()
 
     def test_command_reports_api_errors(self):
         with mock.patch("games.prices.update_prices", side_effect=prices.ITADError("caído")),                 self.assertRaisesMessage(CommandError, "caído"):
@@ -738,6 +741,200 @@ class XboxTests(TestCase):
             "editions": [{"id": 2, "name": "Hades GOTY", **microsoft("9NVB51LMXLJF", "BTBMZQ3FM2V8")}],
         }])
         self.assertEqual(Game.objects.get(igdb_id=113112).xbox_product_ids, ["BTBMZQ3FM2V8", "9NVB51LMXLJF"])
+
+
+def eshop_game(title, nsuids, system="HAC", master=None):
+    """Juego tal como lo devuelve el buscador de Nintendo Europa: título en España, original y traducciones."""
+    return {
+        "title": title, "title_master_s": master or title, "title_extras_txt": [title, master or title],
+        "nsuid_txt": list(nsuids), "playable_on_txt": [system],
+    }
+
+
+def eshop_price(nsuid, regular, discount=None, status="onsale"):
+    """Precio de un juego tal como lo devuelve la API de precios de la eShop (raw_value es texto)."""
+    item = {"title_id": int(nsuid), "sales_status": status}
+    if regular is not None:
+        item["regular_price"] = {"amount": f"{regular} €", "currency": "EUR", "raw_value": regular}
+    if discount is not None:
+        item["discount_price"] = {
+            "amount": f"{discount} €", "currency": "EUR", "raw_value": discount,
+            "start_datetime": "2026-10-20T13:00:00Z", "end_datetime": "2026-11-02T22:59:59Z",
+        }
+    return item
+
+
+@override_settings(ITAD_COUNTRY="ES")
+class NintendoTests(TestCase):
+    def setUp(self):
+        self.switch = Platform.objects.create(name="Nintendo Switch", slug="switch")
+        self.switch_2 = Platform.objects.create(name="Nintendo Switch 2", slug="switch-2")
+        self.game = Game.objects.create(name="Hollow Knight", slug="hollow-knight")
+        self.game.platforms.add(self.switch)
+
+    def eshop(self, games=(), offers=()):
+        """Simula el buscador de Nintendo Europa, que encuentra games, y la API de precios, que conoce offers."""
+        def get(url, params, timeout):
+            if url == nintendo.PRICE_URL:
+                ids = params["ids"].split(",")
+                return mock.Mock(**{"json.return_value": {"prices": [o for o in offers if str(o["title_id"]) in ids]}})
+            return mock.Mock(**{"json.return_value": {"response": {"docs": list(games)}}})
+
+        return mock.patch("games.nintendo.requests.get", side_effect=get)
+
+    def test_finds_game_by_exact_title_saves_nsuid_and_stores_discounted_price(self):
+        games = [
+            eshop_game("Hollow Knight: Silksong", ["70010000020839"]),
+            eshop_game("Hollow Knight™", ["70070000016999", "70010000003207"]),
+        ]
+        with self.eshop(games, [eshop_price("70010000003207", "14.99", "7.49")]) as get:
+            self.assertEqual(nintendo.update_nintendo_prices([self.game], sleep=mock.Mock()), 1)
+        self.game.refresh_from_db()
+        self.assertEqual(self.game.nintendo_nsuid, "70010000003207")
+        price = self.game.prices.get()
+        self.assertEqual(
+            (price.shop_id, price.shop_name, str(price.price), str(price.regular_price), price.cut, price.currency),
+            (GamePrice.NINTENDO_SHOP_ID, "Nintendo eShop", "7.49", "14.99", 50, "EUR"),
+        )
+        self.assertEqual(price.url, "https://ec.nintendo.com/ES/es/titles/70010000003207")
+        search, price_request = get.call_args_list
+        self.assertEqual(search.args[0], "https://searching.nintendo-europe.com/es/select")
+        self.assertEqual(
+            (search.kwargs["params"]["q"], search.kwargs["params"]["fq"]),
+            ("Hollow Knight", "type:GAME AND playable_on_txt:(HAC)"),
+        )
+        self.assertEqual(price_request.kwargs["params"], {"country": "ES", "lang": "es", "ids": "70010000003207"})
+
+        # El NSUID guardado ya no se busca.
+        with self.eshop(offers=[eshop_price("70010000003207", "14.99")]) as get:
+            self.assertEqual(nintendo.update_nintendo_prices([self.game]), 1)
+        self.assertEqual([c.args[0] for c in get.call_args_list], [nintendo.PRICE_URL])
+        self.assertEqual(self.game.prices.get().cut, 0)
+
+    def test_matches_original_and_spanish_titles(self):
+        scarlet = Game.objects.create(name="Pokémon Scarlet", slug="pokemon-scarlet")
+        kirby = Game.objects.create(
+            name="Kirby and the Forgotten Land", name_es="Kirby y la tierra olvidada", slug="kirby"
+        )
+        for game in (scarlet, kirby):
+            game.platforms.add(self.switch)
+        games = [
+            eshop_game("Pokémon Escarlata", ["70010000053967"], master="Pokémon Scarlet"),
+            eshop_game("Kirby y la tierra olvidada", ["70010000046406"], master="Kirby: Forgotten Land"),
+        ]
+        with self.eshop(games):
+            nintendo.update_nintendo_prices([scarlet, kirby], sleep=mock.Mock())
+        scarlet.refresh_from_db()
+        kirby.refresh_from_db()
+        self.assertEqual((scarlet.nintendo_nsuid, kirby.nintendo_nsuid), ("70010000053967", "70010000046406"))
+
+    def test_search_strips_solr_syntax_and_ignores_punctuation_and_accents(self):
+        games = [
+            eshop_game("Mario + Rabbids® Sparks of Hope – Gold Edition", ["70010000014382"]),
+            eshop_game("South Park™ : La vara de la verdad™", ["70010000011253"]),
+            eshop_game("ABZÛ", ["70010000012835"]),
+        ]
+        with self.eshop(games) as get:
+            self.assertEqual(
+                nintendo.search_game(["Mario + Rabbids Sparks of Hope - Gold Edition"], {"HAC"}), "70010000014382"
+            )
+            self.assertEqual(get.call_args.kwargs["params"]["q"], "Mario Rabbids Sparks of Hope Gold Edition")
+            self.assertEqual(nintendo.search_game(["South Park La Vara De La Verdad"], {"HAC"}), "70010000011253")
+            self.assertEqual(nintendo.search_game(["Abzu"], {"HAC"}), "70010000012835")
+
+    def test_prefers_the_switch_version_when_the_title_is_on_both_consoles(self):
+        self.game.platforms.add(self.switch_2)
+        games = [
+            eshop_game("Hollow Knight", ["70010000118322"], "BEE"),
+            eshop_game("Hollow Knight", ["70010000003207"], "HAC"),
+        ]
+        with self.eshop(games) as get:
+            nintendo.update_nintendo_prices([self.game], sleep=mock.Mock())
+        self.game.refresh_from_db()
+        self.assertEqual(self.game.nintendo_nsuid, "70010000003207")
+        self.assertEqual(get.call_args_list[0].kwargs["params"]["fq"], "type:GAME AND playable_on_txt:(BEE OR HAC)")
+
+        # Un juego solo de Switch 2 se queda con el de Switch 2.
+        with self.eshop(games):
+            self.assertEqual(nintendo.search_game(["Hollow Knight"], {"BEE"}), "70010000118322")
+
+    def test_no_nsuid_for_ambiguous_titles_or_downloadable_content(self):
+        twins = [eshop_game("Hollow Knight", ["70010000000001"]), eshop_game("Hollow Knight", ["70010000000002"])]
+        with self.eshop(twins):
+            self.assertEqual(nintendo.update_nintendo_prices([self.game], sleep=mock.Mock()), 0)
+        with self.eshop([eshop_game("Hollow Knight", ["70050000000001"])]):
+            nintendo.update_nintendo_prices([self.game], sleep=mock.Mock())
+        self.game.refresh_from_db()
+        self.assertEqual(self.game.nintendo_nsuid, "")
+
+    def test_no_search_for_titles_shared_in_the_catalog(self):
+        Game.objects.create(name="HOLLOW KNIGHT", slug="hollow-knight-2")
+        with self.eshop() as get:
+            nintendo.update_nintendo_prices([self.game], sleep=mock.Mock())
+        self.assertFalse(get.called)
+
+    def test_manual_nsuid_replaces_the_one_found(self):
+        self.game.nintendo_nsuid = "70010000000001"
+        self.game.nintendo_nsuid_override = "70010000003207"
+        with self.eshop(offers=[eshop_price("70010000003207", "14.99")]) as get:
+            self.assertEqual(nintendo.update_nintendo_prices([self.game]), 1)
+        self.assertEqual(get.call_count, 1)
+        self.assertEqual(get.call_args.kwargs["params"]["ids"], "70010000003207")
+
+    def test_games_not_on_sale_lose_their_price_and_free_ones_are_free(self):
+        GamePrice.objects.create(
+            game=self.game, shop_id=61, shop_name="Steam", price=Decimal("14.79"), regular_price=Decimal("14.79"),
+            currency="EUR", url="https://itad.link/steam",
+        )
+        self.game.nintendo_nsuid = "70010000003207"
+        with self.eshop(offers=[eshop_price("70010000003207", "14.99")]):
+            nintendo.update_nintendo_prices([self.game])
+        self.assertEqual(sorted(p.shop_name for p in self.game.prices.all()), ["Nintendo eShop", "Steam"])
+        with self.eshop(offers=[eshop_price("70010000003207", None, status="unreleased")]):
+            self.assertEqual(nintendo.update_nintendo_prices([self.game]), 0)
+        self.assertEqual([p.shop_name for p in self.game.prices.all()], ["Steam"])
+        with self.eshop(offers=[eshop_price("70010000003207", "0")]):
+            nintendo.update_nintendo_prices([self.game])
+        self.assertTrue(self.game.prices.get(shop_id=GamePrice.NINTENDO_SHOP_ID).is_free)
+
+    def test_admin_shows_the_nsuid_found_and_checks_the_manual_one(self):
+        self.game.nintendo_nsuid = "70010000003207"
+        self.game.save()
+        self.client.force_login(get_user_model().objects.create_superuser("admin", "admin@example.com", "x"))
+        response = self.client.get(reverse("admin:games_game_change", args=[self.game.pk]))
+        self.assertContains(response, "NSUID de Nintendo manual")
+        self.assertContains(response, "70010000003207")
+        self.game.nintendo_nsuid_override = "7001"
+        with self.assertRaisesMessage(ValidationError, "El NSUID son 14 cifras."):
+            self.game.full_clean()
+
+    def test_prices_are_asked_for_in_batches_of_50(self):
+        with self.eshop() as get:
+            self.assertEqual(nintendo.fetch_prices([f"7001{i:010d}" for i in range(51)]), {})
+        self.assertEqual([len(c.kwargs["params"]["ids"].split(",")) for c in get.call_args_list], [50, 1])
+
+    def test_detail_shows_nintendo_tile_instead_of_eshop_search(self):
+        self.game.platforms.add(Platform.objects.create(name="PlayStation 5", slug="ps5"))
+        url = self.game.get_absolute_url()
+        response = self.client.get(url)
+        self.assertContains(response, "https://www.nintendo.com/es-es/Buscar/Buscar-299117.html?q=Hollow%20Knight")
+
+        self.game.nintendo_nsuid = "70010000003207"
+        with self.eshop(offers=[eshop_price("70010000003207", "14.99", "7.49")]):
+            nintendo.update_nintendo_prices([self.game])
+        response = self.client.get(url)
+        self.assertContains(response, 'class="shop-tile"', count=1)
+        self.assertContains(response, "https://ec.nintendo.com/ES/es/titles/70010000003207")
+        self.assertContains(response, "7,49 €")
+        self.assertNotContains(response, "Buscar-299117")
+        self.assertContains(response, "https://store.playstation.com/es-es/search/Hollow%20Knight")
+
+    @override_settings(ITAD_API_KEY="")
+    def test_command_reports_eshop_errors(self):
+        with mock.patch("games.xbox.update_xbox_prices", return_value=0), \
+                mock.patch("games.nintendo.update_nintendo_prices", side_effect=nintendo.NintendoError("caída")), \
+                self.assertRaisesMessage(CommandError, "caída"):
+            call_command("update_prices", stdout=io.StringIO(), stderr=io.StringIO())
 
 
 def itad_change(days_ago, shop_id, shop, price, regular, now):

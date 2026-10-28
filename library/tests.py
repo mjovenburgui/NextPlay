@@ -751,7 +751,8 @@ class WishlistTests(TestCase):
 
     def test_update_prices_command_checks_alerts(self):
         WishlistItem.objects.create(user=self.user, game=self.game, target_price=Decimal("30"))
-        with override_settings(ITAD_API_KEY=""), mock.patch("games.xbox.update_xbox_prices", return_value=0):
+        with override_settings(ITAD_API_KEY=""), mock.patch("games.xbox.update_xbox_prices", return_value=0), \
+                mock.patch("games.nintendo.update_nintendo_prices", return_value=0):
             out = io.StringIO()
             call_command("update_prices", stdout=out, stderr=io.StringIO())
         self.assertIn("Avisos de la lista de deseos: 1", out.getvalue())
