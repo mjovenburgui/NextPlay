@@ -15,7 +15,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 from .matching import add_title, clean_name, match_by_name, normalize, save_titles, update_library
-from .models import ExternalTitle, PlatformAccount, XboxAccount
+from .models import ExternalTitle, ImportedTitle, PlatformAccount, XboxAccount
 
 AUTHORIZE_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize"
 TOKEN_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
@@ -23,7 +23,8 @@ SCOPE = "XboxLive.signin offline_access"
 USER_AUTH_URL = "https://user.auth.xboxlive.com/user/authenticate"
 XSTS_URL = "https://xsts.auth.xboxlive.com/xsts/authorize"
 PROFILE_URL = "https://profile.xboxlive.com/users/xuid({xuid})/profile/settings"
-TITLES_URL = "https://titlehub.xboxlive.com/users/xuid({xuid})/titles/titlehistory/decoration/detail"
+# Con la decoración achievement, cada juego trae sus logros: «currentAchievements» de «totalAchievements».
+TITLES_URL = "https://titlehub.xboxlive.com/users/xuid({xuid})/titles/titlehistory/decoration/detail,achievement"
 STATS_URL = "https://userstats.xboxlive.com/batch"
 TIMEOUT = 20
 STATS_BATCH = 50  # títulos por petición de estadísticas
@@ -179,6 +180,25 @@ def minutes_played(xuid, auth, title_ids):
     return minutes
 
 
+def save_achievements(user, played):
+    """Apunta en los títulos de Xbox importados del usuario los logros que llegan con su historial (played, de
+    played_titles: «currentAchievements» de «totalAchievements») y devuelve en cuántos."""
+    by_id = {}
+    for title in played:
+        achievement = title.get("achievement") or {}
+        total = achievement.get("totalAchievements")
+        if title.get("titleId") and isinstance(total, int) and total >= 0:
+            by_id[str(title["titleId"])] = (min(achievement.get("currentAchievements") or 0, total), total)
+    now = timezone.now()
+    rows = list(ImportedTitle.objects.filter(
+        user=user, title__platform=ExternalTitle.Platform.XBOX, title__external_id__in=list(by_id),
+    ).select_related("title"))
+    for row in rows:
+        row.set_achievements(*by_id[row.title.external_id], at=now)
+    ImportedTitle.objects.bulk_update(rows, ["achievements_unlocked", "achievements_total", "platinum", "achievements_at"])
+    return len(rows)
+
+
 def import_library(user, code, redirect_uri):
     """Vincula (o actualiza) la cuenta de Xbox del inicio de sesión e importa sus juegos con los minutos jugados.
 
@@ -189,8 +209,9 @@ def import_library(user, code, redirect_uri):
     plataformas», se quita porque ya está la cuenta verificada. Lanza ValueError si esa cuenta de Xbox
     ya es de otro usuario.
 
-    Devuelve un dict con la cuenta («account») y cuántos juegos se han añadido («added»), actualizado
-    («updated») y no se han encontrado en el catálogo («unmatched»).
+    Devuelve un dict con la cuenta («account»), cuántos juegos se han añadido («added»), actualizado
+    («updated») y no se han encontrado en el catálogo («unmatched»), y de cuántos se han leído los logros
+    («achievements»: llegan con el historial, ver save_achievements).
     """
     xbl = xbox_tokens(code, redirect_uri)
     if XboxAccount.objects.filter(xuid=xbl["xuid"]).exclude(user=user).exists():
@@ -228,5 +249,6 @@ def import_library(user, code, redirect_uri):
         PlatformAccount.objects.filter(user=user, platform=PlatformAccount.Platform.XBOX).delete()
         # El historial solo trae juegos abiertos alguna vez: nunca entran como «Pendiente».
         added, updated = update_library(user, ExternalTitle.Platform.XBOX, opened_only=True, record_activity=True)
+        achievements = save_achievements(user, played)
     unmatched = sum(1 for game in games.values() if game is None)
-    return {"account": account, "added": added, "updated": updated, "unmatched": unmatched}
+    return {"account": account, "added": added, "updated": updated, "unmatched": unmatched, "achievements": achievements}

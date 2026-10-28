@@ -12,7 +12,7 @@ from lists.models import GameList, ListCollaborator, ListComment, ListItem, List
 from social.activity import IMPORT_COVERS
 from social.models import Activity, Follow
 
-from ...models import PSNAccount, XboxAccount
+from ...models import ExternalTitle, ImportedTitle, PSNAccount, XboxAccount
 
 User = get_user_model()
 
@@ -95,6 +95,15 @@ CHALLENGES = [
 # Lo que ha jugado el usuario de prueba estos días, para el reto de horas: (posición del juego en LIBRARY, hace cuántos
 # días, minutos).
 SESSIONS = [(0, 1, 150), (0, 3, 90), (6, 2, 240), (7, 5, 60)]
+# Logros importados de ejemplo, para ver «Tus logros» en la ficha y las insignias y cifras del perfil: (posición del
+# juego en LIBRARY, plataforma, conseguidos, totales, platino). Van en títulos importados de prueba («demo-<id>»).
+ACHIEVEMENTS = [
+    (0, "steam", 31, 78, False),
+    (1, "steam", 78, 78, False),
+    (1, "psn", 52, 52, True),
+    (2, "xbox", 40, 50, False),
+    (6, "psn", 41, 47, False),
+]
 # «Me gusta» en las listas de ejemplo, con un comentario si no está vacío: (usuario, título de la lista, comentario).
 LIST_REACTIONS = [
     ("demo1", "Mis imprescindibles", "¡Gran lista! Me apunto el primero para estas vacaciones."),
@@ -196,11 +205,27 @@ class Command(BaseCommand):
         extras = list(Game.objects.exclude(cover_image_id="").exclude(pk__in=[game.pk for game in games])[:EXTRA_GAMES])
         self.lists(user, games + extras)
         self.challenges(user, games)
+        self.achievements(user, games)
 
         self.stdout.write(self.style.SUCCESS(
             f"Usuario de prueba «{USERNAME}» listo con {len(games)} juegos. "
             f"La contraseña está en accounts/management/commands/seed_test_profile.py."
         ))
+
+    def achievements(self, user, games):
+        """Rehace los títulos importados de prueba del usuario con sus logros (ACHIEVEMENTS), sin tocar los de verdad."""
+        ImportedTitle.objects.filter(user=user, title__external_id__startswith="demo-").delete()
+        now = timezone.now()
+        for index, platform, unlocked, total, platinum in ACHIEVEMENTS:
+            if index >= len(games):
+                continue
+            game = games[index]
+            title, _ = ExternalTitle.objects.update_or_create(
+                platform=platform, external_id=f"demo-{game.pk}", defaults={"name": game.name, "game": game},
+            )
+            imported = ImportedTitle(user=user, title=title, game=game)
+            imported.set_achievements(unlocked, total, platinum, at=now)
+            imported.save()
 
     def review(self, user, entry, text, spoilers, when):
         """Publica una reseña de user sobre el juego de entry con fecha when, con su nota, horas y estado."""

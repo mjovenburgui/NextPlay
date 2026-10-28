@@ -8,7 +8,9 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.functional import cached_property
 
+from accounts.achievements import progress_by_game
 from accounts.models import Profile
 from games.models import Game, Platform, igdb_image_url
 
@@ -137,6 +139,12 @@ class LibraryEntry(models.Model):
     def playtime_sources(self):
         """Plataformas de las que vienen las horas jugadas, como claves de HOURS_SOURCES: p. ej. ["steam", "psn"]."""
         return [key for key in HOURS_SOURCES if getattr(self, f"{key}_playtime_minutes") is not None]
+
+    @cached_property
+    def achievements(self):
+        """Cómo va con los logros de este juego en cada plataforma de la que se han importado (lo que da
+        accounts.achievements.progress_by_game), o una lista vacía si no se conocen."""
+        return progress_by_game(self.user_id, [self.game_id]).get(self.game_id, [])
 
     @property
     def stars(self):
