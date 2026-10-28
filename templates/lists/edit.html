@@ -25,6 +25,7 @@
     {% endif %}
 
     {# Los juegos se guardan uno a uno al momento (lists.views.add, move, tier, note y remove); sus peticiones van en cola en esta sección (hx-sync). #}
+    {# Lo que se arrastra (el tablero de las tier lists y las filas de las demás) se guarda al soltarlo (lists/_drag.html, una vez por página). #}
     <section class="card-box" id="juegos">
       <h2>Juegos</h2>
       {# Busca mientras se escribe; sin JavaScript, el formulario vuelve a esta página con la búsqueda hecha. #}
@@ -38,6 +39,7 @@
       <div id="list-search-results">{% include "lists/_search_results.html" %}</div>
       {% include "lists/_editor_items.html" %}
     </section>
+    {% include "lists/_drag.html" %}
 
     {% if is_owner %}
       <section class="card-box" id="colaboradores">{% include "lists/_collaborators.html" %}</section>

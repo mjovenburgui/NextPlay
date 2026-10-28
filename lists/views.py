@@ -141,7 +141,8 @@ def game_lists(request, slug):
 def detail(request, username, list_id):
     """Página de una lista: su mosaico, el título, el autor (y quien colabora), la descripción y los juegos, en
     portadas (en las tier lists, por niveles) o con el comentario de cada uno (?vista=; sin ella, con los comentarios
-    si alguno tiene), y debajo sus comentarios.
+    si alguno tiene), y debajo sus comentarios. En el tablero de una tier list, quien puede editarla arrastra las
+    portadas de un nivel a otro (lists/_tier_board.html y tier).
 
     La ve quien puede verla (GameList.visible_to); si no, 404. A quien está invitado a editarla le pregunta si acepta.
     Con sesión, enseña cuánto ha jugado quien mira de la lista, el estado de cada juego en su biblioteca y, de lo que
@@ -167,6 +168,7 @@ def detail(request, username, list_id):
     is_owner = viewer == game_list.user
     collaborators = list(game_list.collaborators.select_related("user__profile", "user__psn_account", "user__xbox_account"))
     mine = next((collaborator for collaborator in collaborators if collaborator.user_id == viewer.pk), None)
+    can_edit = is_owner or bool(mine and mine.accepted_at)
     mark_liked_lists([game_list], viewer)
     return render(request, "lists/detail.html", {
         "game_list": game_list,
@@ -176,11 +178,12 @@ def detail(request, username, list_id):
         # Quien colabora (ya ha aceptado), para decirlo junto al autor, y si quien mira está invitado y aún no ha aceptado.
         "collaborators": [collaborator for collaborator in collaborators if collaborator.accepted_at],
         "invitation": mine if mine and not mine.accepted_at else None,
-        "can_edit": is_owner or bool(mine and mine.accepted_at),
+        "can_edit": can_edit,
         "progress": progress,
         "view": view,
         "views": views.items(),
-        "tier_rows": game_list.tier_rows(items) if game_list.is_tiered else [],
+        # Quien puede editarla arrastra las portadas del tablero: necesita la fila «Sin clasificar» aunque esté vacía.
+        "tier_rows": game_list.tier_rows(items, keep_loose=can_edit) if game_list.is_tiered else [],
         "reported": viewer.is_authenticated and not is_owner and game_list.reports.filter(reporter=viewer).exists(),
         "open_report": "denunciar" in request.GET,
         **_list_comments(game_list, viewer),
@@ -418,14 +421,29 @@ def _editable_list(request, list_id):
 
 def editor_context(game_list):
     """Variables de los juegos del editor (lists/_editor_items.html): la lista, sus juegos en orden (con quién añadió
-    cada uno), sus niveles si es una tier list (tiers) y los máximos."""
+    cada uno), si es una tier list sus niveles (tiers) y el tablero en el que se arrastran sus portadas (tier_rows,
+    siempre con la fila «Sin clasificar»), y los máximos."""
+    items = list(game_list.items.select_related("game", "added_by__profile"))
     return {
         "game_list": game_list,
-        "items": list(game_list.items.select_related("game", "added_by__profile")),
+        "items": items,
         "tiers": game_list.tier_list if game_list.is_tiered else [],
+        "tier_rows": game_list.tier_rows(items, keep_loose=True) if game_list.is_tiered else [],
         "max_games": LIST_MAX_GAMES,
         "note_max": NOTE_MAX_LENGTH,
     }
+
+
+def board_context(game_list, viewer):
+    """Variables del tablero de la página de una tier list (lists/_tier_board.html) para quien puede editarla, que es
+    lo que se le devuelve al soltar una portada en él: sus juegos por niveles, con la fila «Sin clasificar» aunque esté
+    vacía, y el estado de cada uno en la biblioteca de viewer (viewer_status), como en detail."""
+    items = list(game_list.items.select_related("game"))
+    entries = LibraryEntry.objects.filter(user=viewer, game__in=[item.game_id for item in items])
+    statuses = {entry.game_id: entry.get_status_display() for entry in entries}
+    for item in items:
+        item.viewer_status = statuses.get(item.game_id, "")
+    return {"game_list": game_list, "tier_rows": game_list.tier_rows(items, keep_loose=True), "editable": True, "where": "tablero"}
 
 
 def collaborators_context(game_list, owner):
@@ -619,15 +637,20 @@ def note(request, list_id, game_id):
 @require_POST
 @login_required
 def tier(request, list_id, game_id):
-    """Pone un juego de una tier list en uno de sus niveles (nivel=, su id; vacío lo deja sin clasificar). Lo pueden
-    hacer su dueño y quien colabora. Responde como add; 404 si el juego no está en la lista y 400 si el nivel no existe."""
+    """Pone un juego de una tier list en uno de sus niveles (nivel=, su id; vacío lo deja sin clasificar). Con orden=
+    (los ids de los juegos de esa fila separados por comas, como han quedado al soltarlo en el tablero) además lo deja
+    en su sitio dentro del nivel (GameList.place). Lo pueden hacer su dueño y quien colabora. Responde como add; 404 si
+    el juego no está en la lista y 400 si el nivel no existe."""
     game_list = _editable_list(request, list_id)
     item = get_object_or_404(ListItem.objects.select_related("game"), game_list=game_list, game_id=game_id)
     raw = request.POST.get("nivel", "")
     if raw and not (raw.isdigit() and int(raw) in {level["id"] for level in game_list.tiers}):
         return HttpResponseBadRequest("Nivel no válido.")
     level = int(raw) if raw else None
-    if item.tier != level:
+    if "orden" in request.POST:
+        row = [int(part) for part in request.POST["orden"].split(",") if part.strip().isdigit()]
+        game_list.place(item.game, level, row)
+    elif item.tier != level:
         item.tier = level
         item.save(update_fields=["tier"])
         game_list.touch()
@@ -715,8 +738,9 @@ def _item_response(request, game_list, game, error=""):
     """Respuesta de añadir, quitar, mover o poner en un nivel un juego de una lista, según desde dónde se pulsa (desde=).
 
     Con HTMX: desde la ficha («ficha»), el desplegable «Añadir a una lista» abierto; desde el buscador del editor
-    («buscador»), los juegos del editor y, fuera de su sitio, el resultado ya marcado como añadido; desde el
-    editor, sus juegos. Sin HTMX vuelve a next (si es de esta web) o al editor, avisando del error si lo hay.
+    («buscador»), los juegos del editor y, fuera de su sitio, el resultado ya marcado como añadido; desde el tablero
+    de la página de la lista («tablero»), el tablero; desde el editor, sus juegos. Sin HTMX vuelve a next (si es de
+    esta web) o al editor, avisando del error si lo hay.
     """
     where = request.POST.get("desde", "")
     if request.headers.get("HX-Request"):
@@ -724,6 +748,8 @@ def _item_response(request, game_list, game, error=""):
             return render(request, "lists/_picker.html", {
                 "game": game, **picker_context(request.user, game), "open": True, "picker_error": error,
             })
+        if where == "tablero":
+            return render(request, "lists/_tier_board.html", board_context(game_list, request.user))
         context = {**editor_context(game_list), "list_error": error}
         if where == "buscador":
             game.in_list = game_list.items.filter(game=game).exists()

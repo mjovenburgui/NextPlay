@@ -122,6 +122,23 @@
     "notas": "Ya estaba planeada antes de proponerla. 21/10/2026: sube a alta porque el usuario las quiere ya. 25/10/2026: con lo social ya hecho, crear una lista sale en el feed y en la actividad («Ana creó la lista…»), y los «me gusta» y los comentarios reutilizan los de las reseñas y las publicaciones (library/_comments.html). Mejora que solo puede tener NextPlay: «Lo que te falta», los juegos de la lista que no tienes con lo que cuestan hoy en tus tiendas y en su mínimo histórico (solo los que tienen precio: PC y Xbox) y un botón para pasarlos todos a «Lo quiero», con sus avisos de precio. Y «Convertir en reto», que crea un reto de tipo lista concreta (ver «Retos: crea los tuyos y únete a los de otros»). 25/10/2026: fase 1 hecha en la rama listas-personalizadas (aún sin commit), en la app nueva lists: modelos GameList (título, descripción con el formato de las reseñas, pública o privada y numerada) y ListItem (puesto y comentario); página de cada lista en /u/<usuario>/listas/<id>/ con el mosaico de las primeras portadas y el color del perfil de su autor, en portadas o con los comentarios; progreso de quien mira (jugados, terminados, horas y el estado de cada juego) y «Lo que te falta» con lo que cuesta hoy en sus tiendas y en sus mínimos históricos y un botón para pasarlo todo a «Lo quiero»; editor con buscador mientras se escribe, subir, bajar o escribir el puesto, comentario que se guarda solo y quitar, todo al momento con HTMX; «Añadir a una lista» en la ficha (desplegable con tus listas y «Nueva lista con este juego») y «En N listas», con una página con todas; pestaña Listas y sección del escaparate en el perfil; listas de prueba en seed_test_profile y 37 tests. De paso, las tarjetas de la biblioteca del perfil vuelven a pintar las estrellas de la nota (games/_card.html usaba un atributo que no existe). Falta la fase 2 (me gusta, comentarios y denuncias, y que crear una lista salga en la actividad y el feed) y la 3 (modo tier list, listas colaborativas y «Convertir en reto» cuando haya retos). 25/10/2026: fase 1 con commit en su rama (sin fusionar). Fase 2 hecha en la rama listas-me-gusta-y-comentarios, encima de la anterior (aún sin commit): «me gusta» (ListLike, con aviso en la campana una vez por persona), comentarios (ListComment, con library/_comments.html y comment_thread, como los de las reseñas y las publicaciones: avisan al dueño salvo si ya tiene uno igual sin leer y los borran quien los escribe y el dueño de la lista) y denuncias de la lista y de sus comentarios, con su admin; actividad de tipo lista (social.activity.list_created, list_games_added y list_game_removed: crearla y añadirle juegos seguido va junto, y quitar uno recién añadido lo descuenta) que sale en el feed y en la actividad del perfil con el mosaico, los «me gusta», los comentarios y lo que ha jugado quien mira; las privadas, solo para su dueño, y las vacías no salen. De paso, un comentario en blanco dice «Escribe algo en el comentario.» en vez del error genérico de Django (también en reseñas y publicaciones). «Me gusta», comentarios y actividad de prueba en seed_test_profile y 14 tests. Falta la fase 3 (modo tier list, listas colaborativas y «Convertir en reto» cuando haya retos). 26/10/2026: fase 2 con commit en su rama (sin fusionar). Fase 3 hecha en la rama listas-por-niveles-y-colaborativas, encima de la anterior (aún sin commit): el tipo de lista pasa a ser un campo (mode: lista, numerada o tier list; la migración convierte las numeradas); tier lists con hasta 8 niveles con nombre y color (S, A, B, C, D y F de serie, con los colores de NextPlay) guardados con un id fijo, botones de nivel en el editor y tablero por niveles en la página, con los sin clasificar al final; listas colaborativas: el dueño invita por nombre de usuario (hasta 10, con aviso en la campana y sugiriendo la gente a la que sigue), quien acepta puede añadir, ordenar, poner en un nivel, comentar y quitar juegos aunque la lista sea privada, se dice quién colabora y quién añadió cada juego, sale en su pestaña Listas, en su «Añadir a una lista» y en su actividad, y puede irse cuando quiera. De paso, el color del texto sobre un color (accounts.models.text_on) sirve ya para el perfil y para los niveles. Tier list y colaboración de prueba en seed_test_profile y 13 tests. Falta «Convertir en reto», que espera a que existan los retos. 26/10/2026: antes de subir las listas, propuesto: que solo se pueda invitar a editar a quien te sigue (ahora se puede invitar a cualquiera y, creando varias listas, mandarle muchos avisos), avisar al dueño cuando alguien acepta la invitación (ahora no se entera) y que un color de nivel mal guardado desde el admin no rompa la página de la lista (accounts.models.text_on falla con un color que no sea «#rrggbb»). 26/10/2026: fase 3 con commit en su rama y «Convertir en reto» hecho con los retos, así que queda hecha. Esos tres arreglos pasan a su propia propuesta, «Listas colaborativas: invitar solo a quien te sigue y avisar al aceptar»."
   },
   {
+    "titulo": "Listas: colocar las carátulas arrastrándolas",
+    "fecha": "2026-10-28",
+    "estado": "hecha",
+    "prioridad": "alta",
+    "tipo": "Funcionalidad",
+    "resumen": "En las tier lists, arrastrar cada carátula a su nivel (o a «Sin clasificar») y, dentro de él, a su sitio, en el tablero del editor y en el de la página de la lista, en vez de pulsar los botones de nivel de cada juego. En las listas normales y numeradas, arrastrar las filas del editor para ordenarlas en vez de subirlas y bajarlas una a una.",
+    "motivo": "Idea del usuario (28/10/2026): con botones, colocar una tier list de 20 o 30 juegos es lento y no se ve el tablero mientras se hace. Arrastrar es lo que se espera de una tier list y de un ranking.",
+    "pasos": [
+      "GameList.place: pone un juego en un nivel y lo deja junto a sus vecinos de fila sin cambiar el orden de los demás; lists.views.tier lo usa cuando le llega orden=.",
+      "Un tablero compartido (lists/_tier_board.html) en el editor y en la página de la lista: quien puede editarla arrastra las carátulas con SortableJS (ratón y pantallas táctiles), y la fila «Sin clasificar» sale siempre para poder sacar juegos de su nivel.",
+      "En el editor de las listas normales y numeradas, un asa en cada fila para arrastrarla.",
+      "Los botones de nivel y los de subir y bajar se quedan para quien usa el teclado o un lector de pantalla.",
+      "Mientras se guarda no se puede arrastrar otra; si falla, la carátula vuelve a su sitio y sale el aviso."
+    ],
+    "notas": "28/10/2026: hecha en la rama listas-arrastrar y revisada por el usuario (commit en local, sin subir). SortableJS 1.15.6 se carga de jsDelivr solo en el editor y en la página de las tier lists de quien puede editarlas (lists/_drag.html), como htmx se carga de unpkg. Con el ratón se arrastra en cuanto se mueve y un clic sigue abriendo el juego; con el dedo hay que mantener pulsado un momento para que deslizar siga desplazando la página. Probado con el ratón en el navegador integrado (entre niveles, dentro de un nivel, a «Sin clasificar», en el editor y con un fallo simulado) y a 390 px; falta probarlo en un móvil de verdad. De paso, los fieldset ya no llevan el recuadro del navegador (ver «Detalles sueltos…»). 4 tests nuevos."
+  },
+  {
     "titulo": "Retos: crea los tuyos y únete a los de otros",
     "fecha": "2026-10-21",
     "estado": "en curso",
@@ -396,6 +413,52 @@
       "Mantener el estado, el idioma y el orden elegidos al pedir cada tanda."
     ],
     "notas": "La vista previa de Editar perfil ya enseña solo los primeros (PREVIEW_LIBRARY), así que no le afecta."
+  },
+  {
+    "titulo": "Primer uso: traer tus juegos nada más crear la cuenta",
+    "fecha": "2026-10-28",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Diseño",
+    "resumen": "Al registrarse, NextPlay manda al catálogo con «Añade tus primeros juegos a la biblioteca», y ni el inicio ni la biblioteca vacía del perfil ofrecen traerlos de Steam, PlayStation o Xbox, que es lo que trae las horas. Mientras la biblioteca esté vacía, el inicio enseñaría arriba una tarjeta «Trae tus juegos» con un botón por plataforma y, debajo, la opción de marcarlos a mano en el catálogo.",
+    "motivo": "En el repaso con anti-ui-slop del 28/10/2026 se vio que el primer uso no lleva a lo que distingue a NextPlay: importar la biblioteca con sus horas. accounts.views.signup redirige al catálogo; el inicio (games/home.html) no le dice nada a quien tiene la biblioteca vacía; y el vacío de la biblioteca del perfil solo nombra Steam, en texto y sin botón, aunque ya se pueden vincular PlayStation y Xbox. El botón «Vincular cuentas» solo está en la cabecera del perfil.",
+    "pasos": [
+      "Tarjeta «Trae tus juegos» en el inicio mientras la biblioteca esté vacía: botones de Steam, PlayStation y Xbox que abren el diálogo «Vincular cuentas» (accounts/linking/_dialog.html) y un enlace al catálogo para añadirlos a mano.",
+      "Los mismos botones en el vacío de la biblioteca del perfil, en .empty-actions, como ya tienen el catálogo y la lista de deseos.",
+      "Después de registrarse, ir al inicio con esa tarjeta en vez de al catálogo, con un aviso que diga qué hacer primero.",
+      "Quitar la tarjeta en cuanto haya algún juego en la biblioteca o una plataforma vinculada."
+    ],
+    "notas": "Al vincular Steam la biblioteca se importa en la misma petición de vuelta y tarda unos segundos; «Sincronizar» e «Importar» tampoco avisan mientras trabajan (ver «Formularios que avisan mientras trabajan»)."
+  },
+  {
+    "titulo": "Inicio en el móvil: la actividad antes que tu resumen",
+    "fecha": "2026-10-28",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Diseño",
+    "resumen": "En un móvil de 390 × 844 la primera pantalla del inicio es tu tarjeta (foto, bio y contadores) y la caja de publicar entera, con todos los juegos que estás jugando; las pestañas Siguiendo y Descubrir empiezan debajo de la barra inferior y no se ve ninguna actividad sin desplazarse. En el móvil, quitar esa tarjeta, cuyos datos ya están en la pestaña Perfil, y dejar la caja de publicar en una línea que se abre al tocarla.",
+    "motivo": "Es la pantalla que más se abre y lo que se viene a ver es lo que hacen los demás. Lo enseñaron las capturas a 390 px del repaso con anti-ui-slop del 28/10/2026, y va contra la regla 6 del contrato de diseño de app.css: en el móvil, primero lo que más se usa.",
+    "pasos": [
+      "Ocultar .me-card en el inicio por debajo de 760 px (la barra inferior ya lleva al perfil).",
+      "Caja de publicar plegada en el móvil: solo el campo «¿Qué estás jugando?»; los juegos, «Imágenes», «Es un spoiler» y «Publicar» salen al tocarla o si ya tiene texto, con :focus-within y :has() y sin JavaScript.",
+      "Comprobar a 360 y 390 px que las pestañas del feed y la primera actividad se ven sin desplazarse."
+    ],
+    "notas": "En escritorio no cambia nada: las tres columnas siguen igual."
+  },
+  {
+    "titulo": "Formularios que avisan mientras trabajan",
+    "fecha": "2026-10-28",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Diseño",
+    "resumen": "Lo que va por HTMX ya se atenúa mientras espera, pero los formularios normales no dan ninguna señal: al pulsar «Sincronizar» en Steam, «Publicar» con imágenes o «Guardar cambios» en Editar perfil, la página se queda quieta hasta que responde el servidor y un segundo toque lo envía dos veces. Al enviarlos, desactivar el botón y poner en él lo que está pasando: «Importando tus juegos…», «Publicando…», «Guardando…».",
+    "motivo": "La regla 4 del contrato de diseño de app.css dice que toda petición al servidor enseña que está esperando, y hoy solo se cumple con HTMX (lo vio el repaso con anti-ui-slop del 28/10/2026). La importación de Steam se hace dentro de la petición (accounts.views._import_steam: primero Steam y luego IGDB) y con bibliotecas grandes tarda; una publicación con imágenes se puede duplicar.",
+    "pasos": [
+      "Un script en base.html: al enviar un formulario sin hx-post, ponerle aria-busy, desactivar su botón y, si el botón tiene data-busy, cambiar su texto por ese.",
+      "Volver a activarlo en pageshow, para cuando se vuelve atrás y el navegador recupera la página de su caché.",
+      "data-busy en los botones de Steam, PlayStation y Xbox, en Publicar, en Guardar cambios y en los de crear y editar listas y retos."
+    ],
+    "notas": "Los filtros que se envían solos al cambiar un desplegable usan this.form.submit(), que no lanza el evento submit: si se quiere que también avisen, cambiarlo por requestSubmit()."
   },
   {
     "titulo": "Listas colaborativas: invitar solo a quien te sigue y avisar al aceptar",
@@ -823,6 +886,21 @@
     "notas": "Es una API sin documentar, como otras que ya se usan, y solo funciona si el perfil deja ver sus detalles de juego (igual que la biblioteca). Conviene tenerla antes de las rebajas de invierno de Steam (del 17 de diciembre al 4 de enero). 21/10/2026: aparcada; de momento el usuario prefiere centrarse en el perfil, las listas, los retos y las reseñas. 24/10/2026: hecha a petición del usuario (aún sin commit). Cada vez que se importa Steam (al vincular, con «Sincronizar» y en la sincronización de cada noche) se lee IWishlistService/GetWishlist de todas sus cuentas y los juegos se buscan como los de la biblioteca, respetando lo emparejado a mano. Se crean en «Lo quiero» los que no tiene ya, con el puesto y la fecha de Steam, que dan el orden «Como en tu lista de Steam» y una etiqueta de Steam en la lista de deseos. No se traen los de su biblioteca ni los que quitó a mano (Profile.steam_wishlist_skip, con «Volver a traerlos» en el panel de Steam); los que trajo Steam se quitan cuando dejan de estar allí, pero solo si se han podido leer todas sus listas (una privada o vacía no borra nada), y lo añadido a mano en NextPlay nunca se toca. Al sincronizar se piden ya a IsThereAnyDeal los precios de los nuevos y el aviso dice cuántos están hoy en su mínimo histórico y cuántos son más baratos fuera de Steam. Se puede desactivar en el panel de Steam. 7 tests nuevos. De los que no están en el catálogo solo se da el número: la API no trae sus nombres."
   },
   {
+    "titulo": "Detalles sueltos: recuadros de los formularios, el corazón de las listas y pestañas cortadas",
+    "fecha": "2026-10-28",
+    "estado": "en curso",
+    "prioridad": "baja",
+    "tipo": "Diseño",
+    "resumen": "Tres detalles de las capturas a 390 px: «Tipo de lista» y «Niveles» del editor de listas llevan el recuadro blanco que el navegador pone a los fieldset; el botón de las listas que añade a «Lo quiero» los juegos que te faltan sigue con el ♡ de texto en vez del icono del corazón; y en el móvil las pestañas de Editar perfil se cortan («Redes socia…») sin nada que diga que se pueden deslizar.",
+    "motivo": "Los vio el repaso con anti-ui-slop del 28/10/2026. Son rápidos y desentonan: el resto de formularios ya quitan ese recuadro y los demás botones de «Lo quiero» usan el icono.",
+    "pasos": [
+      "Un estilo común para fieldset y legend en app.css (sin borde ni relleno y la leyenda como las etiquetas), en vez de repetirlo en .settings-card, .challenge-form y .report-form.",
+      "lists/detail.html: cambiar el ♡ por el icono heart de _icon.html.",
+      "Difuminar el borde de .tabs por el lado en el que quedan pestañas cuando se pueden deslizar."
+    ],
+    "notas": "Se pueden hacer de paso con cualquiera de las otras mejoras de diseño. 28/10/2026: en la rama listas-arrastrar, de paso con «Listas: colocar las carátulas arrastrándolas», ya están los dos primeros: un estilo común quita el recuadro a todos los fieldset (y de paso alinea «Tipo de reto» con los demás campos del formulario de retos) y el botón de las listas usa el icono del corazón. Falta difuminar las pestañas."
+  },
+  {
     "titulo": "Publicar NextPlay y abrir una beta antes de las rebajas de invierno",
     "fecha": "2026-10-21",
     "estado": "pendiente",
@@ -839,6 +917,22 @@
       "Con la beta estable, enseñarla en comunidades de videojuegos en español (subreddits, servidores de Discord, Mediavida) con algo que se pueda compartir: la tarjeta del perfil o «¿A qué jugamos?»."
     ],
     "notas": "Primera meta realista: 50 personas que vuelvan cada semana. La importación de PlayStation usa una API no oficial: dejarla marcada como experimental. Si algún día se monetiza (anuncios o enlaces de afiliado), revisar antes las condiciones de uso comercial de IGDB e IsThereAnyDeal. 21/10/2026: aparcada; de momento el usuario prefiere centrarse en el perfil, las listas, los retos y las reseñas. 24/10/2026: las reseñas y los comentarios ya tienen botón de denunciar; antes de publicar faltan bloquear usuarios y llevar las imágenes que se suben (perfiles y reseñas) a un almacenamiento aparte, porque ahora se guardan en MEDIA_ROOT del propio servidor."
+  },
+  {
+    "titulo": "Páginas de error propias: no encontrada, fallo del servidor y formulario caducado",
+    "fecha": "2026-10-28",
+    "estado": "pendiente",
+    "prioridad": "baja",
+    "tipo": "Diseño",
+    "resumen": "No hay plantillas 404.html, 500.html ni 403_csrf.html, así que con DEBUG apagado Django enseña sus páginas por defecto, en inglés y sin estilo. Hacerlas con el aspecto de NextPlay: «No encontramos esta página» con el buscador y enlaces al inicio y al catálogo, un 500 que no dependa de la base de datos y la del formulario caducado con «Vuelve atrás, recarga la página y envíalo otra vez».",
+    "motivo": "Es el estado de error de las páginas enteras, que el repaso con anti-ui-slop del 28/10/2026 dejó sin cubrir: los avisos de fallo nuevos solo sirven para lo que va por HTMX. En local no se nota porque DEBUG enseña la página técnica, pero hacen falta antes de publicar.",
+    "pasos": [
+      "templates/404.html sobre base.html, con el buscador y enlaces al inicio y al catálogo.",
+      "templates/500.html que se valga sola (sin consultas ni nada que pueda volver a fallar), con el CSS de static.",
+      "templates/403_csrf.html para el formulario caducado y templates/403.html.",
+      "Un test con DEBUG apagado que pida una dirección que no existe y compruebe que sale la página propia."
+    ],
+    "notas": "Va con «Publicar NextPlay y abrir una beta antes de las rebajas de invierno»."
   },
   {
     "titulo": "Retos del año y control del pendiente",

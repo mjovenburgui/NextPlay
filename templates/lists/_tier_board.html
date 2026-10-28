@@ -1,0 +1,21 @@
+{# Tablero de una tier list: una fila por nivel, con su nombre en su color y las portadas de sus juegos; al final, los que no están #}
+{# en ninguno. Necesita game_list y tier_rows (GameList.tier_rows). Con editable (quien puede editar la lista) las portadas se #}
+{# arrastran a otro nivel o a otro sitio del suyo y cada cambio se guarda al soltarlas (lists.views.tier con orden=; el script #}
+{# está en lists/_drag.html). where dice desde dónde: «editor» cambia todos los juegos del editor y «tablero», en la página de #}
+{# la lista, solo el tablero. #}
+<div class="tier-board{% if editable %} is-editable{% endif %}" id="tier-board"{% if editable %} data-tier-board data-desde="{{ where }}" data-target="{% if where == 'editor' %}#list-items{% else %}#tier-board{% endif %}"{% endif %}>
+  {% for level, tier_items in tier_rows %}
+    <div class="tier-row{% if not level %} is-loose{% endif %}">
+      <p class="tier-label"{% if level %} style="--tier: {{ level.color }}; --tier-text: {{ level.text }};"{% endif %}>{% if level %}{{ level.label }}{% else %}Sin clasificar{% endif %}</p>
+      <ol class="tier-games"{% if editable %} data-tier="{% if level %}{{ level.id }}{% endif %}"{% endif %}>
+        {% for item in tier_items %}
+          <li{% if editable %} data-game="{{ item.game_id }}" data-url="{% url 'lists:tier' game_list.pk item.game_id %}"{% endif %}>
+            <a class="tier-game" href="{{ item.game.get_absolute_url }}" title="{{ item.game.name }}{% if item.viewer_status %} · {{ item.viewer_status }}{% endif %}"{% if editable %} draggable="false"{% endif %}>
+              {% if item.game.cover_url %}<img src="{{ item.game.cover_url }}" alt="{{ item.game.name }}" loading="lazy"{% if editable %} draggable="false"{% endif %}>{% else %}<span class="cover-fallback">{{ item.game.name }}</span>{% endif %}
+            </a>
+          </li>
+        {% endfor %}
+      </ol>
+    </div>
+  {% endfor %}
+</div>

@@ -1,14 +1,21 @@
 {# Juegos de una lista en su editor: cada uno con su puesto (que se puede escribir), su comentario, los botones de subir, bajar y quitar y, en #}
-{# las tier lists, los de sus niveles (pulsar el suyo lo saca). En las colaborativas dice quién añadió cada uno, si no fue su dueño. #}
-{# Necesita las variables de lists.views.editor_context. HTMX lo cambia entero al añadir, mover, poner en un nivel o quitar un juego (los #}
-{# botones llevan id para que HTMX les devuelva el foco); con added_result también cambia, fuera de su sitio, el resultado de la búsqueda. #}
+{# las tier lists, los de sus niveles (pulsar el suyo lo saca). Las tier lists llevan encima su tablero, donde se arrastran las portadas #}
+{# (lists/_tier_board.html), y en las demás cada fila se arrastra por su asa (lists/_drag.html); los botones siguen para el teclado. En #}
+{# las colaborativas dice quién añadió cada uno, si no fue su dueño. Necesita las variables de lists.views.editor_context. HTMX lo #}
+{# cambia entero al añadir, mover, poner en un nivel o quitar un juego (los botones llevan id para que HTMX les devuelva el foco); con #}
+{# added_result también cambia, fuera de su sitio, el resultado de la búsqueda. #}
 <div id="list-items">
-  <p class="list-items-count muted small">{{ items|length }} de {{ max_games }} juegos{% if game_list.is_ranked %} · el orden es el del ranking{% elif game_list.is_tiered %} · dentro de cada nivel van en este orden{% endif %}</p>
+  <p class="list-items-count muted small">{{ items|length }} de {{ max_games }} juegos{% if game_list.is_ranked %} · el orden es el del ranking{% endif %}{% if items and not game_list.is_tiered %}{% if game_list.is_ranked %};{% else %} ·{% endif %} arrastra cada fila por su asa para cambiarla de puesto{% endif %}</p>
   {% if list_error %}<p class="errorlist">{{ list_error }}</p>{% endif %}
+  {% if items and game_list.is_tiered %}
+    <p class="tier-hint muted small">{% include "_icon.html" with name="grip" %} Arrastra las portadas a su nivel y, dentro de él, a su sitio. Debajo, cada juego tiene también los botones de su nivel.</p>
+    {% include "lists/_tier_board.html" with editable=True where="editor" %}
+  {% endif %}
   {% if items %}
-    <ol class="reorder-list list-editor-items">
+    <ol class="reorder-list list-editor-items"{% if not game_list.is_tiered %} data-sortable-rows{% endif %}>
       {% for item in items %}
-        <li class="reorder-item list-editor-item" id="juego-{{ item.game_id }}">
+        <li class="reorder-item list-editor-item" id="juego-{{ item.game_id }}"{% if not game_list.is_tiered %} data-game="{{ item.game_id }}" data-url="{% url 'lists:move' game_list.pk item.game_id %}"{% endif %}>
+          {% if not game_list.is_tiered %}<span class="drag-handle" title="Arrastra para cambiarlo de puesto" aria-hidden="true">{% include "_icon.html" with name="grip" %}</span>{% endif %}
           <form class="list-position" method="post" action="{% url 'lists:move' game_list.pk item.game_id %}"
                 hx-post="{% url 'lists:move' game_list.pk item.game_id %}" hx-trigger="change" hx-target="#list-items" hx-swap="outerHTML" hx-sync="#juegos:queue all">
             {% csrf_token %}

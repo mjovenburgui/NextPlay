@@ -236,9 +236,12 @@ quien mira. Las listas privadas solo salen en la actividad de su dueño, y las v
 
 Una lista puede ser normal, numerada (cada juego con su puesto) o una tier list: cada juego va en uno de sus niveles,
 de mejor a peor (S, A, B, C, D y F de serie, con los colores de NextPlay; hasta 8, con el nombre y el color que se
-quiera). En el editor cada juego lleva los botones de los niveles, y la página de la lista enseña el tablero, con una
-fila por nivel y, al final, los juegos que aún no están en ninguno. Los niveles se guardan en `GameList.tiers` con un
-id fijo, así que renombrarlos no mueve los juegos.
+quiera). La página de la lista enseña el tablero, con una fila por nivel y, al final, los juegos que aún no están en
+ninguno. Quien puede editarla arrastra las portadas de un nivel a otro, y a su sitio dentro de cada uno, en ese mismo
+tablero o en el del editor (SortableJS, con el ratón o con el dedo; se guarda al soltar con `GameList.place`, que no
+cambia el orden de los demás). En el editor de las listas normales y numeradas, cada fila se arrastra por su asa. Los
+botones de nivel y los de subir y bajar de cada juego siguen ahí para quien usa el teclado. Los niveles se guardan en
+`GameList.tiers` con un id fijo, así que renombrarlos no mueve los juegos.
 
 Su dueño puede invitar a otros a editarla con él (hasta 10): les llega un aviso y, cuando aceptan, pueden añadir,
 ordenar, poner en un nivel, comentar y quitar sus juegos, aunque la lista sea privada; sus datos, quién colabora y
