@@ -8,6 +8,7 @@ Es experimental: Sony puede cambiarla sin avisar.
 import base64
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import parse_qs, urlparse
 
 import requests
@@ -15,7 +16,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from .matching import add_title, clean_name, match_by_name, normalize, save_titles, update_library
+from .matching import YEAR_OR_REGION, add_title, clean_name, match_by_name, name_key, normalize, save_titles, update_library
 from .models import ExternalTitle, ImportedTitle, PSNAccount
 
 AUTH_URL = "https://ca.account.sony.com/api/authz/v3/oauth"
@@ -30,6 +31,12 @@ GAMES_URL = "https://m.np.playstation.com/api/gamelist/v2/users/me/titles"
 TROPHIES_URL = "https://m.np.playstation.com/api/trophy/v1/users/me/trophyTitles"
 TROPHIES_PAGE_SIZE = 800
 TROPHY_GRADES = ("bronze", "silver", "gold", "platinum")
+# Las mismas listas de trofeos, pero de juegos concretos a partir de su ID de PSN (CUSA… en PS4, PPSA… en PS5): como
+# mucho TITLE_IDS_PER_REQUEST juegos por petición y TROPHY_WORKERS peticiones a la vez.
+GAME_TROPHIES_URL = "https://m.np.playstation.com/api/trophy/v1/users/me/titles/trophyTitles"
+TITLE_ID = re.compile(r"^[A-Z]{4}\d{5}_\d{2}$")
+TITLE_IDS_PER_REQUEST = 5
+TROPHY_WORKERS = 6
 NPSSO_URL = "https://ca.account.sony.com/api/v1/ssocookie"
 NPSSO = re.compile(r"^[A-Za-z0-9]{64}$")
 TIMEOUT = 20
@@ -42,6 +49,10 @@ class PSNError(Exception):
 
 class PSNAuthError(PSNError):
     """Sony no acepta el código NPSSO (mal copiado o caducado)."""
+
+
+class PSNRejectedError(PSNError):
+    """PlayStation rechaza lo que se le pide (400 o 404): p. ej. un ID de juego que no conoce."""
 
 
 def clean_npsso(value):
@@ -101,13 +112,17 @@ def access_token(npsso):
 
 
 def _get(url, token, **params):
-    """GET autenticado contra la API de PlayStation; devuelve el JSON."""
+    """GET autenticado contra la API de PlayStation; devuelve el JSON. Lanza PSNRejectedError si PlayStation rechaza lo
+    que se le pide (400 o 404) y PSNError con cualquier otro fallo."""
     try:
         response = requests.get(
             url, params=params, headers={"Authorization": f"Bearer {token}"}, timeout=TIMEOUT
         )
         response.raise_for_status()
         return response.json()
+    except requests.HTTPError as exc:
+        rejected = exc.response is not None and exc.response.status_code in (400, 404)
+        raise (PSNRejectedError if rejected else PSNError)(f"Error consultando PlayStation ({url}): {exc}") from exc
     except (requests.RequestException, ValueError) as exc:
         raise PSNError(f"Error consultando PlayStation ({url}): {exc}") from exc
 
@@ -169,30 +184,75 @@ def trophy_titles(token):
             return titles
 
 
-def save_trophies(user, trophies):
-    """Apunta en los títulos de PlayStation importados del usuario sus trofeos (los de trophy_titles) y devuelve en
-    cuántos.
+def trophies_by_title_id(token, title_ids):
+    """Listas de trofeos de los juegos title_ids a partir de su ID de PSN: {ID: [listas como las de trophy_titles]}.
 
-    PlayStation da los trofeos con otro identificador que los juegos, así que se emparejan por nombre: el del título o
-    el del juego del catálogo que tiene. Si un juego tiene trofeos aparte en PS4 y en PS5, cuenta la versión que más
-    lleva (primero el platino). Los títulos sin trofeos leídos se quedan como estaban.
+    Solo se piden los ID de verdad (TITLE_ID: los títulos que llegan sin ID se importan con su nombre),
+    TITLE_IDS_PER_REQUEST por petición y TROPHY_WORKERS peticiones a la vez. Una colección trae una lista por cada
+    juego que incluye. Si PlayStation rechaza una petición (un ID que no conoce la tumba entera), sus juegos se piden
+    de uno en uno; los que aun así fallan, y los de una petición que falla por otra cosa (la red, el token), se quedan
+    fuera y se buscan por nombre (save_trophies).
     """
-    found = {}
+    ids = sorted(title_id for title_id in title_ids if TITLE_ID.match(title_id))
+
+    def read(batch):
+        """[(ID, listas de trofeos)] de los juegos de batch, pedidos juntos."""
+        try:
+            data = _get(GAME_TROPHIES_URL, token, npTitleIds=",".join(batch))
+        except PSNRejectedError:
+            return [] if len(batch) == 1 else [found for title_id in batch for found in read([title_id])]
+        except PSNError:
+            return []
+        return [(title.get("npTitleId"), title.get("trophyTitles") or []) for title in data.get("titles") or []]
+
+    batches = [ids[start:start + TITLE_IDS_PER_REQUEST] for start in range(0, len(ids), TITLE_IDS_PER_REQUEST)]
+    with ThreadPoolExecutor(max_workers=TROPHY_WORKERS) as pool:
+        return {title_id: lists for found in pool.map(read, batches) for title_id, lists in found}
+
+
+def trophy_key(name):
+    """Clave para emparejar un juego con su lista de trofeos por el nombre: sin coletillas de plataforma y sin fijarse en
+    cómo está escrito (name_key), para que «Tom Clancy’s» y «Tom Clancy's» o «Ghostrunner2» y «Ghostrunner 2» sean el mismo."""
+    return name_key(clean_name(name))
+
+
+def trophy_count(lists):
+    """(conseguidos, totales, platino) de una o varias listas de trofeos sumadas (las de los juegos de una
+    colección), o None si no tienen ningún trofeo."""
+    defined = sum((item.get("definedTrophies") or {}).get(grade) or 0 for item in lists for grade in TROPHY_GRADES)
+    if not defined:
+        return None
+    earned = sum((item.get("earnedTrophies") or {}).get(grade) or 0 for item in lists for grade in TROPHY_GRADES)
+    return min(earned, defined), defined, any((item.get("earnedTrophies") or {}).get("platinum") for item in lists)
+
+
+def save_trophies(user, trophies, by_title=None):
+    """Apunta en los títulos de PlayStation importados del usuario sus trofeos y devuelve en cuántos.
+
+    Primero, los de su ID de juego (by_title, de trophies_by_title_id): una colección suma las listas de sus juegos y
+    cuenta como platino si tiene alguno. Los que no salen así se buscan por nombre (trophy_key) en la lista de trofeos
+    de la cuenta (trophies, de trophy_titles): el del título o el del juego del catálogo que tiene y, si con ellos no
+    aparece, sin el año o la región del final (YEAR_OR_REGION). Si un juego tiene trofeos aparte en PS4 y en PS5, por
+    nombre cuenta la versión que más lleva (primero el platino). Los títulos sin trofeos leídos se quedan como estaban.
+    """
+    by_title = by_title or {}
+    by_name = {}
     for trophy in trophies:
-        name = normalize(clean_name(trophy.get("trophyTitleName")))
-        defined, earned = trophy.get("definedTrophies") or {}, trophy.get("earnedTrophies") or {}
-        total = sum(defined.get(grade) or 0 for grade in TROPHY_GRADES)
-        if not name or not total:
+        key, result = trophy_key(trophy.get("trophyTitleName")), trophy_count([trophy])
+        if not key or result is None:
             continue
-        result = (min(sum(earned.get(grade) or 0 for grade in TROPHY_GRADES), total), total, bool(earned.get("platinum")))
-        old = found.get(name)
+        old = by_name.get(key)
         if old is None or (result[2], result[0] / result[1]) > (old[2], old[0] / old[1]):
-            found[name] = result
+            by_name[key] = result
     now = timezone.now()
     rows = []
     for row in ImportedTitle.objects.filter(user=user, title__platform=ExternalTitle.Platform.PSN).select_related("title__game"):
-        names = [row.title.name] + ([row.title.game.name] if row.title.game else [])
-        result = next((found[key] for key in map(normalize, names) if key in found), None)
+        result = trophy_count(by_title.get(row.title.external_id) or [])
+        if result is None:
+            names = [row.title.name] + ([row.title.game.name] if row.title.game else [])
+            # El año o la región solo se quitan si con ellos no aparece: «DOOM (1993)» no se lleva los de DOOM.
+            keys = [trophy_key(name) for name in names] + [trophy_key(YEAR_OR_REGION.sub("", name)) for name in names]
+            result = next((by_name[key] for key in keys if key in by_name), None)
         if result is not None:
             row.set_achievements(*result, at=now)
             rows.append(row)
@@ -209,9 +269,6 @@ def duration_minutes(value):
     return int(days or 0) * 1440 + int(hours or 0) * 60 + int(minutes or 0) + round(float(seconds or 0) / 60)
 
 
-# Títulos de PSN que no son un juego concreto sino un lanzador de varios (p. ej. «Call of Duty®» en PS5,
-# desde el que se abren MWII, MWIII y Black Ops 6). Se cuentan como no encontrados.
-LAUNCHERS = {"call of duty"}
 # Plataforma de IGDB de cada categoría de PSN, para desempatar juegos que se llaman igual (remakes).
 CATEGORY_PLATFORMS = {"ps4_game": "PlayStation 4", "ps5_native_game": "PlayStation 5"}
 
@@ -224,8 +281,8 @@ def import_library(user, npsso):
     PS4 y la de PS5 de un juego se suman. Lanza PSNAuthError si el código no vale y ValueError si esa
     cuenta de PSN ya es de otro usuario.
 
-    Con el mismo token lee después los trofeos de cada juego (trophy_titles y save_trophies); si fallan, la
-    importación de los juegos sigue valiendo.
+    Con el mismo token lee después los trofeos de cada juego (trophies_by_title_id, trophy_titles y save_trophies);
+    si fallan, la importación de los juegos sigue valiendo.
 
     Devuelve un dict con la cuenta («account»), cuántos juegos se han añadido («added»), actualizado
     («updated») y no se han encontrado en el catálogo («unmatched»), y de cuántos se han leído los trofeos
@@ -252,11 +309,8 @@ def import_library(user, npsso):
         )
 
     def auto_match(ids):
-        """Busca por nombre (y plataforma) los títulos que aún no tienen juego, salvo los lanzadores."""
-        return match_by_name({
-            i: (titles[i]["name"], titles[i]["platforms"])
-            for i in ids if normalize(titles[i]["name"]) not in LAUNCHERS
-        })
+        """Busca por nombre (y plataforma) los títulos que aún no tienen juego."""
+        return match_by_name({i: (titles[i]["name"], titles[i]["platforms"]) for i in ids})
 
     games = save_titles(user, ExternalTitle.Platform.PSN, titles, auto_match)
     with transaction.atomic():
@@ -273,8 +327,10 @@ def import_library(user, npsso):
         added, updated = update_library(user, ExternalTitle.Platform.PSN, opened_only=True, record_activity=True)
     unmatched = sum(1 for game in games.values() if game is None)
     try:
-        trophies = save_trophies(user, trophy_titles(token))
+        listed = trophy_titles(token)
     except PSNError:
-        # Sin los trofeos, lo importado de los juegos sigue valiendo: se intentan en la próxima sincronización.
-        trophies = 0
+        # Sin la lista de trofeos de la cuenta solo se apuntan los que salen por ID: lo importado de los juegos sigue
+        # valiendo y el resto se intenta en la próxima sincronización.
+        listed = []
+    trophies = save_trophies(user, listed, trophies_by_title_id(token, titles))
     return {"account": account, "added": added, "updated": updated, "unmatched": unmatched, "trophies": trophies}

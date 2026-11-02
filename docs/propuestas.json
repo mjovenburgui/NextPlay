@@ -13,7 +13,23 @@
       "Cambiar en cada servicio las claves que ya se subieron (están en el historial de git aunque se quite el archivo).",
       "Mantener .env.example con los nombres de las variables y sin valores."
     ],
-    "notas": "25/10/2026: al revisar el proyecto, el repositorio de GitHub es público y el .env de main lleva claves con pinta de reales: el Client ID y el secreto de Twitch (IGDB) y las claves de IsThereAnyDeal, GG.deals y Steam (la de Steam entró con «Update .env», hecho desde la web de GitHub). Hay que cambiar el secreto de Twitch y las claves de IsThereAnyDeal y Steam; la de GG.deals no la usa el código, así que basta con revocarla y quitarla del .env. .claude/launch.json también está versionado y es de cada ordenador: sacarlo a la vez y añadirlo a .gitignore. 25/10/2026: hecho en la rama sacar-env-del-repositorio (PR abierto, sin fusionar): git deja de versionar .env y .claude/launch.json (que pasa a .gitignore) sin borrarlos del ordenador. Falta que el usuario cambie el secreto de Twitch y las claves de IsThereAnyDeal y Steam y revoque la de GG.deals; entonces pasa a «hecha». No se reescribe el historial: con las claves cambiadas, las que se quedan en él ya no sirven."
+    "notas": "25/10/2026: al revisar el proyecto, el repositorio de GitHub es público y el .env de main lleva claves con pinta de reales: el Client ID y el secreto de Twitch (IGDB) y las claves de IsThereAnyDeal, GG.deals y Steam (la de Steam entró con «Update .env», hecho desde la web de GitHub). Hay que cambiar el secreto de Twitch y las claves de IsThereAnyDeal y Steam; la de GG.deals no la usa el código, así que basta con revocarla y quitarla del .env. .claude/launch.json también está versionado y es de cada ordenador: sacarlo a la vez y añadirlo a .gitignore. 25/10/2026: hecho en la rama sacar-env-del-repositorio (PR abierto, sin fusionar): git deja de versionar .env y .claude/launch.json (que pasa a .gitignore) sin borrarlos del ordenador. Falta que el usuario cambie el secreto de Twitch y las claves de IsThereAnyDeal y Steam y revoque la de GG.deals; entonces pasa a «hecha». No se reescribe el historial: con las claves cambiadas, las que se quedan en él ya no sirven.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "La parte de git está hecha y fusionada: .env ya no se versiona. La parte que importa, no: IGDB_CLIENT_ID, IGDB_CLIENT_SECRET, ITAD_API_KEY, STEAM_API_KEY y GGDEALS_API_KEY del .env de este ordenador son idénticas a las de los commits c0d413f y 7915833, y el repositorio es público. Cualquiera puede usarlas. DJANGO_SECRET_KEY nunca se subió. Lo he comparado sin enseñar ningún valor.",
+      "plan": [
+        "Tú, en cada servicio, porque son tus cuentas: en la consola de Twitch, un secreto nuevo para la aplicación (el Client ID se queda); en IsThereAnyDeal y en Steam, una clave nueva que anule la anterior; en GG.deals, revocarla y borrar GGDEALS_API_KEY del .env, porque el código no la usa (comprobado: 0 referencias).",
+        "Pegar las nuevas en el .env, reiniciar el servidor y probar cada una con una llamada real: import_igdb --search con un juego, update_prices --game con otro y sincronizar Steam desde el perfil.",
+        "Repetir la comparación de hoy (los valores de .env contra esos dos commits, sin mostrarlos) para confirmar que ya no coincide ninguno, y pasar la propuesta a «hecha».",
+        "No reescribiría el historial: con las claves cambiadas, lo que queda en él no sirve, y reescribirlo rompe todas las ramas y los PR."
+      ],
+      "profundizar": [
+        "Que no vuelva a pasar: «Secret scanning» y «Push protection» en GitHub, gratis en repositorios públicos (rechazan el push si lleva una clave conocida), y gitleaks como hook de pre-commit para lo que se les escape.",
+        "Una comprobación propia de Django (system check) que avise si .env aparece en git ls-files o si falta una clave que el código necesita: sale al arrancar el servidor, sin depender de acordarse.",
+        "Un juego de claves por entorno, para poder cortar las de desarrollo sin tocar producción cuando se publique.",
+        "Revisar qué más es público: este PDF y propuestas.json están en el repositorio y cuentan qué falta por asegurar. Si el código no necesita ser público, hacerlo privado es lo más sencillo; no arregla lo ya copiado, por eso primero van las claves."
+      ]
+    }
   },
   {
     "titulo": "Borrar la cuenta, descargar mis datos y privacidad (RGPD)",
@@ -29,7 +45,24 @@
       "Página de privacidad: qué se guarda (IDs de Steam, PSN y Xbox; el NPSSO no se guarda), a qué servicios se llama (IGDB, IsThereAnyDeal, Steam, Sony, Microsoft) y cómo pedir el borrado.",
       "Enlaces en el pie de página."
     ],
-    "notas": "Si solo se usan las cookies de sesión y CSRF no hace falta banner de cookies; si algún día se añaden analíticas, sí."
+    "notas": "Si solo se usan las cookies de sesión y CSRF no hace falta banner de cookies; si algún día se añaden analíticas, sí.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "No hay ninguna de las tres cosas (el pie solo cita a IGDB). La base ayuda: casi todo cuelga del usuario con CASCADE y las señales ya borran del disco las imágenes del perfil, de las reseñas y de las publicaciones. El problema está en lo compartido: GameList.user y Challenge.creator también son CASCADE, así que borrar a alguien se lleva listas con colaboradores y retos con más participantes.",
+      "plan": [
+        "accounts/privacy.py con export_user(user) y delete_user(user). Un test recorre apps.get_models() y falla si aparece un modelo nuevo con relación al usuario sin decidir qué pasa con él: así la lista no se queda vieja.",
+        "Borrar: en Editar perfil, pidiendo la contraseña y que escriba su nombre de usuario. Antes de borrar, las listas con colaboradores pasan al primero que aceptó y los retos con más gente se quedan sin creador (SET_NULL), para no quitarles nada a los demás.",
+        "Descargar: un ZIP con un JSON por tipo de dato (perfil, biblioteca, títulos importados, sesiones, reseñas, listas, retos, publicaciones, seguidos) y las imágenes que ha subido. Con una biblioteca como la de tester_steam (348 juegos) se genera dentro de la petición sin problema.",
+        "Página /privacidad/ con una tabla: qué se guarda y de dónde sale (SteamID, ID de PSN, XUID, horas, logros, correo), qué no se guarda (NPSSO, tokens de Microsoft), a quién se llama (IGDB y Twitch, IsThereAnyDeal, Steam, Sony, Microsoft, Nintendo y YouTube solo al pulsar) y cómo reclamar ante la AEPD. Enlaces en el pie y en el registro.",
+        "Revisar lo que se carga de fuera en cada página: htmx sale de unpkg y SortableJS de jsDelivr, y eso les da la IP de cada visitante. Servir los dos desde static y citar en la página los CDN de imágenes. Sin analíticas sigue sin hacer falta banner de cookies."
+      ],
+      "profundizar": [
+        "Periodo de gracia: marcar la cuenta, ocultarla al momento y borrarla de verdad a los 30 días desde nightly; entrar antes la recupera. Protege de borrados por impulso y de cuentas robadas.",
+        "Olvidar por partes: al desvincular una plataforma hoy se quedan sus juegos y sus horas. Ofrecer «borrar también lo importado de esta cuenta» y apagar el diario sin tener que irse.",
+        "Exportar en un CSV que otros trackers entiendan: la portabilidad es un argumento a favor (Backloggd aún no la tiene) y sirve de copia personal.",
+        "Edad mínima en el registro: en España son 14 años para consentir el tratamiento (LOPDGDD, art. 7), con una reforma en marcha para subirla a 16; comprobarlo antes de publicar."
+      ]
+    }
   },
   {
     "titulo": "Perfil muy personalizable: foto, cabecera, fondo, colores y escaparate",
@@ -139,6 +172,96 @@
     "notas": "28/10/2026: hecha en la rama listas-arrastrar y revisada por el usuario. SortableJS 1.15.6 se carga de jsDelivr solo en el editor y en la página de las tier lists de quien puede editarlas (lists/_drag.html), como htmx se carga de unpkg. Con el ratón se arrastra en cuanto se mueve y un clic sigue abriendo el juego; con el dedo hay que mantener pulsado un momento para que deslizar siga desplazando la página. Probado con el ratón en el navegador integrado (entre niveles, dentro de un nivel, a «Sin clasificar», en el editor y con un fallo simulado) y a 390 px; falta probarlo en un móvil de verdad. De paso, los fieldset ya no llevan el recuadro del navegador (ver «Detalles sueltos…»). 4 tests nuevos."
   },
   {
+    "titulo": "Emparejar los juegos por nombre sin contar signos: recuperar horas perdidas",
+    "fecha": "2026-11-01",
+    "estado": "hecha",
+    "prioridad": "alta",
+    "tipo": "Funcionalidad",
+    "resumen": "Que «inFAMOUS Second Son» encuentre «Infamous: Second Son» y «Outlast 2» encuentre «Outlast II»: comparar los nombres sin signos ni mayúsculas, también con los nombres alternativos y en España que ya se guardan, y aplicarlo a lo ya importado sin tener que volver a sincronizar.",
+    "motivo": "PlayStation y Xbox emparejan por nombre, y accounts.matching.match_by_name solo acepta nombres idénticos (normalize quita ™, ® y © y poco más). En tester_steam hay 33 títulos sin emparejar y 689 h que no cuentan en su biblioteca, ni en sus retos ni en sus estadísticas. Simulado sin guardar nada: con una comparación sin signos salen 21 títulos y unas 583 h, entre ellos Rainbow Six Siege (382,6 h; IGDB ahora lo llama así, sin «Tom Clancy's»), The Witcher 3 Remastered (61,4 h) y Sniper Ghost Warrior 3 (27,6 h y su platino). Es la primera impresión de cualquiera que importe de PlayStation o Xbox, y psn.trophy_key ya resuelve lo mismo para los trofeos.",
+    "pasos": [
+      "Llevar la clave de psn.trophy_key a accounts.matching (sin signos ni espacios) y usarla en match_by_name, también al comparar lo que devuelve IGDB, con sus alternative_names, que ya llegan en GAME_FIELDS.",
+      "En el catálogo local, buscar también por name_es y search_names: un modelo GameAlias (juego y clave, con índice), relleno en upsert_games y por una migración, para no cargar el catálogo entero cuando crezca.",
+      "Desempates: _fits y la popularidad siguen decidiendo; si el título trae el año («resident evil 4 (2005)»), gana el juego de ese año, que es el original y no el remake.",
+      "Comando rematch_titles: vuelve a buscar los títulos automáticos sin juego y recoloca las horas con update_library, sin pedir NPSSO ni iniciar sesión en Microsoft. Respeta LAUNCHERS y lo corregido a mano.",
+      "Tests con estos casos reales."
+    ],
+    "notas": "Sale de medir el 01/11/2026. Seguirían sin salir Genshin Impact 6.º aniversario, Trilogía Mafia, Tina Chiquitina asalta la mazmorra del dragón, LittleBigPlanet3 (LATAM), Devil May Cry 5 Series y cosas que no son juegos (servidores de prueba, SHAREfactory). 01/11/2026: hecha a petición del usuario, aún sin commit, en la rama trofeos-por-id porque comparte accounts/psn.py con los trofeos. accounts.matching: name_key (sin signos, espacios, tildes ni mayúsculas; psn.trophy_key la usa), match_by_name compara también con el nombre en España, los alternativos y los títulos ya emparejados de otras plataformas (_seen_games), el año del título elige entre los que se llaman igual y LAUNCHERS y YEAR_OR_REGION pasan aquí, así que Xbox tampoco empareja el lanzador de Call of Duty. Comando rematch_titles, con --dry-run. No hizo falta el modelo GameAlias del paso 2: recorrer los nombres de los 2206 juegos tarda unos 60 ms y solo se hace si hay títulos que buscar, sin migración ni nada que se pueda quedar viejo; habrá que guardar las claves si el catálogo llega a cientos de miles. La prueba en seco enseñó un error: buscando en IGDB, The Witcher 3: Wild Hunt — Remastered (61,4 h en PS4, de 2020 y 2021) salía como The Witcher 3: Wild Hunt Remastered, una actualización de 2026 sin versión de PS4. Por eso lo que se encuentra por otro nombre o buscando tiene que salir en la plataforma en la que se jugó, y el mismo nombre ya emparejado en Steam da el juego bueno. Aplicado a tester_steam: 22 títulos emparejados, de 348 a 361 juegos, 585 h más de PlayStation, de 4 a 5 platinos (Sniper Ghost Warrior 3) y de 33 títulos y 689 h sin emparejar a 11 títulos y 104 h. De esos 11, a mano: Genshin Impact 6.º aniversario, Trilogía Mafia, Tina Chiquitina asalta la mazmorra del dragón y Devil May Cry 5 Series; el resto no son juegos (servidores de prueba, SHAREfactory y el lanzador de Call of Duty). 23 tests nuevos, 445 en total, todos bien.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Hecha el 01/11/2026 y aplicada a tester_steam: 22 títulos más emparejados y 585 h más en su biblioteca. Los detalles, en sus notas.",
+      "profundizar": [
+        "Proponer en vez de esperar: en /cuenta/juegos-importados/ hay que pulsar para buscar cada título. Enseñar ya el candidato más parecido («¿Es Genshin Impact?») y confirmar con un clic; la corrección sirve para todos, como ya hace ExternalTitle.",
+        "Números romanos y arábigos: «Outlast 2» y «Ghostrunner2» salen hoy gracias a los nombres alternativos; una regla que iguale 2 y II cubre los juegos que no los tengan.",
+        "Medir el emparejado: el porcentaje por plataforma en el admin (hoy, un 84 % de 178 títulos en PlayStation y un 97 % de 269 en Steam), para saber si un cambio de Sony o de IGDB lo empeora."
+      ]
+    }
+  },
+  {
+    "titulo": "Horas de cada plataforma, a la vista",
+    "fecha": "2026-11-02",
+    "estado": "hecha",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Decir de qué plataforma salen las horas de cada juego: en la ficha, una fila por plataforma con sus horas y su última partida; en las portadas del perfil, el logo de la plataforma junto a las horas o, si se ha jugado en varias, el total y debajo las de cada una; y en las cifras del perfil, el reparto de las horas jugadas.",
+    "motivo": "Idea del usuario (02/11/2026), al ver que Rainbow Six Siege sumaba 622,4 h tras emparejar sus títulos de PlayStation: no se sabía cuántas eran de Steam (239,8 h) y cuántas de PlayStation (382,6 h). LibraryEntry ya guardaba las horas y la última partida de cada plataforma por separado, pero la web solo enseñaba el total.",
+    "pasos": [
+      "LibraryEntry.hours_by_platform: las horas de cada plataforma con algo jugado, de la que más a la que menos, con su última partida. Sustituye a steam_hours, que solo usaban los tests.",
+      "Logos dibujados una sola vez por página (library/_platform_symbols.html, en base.html) y reutilizados con <use> (library/_platform_mark.html): repetir el SVG entero en las 361 portadas de una biblioteca habría casi triplicado el peso del perfil.",
+      "Ficha: «Tus horas» en el widget de la biblioteca, antes de «Tus logros», con el total si son varias plataformas.",
+      "Portadas del perfil: el logo junto a las horas o, con varias plataformas, el total y debajo las de cada una, con el reparto también al pasar el ratón. «Jugando ahora» también lleva los logos.",
+      "Cifras del perfil: debajo de «Horas jugadas», las de cada plataforma cuando son de más de una (accounts.views._profile_stats)."
+    ],
+    "notas": "Hecha el 02/11/2026, aún sin commit (rama trofeos-por-id). Comprobada en el navegador con tester_steam, en escritorio y a 360 y 375 px. De paso, las estrellas y las horas de una portada ya bajan de línea si no caben: en las tres columnas del móvil se salían 9 px de su hueco. 5 tests nuevos, 450 en total, todos bien.",
+    "revision": {
+      "fecha": "2026-11-02",
+      "hoy": "Hecha. En tester_steam hay 43 juegos con horas de más de una plataforma, y el perfil reparte sus 11.465 h en 7560 de PlayStation y 3905 de Steam.",
+      "profundizar": [
+        "Steam Deck dentro de Steam: ImportedTitle.deck_minutes ya dice cuánto se jugó en la Deck, así que la fila de Steam podría decir «de ellas, 12 h en Steam Deck».",
+        "PS4 y PS5 por separado: cada título de PlayStation sabe en qué consola se jugó (ImportedTitle.platforms), así que la fila de PlayStation podría separar las dos.",
+        "Filtrar la biblioteca del perfil por plataforma («lo que he jugado en PlayStation»), ordenada por las horas de esa plataforma.",
+        "En las estadísticas, el reparto por plataforma de cada año, con PlaySession.platform."
+      ]
+    }
+  },
+  {
+    "titulo": "Tier lists que se rellenan solas con tu biblioteca: «Jugados en 2026», tu pendiente, tus platinos…",
+    "fecha": "2026-10-29",
+    "estado": "pendiente",
+    "prioridad": "alta",
+    "tipo": "Funcionalidad",
+    "resumen": "Al crear una lista, poder empezar desde una plantilla que mete sola los juegos de tu biblioteca en «Sin clasificar» de una tier list, para que solo haya que arrastrarlos: jugados este año, terminados este año, los que más horas llevan, tus platinos y 100 %, lo jugado en cada plataforma o tu pendiente.",
+    "motivo": "Idea del usuario (29/10/2026). Las tier lists y el tablero para arrastrar ya existen (GameList en modo tiers, la fila «Sin clasificar», SortableJS), pero los juegos hay que buscarlos y añadirlos uno a uno. NextPlay ya sabe qué has jugado y cuándo gracias a las importaciones: con la cuenta de prueba tester_steam, «Jugados en 2026» saldría con 50 juegos sin escribir ninguno.",
+    "pasos": [
+      "En «Nueva lista», un bloque «Empezar desde tu biblioteca» con las plantillas y cuántos juegos metería cada una; al elegir una se crea la tier list con su título («Jugados en 2026») y sus juegos sin clasificar, ordenados por horas, y se abre el tablero.",
+      "Plantillas: jugados este año (última partida de Steam, PlayStation o Xbox, completed_at o una reseña terminada este año), terminados este año, tus 30 más jugados por horas, tus platinos y 100 % (accounts.achievements), lo jugado en cada plataforma y tu pendiente.",
+      "Niveles propios de cada plantilla: S, A, B, C y D para lo jugado; «Ya mismo», «Pronto», «Algún día» y «Nunca» para el pendiente, que así sirve para decidir qué jugar después.",
+      "Si los juegos tienen nota, ofrecer colocarlos de entrada según ella (5 estrellas en S, 4 en A…) para que solo haya que retocar.",
+      "Lista viva: la del año en curso sigue metiendo en «Sin clasificar» los juegos nuevos que juegas al sincronizar, con un aviso («3 juegos nuevos por colocar»); el 1 de enero se cierra y empieza la del año siguiente.",
+      "En el perfil, la serie de tus años juntos («Tus años en tier lists»)."
+    ],
+    "notas": "Los años pasados no pueden ser exactos: Steam solo da la última partida y el historial de sesiones (PlaySession) empieza el 25/10/2026, así que «Jugados en 2025» se perdería los juegos de 2025 que se han vuelto a jugar en 2026 (PlayStation sí da la primera partida). Mejor ofrecer solo el año en curso y, desde 2027, los anteriores con el historial. Solo 2 de los 348 juegos de tester_steam tienen nota, así que colocar por nota es un extra: lo importante es el orden por horas. Encaja con «Estadísticas del perfil y resumen anual» y con la tarjeta para compartir de «Vistas previas al compartir y tarjeta para incrustar».",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar, pero existe todo lo que necesita: GameList en modo tiers, el tablero con arrastre, la fila «Sin clasificar» y LIST_MAX_GAMES (250). Hoy he comprobado algo que corrige su nota: los años pasados sí se pueden reconstruir, porque los logros traen fecha (ver abajo).",
+      "plan": [
+        "lists/starters.py: un diccionario de plantillas, cada una con su clave, su título, sus niveles y una función que recibe al usuario y devuelve sus juegos ordenados. Añadir una plantilla serían cuatro líneas.",
+        "Primeras plantillas: «Jugados este año» (año de steam_, psn_ o xbox_last_played, completed_at o finished_on de una reseña), «Terminados este año», «Tus 30 más jugados», «Platinos y 100 %» (accounts.achievements.progress_by_game), una por plataforma (ImportedTitle.platforms) y «Tu pendiente», con los niveles «Ya mismo», «Pronto», «Algún día» y «Nunca».",
+        "GameList.add_many(games, user): un bulk_create de ListItem con puestos seguidos, porque añadirlos con add serían cientos de consultas; después activity.list_games_added(game_list, user, count=n), que ya acepta el número.",
+        "En lists/form.html, encima del formulario, una tarjeta por plantilla con cuántos juegos metería (un count, sin cargarlos). Va por POST a lists.views.from_starter, que crea la lista y abre el tablero. Si pasa de 250, avisa de que entran los 250 con más horas.",
+        "Colocar por nota solo como casilla opcional: con 2 de 348 juegos valorados en tester_steam no merece ir primero.",
+        "Segunda fase, la lista viva: GameList.source (JSON con la plantilla y el año); update_library mete lo nuevo en «Sin clasificar» con un aviso, y nightly la cierra el 1 de enero."
+      ],
+      "profundizar": [
+        "Años pasados con los logros: comprobado con tester_steam, 118 de sus 128 juegos con logros traen fechas, 36 tienen logros de 2025 y 14 de esos se perderían mirando solo la última partida, porque se volvieron a jugar en 2026. Con «Logros uno a uno», «Jugados en 2025» se puede ofrecer ya, diciendo «según tus logros».",
+        "«Haz tu versión»: en la tier list de otra persona, un botón copia sus juegos a una tuya sin clasificar y, al terminar, enseña en qué discrepáis («S para ti, C para Ana»). Da conversación y se comparte sola.",
+        "Tier list de la comunidad por plantilla: la mediana del nivel de cada juego entre todos los que han hecho «Jugados en 2026», como resumen del año sin pedir nada nuevo a nadie.",
+        "Que decida algo: la fila «Ya mismo» de la plantilla del pendiente alimenta el bloque «Elige de tu pendiente» de las recomendaciones, o se convierte en reto con el «Convertir en reto» que ya existe.",
+        "Listas inteligentes: además de las plantillas, una lista definida por una regla («mis RPG de más de 50 h», «pendiente en castellano de menos de 10 h») que se rellena sola cada vez que se abre, con los mismos filtros de los retos (_game_filters) y del catálogo."
+      ]
+    }
+  },
+  {
     "titulo": "Retos: crea los tuyos y únete a los de otros",
     "fecha": "2026-10-21",
     "estado": "en curso",
@@ -153,7 +276,24 @@
       "Insignia en el perfil al terminarlo y sección «Retos» en el escaparate del perfil.",
       "Página de retos con los más populares y los de la gente a la que sigues."
     ],
-    "notas": "El reto anual de «Retos del año y control del pendiente» pasa a ser un tipo más de este; lo del valor del pendiente y el asistente siguen allí. 25/10/2026: visto al revisar el código. El tipo «número de horas» necesita saber cuántas horas se jugaron entre las fechas del reto, y eso solo lo dan las sesiones del paso 1 de «Diario de partidas que se escribe solo» (ahora ImportedTitle.minutes se sobrescribe en cada importación), así que ese paso va antes o con los retos. La fecha de Completado es más fácil de lo que parecía: las importaciones solo ponen Pendiente, Jugando o Jugado (LibraryEntry.imported_status), así que Completado siempre lo pone el jugador y basta con guardar la fecha al cambiar el estado; la actividad ya la tiene desde el 25/10/2026. El tipo «lista de juegos concreta» se apoya en «Listas personalizadas de juegos», que conviene hacer antes. 26/10/2026: fase 1 hecha (aún sin commit; irá en su propia rama, encima de la fase 3 de las listas), en la app nueva challenges: modelos Challenge (tres tipos: juegos concretos, que se copian de una lista con «Convertir en reto»; número de juegos con filtros de género, plataforma y años; y horas; fechas opcionales; público o privado; las reglas no cambian después de crearlo) y Participation (con cuándo lo consiguió); el progreso se cuenta solo (challenges.progress) con LibraryEntry.completed_at (nuevo: lo pone set_status al pasar a Completado y la migración lo rellena con la actividad o el «terminado el» de las reseñas) y con las sesiones de juego del paso 1 del diario (library.models.PlaySession); páginas /retos/ (los tuyos con tu progreso, los de la gente que sigues, los más populares y los nuevos), la de cada reto (tu progreso, sus juegos y la clasificación, solo con perfiles visibles), crear, editar, borrar, unirse y dejarlo; «Retos» en la cabecera y en los menús; retos y sesiones de prueba en seed_test_profile y 16 tests. Falta la fase 2: insignias y sección «Retos» en el perfil, que unirse y conseguirlos salga en la actividad y el feed, y avisos. 26/10/2026: fase 1 con commit en la rama retos."
+    "notas": "El reto anual de «Retos del año y control del pendiente» pasa a ser un tipo más de este; lo del valor del pendiente y el asistente siguen allí. 25/10/2026: visto al revisar el código. El tipo «número de horas» necesita saber cuántas horas se jugaron entre las fechas del reto, y eso solo lo dan las sesiones del paso 1 de «Diario de partidas que se escribe solo» (ahora ImportedTitle.minutes se sobrescribe en cada importación), así que ese paso va antes o con los retos. La fecha de Completado es más fácil de lo que parecía: las importaciones solo ponen Pendiente, Jugando o Jugado (LibraryEntry.imported_status), así que Completado siempre lo pone el jugador y basta con guardar la fecha al cambiar el estado; la actividad ya la tiene desde el 25/10/2026. El tipo «lista de juegos concreta» se apoya en «Listas personalizadas de juegos», que conviene hacer antes. 26/10/2026: fase 1 hecha (aún sin commit; irá en su propia rama, encima de la fase 3 de las listas), en la app nueva challenges: modelos Challenge (tres tipos: juegos concretos, que se copian de una lista con «Convertir en reto»; número de juegos con filtros de género, plataforma y años; y horas; fechas opcionales; público o privado; las reglas no cambian después de crearlo) y Participation (con cuándo lo consiguió); el progreso se cuenta solo (challenges.progress) con LibraryEntry.completed_at (nuevo: lo pone set_status al pasar a Completado y la migración lo rellena con la actividad o el «terminado el» de las reseñas) y con las sesiones de juego del paso 1 del diario (library.models.PlaySession); páginas /retos/ (los tuyos con tu progreso, los de la gente que sigues, los más populares y los nuevos), la de cada reto (tu progreso, sus juegos y la clasificación, solo con perfiles visibles), crear, editar, borrar, unirse y dejarlo; «Retos» en la cabecera y en los menús; retos y sesiones de prueba en seed_test_profile y 16 tests. Falta la fase 2: insignias y sección «Retos» en el perfil, que unirse y conseguirlos salga en la actividad y el feed, y avisos. 26/10/2026: fase 1 con commit en la rama retos.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Fase 1 hecha y fusionada. Falta la fase 2: «Retos» no está en SECTIONS, Activity.Kind no tiene retos y Notification.Kind tampoco. He visto dos problemas de fondo: progress.check se salta los retos ya terminados, así que una sincronización que llega tarde no cuenta (PlayStation y Xbox son a mano); y solo 1 de los 348 juegos de tester_steam está en Completado, porque las importaciones nunca completan, de modo que los retos de terminar juegos se quedan a cero con bibliotecas importadas.",
+      "plan": [
+        "Insignias: Participation.completed_at ya lo es. Añadir («retos», «Retos») a SECTIONS (section_layout pone solas las secciones nuevas al final) con una tarjeta en el escaparate: los conseguidos y los que lleva en marcha con su barra, reutilizando views._with_progress.",
+        "Que progress.mark_completed devuelva a quién se lo ha apuntado ahora y no cuántos son. Con esa lista, un aviso («Has conseguido…») y Activity.Kind.CHALLENGE en el feed. Unirse también sale en la actividad, junto con lo último si es seguido (MERGE_WINDOW).",
+        "Comando close_challenges en nightly: revisa los retos terminados hace menos de 7 días, que es el margen para sincronizar a mano, concede lo que falte y avisa del puesto final. Con eso, detail deja de escribir en la base de datos al abrir la página con un GET.",
+        "Avisos con medida: «Te quedan 3 días y 2 juegos», uno por reto, y al creador cuando alguien se une, agrupados. Con «Un solo sitio para crear los avisos» salen casi gratis.",
+        "Para que no se queden a cero: al llegar a las horas o al logro del final, proponer «¿Lo has terminado?», con el repaso de «Retos del año y control del pendiente»."
+      ],
+      "profundizar": [
+        "Verificado o declarado: Completado lo pone el jugador. Con los logros y la duración, un sello en la clasificación para quien lo respalda con el logro final o con horas cerca de la duración normal, y un filtro «solo verificados». Sin prohibir nada.",
+        "Retos de bingo: un cartón de 5 × 5 cuyas casillas son filtros (uno de antes del 2000, uno de menos de 5 h, uno en castellano…) y cada juego vale para una sola. _game_filters ya sabe evaluar género, plataforma y años, y con datos verificados es difícil de copiar.",
+        "Retos de logros («consigue 10 logros de menos del 5 %») y retos anti-compras («no añadas nada a la biblioteca hasta terminar 3 de tu pendiente»), que se rompen solos si una importación trae juegos nuevos.",
+        "Reto personal de la semana generado con tu pendiente («te quedan 5 juegos de menos de 8 h: termina uno») y duelos 1 contra 1 con la clasificación que ya existe."
+      ]
+    }
   },
   {
     "titulo": "Importar juegos y horas de Xbox",
@@ -170,23 +310,23 @@
       "Leer el historial de juegos y los minutos jugados, y emparejar con el catálogo vía IGDB (que guarda los IDs de Microsoft Store).",
       "Sumar las horas con las de Steam cuando un juego está en las dos plataformas."
     ],
-    "notas": "Algunos juegos antiguos o de Xbox 360 no tienen estadística de minutos jugados; entrarían sin horas. Programada el 17/10/2026 con la vía oficial (aplicación de Azure + XboxLive.signin), sin guardar tokens. El 18/10/2026 pasó a guardar cada título en la tabla de títulos importados y a desempatar por los dispositivos en los que se jugó. Falta crear la aplicación de Azure (pasos en el README), poner XBOX_CLIENT_ID y XBOX_CLIENT_SECRET en el .env y probarla con una cuenta real."
-  },
-  {
-    "titulo": "Sincronización automática de la biblioteca",
-    "fecha": "2026-10-17",
-    "estado": "en curso",
-    "prioridad": "alta",
-    "tipo": "Infraestructura",
-    "resumen": "Que la biblioteca de Steam se actualice sola cada noche (horas y juegos nuevos) y que update_prices se programe de verdad, sin tener que pulsar nada.",
-    "motivo": "Ahora todo es manual: el botón de sincronizar y el comando de precios. Las alertas de precio, Game Pass y los logros necesitan tareas que se ejecuten solas.",
-    "pasos": [
-      "Comando sync_libraries que recorra las cuentas de Steam vinculadas.",
-      "Programar las tareas: cron del servidor o un planificador de Django (django-q2, Celery beat).",
-      "Repartir las llamadas a lo largo de la noche para no pasar los límites de Steam e IGDB.",
-      "Mostrar en el perfil la fecha de la última sincronización automática y un interruptor para desactivarla."
-    ],
-    "notas": "Xbox solo se podría si se guarda cifrado el token de refresco, que ahora no se guarda a propósito. PlayStation no se puede sin guardar el NPSSO, y se decidió no guardarlo. Hecha el 18/10/2026 con cron (sin Celery ni django-q): comandos sync_libraries (pausa entre usuarios, salta a los sincronizados en las últimas 12 h, un fallo no para a los demás) y nightly (Steam y después precios), interruptor y fecha de la última sincronización en el panel de Steam. Probada con una cuenta real de Steam. Falta programarla de verdad: cron en el servidor o Programador de tareas de Windows (instrucciones en el README)."
+    "notas": "Algunos juegos antiguos o de Xbox 360 no tienen estadística de minutos jugados; entrarían sin horas. Programada el 17/10/2026 con la vía oficial (aplicación de Azure + XboxLive.signin), sin guardar tokens. El 18/10/2026 pasó a guardar cada título en la tabla de títulos importados y a desempatar por los dispositivos en los que se jugó. Falta crear la aplicación de Azure (pasos en el README), poner XBOX_CLIENT_ID y XBOX_CLIENT_SECRET en el .env y probarla con una cuenta real.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "El código está completo y probado con respuestas simuladas, pero nunca ha corrido de verdad: no hay XBOX_CLIENT_ID en el .env y hay 0 cuentas de Xbox en la base de datos.",
+      "plan": [
+        "Tú: crear la aplicación de Azure con los pasos del README y poner las dos variables en el .env. Son diez minutos y no se puede hacer por ti.",
+        "Probar con una cuenta real y mirar los tres puntos frágiles: que XSTS dé el token con esa aplicación, que titlehub traiga todo el historial (played_titles no pagina: comprobar si corta) y que MinutesPlayed responda.",
+        "Si XSTS no deja, el plan B es OpenXBL (xbl.io), que tiene su propio inicio de sesión: solo cambia cómo se obtienen los datos; save_titles y update_library siguen igual.",
+        "Convertir lo que salga en tests con respuestas reales anonimizadas, apuntar en «Importar logros y trofeos» que Xbox ya está probado y pasar a «hecha»."
+      ],
+      "profundizar": [
+        "Sincronizar solo: SCOPE ya pide offline_access y el token de refresco se tira. Con consentimiento explícito y guardado cifrado (clave fuera de la base de datos), Xbox tendría sesiones cada noche, como Steam. Se borra al desvincular.",
+        "Logros con fecha y rareza: achievements.xboxlive.com los da por título, y sirven para lo mismo que los de Steam (años pasados y fecha de fin).",
+        "Amigos: peoplehub, con el mismo token de cada inicio de sesión, da los gamertags de tus amigos para «Encontrar a tus amigos de Steam y Xbox en NextPlay».",
+        "Cruzar con Game Pass: marcar qué has jugado con la suscripción y qué se va pronto, con los productos que ya da catalog.gamepass.com."
+      ]
+    }
   },
   {
     "titulo": "Diario de partidas que se escribe solo",
@@ -204,7 +344,25 @@
       "PlayStation y Xbox también dejan sus sesiones en cada sincronización a mano, aunque más espaciadas.",
       "Respetar el perfil privado y dejar ocultar el diario aunque el perfil sea público."
     ],
-    "notas": "Conviene hacer ya el paso 1 aunque el resto espere: el historial que no se guarda no se recupera. Steam solo da el total y la última partida, así que una «sesión» es lo jugado entre dos sincronizaciones. Si algún día se guarda cifrado el token de refresco de Microsoft (ahora no se guarda a propósito), las sesiones de Xbox también serían diarias. Backloggd tiene en su hoja de ruta cambiar los estados según la actividad («Auto Log Organizing») y no lo ha hecho. 25/10/2026: con el feed de actividad, las sesiones darían actividad automática y verificada («Ha jugado 9 h a Elden Ring esta semana», agrupada por semana), algo que en Backloggd hay que apuntar a mano. 26/10/2026: hecho el paso 1 con los retos (aún sin commit): library.models.PlaySession (usuario, juego, plataforma, día y minutos, sumados si son del mismo día) que apunta accounts.matching.update_library en las importaciones cuando sube el tiempo de un juego que ya tenía horas de esa plataforma, con el día de su última partida; lo de la primera importación y las correcciones del emparejamiento no cuentan. Ya lo usan los retos de horas. Falta lo demás: primera y última partida, calendario, línea temporal en la ficha, estados sugeridos y ocultar el diario. 26/10/2026: paso 1 con commit en la rama retos."
+    "notas": "Conviene hacer ya el paso 1 aunque el resto espere: el historial que no se guarda no se recupera. Steam solo da el total y la última partida, así que una «sesión» es lo jugado entre dos sincronizaciones. Si algún día se guarda cifrado el token de refresco de Microsoft (ahora no se guarda a propósito), las sesiones de Xbox también serían diarias. Backloggd tiene en su hoja de ruta cambiar los estados según la actividad («Auto Log Organizing») y no lo ha hecho. 25/10/2026: con el feed de actividad, las sesiones darían actividad automática y verificada («Ha jugado 9 h a Elden Ring esta semana», agrupada por semana), algo que en Backloggd hay que apuntar a mano. 26/10/2026: hecho el paso 1 con los retos (aún sin commit): library.models.PlaySession (usuario, juego, plataforma, día y minutos, sumados si son del mismo día) que apunta accounts.matching.update_library en las importaciones cuando sube el tiempo de un juego que ya tenía horas de esa plataforma, con el día de su última partida; lo de la primera importación y las correcciones del emparejamiento no cuentan. Ya lo usan los retos de horas. Falta lo demás: primera y última partida, calendario, línea temporal en la ficha, estados sugeridos y ocultar el diario. 26/10/2026: paso 1 con commit en la rama retos.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Paso 1 hecho (PlaySession), con solo 8 sesiones porque nightly no corre. Falta todo lo visible. Hay un problema de diseño que conviene arreglar antes de pintarlo: toda la diferencia se apunta en el día de la última partida, así que una sincronización de PlayStation tras dos meses pone 40 h en un solo día.",
+      "plan": [
+        "Añadir PlaySession.since: el día de la partida anterior, que update_library ya tiene en la entrada antes de actualizarla. Si coincide con day, la sesión es exacta; si no, es «entre estas fechas». El calendario la pinta distinta y los retos de horas la reparten entre esos días en vez de contarla toda en el último.",
+        "library/diary.py: calendar(user, year) agrupado por día con una consulta (el índice session_user_day ya existe) y timeline(user, game) para la ficha: primera partida (ImportedTitle.first_played en PlayStation; si no, la primera sesión), última, número de sesiones y horas por mes.",
+        "Mapa de calor en una pestaña ?vista=diario del perfil: SVG generado en el servidor como la gráfica de games/history.py, una celda por día con su título, sin librerías.",
+        "En la ficha, dentro de library/_widget.html: «Empezado el 3 de marzo · 14 sesiones · la última hace 2 días».",
+        "Estados sugeridos en nightly: un juego en Jugando sin sesiones en 30 días crea un aviso con dos botones, y uno que vuelve a tener sesiones propone Jugando. Nunca cambia solo lo que puso el jugador.",
+        "Profile.diary_visible, respetando visible_to, y las horas de la semana en el feed (Activity.Kind.PLAYTIME, agrupadas) con su interruptor."
+      ],
+      "profundizar": [
+        "Reconstruir el pasado con los logros: cada fecha de logro es un día en que seguro se jugó. En tester_steam hay logros de todos los años desde 2022, así que el calendario no tiene por qué empezar el 25/10/2026. Se pintan aparte como «día con logro».",
+        "Sesiones de verdad en PlayStation: según psn-api, la lista de juegos trae playCount, que hoy no se lee; restando dos sincronizaciones se sabe cuántas veces se abrió. Comprobarlo en la próxima sincronización real.",
+        "Sesión con nota: convertir una sesión automática en una entrada con texto e imagen («Hoy he llegado al jefe final»), publicable como Post. Automático de base y personal encima, cuando en otros trackers todo es a mano.",
+        "Ritmo: horas por semana de cada juego, «a este ritmo lo terminas en 3 semanas» con la duración de IGDB, rachas de días seguidos y qué días de la semana juegas más."
+      ]
+    }
   },
   {
     "titulo": "Revisar los juegos que no se emparejaron al importar",
@@ -288,7 +446,50 @@
       "Aviso cuando alguien que sigues reseña un juego que tienes en «Lo quiero» o en Pendiente (uno por juego, sin repetir).",
       "Respetar los perfiles privados y, cuando existan, los bloqueos."
     ],
-    "notas": "Depende de «Seguir a otros jugadores y feed de actividad». Va antes que «¿A qué jugamos?» y «Encontrar a tus amigos de Steam y Xbox en NextPlay», que se apoyan en lo mismo."
+    "notas": "Depende de «Seguir a otros jugadores y feed de actividad». Va antes que «¿A qué jugamos?» y «Encontrar a tus amigos de Steam y Xbox en NextPlay», que se apoyan en lo mismo.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar. Seguir ya funciona y suggested_people ya cuenta juegos en común con subconsultas. Dato clave: solo 2 de los 348 juegos de tester_steam y 7 de los 259 de tester tienen nota, así que una compatibilidad basada solo en notas saldría vacía casi siempre.",
+      "plan": [
+        "social/affinity.py, con friends_on_game(viewer, game): LibraryEntry de la gente que sigue, con perfil visible, y la media de sus notas. Recuadro en games/_community.html, que ya se actualiza por HTMX al cambiar el estado o la nota.",
+        "En library.views.review_context, primero las reseñas de la gente que sigues: anotar con Exists y ordenar por eso antes que por la fecha, con la etiqueta «Sigues a Laura».",
+        "«En común» como ?vista=comun en un perfil ajeno: los juegos de los dos, en portadas, con las horas de cada uno.",
+        "Compatibilidad con varias señales: las notas si hay 5 o más en común; si no, horas en juegos comunes y géneros más jugados. Diciendo con qué se ha calculado («coincidís en 42 juegos y en rol y terror») en vez de un porcentaje que aparenta más de lo que sabe.",
+        "«A quién seguir» en la columna derecha de la portada, usando suggested_people también cuando ya sigues a alguien, ordenado por esa compatibilidad.",
+        "Aviso cuando alguien que sigues reseña algo de tu «Lo quiero» o tu Pendiente, uno por juego, y respetar los bloqueos cuando existan."
+      ],
+      "profundizar": [
+        "«Lo que ha jugado tu gente y tú no»: recomendación con nombres («tres personas que sigues lo terminaron, con un 4,5 de media»). Es la primera versión del filtrado colaborativo, sin algoritmo.",
+        "Discrepancias: «Le puso 5 y tú 2» como tarjeta en el perfil común; invita a comentar más que cualquier coincidencia.",
+        "Junto al precio: en la lista de deseos y en «Dónde comprarlo», «Dos personas que sigues lo tienen y le dan un 4,5». Es justo el momento en el que esa opinión decide.",
+        "Comparar el avance: «Tú 12 h, Laura 62 h». Con el diario y los logros se puede saber si vais por el mismo sitio y plegar lo que os destriparía."
+      ]
+    }
+  },
+  {
+    "titulo": "Cabecera y color automáticos según lo que juegas",
+    "fecha": "2026-11-01",
+    "estado": "pendiente",
+    "prioridad": "alta",
+    "tipo": "Funcionalidad",
+    "resumen": "Una opción más en Editar perfil: que la cabecera sea siempre el arte del juego al que más estás jugando y que el color del perfil salga de esa imagen, sin tocar nada.",
+    "motivo": "El perfil ya es muy personalizable, pero todo es a mano y se queda viejo. NextPlay sabe a qué juegas (última partida y sesiones), ya tiene el arte de cada juego (games.media) y ya calcula el color del texto sobre cualquier fondo (text_on). Un perfil que cambia solo con lo que juegas es difícil de tener donde todo se apunta a mano, y va con tu objetivo de un perfil muy personalizable.",
+    "pasos": [
+      "Profile.BannerMode.PLAYING: banner_url elige el juego en Jugando con la última partida más reciente, con su arte de games.media; si no hay ninguno, se queda el último.",
+      "Color: dominant_color en accounts/images.py con Pillow (quantize sobre una miniatura), guardado por juego para no recalcularlo y descartando los colores demasiado oscuros o grises; text_on ya da el contraste del texto.",
+      "«Usar el color de la cabecera», también como botón de una sola vez para quien tiene una imagen propia; la vista previa en directo lo enseña antes de guardar.",
+      "Se calcula al sincronizar, sin peticiones de más al abrir el perfil."
+    ],
+    "notas": "Sale de la revisión del 01/11/2026.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Propuesta nueva. Profile.banner_game, banner_art, text_on y la vista previa en directo ya existen.",
+      "profundizar": [
+        "Escaparate que cambia solo: secciones automáticas como «Este mes he jugado a…» (PlaySession) o «Mis logros más raros», que se actualizan sin editar nada.",
+        "Vitrina de logros: elegir hasta 5 logros o trofeos para enseñar, como los juegos favoritos, con su rareza (con «Logros uno a uno»).",
+        "Un aspecto por juego: guardar colores y fondo para cada juego y que se activen al jugarlo."
+      ]
+    }
   },
   {
     "titulo": "Rediseño de toda la web con aspecto de red social",
@@ -305,7 +506,22 @@
       "Versión móvil con barra de navegación inferior.",
       "Solo se muestran datos reales: los huecos de publicaciones, seguidores o guardados se rellenan cuando existan esas funciones."
     ],
-    "notas": "Propuesta por el usuario con maquetas de móvil y escritorio. Se hace antes que las publicaciones para que estas nazcan ya con el diseño nuevo. 25/10/2026: con «Seguir a otros jugadores y feed de actividad» ya se rellenan los huecos de seguidores (perfil y resumen de la portada) y la portada tiene las pestañas Siguiendo y Descubrir de las maquetas (ramas sin fusionar). 27/10/2026: repaso con el método anti-ui-slop en la rama pulido-del-front: un color por estado de la biblioteca en todas partes, aviso cuando falla un cambio con HTMX y atenuado mientras espera, en el móvil ya nada se sale de lado (la barra inferior se ensanchaba) y en la ficha va antes el estado que las cajas secundarias, el mejor precio arriba de «Dónde comprarlo», vacíos con botón (catálogo y lista de deseos), retos sin «primero» con todos a cero y textos con tokens de color."
+    "notas": "Propuesta por el usuario con maquetas de móvil y escritorio. Se hace antes que las publicaciones para que estas nazcan ya con el diseño nuevo. 25/10/2026: con «Seguir a otros jugadores y feed de actividad» ya se rellenan los huecos de seguidores (perfil y resumen de la portada) y la portada tiene las pestañas Siguiendo y Descubrir de las maquetas (ramas sin fusionar). 27/10/2026: repaso con el método anti-ui-slop en la rama pulido-del-front: un color por estado de la biblioteca en todas partes, aviso cuando falla un cambio con HTMX y atenuado mientras espera, en el móvil ya nada se sale de lado (la barra inferior se ensanchaba) y en la ficha va antes el estado que las cajas secundarias, el mejor precio arriba de «Dónde comprarlo», vacíos con botón (catálogo y lista de deseos), retos sin «primero» con todos a cero y textos con tokens de color.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sus cinco pasos están prácticamente cubiertos: cabecera y barra inferior en base.html, tokens y contrato de diseño en app.css y los repasos del 27 y 28/10. La excepción son las tres columnas: layout-3 y «En tendencia» solo están en la portada. Lo que queda ya tiene sus propias propuestas: «Inicio en el móvil», «Primer uso», «Formularios que avisan», «Detalles sueltos» y «Páginas de error». Una propuesta «en curso» sin final claro esconde el avance.",
+      "plan": [
+        "Decidir las tres columnas fuera de la portada. Yo no las llevaría a la ficha ni al perfil, que necesitan el ancho (carrusel, portadas, fondo), y las probaría en retos y en la lista de deseos solo si la columna derecha aporta algo allí.",
+        "Comparar cada página con tus maquetas en un pase con capturas a 1280 y 390 px, y apuntar lo que no cuadre en la propuesta pequeña que le toque.",
+        "Con eso, pasar esta a «hecha» y que lo pendiente siga en las pequeñas."
+      ],
+      "profundizar": [
+        "Una página /dev/estilos/, solo con DEBUG, con todos los componentes y estados (botones, tarjetas, vacíos, errores, portadas): el contrato de app.css se puede ver y las regresiones saltan a la vista.",
+        "El color del perfil para toda tu sesión, no solo en tu perfil: --violet ya se sustituye por perfil, y sería una preferencia más de personalización con una línea en base.html.",
+        "Accesibilidad en lo que lleva JavaScript: arrastre, visor y desplegables con teclado y lector de pantalla, foco visible y prefers-reduced-motion.",
+        "Portadas con el tamaño justo: igdb_image_url usa t_cover_big para todo. Con srcset y t_cover_small en listas y feed, el móvil baja bastante menos; pesa más que cualquier otra optimización de imágenes."
+      ]
+    }
   },
   {
     "titulo": "Rediseño de la ficha: cabecera con arte y carrusel de imágenes y vídeos",
@@ -342,7 +558,24 @@
       "Me gusta y comentarios (reutilizable para las reseñas) y guardar publicaciones.",
       "Borrar las propias y denunciar para el admin; tests de visibilidad y de subida de imágenes."
     ],
-    "notas": "Propuesta por el usuario. Con «Seguir a otros jugadores» la portada tendrá las pestañas Siguiendo y Descubrir de la maqueta. 25/10/2026: el usuario pide quitar «Sigues jugando» de la portada y poner en su sitio la caja para publicar. Hecho en la rama feed-en-la-portada (sin commit; la fase 3 del feed está guardada aparte como árbol de git para poder hacer su commit por separado): modelos Post (hasta 2000 caracteres con el formato de las reseñas, juego opcional y spoiler), PostImage (hasta 4, reutilizando AttachedImage y accounts.images, con su miniatura) y PostLike; caja en la portada con los juegos que estás jugando como fichas para elegir de cuál hablas y vista previa de las imágenes (el navegador reduce las muy grandes); /publicar/ con ?juego= desde el botón «Publicar sobre el juego» de la ficha; tarjeta en el feed y en la actividad del perfil (actividad de tipo publicación, que se borra con ella); página propia con «me gusta» (aviso en la campana una vez por persona), «Copiar enlace», «Borrar» y «Denunciar» (Report genérico; el aviso a los administradores ya no necesita juego); admin con imágenes y denuncias pendientes; 9 tests. Falta: comentarios en las publicaciones (los de las reseñas son solo de reseñas), la pestaña Comunidad de la ficha, una pestaña Publicaciones en el perfil, marcar como spoiler cada imagen y guardar publicaciones. 25/10/2026: hechos los comentarios en las publicaciones (modelo PostComment; la plantilla library/_comments.html y library.views.comment_thread sirven ahora para las reseñas y para las publicaciones), con aviso en la campana, borrar (quien lo escribe y el autor de la publicación), denunciar, contador en el feed y en su página, admin y 5 tests. Falta: la pestaña Comunidad de la ficha, una pestaña Publicaciones en el perfil, marcar como spoiler cada imagen y guardar publicaciones."
+    "notas": "Propuesta por el usuario. Con «Seguir a otros jugadores» la portada tendrá las pestañas Siguiendo y Descubrir de la maqueta. 25/10/2026: el usuario pide quitar «Sigues jugando» de la portada y poner en su sitio la caja para publicar. Hecho en la rama feed-en-la-portada (sin commit; la fase 3 del feed está guardada aparte como árbol de git para poder hacer su commit por separado): modelos Post (hasta 2000 caracteres con el formato de las reseñas, juego opcional y spoiler), PostImage (hasta 4, reutilizando AttachedImage y accounts.images, con su miniatura) y PostLike; caja en la portada con los juegos que estás jugando como fichas para elegir de cuál hablas y vista previa de las imágenes (el navegador reduce las muy grandes); /publicar/ con ?juego= desde el botón «Publicar sobre el juego» de la ficha; tarjeta en el feed y en la actividad del perfil (actividad de tipo publicación, que se borra con ella); página propia con «me gusta» (aviso en la campana una vez por persona), «Copiar enlace», «Borrar» y «Denunciar» (Report genérico; el aviso a los administradores ya no necesita juego); admin con imágenes y denuncias pendientes; 9 tests. Falta: comentarios en las publicaciones (los de las reseñas son solo de reseñas), la pestaña Comunidad de la ficha, una pestaña Publicaciones en el perfil, marcar como spoiler cada imagen y guardar publicaciones. 25/10/2026: hechos los comentarios en las publicaciones (modelo PostComment; la plantilla library/_comments.html y library.views.comment_thread sirven ahora para las reseñas y para las publicaciones), con aviso en la campana, borrar (quien lo escribe y el autor de la publicación), denunciar, contador en el feed y en su página, admin y 5 tests. Falta: la pestaña Comunidad de la ficha, una pestaña Publicaciones en el perfil, marcar como spoiler cada imagen y guardar publicaciones.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Lo principal está hecho y fusionado: Post, imágenes, «me gusta», comentarios, denuncias y feed. Faltan cuatro cosas, confirmadas en el código: la sección en la ficha, la pestaña en el perfil, el spoiler por imagen (PostImage lo hereda de AttachedImage, pero PostForm no lo ofrece y social/_post_images.html no lo mira) y guardar publicaciones.",
+      "plan": [
+        "Perfil: ?vista=publicaciones con su contador en las pestañas, reutilizando el cursor de social.views._batch.",
+        "Ficha: sección «De la comunidad» que se carga con HTMX al llegar a ella (hx-trigger=revealed), con las publicaciones del juego y un filtro «Capturas», reutilizando social/_post_body.html.",
+        "Spoiler por imagen: una casilla por imagen en la caja de publicar, como en library/review_form.html, y lo mismo en social/_post_images.html que en library/_review_images.html.",
+        "Guardar: modelo SavedPost y página «Guardados» en el menú de la cuenta. Lo dejaría para el final: es lo que menos aporta hoy, con 2 publicaciones en la base de datos.",
+        "Pasar a «hecha»."
+      ],
+      "profundizar": [
+        "Capturas de la comunidad en el carrusel de la ficha (games/_media.html), con un filtro propio: las de publicaciones y reseñas que no son spoiler. Estaba apuntado en el rediseño de la ficha.",
+        "Traer capturas de Steam: IPublishedFileService/GetUserFiles con filetype=4 devuelve las públicas de un usuario (comprobado, responde). «Publicar esta captura» evita descargarla y volver a subirla.",
+        "Hitos que proponen publicar: al llegar a 100 h, al completarlo o al conseguir un platino, ofrecer «¿Lo cuentas?» con el juego ya puesto. Salen de datos verificados.",
+        "Guardar las horas al publicar, como Review.snapshot, para plegar lo que va por delante de quien lee con la regla de AHEAD_HOURS. Y vídeos por enlace (YouTube, Twitch) con miniatura y carga al pulsar, sin alojarlos."
+      ]
+    }
   },
   {
     "titulo": "Ficha del juego más completa",
@@ -362,7 +595,24 @@
       "Usar un arte o una captura apaisada de IGDB como fondo de la cabecera de la ficha en vez de la portada desenfocada (Backloggd pone una captura arriba).",
       "Enlace «Ver en IGDB» con el campo url, como el «More on IGDB» de Backloggd."
     ],
-    "notas": "21/10/2026: comparada con la ficha de Backloggd, que también sale de IGDB: enseña estudio y editora, una captura arriba, resumen, fecha, géneros, plataformas y pestañas de DLC, actualizaciones, ediciones, saga y mods. De The Witcher 3, IGDB da 16 artes, 12 capturas, 17 vídeos, 7 clasificaciones de edad, 48 idiomas, 16 webs y 82 palabras clave, así que la ficha puede quedar más completa que la suya. Pedirlo todo en cada importación hace las respuestas mucho más grandes: mejor traer lo extra al abrir la ficha (con caché) y por la noche para los más populares. 22/10/2026: el tráiler, la galería de capturas y el arte de la cabecera pasan a «Rediseño de la ficha: cabecera con arte y carrusel de imágenes y vídeos»."
+    "notas": "21/10/2026: comparada con la ficha de Backloggd, que también sale de IGDB: enseña estudio y editora, una captura arriba, resumen, fecha, géneros, plataformas y pestañas de DLC, actualizaciones, ediciones, saga y mods. De The Witcher 3, IGDB da 16 artes, 12 capturas, 17 vídeos, 7 clasificaciones de edad, 48 idiomas, 16 webs y 82 palabras clave, así que la ficha puede quedar más completa que la suya. Pedirlo todo en cada importación hace las respuestas mucho más grandes: mejor traer lo extra al abrir la ficha (con caché) y por la noche para los más populares. 22/10/2026: el tráiler, la galería de capturas y el arte de la cabecera pasan a «Rediseño de la ficha: cabecera con arte y carrusel de imágenes y vídeos».",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Lo visual ya está (cabecera y carrusel, games/media.py). Falta casi todo el dato. Medido hoy en IGDB sobre los 2206 juegos del catálogo: compañías en 2191, clasificación por edades en 2102, modos de juego en 2193, modos multijugador en 838, colecciones en 1776, DLC en 471, expansiones en 270, remasters en 278, remakes en 152 y webs en 2190.",
+      "plan": [
+        "Separar lo que se filtra de lo que solo se lee. Se filtra: game_type, game_status y modos, en campos normales o M2M rellenos al importar. Solo se lee: un JSON Game.details con la misma receta que Game.media (se pide con HTMX al abrir la ficha si falta o tiene más de 30 días, y de noche para los populares).",
+        "IGDBClient.game_details(igdb_id), una sola consulta con los campos expandidos: compañías con desarrolladora y editora, edades (comprobado: age_ratings.organization.name y rating_category.rating dan «PEGI» y «18»), modos, colecciones, franquicias, DLC, remakes, remasters, ports, webs, storyline, temas, perspectivas y motor.",
+        "Bloque «Ficha técnica» junto a los idiomas, con el mismo <details>; PEGI con su icono; estudio y editora enlazados al catálogo.",
+        "Páginas de saga solo cuando haga falta: /sagas/<slug>/ con los juegos en orden de salida y tu progreso, que lists.views.list_progress ya sabe calcular.",
+        "Comando fill_game_fields para el catálogo existente, por lotes de 500 (5 peticiones en total), como localize_games --sin-tiendas."
+      ],
+      "profundizar": [
+        "«¿Por dónde empiezo?»: con colecciones y remakes, el orden recomendado de una saga y el aviso «hay un remake de 2023; este es el original».",
+        "«Si te gustó»: similar_games está en 2196 de 2206 juegos. Un bloque con los que ya tienes en tu pendiente primero convierte la ficha en una decisión de qué jugar.",
+        "Accesibilidad: las categorías de Steam incluyen dificultad ajustable, opciones de subtítulos, alternativas de color o jugable sin restricciones de tiempo (comprobado, en español). Se piden en la misma llamada de localize_games con filters=basic,categories, sin peticiones de más.",
+        "Estado real antes de comprar: game_status marca 37 juegos del catálogo como retirados de la venta, 24 sin servidores y 16 en acceso anticipado. «Ya no se vende» o «Servidores cerrados» ahorran disgustos."
+      ]
+    }
   },
   {
     "titulo": "Fichas en castellano: doblaje, subtítulos y sinopsis en español",
@@ -397,7 +647,100 @@
       "Filtros que Backloggd no puede tener: precio máximo, rebajado ahora, en su mínimo histórico, doblado al castellano y «no lo tengo» o «está en mi pendiente».",
       "Filtros con HTMX que cambian la URL, para poder compartir una búsqueda («RPG de 2015 por menos de 10 €»)."
     ],
-    "notas": "Los filtros de idioma y de Game Pass dependen de «Fichas en castellano» y de «Saber qué juegos están en Game Pass»."
+    "notas": "Los filtros de idioma y de Game Pass dependen de «Fichas en castellano» y de «Saber qué juegos están en Game Pass».",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sigue con texto, género, plataforma e idioma, y orden fijo por popularidad. Ojo: el catálogo local son 2206 juegos y filtros finos saldrán casi vacíos aunque IGDB tenga cientos, así que ampliar el catálogo va en el mismo trabajo.",
+      "plan": [
+        "games/filters.py con un formulario que valida todos los parámetros y devuelve el queryset, con un test por filtro: la vista catalog ya ha crecido y esto la vacía.",
+        "Primero lo que se puede hoy: año o década, nota de la crítica, popular o de nicho (popularity), «no lo tengo» y «en mi pendiente» (Exists sobre LibraryEntry). Precios: Min de prices__price filtrado por las tiendas de Profile.shops, rebajado (cut mayor que 0) y en su mínimo (historical_low).",
+        "Tipo y estado cuando esté «Quitar DLC y actualizaciones de las búsquedas en IGDB»; duración cuando esté «Duración estimada de los juegos».",
+        "Órdenes con un diccionario como PROFILE_SORTS, pero de expresiones SQL. Tendencia: las altas de 30 días de trending_games y, con pocos usuarios, popularity_primitives de IGDB.",
+        "HTMX con hx-get, hx-push-url y la rejilla como destino: la URL se puede compartir y, sin JavaScript, sigue siendo un formulario GET.",
+        "Ampliar el catálogo por tandas nocturnas con import_igdb (por ejemplo, hasta 20.000) y medir cómo responde cada filtro antes de seguir."
+      ],
+      "profundizar": [
+        "Búsquedas guardadas con aviso: guardar «RPG de 2015 por menos de 10 €, doblado» y recibir un aviso cuando aparezca alguno. Encaja con wishlist.check_alerts: una lista de deseos por condiciones y no por juegos.",
+        "Tendencia real desde el primer día: popularity_primitives da datos de Steam (pico de jugadores, más vendidos, más deseados) y de Twitch (horas vistas), comprobado. Sirve hasta que haya comunidad.",
+        "Temas y perspectivas como filtros: themes está en 2180 juegos y player_perspectives en 2178. «Terror en primera persona» dice más que los géneros de IGDB.",
+        "La misma vista para decidir qué jugar: «de tu pendiente, menos de 10 h, en castellano y jugable en Deck». Es la pregunta que da nombre a NextPlay."
+      ]
+    }
+  },
+  {
+    "titulo": "Arreglos pequeños que han salido al medir: mejor precio, redirección y consultas de más",
+    "fecha": "2026-11-01",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Cuatro retoques de una tarde: que la ficha diga siempre cuál es el mejor precio, que la vuelta de «Lo quiero» use la misma comprobación de seguridad que las demás, evitar una consulta de más por cada autor de reseña o comentario y quitar lo que ya nadie usa.",
+    "motivo": "Al medir la web el 01/11/2026, 676 de las 1265 fichas con precios no enseñan «Mejor precio ahora»: Game.price_groups solo lo devuelve cuando la tienda más barata ha quedado plegada, y la plantilla da por hecho que siempre está. Lo demás son restos: library.views._wish_response comprueba next a mano y deja pasar «/\\evil.com», que los navegadores tratan como otra web (va por POST con CSRF, así que el riesgo es bajo); ReviewQuerySet.visible_to y comment_thread no cargan user__xbox_account; y sobran 7 clases de app.css y una propiedad, LibraryEntry.steam_hours, que solo usan los tests.",
+    "pasos": [
+      "En games.views.detail, best_price sale de game.cheapest con las tiendas del usuario, y price_groups deja de devolverlo. La plantilla se queda con un solo sitio para el mínimo histórico. Test con la tienda más barata a la vista y plegada.",
+      "_wish_response usa url_has_allowed_host_and_scheme, como accounts.views._back.",
+      "Añadir user__xbox_account a ReviewQuerySet.visible_to y a comment_thread, con un test de assertNumQueries.",
+      "Quitar fact-source, rate-star, rate-stars, review-form, review-stars, settings-form y shop-logo de app.css (steam_hours ya está quitada)."
+    ],
+    "notas": "La misma medición salió bien en casi todo lo demás: en local, ninguna página pasa de 300 ms (salvo la primera visita tras arrancar, 359 ms) ni de 37 consultas; no hay más funciones ni plantillas sin usar; todas las imágenes llevan alt y casi todas, carga diferida; el formato de las reseñas es seguro; las migraciones están al día y los 422 tests pasan en 33 s. 02/11/2026: steam_hours ya no está: la sustituye LibraryEntry.hours_by_platform (ver «Horas de cada plataforma, a la vista»).",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Propuesta nueva. Comprobado en el código y con la web funcionando.",
+      "profundizar": [
+        "Señalar la más barata también entre las fichas de tienda, no solo en la línea de arriba, y decir si es más barata en una tienda que no has elegido.",
+        "Medidas fijas: un test por página principal con assertNumQueries, para que estas cifras no empeoren sin que nadie se entere."
+      ]
+    }
+  },
+  {
+    "titulo": "Un solo sitio para crear los avisos, con preferencias por tipo",
+    "fecha": "2026-11-01",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Infraestructura",
+    "resumen": "Que todos los avisos de la campana pasen por una sola función, que decida si se crean: no repetir, respetar los bloqueos y silencios cuando existan y lo que cada usuario haya elegido recibir, en la campana o por correo.",
+    "motivo": "Hoy hay 10 llamadas a Notification.objects.create repartidas por lists/views.py, social/views.py, social/models.py, library/views.py, library/wishlist.py y library/reminders.py, cada una con su propia regla para no repetirse. Ocho propuestas abiertas añaden avisos nuevos (retos, lanzamientos, juegos gratis, la gente que sigues, amigos, solicitudes, listas colaborativas y Game Pass) y «Bloquear, silenciar y quitar seguidores» tendría que tocarlas todas. La única preferencia que existe es el correo de los precios (price_alert_emails).",
+    "pasos": [
+      "accounts/notices.py con notify(user, kind, text, url, game=None, actor=None): toda la lógica común en un sitio.",
+      "Las reglas de repetición, por tipo y declaradas en una tabla: una vez por persona (los «me gusta»), hasta que lo lea (los comentarios) o una por cosa (las reseñas que se han quedado atrás).",
+      "Pasar las 10 llamadas a notify sin cambiar el comportamiento, con los tests actuales como red de seguridad.",
+      "Profile.notification_prefs (JSON con campana y correo por tipo) y una sección «Avisos» en Editar perfil. Lo que no se ha tocado sigue encendido, y price_alert_emails se migra.",
+      "Punto de entrada para bloqueos y silencios: cuando exista el bloqueo, solo se toca aquí."
+    ],
+    "notas": "Sale de la revisión del 01/11/2026. Va antes de la fase 2 de «Retos: crea los tuyos y únete a los de otros» y de «Bloquear, silenciar y quitar seguidores».",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Propuesta nueva. Comprobado en el código: 10 llamadas directas, cada una con su forma de no repetirse.",
+      "profundizar": [
+        "Agrupar en la campana: «A Ana y 3 más les ha gustado tu reseña», en vez de cuatro avisos seguidos. Con actor ya en el modelo, solo falta juntarlos al enseñarlos.",
+        "Resumen semanal por correo, opcional: rebajas de tu lista, lanzamientos y lo que ha hecho tu gente, con baja en un clic (cabecera List-Unsubscribe). Hace volver sin ser pesado.",
+        "Avisos del navegador (Web Push) cuando la web sea instalable: la misma función decide si también salen ahí."
+      ]
+    }
+  },
+  {
+    "titulo": "Intercambio de pendientes: elige un juego del pendiente de un amigo",
+    "fecha": "2026-11-01",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Un reto entre dos personas: cada una elige un juego del pendiente de la otra y las dos tienen que terminarlo. Se cuenta solo, con lo que ya miden los retos.",
+    "motivo": "El pendiente es lo que más crece con las importaciones (120 juegos en tester_steam, con una mediana de 17 h según IGDB y 22 de 10 h o menos), y lo difícil es decidir. Que te lo elija alguien que te conoce quita esa decisión, da conversación y solo se puede hacer con bibliotecas importadas de verdad.",
+    "pasos": [
+      "Challenge de dos personas: se propone a quien te sigue y acepta, como las invitaciones de ListCollaborator. Cada una elige entre los juegos en Pendiente de la otra, con filtros por duración y por castellano.",
+      "El juego elegido se queda oculto hasta que han elegido las dos, para que sea justo.",
+      "Progreso con challenges.progress, un juego por persona, y al feed al empezar y al terminar.",
+      "Al terminar, cada una reseña el que le tocó, con un enlace directo al editor."
+    ],
+    "notas": "Sale de la revisión del 01/11/2026. Se apoya en la fase 1 de retos, ya hecha.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Propuesta nueva. Follow y ListCollaborator dan el patrón de la invitación, y Challenge.Kind.GAMES, el de contar el progreso.",
+      "profundizar": [
+        "Rueda de grupo: con más gente, cada uno elige para el siguiente, en cadena, con una tanda al mes.",
+        "«Elígeme algo»: pedir a tus seguidores que voten qué juego de tu pendiente jugar ahora, con los más cortos como opciones.",
+        "Apuesta simbólica: quien no lo termina a tiempo reseña el juego que elija el otro."
+      ]
+    }
   },
   {
     "titulo": "Biblioteca del perfil por tandas en vez de entera",
@@ -412,7 +755,49 @@
       "Botón «Cargar más» al final de la rejilla que pide la siguiente tanda con HTMX y la añade debajo, con el mismo patrón que social/_activities.html.",
       "Mantener el estado, el idioma y el orden elegidos al pedir cada tanda."
     ],
-    "notas": "La vista previa de Editar perfil ya enseña solo los primeros (PREVIEW_LIBRARY), así que no le afecta."
+    "notas": "La vista previa de Editar perfil ya enseña solo los primeros (PREVIEW_LIBRARY), así que no le afecta.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sigue igual, pero en la revisión anterior exageré. Medido con tester_steam (348 juegos): 289 ms en el servidor y 23 consultas, 207 KB de HTML (23 KB comprimida) y casi todas sus 374 imágenes con carga diferida. No es urgente: lo que se nota hoy es lo larga que es la página, sobre todo en el móvil. Las consultas importarán cuando haya bibliotecas de miles de juegos.",
+      "plan": [
+        "Tandas de 48 y «Cargar más» con hx-swap=beforeend y el mismo patrón que social/_activities.html; sin JavaScript, ?pagina=. Con hx-push-url, volver atrás no pierde el sitio. Esto solo ya resuelve lo que se nota hoy.",
+        "Después, cuando haga falta: recuentos de las pestañas con una consulta agregada por estado y las cifras de la cabecera con agregados aparte, sin cargar las entradas.",
+        "Orden y filtros en SQL. Para ordenar por horas basta el primer paso de «Horas por plataforma sin una columna por tienda» (total_minutes).",
+        "Pedir reseñas y listas solo en su pestaña; los contadores, con count.",
+        "Un test con assertNumQueries y 300 juegos, para que no crezca sin que nadie se entere."
+      ],
+      "profundizar": [
+        "Buscar en tu biblioteca: un campo en la barra con HTMX (search_filter ya existe). Con cientos de juegos importados es imprescindible.",
+        "Selección múltiple: marcar varios y pasarlos a un estado, a una lista o a un reto de una vez. Es lo que hace falta para ordenar una importación de 300 juegos.",
+        "Vista en filas, con horas, última partida y logros, ordenable por columnas, además de las portadas.",
+        "Agrupar por año de última partida o por plataforma: una biblioteca de cientos se recorre mucho mejor por tramos que en una sola rejilla."
+      ]
+    }
+  },
+  {
+    "titulo": "Horas por plataforma sin una columna por tienda",
+    "fecha": "2026-11-01",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Infraestructura",
+    "resumen": "Guardar en cada juego de la biblioteca las horas totales y la última partida en columnas propias, y las de cada plataforma en un solo campo, para poder ordenar y filtrar en la base de datos y añadir plataformas sin migraciones.",
+    "motivo": "LibraryEntry tiene dos columnas por plataforma (steam_, psn_ y xbox_playtime_minutes y last_played) y las horas totales son una propiedad de Python: por eso _profile_context carga toda la biblioteca para ordenar y Game.community_rating repite las tres columnas. Importar Switch, Epic, GOG o Battle.net añadiría dos columnas por tienda y tocaría unas 90 referencias entre código y tests.",
+    "pasos": [
+      "Añadir total_minutes y last_played, con índice, que mantiene update_import y rellena una migración. Solo con este paso ya mejoran «Biblioteca del perfil por tandas en vez de entera», el catálogo y las estadísticas.",
+      "Añadir minutes_by_platform y last_played_by_platform (JSON), y leer de ahí en playtime_sources, steam_hours, Review.snapshot, Game.community_rating y lists.views.",
+      "Quitar las seis columnas en otro PR, cuando nada las lea. HOURS_SOURCES pasa a ser la única lista de plataformas, con su nombre y su logo.",
+      "Un test con una plataforma inventada: si pasa sin tocar nada más, el trabajo está hecho."
+    ],
+    "notas": "Sale de la revisión del 01/11/2026. El primer paso se puede hacer ya, por separado. Va antes de «Importar Nintendo Switch con capturas de la app Nintendo Store» y de «Importar Epic, GOG, EA y Battle.net con Playnite, y CSV de otros trackers».",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Propuesta nueva. update_library ya recibe la plataforma como texto y compone el nombre de la columna, así que es casi genérica; lo que no lo es son los modelos.",
+      "profundizar": [
+        "LibraryEntry como resumen recalculable: ImportedTitle ya tiene los minutos por título, de modo que un comando recalc_hours puede rehacer las horas de cualquiera tras una corrección o un error.",
+        "Horas declaradas: dejar apuntarlas a mano para juegos sin plataforma (físico o retro), marcadas como no verificadas y fuera de la media «con horas jugadas».",
+        "Horas por dispositivo: deck_minutes ya existe y PlayStation separa PS4 y PS5. Con el campo genérico, «lo jugaste sobre todo en Deck» sale para cualquier plataforma."
+      ]
+    }
   },
   {
     "titulo": "Primer uso: traer tus juegos nada más crear la cuenta",
@@ -428,7 +813,24 @@
       "Después de registrarse, ir al inicio con esa tarjeta en vez de al catálogo, con un aviso que diga qué hacer primero.",
       "Quitar la tarjeta en cuanto haya algún juego en la biblioteca o una plataforma vinculada."
     ],
-    "notas": "Al vincular Steam la biblioteca se importa en la misma petición de vuelta y tarda unos segundos; «Sincronizar» e «Importar» tampoco avisan mientras trabajan (ver «Formularios que avisan mientras trabajan»)."
+    "notas": "Al vincular Steam la biblioteca se importa en la misma petición de vuelta y tarda unos segundos; «Sincronizar» e «Importar» tampoco avisan mientras trabajan (ver «Formularios que avisan mientras trabajan»).",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Igual: signup manda al catálogo y el vacío de la biblioteca solo nombra Steam. El diálogo de vincular (accounts/linking/_dialog.html) y su data-open-dialog ya sirven para cualquier página; ahora solo se incluyen en el perfil.",
+      "plan": [
+        "En games/home.html, si summary.games es 0 y no hay cuentas vinculadas, una tarjeta «Trae tus juegos» antes de la caja de publicar, e incluir el diálogo también en la portada.",
+        "Un botón por plataforma que abra su panel: Steam va directo a steam_link, PlayStation explica el NPSSO y Xbox sale solo si está configurado. Debajo, «o añádelos a mano» al catálogo.",
+        "signup redirige al inicio, con un mensaje que diga qué hacer primero.",
+        "Los mismos botones en el vacío de la biblioteca (.empty-actions). La tarjeta desaparece en cuanto hay un juego o una cuenta vinculada, sin ningún modelo nuevo.",
+        "Tests de las tres situaciones: recién registrado, con cuenta vinculada y con juegos."
+      ],
+      "profundizar": [
+        "Resumen de la primera importación: «1.200 horas, tus 3 más jugados, 12 de tus deseados están en su mínimo y 8 sin emparejar». Los datos ya están en _report_import y _report_wishlist; hoy son un mensaje de una línea, y es el mejor momento para enseñar lo que hace NextPlay.",
+        "Valorar en ráfaga: tras importar, «puntúa tus 10 más jugados» en una sola pantalla. Con 2 notas de 348 juegos, es lo que más desbloquea para la compatibilidad y las recomendaciones.",
+        "Primera tier list en un clic: ofrecer «Jugados en 2026» justo después de importar; pasa de cero a algo tuyo que compartir en un minuto.",
+        "Lista de primeros pasos que se tacha sola (foto, juegos, primera nota, primera lista, seguir a alguien) y desaparece al completarla."
+      ]
+    }
   },
   {
     "titulo": "Inicio en el móvil: la actividad antes que tu resumen",
@@ -443,7 +845,22 @@
       "Caja de publicar plegada en el móvil: solo el campo «¿Qué estás jugando?»; los juegos, «Imágenes», «Es un spoiler» y «Publicar» salen al tocarla o si ya tiene texto, con :focus-within y :has() y sin JavaScript.",
       "Comprobar a 360 y 390 px que las pestañas del feed y la primera actividad se ven sin desplazarse."
     ],
-    "notas": "En escritorio no cambia nada: las tres columnas siguen igual."
+    "notas": "En escritorio no cambia nada: las tres columnas siguen igual.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Igual: la tarjeta de resumen y la caja de publicar van enteras antes del feed en cualquier ancho. No necesita nada de servidor.",
+      "plan": [
+        "En app.css, por debajo de 760 px, ocultar .me-card: la pestaña Perfil de la barra inferior ya lleva a esos datos.",
+        "Caja de publicar plegada con :focus-within y :has(textarea:not(:placeholder-shown)), sin JavaScript: solo se ve el campo, y lo demás sale al tocarlo o si ya tiene texto.",
+        "Comprobar a 360 y 390 px que las pestañas y la primera actividad se ven sin desplazarse, y que en escritorio no cambia nada."
+      ],
+      "profundizar": [
+        "Pestañas fijas al desplazarse (position: sticky), para cambiar de Siguiendo a Descubrir sin volver arriba.",
+        "Instalable: manifest.json, iconos y theme-color para abrirla desde la pantalla de inicio. Sin service worker complicado; la barra inferior ya parece una app.",
+        "Compartir nativo: navigator.share en «Copiar enlace» y, ya instalada en Android, que aparezca en el menú de compartir del móvil para mandar una captura directamente a «Publicar» (Web Share Target).",
+        "Gesto para cambiar de pestaña deslizando, con scroll-snap y sin librerías, como ya hace el carrusel."
+      ]
+    }
   },
   {
     "titulo": "Formularios que avisan mientras trabajan",
@@ -458,7 +875,24 @@
       "Volver a activarlo en pageshow, para cuando se vuelve atrás y el navegador recupera la página de su caché.",
       "data-busy en los botones de Steam, PlayStation y Xbox, en Publicar, en Guardar cambios y en los de crear y editar listas y retos."
     ],
-    "notas": "Los filtros que se envían solos al cambiar un desplegable usan this.form.submit(), que no lanza el evento submit: si se quiere que también avisen, cambiarlo por requestSubmit()."
+    "notas": "Los filtros que se envían solos al cambiar un desplegable usan this.form.submit(), que no lanza el evento submit: si se quiere que también avisen, cambiarlo por requestSubmit().",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Igual: ninguna plantilla usa aria-busy y siete desplegables siguen con this.form.submit() (3 en el catálogo, 2 en el perfil y 2 en la lista de deseos). Hay una trampa en su plan: _review_editor decide con «borrador» in request.POST, y un botón desactivado en el evento submit no se envía. Hecho tal cual, «Guardar borrador» publicaría la reseña.",
+      "plan": [
+        "Un script en base.html, junto al de los avisos, por delegación: en submit, si el formulario no lleva hx-*, poner aria-busy y cambiar el texto del botón (event.submitter) por su data-busy. Desactivarlo después con setTimeout(…, 0), para que el navegador ya haya recogido su nombre, e impedir un segundo envío con una marca en el formulario.",
+        "En pageshow con event.persisted, quitar todo eso: es lo que pasa al volver atrás.",
+        "data-busy en los botones de Steam, PlayStation y Xbox, en Publicar, en Guardar cambios y en los de crear y editar listas y retos.",
+        "Cambiar los siete this.form.submit() por requestSubmit(), que sí lanza el evento.",
+        "Probarlo en el navegador con el editor de reseñas, comprobando que el borrador sigue siendo borrador."
+      ],
+      "profundizar": [
+        "Evitar duplicados también en el servidor: un botón desactivado no protege de dos pestañas ni de un reintento con mala red. Un token de un solo uso en Publicar y en crear listas lo cierra.",
+        "Progreso de verdad en las importaciones: con «Tareas en segundo plano para lo que tarda», «Leyendo Steam · Emparejando 267 juegos · Logros 40 de 133».",
+        "Barra de subida en publicaciones y reseñas con fotos grandes, con el evento htmx:xhr:progress o XMLHttpRequest.",
+        "Respuesta optimista en lo pequeño (me gusta, estado, favorito): cambiar al momento y deshacer con el aviso que ya existe si falla."
+      ]
+    }
   },
   {
     "titulo": "Listas colaborativas: invitar solo a quien te sigue y avisar al aceptar",
@@ -473,7 +907,23 @@
       "Aviso al dueño cuando alguien acepta la invitación («Luis ya puede editar tu lista…»), con su foto.",
       "En GameList.tier_list, si un color no es «#rrggbb», usar uno de los de serie en vez de fallar."
     ],
-    "notas": "Salen de la revisión de la fase 3 de «Listas personalizadas de juegos» (26/10/2026); el usuario prefirió seguir con los retos y dejarlos para después."
+    "notas": "Salen de la revisión de la fase 3 de «Listas personalizadas de juegos» (26/10/2026); el usuario prefirió seguir con los retos y dejarlos para después.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Confirmado en el código: lists.views.invite acepta a cualquiera, accept no avisa al dueño y GameList.tier_list pasa cada color por text_on sin comprobarlo.",
+      "plan": [
+        "En invite, comprobar Follow de invitee hacia request.user, con el error «Solo puedes invitar a quien te sigue»; collaborators_context sugiere owner.followers en vez de owner.following.",
+        "En accept, un aviso al dueño con actor y un Notification.Kind nuevo (con su migración de choices, como la 0019).",
+        "En GameList.tier_list, validar con accounts.models.HEX_COLOR y usar el de DEFAULT_TIERS en su misma posición si no cuadra. Validarlo también al guardar en el admin.",
+        "Tests de los tres casos. Ajustar los tests y seed_test_profile que hoy invitan a gente que no sigue al dueño."
+      ],
+      "profundizar": [
+        "Invitar por enlace: un enlace con token para un amigo que aún no te sigue, en vez de abrir la invitación a cualquiera.",
+        "Lista por votos: cada colaborador ordena por su cuenta y la lista enseña la media («la tier list del grupo») y dónde discrepáis. Encaja con grupos de amigos y con «¿A qué jugamos?».",
+        "Historial de cambios: quién añadió, movió o quitó cada juego; added_by ya es la mitad.",
+        "Permisos por persona: puede añadir o también ordenar y quitar, para listas grandes en las que no todos deben reordenar."
+      ]
+    }
   },
   {
     "titulo": "Avisar al salir de Editar perfil con cambios sin guardar",
@@ -489,7 +939,22 @@
       "Texto «Cambios sin guardar» junto a «Guardar cambios», con el color del perfil.",
       "Botón «Descartar» que vuelva a lo guardado (recargar la página) y limpie la vista previa."
     ],
-    "notas": "Va justo después de la vista previa en escritorio y móvil (22/10/2026), que pinta los cambios sin guardarlos."
+    "notas": "Va justo después de la vista previa en escritorio y móvil (22/10/2026), que pinta los cambios sin guardarlos.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Igual: edit_profile.html no tiene beforeunload, aunque su script ya escucha cada cambio para pedir la vista previa (profile_preview).",
+      "plan": [
+        "Aprovechar ese mismo script: guardar el FormData inicial y comparar en cada cambio, para que volver al valor original no cuente como cambio.",
+        "beforeunload solo si hay cambios; quitarlo en el submit del formulario principal. Comprobar que los otros formularios de la página (tiendas, cuentas vinculadas) no disparan el aviso en falso, y que sí avisa si se pulsa uno de ellos con cambios pendientes.",
+        "«Cambios sin guardar» junto a «Guardar cambios», con el color del perfil, y «Descartar», que recarga sin preguntar."
+      ],
+      "profundizar": [
+        "Borrador automático: guardar en localStorage lo que hay en el formulario (sin las imágenes) y ofrecer «Recuperar cambios» al volver. En el móvil protege más que cualquier aviso.",
+        "Generalizarlo con un atributo data-dirty-guard en el <form> y el script en base.html, para la caja de publicar, los comentarios largos y el editor de reseñas.",
+        "Aspectos guardados: guardar la combinación de color, cabecera y fondo con un nombre y cambiar entre varias. Va con el objetivo de un perfil muy personalizable, y da de paso un «Volver a como estaba».",
+        "Copiar el aspecto de otro perfil si su dueño lo permite: otra forma de personalizar para quien no quiere empezar de cero."
+      ]
+    }
   },
   {
     "titulo": "Quitar DLC y actualizaciones de las búsquedas en IGDB",
@@ -504,7 +969,23 @@
       "Filtrar en la consulta los tipos de juego principal, remake, remaster, juego ampliado y port.",
       "Comando para borrar del catálogo los DLC ya importados que no estén en ninguna biblioteca."
     ],
-    "notas": ""
+    "notas": "",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Medido hoy en IGDB sobre los 2206 juegos: 20 DLC, 5 packs y 6 actualizaciones (31 que claramente sobran), más 3 episodios, 3 temporadas y 2 mods por revisar. También hay 40 expansiones y 35 bundles, que no conviene quitar a ciegas. No es tan grave como parecía, pero crece con cada búsqueda. Game no guarda game_type.",
+      "plan": [
+        "Game.game_type y Game.game_status (enteros con índice), en GAME_FIELDS y rellenos con fill_game_fields. Los valores los da IGDB (comprobado): 1 DLC, 13 pack, 14 actualización.",
+        "Filtro en las consultas de búsqueda (search, top_games, games_by_names): excluir 1, 13 y 14. No tocar games_by_steam_ids: lo que alguien tiene de verdad se tiene que poder emparejar.",
+        "No quitar bundles: IGDB marca así algunas reediciones sin version_parent (GTA V Enhanced), que la gente tiene y juega. Comprobado: 17 de los 348 juegos de tester_steam son bundles, como Mass Effect Legendary Edition o BioShock: The Collection, y solo 1 es un DLC.",
+        "Catálogo: ocultar por defecto lo que no es juego completo, con el filtro «tipo»; las fichas siguen funcionando por su URL.",
+        "Comando prune_catalog --dry-run: borra los DLC que no están en ninguna biblioteca, lista, lista de deseos ni reseña, y enseña la lista antes de borrar."
+      ],
+      "profundizar": [
+        "Enseñar los DLC donde toca: en la ficha del juego base (dlcs en 471 juegos y expansions en 270), con su precio cuando lo haya. El problema no es que existan, sino que salgan como juegos.",
+        "Etiqueta de tipo en las tarjetas («Remake», «Expansión», «Remaster»), para distinguir los dos Resident Evil 4 de un vistazo.",
+        "Limpiar también lo importado: ocultar solos los títulos sin emparejar que acaban en Soundtrack, SDK, Dedicated Server o Demo. Hoy se ocultan a mano uno a uno."
+      ]
+    }
   },
   {
     "titulo": "Contadores y reparto de valoraciones en la ficha",
@@ -520,7 +1001,23 @@
       "Cada contador enlaza a quién lo juega o lo quiere, respetando los perfiles privados.",
       "Guardar los contadores unos minutos en caché en los juegos muy populares."
     ],
-    "notas": "Con pocos usuarios las cifras serán pequeñas; se puede enseñar el histograma solo a partir de un mínimo de valoraciones."
+    "notas": "Con pocos usuarios las cifras serán pequeñas; se puede enseñar el histograma solo a partir de un mínimo de valoraciones.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Igual. Su nota de 1 a 5 ya es de 1 a 10 medias estrellas, y Game.community_rating agrega ya la media, así que se amplía ahí. Atención a la caché de su paso 4: settings no define CACHES, y sin eso es memoria por proceso.",
+      "plan": [
+        "Game.community_stats(): un solo aggregate con Count por estado (filter=Q(status=…)), el histograma con values(«rating») y annotate, y el número de WishlistItem aparte.",
+        "Histograma de 10 barras en games/_community.html, que ya se refresca por HTMX al votar. Solo a partir de 5 valoraciones.",
+        "Cada contador enlaza a una página de jugadores paginada, con Profile.visible_filter, como social.views._people. La lista de deseos solo da el número, nunca quién: es privada.",
+        "Sin caché de momento: con índices y pocos usuarios no hace falta. Cuando haga falta, cache.get_or_set con 5 minutos y una caché compartida en settings."
+      ],
+      "profundizar": [
+        "Dos histogramas: todos y solo quienes tienen horas. verified_average ya existe, y la diferencia entre ambos dice más que la media.",
+        "Nota según el final: quien lo terminó frente a quien lo abandonó, y qué porcentaje lo abandona. Es lo más útil antes de empezar un juego largo.",
+        "Mientras haya pocos usuarios, dar datos de fuera: la nota de los usuarios de IGDB (rating, en 2148 de 2206 juegos) y el pico de jugadores. La API de reseñas de Steam (appreviews) me ha devuelto una página HTML en todas las pruebas, así que no cuento con ella.",
+        "Evolución: gráfica de cuánta gente lo juega cada mes con PlaySession, donde se notan los lanzamientos y las grandes actualizaciones."
+      ]
+    }
   },
   {
     "titulo": "Ediciones agrupadas bajo su juego (GOTY, Complete, Definitive…)",
@@ -537,7 +1034,23 @@
       "Redirigir la ficha de una edición a la del juego principal con esa edición elegida.",
       "Comando para fusionar las entradas de biblioteca que ya están repetidas por ediciones."
     ],
-    "notas": "Los remasters y remakes son juegos distintos en IGDB (BioShock Remastered es un remaster con parent_game BioShock) y deben seguir separados: solo se juntan las ediciones. Ojo: IGDB marca algunas reediciones como bundle sin version_parent (GTA V Enhanced), que seguirán necesitando el ID manual."
+    "notas": "Los remasters y remakes son juegos distintos en IGDB (BioShock Remastered es un remaster con parent_game BioShock) y deben seguir separados: solo se juntan las ediciones. Ojo: IGDB marca algunas reediciones como bundle sin version_parent (GTA V Enhanced), que seguirán necesitando el ID manual.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Medido: solo 4 de los 2206 juegos tienen version_parent en IGDB, porque top_games, search y games_by_names ya excluyen las ediciones. Pero mirar solo eso se queda corto: en la biblioteca de tester_steam hay 3 con version_parent y otros 19 son bundles o ediciones ampliadas que IGDB no enlaza así (Ghost of Tsushima: Director's Cut, Final Fantasy VII Remake Intergrade, Mass Effect Legendary Edition…), más del 6 % de sus 348 juegos. Son notas y reseñas repartidas entre dos fichas.",
+      "plan": [
+        "Game.parent (FK a sí mismo) y Game.edition_name, rellenos con fill_game_fields a partir de version_parent y parent_game (comprobar cuántas ediciones ampliadas cubre este último); lo demás, a mano en el admin.",
+        "En accounts.matching.update_library, si el juego de un título es una edición, sumar sus horas en el padre. ExternalTitle sigue apuntando a la edición, para saber con cuál se jugó.",
+        "Comando merge_editions --dry-run: pasa LibraryEntry, Review, ListItem, WishlistItem, FavoriteGame, PlaySession y Activity al padre, resolviendo los duplicados de las restricciones únicas, en una transacción y con un resumen.",
+        "games.views.detail redirige de la ficha de la edición a la del padre con ?edicion=.",
+        "El selector de edición para contadores y reseñas, después de la fusión, que es lo que arregla lo que se ve. Ojo con no juntar colecciones de varios juegos, como BioShock: The Collection."
+      ],
+      "profundizar": [
+        "Mi edición: cada uno elige con qué edición y portada se ve el juego en su biblioteca. Va con el perfil personalizable y con «Colección física con escáner de código de barras».",
+        "Los bundles sin padre: un campo «es edición de» en el admin para los 35 del catálogo, con la corrección compartida, como en ExternalTitle.",
+        "Comparar notas entre ediciones: «la Definitive tiene mejor nota que la original», cuando haya datos."
+      ]
+    }
   },
   {
     "titulo": "Próximos lanzamientos: fechas por plataforma y aviso cuando sale",
@@ -554,7 +1067,92 @@
       "Aviso en la campana el día que sale un juego de tu lista, con su precio en tus tiendas (aprovechando los avisos de precio que ya existen).",
       "Actualizar cada noche las fechas de los juegos que aún no han salido."
     ],
-    "notas": "IGDB cambia a menudo las fechas de los juegos que no han salido: por eso hay que refrescarlas cada noche."
+    "notas": "IGDB cambia a menudo las fechas de los juegos que no han salido: por eso hay que refrescarlas cada noche.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Solo existe first_release_date, y hay 4 juegos con fecha futura en todo el catálogo: se llena con total_rating_count, y lo que no ha salido casi no tiene votos. Hace falta traerlos aposta. En IGDB hay 1259 juegos futuros con algo de expectación y 340 con 5 o más «hypes» (medido hoy).",
+      "plan": [
+        "Comando import_upcoming en nightly: los de first_release_date futura y hypes de 5 o más, y los más deseados de Steam con popularity_primitives de tipo 10 (comprobado).",
+        "Modelo ReleaseDate (juego, plataforma, región, fecha, texto como «Q1 2027» y estado). Región 1 es Europa y 8, todo el mundo; las dos sirven, con Europa primero.",
+        "Ficha: fechas por plataforma, con las etiquetas «Acceso anticipado» (estado 3) o «Cancelado» (game_status 6).",
+        "Inicio: «Próximamente», en la columna derecha, con tus deseados de los próximos 90 días y los más esperados.",
+        "update_releases cada noche solo para lo que no ha salido, con aviso el día de salida y su precio en tus tiendas."
+      ],
+      "profundizar": [
+        "Avisar de los retrasos: al refrescar cada noche se ve si la fecha cambia («X se retrasa a marzo»). Es lo primero que quiere saber quien lo espera.",
+        "Calendario .ics: una dirección privada con token para suscribirse desde Google o Apple y ver tus lanzamientos en tu agenda. Barato: es texto plano.",
+        "Secuelas: si has terminado el anterior de una saga (collections), avisar de la siguiente aunque no esté en tu lista de deseos.",
+        "Precio de salida con perspectiva: «sale a 69,99 €; los anteriores de esta editora bajaron un 40 % en 6 meses», con el historial de ITAD."
+      ]
+    }
+  },
+  {
+    "titulo": "Trofeos de PlayStation emparejados por el ID del juego, no por el nombre",
+    "fecha": "2026-10-29",
+    "estado": "en curso",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Leer los trofeos de cada juego de PlayStation a partir de su ID (CUSA… o PPSA…) en vez de buscar su lista de trofeos por el nombre, para que no se queden sin trofeos los juegos cuyo nombre no coincide con el de su lista.",
+    "motivo": "En la primera sincronización de verdad (tester_steam, 29/10/2026) se leyeron los trofeos de 129 de los 176 juegos: 47 se quedaron sin ellos, y entre ellos están los más jugados (Call of Duty: Modern Warfare, 530 h; Rainbow Six Siege, 383 h; Apex Legends, 134 h). Fallan las colecciones, que tienen una lista de trofeos por juego (Uncharted, Ezio Collection, BioShock, Trilogía Mafia, Hasbro), los nombres que no coinciden (el apóstrofo curvo de «Tom Clancy’s», «Genshin Impact 6.º aniversario», «Ghostrunner2», años o regiones entre paréntesis) y otros como Titanfall 2, For Honor o The Last of Us Part II, que parecen llamarse igual que su lista; como no se guarda lo que manda Sony, no se puede saber por qué. PlayStation tiene una petición que da las listas de trofeos de un juego a partir de su ID, que ya se guarda en cada título importado, así que no hace falta adivinarlo por el nombre.",
+    "pasos": [
+      "Al sincronizar, pedir /api/trophy/v1/users/me/titles/trophyTitles?npTitleIds=… con los ID de los juegos importados, de 5 en 5 (unas 36 peticiones para 176 juegos), y apuntar en cada uno sus trofeos conseguidos y totales.",
+      "Las colecciones con varias listas suman las suyas y cuentan como platino si tienen alguno.",
+      "Dejar el emparejado por nombre solo para lo que no salga por ID, igualando también los apóstrofos curvos y quitando el año o la región entre paréntesis.",
+      "Guardar el npCommunicationId de cada lista en el título importado: sirve para pedir los trofeos uno a uno (propuesta «Logros uno a uno») y para no volver a leer los juegos que no han cambiado (lastUpdatedDateTime).",
+      "Tests con respuestas simuladas de una colección, de un juego con versión de PS4 y de PS5 y de un nombre que no coincide."
+    ],
+    "notas": "Los lanzadores como «Call of Duty» (el HQ) no tienen trofeos propios y seguirán sin ellos. Aparte, 8 juegos ya tienen trofeos pero no se ven porque no están emparejados con el catálogo (entre ellos el platino de Sniper Ghost Warrior 3): eso se arregla emparejándolos a mano en «Sin emparejar». La petición la documenta psn-api (getUserTrophiesForSpecificTitle): admite como mucho 5 ID a la vez y solo responde de juegos que la cuenta ha jugado, que son justo los que se importan. 29/10/2026: en curso en la rama trofeos-por-id, a petición del usuario. Los trofeos se piden por el ID de cada juego (de 5 en 5 y 6 peticiones a la vez; si Sony rechaza una petición por un ID que no conoce, sus juegos se piden de uno en uno) y las colecciones suman sus listas. El emparejado por nombre queda de reserva, sin signos ni espacios (apóstrofos curvos, «Ghostrunner2») y quitando el año o la región del final solo si hace falta. El npCommunicationId aún no se guarda. 4 tests nuevos (422 en total, todos bien). Falta una sincronización de verdad para ver cuántos de los 47 salen. 01/11/2026: con el emparejado nuevo ya se ven los trofeos de los juegos que estaban sin emparejar, entre ellos el platino de Sniper Ghost Warrior 3.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Programado en esta rama, sin commit (accounts/psn.py, accounts/tests.py y README). Lo único que falta es medirlo con una sincronización real, para ver cuántos de los 47 salen. Solo se puede hacer con un NPSSO tuyo. El npCommunicationId aún no se guarda.",
+      "plan": [
+        "Tú pegas un NPSSO en tester_steam y yo comparo antes y después: juegos con trofeos y cuáles de los 47 siguen sin ellos.",
+        "Para los que sigan sin salir, ver en el log qué responde Sony, sin datos de la cuenta: si es otro ID (versión regional, PS4 o PS5) o si no tienen lista.",
+        "Guardar los npCommunicationId en ImportedTitle (lista JSON, porque una colección tiene varios), con su migración.",
+        "Commit en su rama, PR, servidor para que lo mires y fusionar, como siempre. Lo demás sigue en «Logros uno a uno»."
+      ],
+      "profundizar": [
+        "No releer lo que no ha cambiado: lastUpdatedDateTime de cada lista permite saltarse juegos. Menos peticiones y menos riesgo de que Sony corte.",
+        "Usar los trofeos para emparejar: quedan 7 títulos de PlayStation sin juego tras «Emparejar los juegos por nombre sin contar signos: recuperar horas perdidas», y el nombre de su lista de trofeos es otra pista, a veces más limpia que la de la tienda.",
+        "PS3 y Vita: trophy_titles también trae esos juegos, que la lista de juegos no da porque solo pide PS4 y PS5. Importarlos como títulos sin horas pero con trofeos y fechas rescata historia que hoy se pierde.",
+        "Guardar los grados (bronce, plata, oro, platino): dan una puntuación tipo PSN para el perfil y distinguen un 100 % de un platino."
+      ]
+    }
+  },
+  {
+    "titulo": "Logros uno a uno: cuáles tienes, cuándo los conseguiste y lo raros que son",
+    "fecha": "2026-10-29",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Guardar cada logro de Steam (y después los trofeos de PlayStation y los logros de Xbox) con su nombre, descripción, icono, la fecha en que se consiguió y el porcentaje mundial de jugadores que lo tienen, en vez de solo «32 de 50».",
+    "motivo": "Hoy de cada juego solo se apunta cuántos logros hay y cuántos se tienen (ImportedTitle). GetPlayerAchievements, que ya se pide juego a juego, devuelve la lista entera (qué logro, si se tiene y cuándo), pero steam.player_achievements la cuenta y la tira; con l=spanish trae además el nombre y la descripción sin ninguna petición más. Con la lista se puede enseñar en la ficha qué falta, en el perfil los últimos logros y el más raro, y la fecha de verdad en que se terminó un juego, que es lo que necesita «¿Cuánta gente lo termina?» para proponer marcarlo como Completado.",
+    "pasos": [
+      "Modelos: Achievement por título externo (clave de la API, nombre, descripción, icono, si es oculto y porcentaje mundial), compartido por todos los usuarios, y UserAchievement (título importado, logro y fecha en que se consiguió). Los contadores de ImportedTitle se quedan como resumen para las portadas y el perfil.",
+      "Steam: pedir GetPlayerAchievements con l=spanish y guardar la lista en vez de contarla; los iconos y si es oculto, de GetSchemaForGame una vez por juego y no por usuario; el porcentaje mundial, de GetGlobalAchievementPercentagesForApp en la tarea nocturna (la misma lectura que «¿Cuánta gente lo termina?»).",
+      "Ficha: desplegar «Tus logros» con la lista: los conseguidos con su fecha y los que faltan en gris, ordenables por rareza; los ocultos sin desvelar hasta tenerlos.",
+      "Perfil: los últimos logros conseguidos y el más raro de cada usuario; el «Diario de partidas que se escribe solo» podría contar los logros de cada sesión.",
+      "PlayStation y Xbox, después: una petición por juego para su lista (trofeos y logros con fecha y rareza), solo de los juegos que han cambiado desde la última lectura."
+    ],
+    "notas": "Son unas decenas de filas por juego y usuario: nada para la base de datos. La petición de cada usuario y juego es la misma que ya se hace; GetSchemaForGame y los porcentajes son una por juego y valen para todos los usuarios. Ojo con los logros ocultos para no destripar nada.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar, y la revisión la sube en mi orden: steam.player_achievements cuenta la lista y la tira. Comprobado con tester_steam: de 128 juegos con logros, 118 traen fecha, con actividad en cada año desde 2022. Es la única fuente retroactiva de cuándo se ha jugado: sirve para el diario, las tier lists por año, el resumen anual y la fecha en que se terminó un juego.",
+      "plan": [
+        "Modelos en accounts: Achievement (ExternalTitle, api_name, nombre, descripción, iconos, oculto y porcentaje mundial; único por título y api_name), compartido por todos, y UnlockedAchievement (ImportedTitle, Achievement y fecha), solo de los conseguidos. Son unos pocos miles de filas por usuario: nada para la base de datos.",
+        "steam.player_achievements pasa a devolver la lista con unlocktime y l=spanish; los contadores de ImportedTitle salen de ella y se quedan como resumen.",
+        "steam.achievement_schema(app_id): GetSchemaForGame con l=spanish (comprobado: displayName, description, hidden, icon e icongray), una vez por juego y no por usuario. Los porcentajes, en nightly, con GetGlobalAchievementPercentagesForApp, que no necesita clave (comprobado).",
+        "Ficha: «Tus logros» se despliega con HTMX; los conseguidos con su fecha, los que faltan en gris, ordenables por rareza. Los ocultos, tapados hasta tenerlos.",
+        "Perfil: los últimos logros y el más raro. Actividad agrupada por juego y día, solo platinos y raros, para no llenar el feed.",
+        "PlayStation y Xbox en otra fase, con el token de cada sincronización y solo los juegos que han cambiado: los trofeos por npCommunicationId y los logros de achievements.xboxlive.com traen fecha y rareza."
+      ],
+      "profundizar": [
+        "Historia retroactiva: de los logros salen la primera partida aproximada de Steam (que Steam no da) y los días en que seguro se jugó. Comprobado: 36 juegos con logros en 2025, de los que 14 se perderían con la última partida.",
+        "La prueba de que lo has terminado: el logro final, con su fecha, propone Completado con el completed_at correcto. Con 1 Completado de 348 juegos en tester_steam, es lo que llena esa columna y da sentido a retos y estadísticas.",
+        "Caza de logros: juegos en los que te falta poco, con lo raros que son. En tester_steam hay 15 títulos al 80 % o más sin llegar al 100, como Bloodborne con 38 de 40. Es otro pendiente, más corto y muy agradecido.",
+        "Rareza como puntuación: puntos según el porcentaje mundial y comparar con la gente que sigues. En tester_steam, de 2409 logros de Steam, 156 son de menos del 5 % y 4 de menos del 1 %; el más raro, del 0,8 %."
+      ]
+    }
   },
   {
     "titulo": "¿Cuánta gente lo termina? Tasa de finalización con los logros de Steam",
@@ -571,7 +1169,24 @@
       "En la ficha: «Lo termina el 31 % · el logro más difícil lo tiene el 4 %», junto a la nota y la duración. En el catálogo y el pendiente, poder ordenar por los que más gente termina.",
       "Con los logros del usuario (propuesta «Importar logros y trofeos»), proponer marcarlo como Completado cuando consigue el logro del final, con su fecha."
     ],
-    "notas": "Los juegos sin final (multijugador, sandbox) o sin logro de créditos se quedan sin dato. Solo cuenta a jugadores de Steam, pero es una muestra enorme."
+    "notas": "Los juegos sin final (multijugador, sandbox) o sin logro de créditos se quedan sin dato. Solo cuenta a jugadores de Steam, pero es una muestra enorme.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar, con las APIs comprobadas: los porcentajes salen sin clave y el esquema, en español (Hades: 49 logros, del 81,8 % al 5,9 %). Lo difícil es saber cuál es el logro del final, y las reglas por palabras no bastan: probadas con los 100 juegos más populares con ID de Steam, de 76 con logros solo 40 dan algún candidato y solo 16 dan uno solo, con muchos falsos (en Hades, «To Charon's Credit» por la palabra credit). GTA V, Elden Ring o Skyrim no dan ninguno.",
+      "plan": [
+        "Comando fetch_completion en nightly, semanal y con pausas: guarda los porcentajes en Achievement (los mismos modelos de «Logros uno a uno») o, si esto va antes, en un JSON en Game.",
+        "Elegir el logro con un modelo de lenguaje y revisarlo a mano: pasarle a Claude nombre, descripción y porcentaje de cada logro para que marque el del final, con su confianza. Las reglas por palabras solo sirven de pista. Se guarda Game.final_achievement con su origen (auto, usuario o administrador), como ExternalTitle.Source.",
+        "Revisión en el admin, con los candidatos y confirmar con un clic. Empezar por los 200 más populares: son los que más se miran.",
+        "Tasa relativa: final entre el logro más común, para responder «de quienes lo empiezan, lo termina el X %».",
+        "Ficha: una línea junto a la nota y la duración, diciendo que sale de los logros de Steam. Sin dato, no se enseña nada: nada de inventarse un 0 %."
+      ],
+      "profundizar": [
+        "Embudo de la historia: los logros ordenados por porcentaje dibujan dónde se deja el juego («la mitad se queda antes del acto 2»). Se ve de un vistazo y es información nueva para quien duda si empezarlo.",
+        "Que corrijan quienes lo han terminado: «¿Este es el logro del final?», con un clic y compartido por todos, como las correcciones del emparejado.",
+        "Comparar y ordenar: «lo termina más gente que el 70 % de los RPG» y, en el pendiente, ordenar por los que más gente termina.",
+        "Reconocimiento personal: al conseguirlo, «solo el 12 % llega hasta aquí», con una tarjeta para compartir."
+      ]
+    }
   },
   {
     "titulo": "Reseñas con horas verificadas y spoilers según tu progreso",
@@ -606,7 +1221,25 @@
       "Denunciar un perfil con el modelo Report, que ya es genérico.",
       "Lista de usuarios bloqueados y silenciados en Editar perfil, para deshacerlo."
     ],
-    "notas": "Depende de «Seguir a otros jugadores y feed de actividad». Puede ir junto a su fase 1 si se quiere abrir pronto."
+    "notas": "Depende de «Seguir a otros jugadores y feed de actividad». Puede ir junto a su fase 1 si se quiere abrir pronto.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar. Report ya es genérico y las reglas de visibilidad están casi centralizadas en Profile.visible_to y visible_filter, salvo lists/models.py y lists/views.py, que repiten user__profile__is_public: hay que llevarlos a la misma regla antes.",
+      "plan": [
+        "Modelos Block y Mute en social, y un helper blocked_ids(user) con caché por petición.",
+        "Ampliar visible_to y visible_filter para excluir a los bloqueados en los dos sentidos, y que las listas usen la misma regla.",
+        "Una función can_interact(actor, target) en follow, los «me gusta», los comentarios y las invitaciones de reseñas, publicaciones y listas. Con «Un solo sitio para crear los avisos», los avisos se filtran solos.",
+        "Bloquear borra los Follow en los dos sentidos y saca de las colaboraciones de listas; en los retos sigue participando, pero sale oculto para quien bloquea.",
+        "Silenciar: excluir en feed_context y en los avisos, sin que se entere.",
+        "Interfaz: menú en el perfil y en social/_person.html, «Quitar de mis seguidores», denunciar el perfil (una clave más en REPORT_TARGETS) y la lista para deshacerlo en Editar perfil. Tests con una matriz de quién ve qué."
+      ],
+      "profundizar": [
+        "Silenciar juegos: no ver en el feed nada de un juego hasta terminarlo («silenciar Elden Ring hasta completarlo»). Propio de una web de juegos, y casi gratis con los estados y las marcas de spoiler.",
+        "Quién puede interactuar: una preferencia por usuario para que solo comenten sus seguidores, o nadie, sin llegar a bloquear.",
+        "Límites contra el spam: comentarios, invitaciones y denuncias por hora, con la caché de Django y sin librerías.",
+        "Moderación ligera: ocultar de forma automática lo que tenga 3 denuncias distintas hasta que un administrador lo revise; el admin de denuncias ya está hecho."
+      ]
+    }
   },
   {
     "titulo": "Perfil solo para seguidores, con solicitudes",
@@ -623,7 +1256,24 @@
       "Contar a los seguidores aceptados en todas las comprobaciones de visibilidad (perfil, reseñas, comentarios, feed y ficha); si en la fase 1 de seguir se dejaron en un solo sitio, es un cambio pequeño.",
       "Tests de visibilidad con los tres niveles."
     ],
-    "notas": "Depende de «Seguir a otros jugadores y feed de actividad». Si el usuario lo quiere desde el principio, entra en su fase 1."
+    "notas": "Depende de «Seguir a otros jugadores y feed de actividad». Si el usuario lo quiere desde el principio, entra en su fase 1.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar. Follow no tiene estado. is_public de los perfiles se mira en Profile.visible_to y visible_filter, en lists/models.py y lists/views.py, y en tres plantillas (accounts/profile.html, social/_person.html y lists/detail.html): pocos sitios, pero «solo seguidores» añade una consulta por cada comprobación que hoy es un simple booleano.",
+      "plan": [
+        "Profile.visibility (público, solo seguidores o privado), con una migración que respete lo que tiene cada uno, y dejar is_public como propiedad mientras se migra el resto.",
+        "Follow.accepted_at, relleno al migrar: en un perfil «solo seguidores», seguir crea una solicitud sin aceptar. Todos los contadores y el feed cuentan solo las aceptadas.",
+        "visible_to mira el Follow aceptado y visible_filter usa Exists con OuterRef, para no duplicar filas al cruzar con seguidores. Guardar el resultado por petición: una página con 20 tarjetas no puede hacer 20 consultas.",
+        "Aviso de cada solicitud y página para aceptar o rechazar. Al pasar a este nivel, quien ya te seguía se queda, con la opción de revisarlos.",
+        "Tests con una matriz: tres niveles por cuatro tipos de visitante (dueño, seguidor aceptado, pendiente y desconocido) en perfil, reseñas, feed, listas, retos y ficha."
+      ],
+      "profundizar": [
+        "Privacidad por partes: quién ve tus horas, tu diario, tu lista de deseos y tus cuentas de plataforma, por separado. Más útil que todo o nada, y es parte del perfil a medida.",
+        "Lista de deseos para seguidores: hoy es siempre privada. Enseñársela a tus amigos da ideas de regalo sin hacerla pública.",
+        "«Ver como»: un botón en tu perfil para verlo como un desconocido o como un seguidor. La vista previa de Editar perfil ya pinta el perfil con AnonymousUser.",
+        "Aceptar solos a tus amigos de Steam o Xbox, con los datos de «Encontrar a tus amigos de Steam y Xbox en NextPlay»."
+      ]
+    }
   },
   {
     "titulo": "¿A qué jugamos? Juegos en común con tus amigos",
@@ -640,7 +1290,24 @@
       "Tener en cuenta la plataforma: si uno lo tiene en PS5 y otro en PC, solo vale si hay juego cruzado (la categoría de Steam de multijugador multiplataforma, cuando se sepa).",
       "Enlace para compartir el resultado con la carátula de cada juego."
     ],
-    "notas": "Encaja con «Seguir a otros jugadores y feed de actividad» y «Encontrar a tus amigos de Steam y Xbox en NextPlay», pero puede empezar con nombres de usuario. Con perfiles privados, solo si su dueño lo acepta."
+    "notas": "Encaja con «Seguir a otros jugadores y feed de actividad» y «Encontrar a tus amigos de Steam y Xbox en NextPlay», pero puede empezar con nombres de usuario. Con perfiles privados, solo si su dueño lo acepta.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar. Hay un hueco de datos: ImportedTitle solo guarda lo jugado salvo que se pida «unplayed» (tester_steam tiene 267 juegos en Steam y solo 135 con última partida), y PlayStation y Xbox solo listan lo abierto. Los modos multijugador de IGDB están en 838 de 2206 juegos.",
+      "plan": [
+        "En steam.import_library, guardar siempre en save_titles los juegos sin abrir, y aplicar el filtro de horas solo al pasarlos a la biblioteca (update_library): se sabe lo que cada uno tiene sin llenarle el pendiente.",
+        "Datos del juego: multiplayer_modes de IGDB (cooperativo en línea y local, pantalla partida y jugadores máximos) y las categorías de Steam, en la misma llamada de localize_games. Comprobado: 1 multijugador, 9 cooperativo y 38 cooperativo en línea.",
+        "games/together.py: lo que tiene cada uno cruzando LibraryEntry con ImportedTitle, y tres grupos: lo tenéis todos, le falta a alguien (con game.cheapest en sus tiendas) y gratuitos.",
+        "Página /a-que-jugamos/?con=ana,luis con autocompletar de la gente que sigues. Solo entra quien tiene el perfil visible para ti; un perfil privado tendría que aceptarlo.",
+        "Ajuste por plataforma: si uno lo tiene en PS5 y otro en PC, decirlo y no darlo por bueno mientras no se sepa si hay juego cruzado."
+      ],
+      "profundizar": [
+        "Con que uno lo tenga basta: Remote Play Juntos y Préstamo familiar (la categoría 62 está comprobada; la de Remote Play Juntos hay que comprobarla). Saber qué se puede jugar sin que todos paguen cambia la respuesta.",
+        "Votar: un enlace para el grupo de WhatsApp o Discord, donde cada uno marca qué le apetece y sale un ganador.",
+        "Que quepa en una noche: ordenar por lo que nadie ha terminado y por duración («los tres lo tenéis, 8 h de campaña cooperativa»).",
+        "Rebajas del grupo: avisar cuando baja de precio un juego al que solo le falta a una persona («solo le falta a Luis y hoy está a 4,99 €»)."
+      ]
+    }
   },
   {
     "titulo": "Importar Nintendo Switch con capturas de la app Nintendo Store",
@@ -657,7 +1324,24 @@
       "Pantalla de revisión antes de guardar: lo leído, el juego emparejado y un buscador para corregirlo.",
       "Las sesiones por día van directas al «Diario de partidas que se escribe solo»; volver a subir capturas solo añade lo nuevo."
     ],
-    "notas": "Con OCR fallan sobre todo los títulos que salen como logo; un modelo de visión (p. ej. Claude) o comparar con los juegos de Switch del catálogo lo resuelve. La app no da tiempos de menos de 15 minutos («unos minutos»). Completa a «Colección física con escáner de código de barras», que añade los juegos pero no las horas."
+    "notas": "Con OCR fallan sobre todo los títulos que salen como logo; un modelo de visión (p. ej. Claude) o comparar con los juegos de Switch del catálogo lo resuelve. La app no da tiempos de menos de 15 minutos («unos minutos»). Completa a «Colección física con escáner de código de barras», que añade los juegos pero no las horas.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar. Requiere una plataforma nueva en ExternalTitle.Platform y en las horas de LibraryEntry, así que conviene hacerla después de «Horas por plataforma sin una columna por tienda». La incógnita es la precisión de la lectura.",
+      "plan": [
+        "Prueba antes de construir nada: 10 capturas reales tuyas, un modelo de visión de Claude y comparar lo leído con la realidad. Si no da, no sigo.",
+        "Página de subida; las imágenes se procesan en memoria y no se guardan nunca: es la promesa de privacidad más sencilla de explicar.",
+        "Salida estructurada por captura: título, primera y última partida y [{día, minutos}], pasando como pista la lista de juegos de Switch del catálogo.",
+        "Pantalla de revisión como accounts/imported_titles.html: lo leído, el juego propuesto y un buscador para corregirlo. Nada se guarda sin confirmar.",
+        "ExternalTitle.Platform.NINTENDO y PlaySession por día exacto, que es mejor dato que el de Steam. Volver a subir capturas solo añade lo nuevo, comparando juego y día."
+      ],
+      "profundizar": [
+        "Control parental: la app Nintendo Switch Parental Controls da tiempo por juego y día, y nxapi la lee sin capturas. Es no oficial, con el mismo riesgo que PlayStation; merece una prueba si subir capturas resulta pesado.",
+        "Controlar el gasto: un límite de capturas por usuario y día y la tarea en segundo plano, porque cada lectura cuesta dinero.",
+        "No volver a preguntar: lo corregido alimenta ExternalTitle (nombre leído y juego), y a la siguiente no hace falta adivinarlo.",
+        "Reutilizar el lector: capturas de cualquier plataforma sin API (Epic, Battle.net, móvil) y fotos de la estantería para «Colección física con escáner de código de barras»."
+      ]
+    }
   },
   {
     "titulo": "Duración estimada de los juegos",
@@ -672,7 +1356,24 @@
       "Calcular con las horas de la comunidad de NextPlay los tiempos de quienes lo marcaron como Completado.",
       "Filtro del catálogo y del pendiente por duración («menos de 10 horas»)."
     ],
-    "notas": "Ya estaba planeada antes de proponerla."
+    "notas": "Ya estaba planeada antes de proponerla.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar. Medido en IGDB: 1690 de 2206 juegos tienen fila en game_time_to_beats y 1523 tienen tiempo normal, pero solo 540 con 5 respuestas o más, así que hay que enseñar de cuánta gente sale. Vienen en segundos: hastily, normally y completely. Y hay valores absurdos: Content Warning sale con 21.614 h (3 respuestas), Ark con 1486 h y GTA V Enhanced con 626 h, de modo que sumar sin más el pendiente de tester_steam da 25.278 h. Solo los 66 juegos de 100 h o menos suman 1346 h, con una mediana de 17 h.",
+      "plan": [
+        "Campos en Game en minutos (ttb_quick, ttb_normal, ttb_full) y ttb_count, con índice en ttb_normal.",
+        "Comando fill_time_to_beat por lotes de 500, semanal en nightly, y también al importar juegos nuevos.",
+        "Ficha: «Unas 12,5 h · según 11 jugadores de IGDB» y, si tienes horas y no lo has terminado, «Te faltan unas 4 h». Con menos de 5 respuestas, «dato orientativo», y fuera de los totales: por eso salen las cifras absurdas.",
+        "Dato propio: mediana de horas de quienes lo tienen Completado, a partir de 5 personas, calculada de noche y enseñada al lado.",
+        "Filtro por duración en el catálogo, la biblioteca y la lista de deseos (ver «Catálogo con filtros y orden al nivel de Backloggd (y más)»)."
+      ],
+      "profundizar": [
+        "Proponer Completado: horas por encima de la duración normal y estado Jugado dan «¿Lo terminaste?» con un clic, sin los juegos de servicio, que siempre la superan. Es la forma más barata de llenar una columna casi vacía (1 de 348).",
+        "Tu fecha de fin: con tus horas por semana (PlaySession), «a este ritmo lo terminas el 12 de diciembre».",
+        "Tu pendiente en horas, sin los valores raros (en tester_steam, 1346 h en 66 juegos): «a tu ritmo, N años». Una cifra que cambia cómo miras el pendiente, en «Retos del año y control del pendiente».",
+        "Precio por hora desde el primer día, sin comunidad: mejor precio entre la duración normal, para 1523 juegos (ver «Cuándo se abandona, si mejora con las horas y cuánto sale la hora»)."
+      ]
+    }
   },
   {
     "titulo": "Recomendaciones «Qué jugar después»",
@@ -688,7 +1389,24 @@
       "Más adelante, filtrado colaborativo: «a quien le gustó X también le gustó Y» con las valoraciones de la comunidad.",
       "Excluir los que ya están completados o abandonados."
     ],
-    "notas": "IGDB también devuelve similar_games para cada juego; importarlo daría recomendaciones decentes sin algoritmo propio. Ya estaba planeada antes de proponerla."
+    "notas": "IGDB también devuelve similar_games para cada juego; importarlo daría recomendaciones decentes sin algoritmo propio. Ya estaba planeada antes de proponerla.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar. similar_games está en 2196 de 2206 juegos, temas en 2180 y perspectivas en 2178, pero no se guarda ninguno. Con 2 notas en 348 juegos, la señal fuerte tienen que ser las horas, no las estrellas.",
+      "plan": [
+        "Guardar similar_games, themes y player_perspectives con fill_game_fields.",
+        "library/taste.py: un perfil de gustos con peso por juego según horas relativas a su duración (40 h en uno de 10 h dice más que 40 h en uno de 100 h), más la nota si la hay; lo abandonado resta.",
+        "Candidatos: similar_games de tus más jugados y el resto del catálogo, puntuados por coincidencia, nota y popularidad; fuera lo que ya has jugado.",
+        "Dos bloques: «Elige de tu pendiente», con un botón «otro» por HTMX, y «Para descubrir». Cada uno dice por qué («porque jugaste 80 h a Hades»).",
+        "Guardar el resultado un día por usuario y recalcular tras sincronizar. «No me interesa» se guarda y no vuelve a salir."
+      ],
+      "profundizar": [
+        "En el momento justo: al pasar un juego a Completado, «¿Y ahora?» con tres de tu pendiente parecidos. Es lo que da nombre a NextPlay, y es cuando de verdad se decide.",
+        "Filtros del momento: que puedas jugar ya y esta noche (menos de 3 h, en castellano, en Deck, en Game Pass o ya en tu biblioteca).",
+        "En rebajas: tu lista de deseos y las recomendaciones ordenadas por afinidad y precio: qué te conviene comprar a ti, no qué está más rebajado.",
+        "Colaborativo cuando haya gente: horas de usuarios parecidos, sin modelos pesados. Antes, «La gente que sigues en la ficha y en los perfiles» da algo muy parecido con nombres."
+      ]
+    }
   },
   {
     "titulo": "Estadísticas del perfil y resumen anual",
@@ -704,7 +1422,73 @@
       "Página de resumen del año con los juegos más jugados y una imagen para compartir.",
       "Respetar el perfil privado."
     ],
-    "notas": "Para «completados por año» haría falta guardar la fecha en que un juego pasa a Completado; ahora solo hay updated_at. Ya estaba planeada antes de proponerla."
+    "notas": "Para «completados por año» haría falta guardar la fecha en que un juego pasa a Completado; ahora solo hay updated_at. Ya estaba planeada antes de proponerla.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Hay cifras en la cabecera (_profile_stats) y los géneros más jugados, sin pestaña ni resumen. Su nota está vieja: completed_at existe desde el 26/10. Los datos dan para mucho: tester_steam lleva 3905 h en Steam y 6975 h en PlayStation, con 37 juegos en las dos.",
+      "plan": [
+        "Pestaña ?vista=estadisticas con library/stats.py y agregados SQL: horas por plataforma y por género, estados, juegos por año de lanzamiento y por año jugado.",
+        "Gráficas SVG desde el servidor, como history.chart, con texto alternativo y sin librerías.",
+        "Resumen anual en /u/<usuario>/resumen/2026/: más jugados, horas, géneros, logros y reseñas, a partir de PlaySession y, para lo anterior, de los logros y la última partida.",
+        "Imagen para compartir con la misma pieza de «Vistas previas al compartir y tarjeta para incrustar», en 1080 × 1920 para historias y en apaisado.",
+        "Respetar el perfil privado y dejar ocultar cifras concretas."
+      ],
+      "profundizar": [
+        "Cifras que solo salen de tener precios y horas juntos: cuánto vale tu pendiente, cuánto te sale la hora y cuánto has ahorrado comprando en rebajas si apuntas lo pagado.",
+        "Balance del pendiente: juegos que entran frente a los que terminas cada mes. Un dato incómodo y muy compartible.",
+        "Años pasados: con los logros, el resumen de 2025 ya se puede hacer aunque el diario empezara el 25/10/2026 (hay logros en 36 juegos de ese año en tester_steam).",
+        "Cada cifra enlaza a sus juegos: «Terror: 40 h» lleva a tu biblioteca filtrada. Y compararte con la gente que sigues o con la media de NextPlay.",
+        "Títulos que salen de los datos, para el perfil: «Cazador de platinos», «Terminador de indies»… Se ganan solos y no se pueden falsear, porque salen de horas y logros verificados."
+      ]
+    }
+  },
+  {
+    "titulo": "Recuerdos: «un día como hoy» con tus fechas reales",
+    "fecha": "2026-11-01",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Un bloque en el inicio con lo que pasó tal día como hoy en otros años: el juego que terminaste, un logro que conseguiste o la reseña que escribiste, y los aniversarios de tus juegos favoritos.",
+    "motivo": "NextPlay guarda fechas que casi nunca vuelve a enseñar: completed_at, Review.published_at, ImportedTitle.first_played y, con «Logros uno a uno», las de cada logro (en tester_steam, desde 2022). Da un motivo para abrir la web cada día sin pedir nada nuevo al jugador, y first_release_date da aniversarios desde hoy mismo.",
+    "pasos": [
+      "library/memories.py: memories(user, day) junta lo de ese día y ese mes de otros años, sin tablas nuevas.",
+      "Bloque en la columna derecha de la portada, oculto si ese día no hay nada, y solo para su dueño.",
+      "«Hace 10 años salió…» de tus favoritos y tu biblioteca, con first_release_date.",
+      "«Compartir este recuerdo» abre la caja de publicar con el juego ya puesto."
+    ],
+    "notas": "Sale de la revisión del 01/11/2026. Hoy solo daría aniversarios y pocas fechas; con los logros guardados hay material de varios años.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Propuesta nueva. No necesita datos nuevos para empezar; gana mucho con «Logros uno a uno».",
+      "profundizar": [
+        "Útil además de nostálgico: «Hace un año que no lo tocas: ¿sigues?», enlazando con el repaso de la biblioteca.",
+        "Fechas redondas: un año de tu primer platino o de tu primera reseña, con un aviso opcional."
+      ]
+    }
+  },
+  {
+    "titulo": "Preguntas sobre un juego que no destripan nada",
+    "fecha": "2026-11-01",
+    "estado": "pendiente",
+    "prioridad": "baja",
+    "tipo": "Funcionalidad",
+    "resumen": "Preguntar algo de un juego («¿merece la pena seguir tras el capítulo 3?») y que las respuestas se plieguen según lo que lleve jugado quien las lee.",
+    "motivo": "Las reseñas ya se pliegan cuando van por delante de quien las lee (AHEAD_HOURS), con horas verificadas que otros trackers no tienen. Llevarlo a preguntas da algo que ni foros ni wikis pueden dar: saber cuánto había jugado quien contesta y no destripar lo que te queda.",
+    "pasos": [
+      "Modelos Question y Answer, que guardan las horas y el estado de quien escribe, como Review.snapshot.",
+      "Cada respuesta se pliega si va por delante de quien lee, con la misma regla que las reseñas; con los logros se afina por avance real.",
+      "Sección en la ficha cargada con HTMX; las respuestas se votan y se puede marcar la mejor.",
+      "Denuncias con el Report que ya existe."
+    ],
+    "notas": "Sale de la revisión del 01/11/2026. Necesita gente para tener sentido: no antes de abrir NextPlay.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Propuesta nueva. La regla de plegado y las denuncias ya están hechas.",
+      "profundizar": [
+        "Que llegue a quien lo sabe: «Alguien pregunta por un juego que terminaste», con un límite para no molestar.",
+        "Consejos por tramos: lo que conviene saber a las 5 h, a las 20 h y antes del final, sin destripar lo siguiente."
+      ]
+    }
   },
   {
     "titulo": "Saber qué juegos están en Game Pass",
@@ -720,7 +1504,24 @@
       "Insignia en las tarjetas y en la ficha, y filtro en el catálogo y en la biblioteca.",
       "Aviso en el perfil: «3 juegos de tu pendiente salen de Game Pass este mes»."
     ],
-    "notas": "Es una API sin documentar, como la de la tienda de Xbox que ya se usa, y podría cambiar. PS Plus no tiene ninguna fuente fiable, así que quedaría fuera."
+    "notas": "Es una API sin documentar, como la de la tienda de Xbox que ya se usa, y podría cambiar. PS Plus no tiene ninguna fuente fiable, así que quedaría fuera.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar. Comprobado: catalog.gamepass.com/sigls/v2 responde con 619 productos de consola, 513 de PC y 96 de EA Play, más las listas «Agregados recientemente» (31) y «Desaparecerá pronto» (1 hoy), y 261 de los de consola ya están en el catálogo local, por xbox_product_ids. En tester_steam, 26 de los 90 deseados están en Game Pass (696,05 € a precios del 24/10), y 10 de los 120 del pendiente.",
+      "plan": [
+        "games/gamepass.py con los identificadores de cada lista, y GamePassEntry (juego, plan, desde y hasta) en vez de un simple booleano, para saber cuándo entró y cuándo salió.",
+        "Comando update_gamepass en nightly: lo que aparece abre una entrada y lo que desaparece la cierra.",
+        "Insignia en games/_card.html y en la ficha, y filtro ?gamepass= en el catálogo y en la biblioteca.",
+        "Preferencia «tengo Game Pass» en Editar perfil, para no molestar a quien no lo tiene. Con ella, aviso de lo de tu pendiente y tu lista de deseos que entra o se va.",
+        "Como la API no está documentada, un test que falle con claridad si cambia el formato, y que un fallo no borre las entradas abiertas."
+      ],
+      "profundizar": [
+        "¿Te sale a cuenta?: «Este mes, 14 de tu pendiente están en Game Pass: 180 h, y comprarlos costaría 230 €». Se calcula con best_price y lo responde a la medida de cada uno.",
+        "No lo compres: en la lista de deseos y en «Dónde comprarlo», «Está en Game Pass» al lado del precio.",
+        "Historial propio: guardando entradas y salidas, en un año se podrá decir si un juego suele volver. Lo que no se guarda hoy no se recupera.",
+        "PS Plus no tiene fuente pública, pero según psn-api la lista de juegos trae service (por ejemplo, ps_plus) en cada título: al menos se puede marcar lo que tú juegas con la suscripción. Comprobar en la próxima sincronización."
+      ]
+    }
   },
   {
     "titulo": "Importar logros y trofeos",
@@ -736,7 +1537,7 @@
       "Xbox: endpoint de logros por título.",
       "Campo de progreso en LibraryEntry e insignia de platino / 100 % en las tarjetas."
     ],
-    "notas": "Conviene antes tener tareas en segundo plano (Celery o django-q) porque la sincronización de Steam sería larga. Ya estaba planeada antes de proponerla. 28/10/2026: hecha a petición del usuario en la rama importar-logros, encima de listas-arrastrar. Sin tareas en segundo plano: cada importación de Steam lee los logros de los 40 juegos jugados hace menos de los que haya algo nuevo, con 8 peticiones a la vez (unos segundos más), y la sincronización de cada noche lee el resto. Se guardan por título importado (ImportedTitle: conseguidos, totales, platino y cuándo se leyeron), no en LibraryEntry, porque cada plataforma lleva los suyos. Xbox los trae con su historial (decoración achievement) y PlayStation con su lista de trofeos, emparejada por nombre; como no se guarda el NPSSO ni el token de Microsoft, se actualizan al sincronizar a mano. La ficha enseña «Tus logros» por plataforma con su barra; las portadas del perfil, «Platino» o «100 %», y la cabecera, cuántos platinos y juegos al 100 % tiene. Probado con respuestas simuladas de las tres APIs (8 tests nuevos) y con datos de prueba en seed_test_profile. Steam, también con la cuenta de verdad de tester_steam: 133 juegos leídos en 11,6 s (127 con logros, 6 sin, 1 que no se pudo leer; 5 al 100 %). Faltan PlayStation y Xbox con una sincronización de verdad. Siguiente paso posible: «¿Cuánta gente lo termina?», que usa los logros de Steam."
+    "notas": "Conviene antes tener tareas en segundo plano (Celery o django-q) porque la sincronización de Steam sería larga. Ya estaba planeada antes de proponerla. 28/10/2026: hecha a petición del usuario en la rama importar-logros, encima de listas-arrastrar. Sin tareas en segundo plano: cada importación de Steam lee los logros de los 40 juegos jugados hace menos de los que haya algo nuevo, con 8 peticiones a la vez (unos segundos más), y la sincronización de cada noche lee el resto. Se guardan por título importado (ImportedTitle: conseguidos, totales, platino y cuándo se leyeron), no en LibraryEntry, porque cada plataforma lleva los suyos. Xbox los trae con su historial (decoración achievement) y PlayStation con su lista de trofeos, emparejada por nombre; como no se guarda el NPSSO ni el token de Microsoft, se actualizan al sincronizar a mano. La ficha enseña «Tus logros» por plataforma con su barra; las portadas del perfil, «Platino» o «100 %», y la cabecera, cuántos platinos y juegos al 100 % tiene. Probado con respuestas simuladas de las tres APIs (8 tests nuevos) y con datos de prueba en seed_test_profile. Steam, también con la cuenta de verdad de tester_steam: 133 juegos leídos en 11,6 s (127 con logros, 6 sin, 1 que no se pudo leer; 5 al 100 %). Faltan PlayStation y Xbox con una sincronización de verdad. Siguiente paso posible: «¿Cuánta gente lo termina?», que usa los logros de Steam. 29/10/2026: primera sincronización de verdad de PlayStation (tester_steam): trofeos de 129 de los 176 juegos y 4 platinos en el perfil; los 47 que faltan, en la propuesta «Trofeos de PlayStation emparejados por el ID del juego». Xbox sigue sin probarse con una cuenta de verdad."
   },
   {
     "titulo": "Vistas previas al compartir y tarjeta para incrustar",
@@ -752,7 +1553,25 @@
       "Respetar el perfil privado (tarjeta genérica o 404).",
       "Botón «Compartir» en la ficha, las reseñas y el perfil."
     ],
-    "notas": ""
+    "notas": "",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar: base.html solo lleva título y descripción. Hay un fallo en su plan: Discord, WhatsApp y X no aceptan SVG en og:image, y muchos foros tampoco incrustan SVG externos. La tarjeta tiene que existir en PNG.",
+      "plan": [
+        "{% block og %} en base.html con og:title, og:description, og:url absoluta (SITE_URL) y twitter:card summary_large_image.",
+        "Imagen de cada página: en la ficha, el arte de games.media a 1280 px; en una reseña, portada, nota y nombre; en un perfil, su tarjeta.",
+        "accounts/cards.py con Pillow, que ya es dependencia: composición de 1200 × 630 con portadas, nombre y cifras, y una fuente propia en static. Se guarda en media con un nombre según su contenido y se rehace si cambia.",
+        "/u/<usuario>/tarjeta.png pública (404 si el perfil es privado) con Cache-Control de una hora, y parámetros para elegir qué enseña.",
+        "Botón «Compartir» con navigator.share y, si no existe, el «Copiar enlace» que ya hay."
+      ],
+      "profundizar": [
+        "Una sola función de imagen con varias plantillas: tier list, reto conseguido, resumen anual, mosaico de lista y «¿A qué jugamos?». Es la pieza que más propuestas aprovechan.",
+        "Tarjeta para firmas y README, con ?muestra=jugando o ?tema=oscuro: «Ahora juego a…» se actualiza sola en cualquier foro o perfil de GitHub.",
+        "Que las fichas salgan en Google: JSON-LD de tipo VideoGame y sitemap.xml con django.contrib.sitemaps. Es poco trabajo y las fichas en castellano tienen poca competencia.",
+        "Mosaico propio para las listas: un PNG con sus cuatro portadas, en lugar de una imagen genérica al compartir una lista.",
+        "RSS de las reseñas y de la actividad de cada perfil, con django.contrib.syndication: se conecta a Discord o a un blog sin escribir ninguna API."
+      ]
+    }
   },
   {
     "titulo": "Entrar con Steam o con cuenta Microsoft",
@@ -768,7 +1587,24 @@
       "Steam no da el correo: pedirlo después del primer inicio de sesión.",
       "Tests del flujo completo."
     ],
-    "notas": "No unir cuentas automáticamente por correo sin verificarlo, porque permitiría entrar en la cuenta de otro."
+    "notas": "No unir cuentas automáticamente por correo sin verificarlo, porque permitiría entrar en la cuenta de otro.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar. steam.verify_login y xbox.xbox_tokens sirven, pero steam_callback y xbox_callback llevan login_required. El obstáculo real: User.email es obligatorio y único, y Steam no da correo.",
+      "plan": [
+        "Vistas steam_login y steam_login_callback sin login_required, con su propio state, reutilizando verify_login.",
+        "Si SteamAccount ya existe, login(request, account.user) y listo.",
+        "Si no, no crear aún la cuenta: guardar el SteamID ya verificado en la sesión y pedir correo y nombre (propuesto con su persona de Steam). Crear el usuario con set_unusable_password al confirmar, e importar sus juegos.",
+        "Microsoft igual, añadiendo los permisos openid y email a SCOPE, porque XboxLive.signin no da el correo.",
+        "No dejar quitar la última forma de entrar: si no tiene contraseña, desvincular pide poner una antes. Tests de todo el flujo, también de un SteamID ya vinculado a otro."
+      ],
+      "profundizar": [
+        "Verificar el correo, que hoy no se comprueba en ningún caso: hace falta antes de unir cuentas y para que los correos de avisos no acaben en un buzón ajeno.",
+        "Unir sin riesgos: si alguien con cuenta entra con Steam, proponer vincular tras poner su contraseña. Nunca por coincidir el correo sin verificar, como ya dice su nota.",
+        "Entrar sin contraseña con un enlace por correo, reutilizando los tokens de recuperar la contraseña.",
+        "django-allauth daría Google, Discord y demás, pero cambia el sistema entero: solo merece la pena si se piden; los dos flujos actuales ya están hechos a mano y probados."
+      ]
+    }
   },
   {
     "titulo": "Juegos gratis para quedártelos",
@@ -784,7 +1620,24 @@
       "Bloque en el catálogo con la cuenta atrás de cada una.",
       "Si existe la lista de deseos, avisar cuando un juego deseado se regala."
     ],
-    "notas": ""
+    "notas": "",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar. Comprobado: la API de Epic responde para España (hoy 1 gratis y 6 próximas promociones) e IsThereAnyDeal, en /deals/v2 ordenado por rebaja, da lo que está al 100 %, mezclando juegos, DLC y paquetes (el campo type permite separarlos).",
+      "plan": [
+        "games/freebies.py: Epic (promotionalOffers con precio 0 y sus fechas) e IsThereAnyDeal (solo type=game), en un modelo Freebie con juego opcional, tienda, enlace, inicio y fin.",
+        "Emparejar: Epic por nombre con accounts.matching.match_by_name; IsThereAnyDeal da el ID de su juego, que se cruza con Game.itad_ids. Si no está en el catálogo, se importa de IGDB.",
+        "Comando en nightly y, para Epic, otro pase los jueves por la tarde, cuando cambia su juego de la semana.",
+        "Bloque en el catálogo y en el inicio con cuenta atrás, filtrado por las tiendas de Profile.shops y por una nota mínima, para no llenarlo de relleno.",
+        "Aviso si estaba en tu lista de deseos y no lo tienes en la biblioteca, usando las mismas reglas que wishlist.check_alerts."
+      ],
+      "profundizar": [
+        "Qué has reclamado: Epic no tiene API de biblioteca, así que «Lo he reclamado» con un clic lo pasa a tu Pendiente con la fecha y la tienda. Con los años nadie recuerda dónde tiene cada juego.",
+        "Próximos gratis: upcomingPromotionalOffers de Epic ya lo dice (comprobado). «La semana que viene es gratis: no lo compres» es un aviso que ahorra dinero.",
+        "Historial: «Epic lo regaló en 2024» junto al precio. Si ya se ha regalado, puede volver a pasar, y eso es parte del veredicto de comprar o esperar.",
+        "Resumen semanal por correo, opcional: una sola cosa bien hecha que hace volver sin ser pesado."
+      ]
+    }
   },
   {
     "titulo": "Steam Deck, parches y «jugando ahora»",
@@ -800,7 +1653,23 @@
       "Jugando ahora: al abrir un perfil con Steam vinculado, mostrar «Jugando a X ahora» si Steam lo indica, con caché de un par de minutos.",
       "Guardar en caché las tres cosas para no saturar la API."
     ],
-    "notas": "Los endpoints de Steam Deck y ProtonDB no están documentados. «Jugando ahora» solo funciona si el perfil de Steam es público."
+    "notas": "Los endpoints de Steam Deck y ProtonDB no están documentados. «Jugando ahora» solo funciona si el perfil de Steam es público.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar. Comprobado: el informe de compatibilidad de Valve responde (Hades, categoría 3, verificado), ProtonDB también (platino, 757 informes) y GetNewsForApp filtra los anuncios del estudio. Las dos primeras no están documentadas. La Deck ya se usa para la plataforma de las reseñas (deck_minutes).",
+      "plan": [
+        "Game.deck_status (0 a 3) y Game.proton_tier con su fecha; un comando en nightly por tandas, como localize_games, solo para los que tienen ID de Steam.",
+        "Insignia en la ficha y filtro ?deck= en el catálogo y en la biblioteca.",
+        "Novedades: GetNewsForApp con feeds=steam_community_announcements para los juegos en Jugando, en un bloque cargado con HTMX y una caché de 6 horas, sin guardar nada.",
+        "Jugando ahora: steam.player_summary ya llama a GetPlayerSummaries, solo falta leer gameid y gameextrainfo. Con caché de 2 minutos y cargado aparte, para que no frene el perfil."
+      ],
+      "profundizar": [
+        "Tu pendiente para la Deck: si tienes deck_minutes en algún juego ya se sabe que tienes una, sin preguntar. Filtro «verificado», ordenado por duración.",
+        "Cuándo volver: detectar una actualización grande o la salida de acceso anticipado en un juego que abandonaste o tienes pendiente, y proponer volver. Las noticias sirven para algo más que leerlas.",
+        "Si sigue vivo: GetNumberOfCurrentPlayers no necesita clave (comprobado: 3107 en Hades). En un multijugador, antes de comprarlo, importa más que la nota.",
+        "Tu gente ahora: con el sondeo de 100 SteamID por llamada de «Sincronización automática de la biblioteca», un bloque en la portada con quién está jugando a qué."
+      ]
+    }
   },
   {
     "titulo": "Encontrar a tus amigos de Steam y Xbox en NextPlay",
@@ -816,7 +1685,24 @@
       "Pantalla «Tus amigos ya están aquí» con botón de seguir a todos.",
       "Enlace de invitación personal."
     ],
-    "notas": "Depende de la propuesta de seguir a otros jugadores."
+    "notas": "Depende de la propuesta de seguir a otros jugadores.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar. Seguir ya está hecho, con su botón y sus avisos. Falta PlayStation en la propuesta: según psn-api, el mismo token da los amigos.",
+      "plan": [
+        "steam.friend_ids(steam_id) con ISteamUser/GetFriendList y un cruce con SteamAccount; Xbox con peoplehub y PlayStation con su lista de amigos, en el momento de sincronizar y con su token de ese momento (comprobar las dos).",
+        "PlatformFriend (usuario, plataforma e ID externo), para detectar a quien llega después sin volver a pedirlo todo. Se borra al desvincular.",
+        "Pantalla tras vincular: «Tus amigos ya están aquí», con «Seguir a todos» en un solo POST.",
+        "Aviso a los dos cuando llega alguien nuevo: «Tu amigo de Steam X se ha unido».",
+        "Privacidad: una opción «No dejar que me encuentren por mis cuentas vinculadas» y solo perfiles públicos."
+      ],
+      "profundizar": [
+        "Enlace de invitación con ?de=usuario: al registrarse se siguen los dos. Un solo enlace que se manda por el grupo, sin correos masivos.",
+        "Sugerir con datos: «Tu amigo de Steam, coincidís en 40 juegos», con la compatibilidad de «La gente que sigues en la ficha y en los perfiles».",
+        "El camino de vuelta: desde el perfil de quien sigues, añadirlo en su plataforma (steam://friends/add/<id> y las insignias que ya existen).",
+        "Una vez por semana en nightly para los de Steam, una sola llamada por cuenta: tu lista de amigos cambia y no hay por qué volver a vincular."
+      ]
+    }
   },
   {
     "titulo": "Precios de Nintendo eShop y PlayStation Store",
@@ -832,7 +1718,23 @@
       "PlayStation (experimental): leer el precio de la API que usa la web de PlayStation Store.",
       "Mostrarlos como dos tiendas más en la ficha y meterlos en update_prices."
     ],
-    "notas": "Las dos son sin documentar, como la de Xbox. La de PlayStation es la más frágil; la de Nintendo la usan desde hace años muchas webs de ofertas. Nintendo hecha el 26/10/2026 (games/nintendo.py): update_prices busca el NSUID por el nombre exacto del juego y por su nombre en España (sin contar mayúsculas, tildes ni signos) en el buscador de Nintendo Europa, que tiene el título original y sus traducciones; lo guarda en el juego, con un NSUID manual en el admin para corregirlo, y pide el precio a api.ec.nintendo.com de 50 en 50. Si el mismo título está en Switch y en Switch 2 elige el de Switch. La ficha enseña la tienda «Nintendo eShop» en lugar del enlace de búsqueda. Probada con los 400 juegos más populares de IGDB: 66 de los 101 de Switch emparejados y 65 con precio; los demás se venden con otro nombre (Complete Edition, remasters, colecciones), ya no se venden o tienen un homónimo en el catálogo. Falta PlayStation: los términos de playstation.com prohíben el acceso automatizado a sus datos; la alternativa es la API de PlatPrices (clave a petición, gratis sin fines comerciales)."
+    "notas": "Las dos son sin documentar, como la de Xbox. La de PlayStation es la más frágil; la de Nintendo la usan desde hace años muchas webs de ofertas. Nintendo hecha el 26/10/2026 (games/nintendo.py): update_prices busca el NSUID por el nombre exacto del juego y por su nombre en España (sin contar mayúsculas, tildes ni signos) en el buscador de Nintendo Europa, que tiene el título original y sus traducciones; lo guarda en el juego, con un NSUID manual en el admin para corregirlo, y pide el precio a api.ec.nintendo.com de 50 en 50. Si el mismo título está en Switch y en Switch 2 elige el de Switch. La ficha enseña la tienda «Nintendo eShop» en lugar del enlace de búsqueda. Probada con los 400 juegos más populares de IGDB: 66 de los 101 de Switch emparejados y 65 con precio; los demás se venden con otro nombre (Complete Edition, remasters, colecciones), ya no se venden o tienen un homónimo en el catálogo. Falta PlayStation: los términos de playstation.com prohíben el acceso automatizado a sus datos; la alternativa es la API de PlatPrices (clave a petición, gratis sin fines comerciales).",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Nintendo está hecho y fusionado, aunque en la base de datos local hay 0 NSUID porque update_prices no corre desde el 24/10. PlayStation está parado por una razón de peso: los términos de playstation.com prohíben el acceso automatizado. Tal como está, la propuesta no puede cerrarse: la dividiría.",
+      "plan": [
+        "Lanzar update_prices (con nightly se arregla solo) para ver la eShop en local.",
+        "Dividirla: Nintendo a «hecha» y «Precios de PlayStation» aparte, para no tener una «en curso» que no puede avanzar.",
+        "Pedir la clave gratuita de PlatPrices (sin fines comerciales) y probar el precio, el mínimo y las rebajas para España. Si sirve, games/playstation.py con la misma forma que games/nintendo.py y su shop_id propio.",
+        "Si no hay clave, dejar el enlace de búsqueda que ya existe. Sin scraping de la tienda."
+      ],
+      "profundizar": [
+        "Historial propio de consola: Game.price_history solo tiene PC, porque sale de IsThereAnyDeal, y los precios de Xbox y Nintendo se sobrescriben cada noche. Guardar cada cambio en una tabla empieza un dato que nadie da en España y que no se puede recuperar después. Sin él, «mínimo histórico» y «¿compro o espero?» se quedan solo en PC.",
+        "Mejorar el emparejado de Nintendo (66 de 101): los que se venden como Complete Edition o colección se pueden buscar con store_alternatives y los nombres alternativos, y el «no es este» corregido por un usuario sirve a todos, como en ExternalTitle.",
+        "Cruzar con las importaciones: el titleId de PlayStation (CUSA o PPSA) es un ID real por el que buscar en PlatPrices, en vez del nombre.",
+        "Comparar entre plataformas: «en PC cuesta 10 € menos que en tu consola», para quien tiene varias."
+      ]
+    }
   },
   {
     "titulo": "¿Cuándo bajará? Próxima rebaja prevista en el veredicto",
@@ -849,7 +1751,76 @@
       "En la lista de deseos, aviso unos días antes: «4 juegos de tu lista bajaron en las rebajas que empiezan el jueves».",
       "Avisar también cuando un juego de la lista entra en un bundle (IsThereAnyDeal también los da)."
     ],
-    "notas": "Es una estimación con lo que pasó otros años, no una promesa: el texto tiene que decirlo así."
+    "notas": "Es una estimación con lo que pasó otros años, no una promesa: el texto tiene que decirlo así.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar. games/history.py ya calcula el veredicto, last_big_sale y series por tienda, pero solo 21 juegos tienen historial guardado, porque se pide al abrir la ficha. Para la lista de deseos (90 juegos en tester_steam) habría que pedirlo de noche.",
+      "plan": [
+        "SaleEvent (nombre, tienda, inicio, fin y si está confirmada), que se rellena en el admin con el calendario que publica Valve y los anuncios de las otras tiendas.",
+        "history.next_sale(game, now): para el próximo evento, a cuánto estuvo en esa rebaja el año anterior, con lowest_series y las fechas del evento.",
+        "Frecuencia: días entre rebajas fuertes, generalizando last_big_sale.",
+        "verdict añade el texto con fecha, y games/_price_history.html lo enseña. Siempre como «el año pasado bajó a…»: es una estimación, no una promesa.",
+        "Pedir de noche el historial de lo que está en listas de deseos, en una tarea de nightly con su límite. Bloque «Se espera rebaja» en la lista de deseos y aviso unos días antes."
+      ],
+      "profundizar": [
+        "Medir el acierto: guardar cada predicción y compararla al acabar la rebaja, para decir «acertamos en 8 de 10». Da credibilidad y deja afinar el texto.",
+        "Plan de compra: con un presupuesto («40 €») y tu lista de deseos, qué comprar en la próxima rebaja, combinando bajada prevista y lo que te interesa.",
+        "Bundles: avisar cuando un juego de tu lista entra en uno. IsThereAnyDeal tiene un endpoint para ello (comprobar /games/bundles/v2).",
+        "Cuándo no esperar: «lleva 2 años a este precio y nunca baja de 20 €» también es una respuesta. Decirlo evita esperas inútiles.",
+        "Totales en la lista de deseos, como ya tienen las listas: en tester_steam, 86 deseados con precio suman 2893 € a precios del 24/10 y 1497 € en sus mínimos históricos. Esa diferencia es el mejor argumento para esperar."
+      ]
+    }
+  },
+  {
+    "titulo": "Tareas en segundo plano para lo que tarda",
+    "fecha": "2026-11-01",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Infraestructura",
+    "resumen": "Sacar de la petición las importaciones largas y otros trabajos lentos, con un aviso de progreso, usando el sistema de tareas de Django 6.",
+    "motivo": "La importación de Steam se hace dentro de la petición (accounts.views._import_steam: Steam, IGDB y los logros de 40 juegos), y en producción puede agotar el tiempo de espera. Con «Logros uno a uno», Playnite o las capturas de Switch tardaría más. Django 6.0.9, el que usa NextPlay, ya trae django.tasks para definir y encolar tareas (comprobado), aunque no incluye quien las ejecute.",
+    "pasos": [
+      "Backend de base de datos (el paquete django-tasks, del autor de esa parte de Django; comprobar que sigue al día) y su proceso worker. En local y en los tests, el ImmediateBackend de Django: todo sigue igual con runserver.",
+      "ImportRun (usuario, plataforma, estado, paso, hecho, total y resultado), que la tarea va actualizando.",
+      "Steam primero: «Sincronizar» encola y lleva a una página que pregunta con HTMX (hx-trigger=every 2s) hasta acabar. Los mensajes de _report_import pasan a un aviso en la campana.",
+      "PlayStation y Xbox se quedan en la petición, con «Formularios que avisan mientras trabajan»: el NPSSO y el código de Microsoft no pueden guardarse en una cola, porque la web promete que no se guardan.",
+      "nightly sigue siendo un comando: para lo que se programa a una hora, cron basta."
+    ],
+    "notas": "Sale de la revisión del 01/11/2026. No corre prisa mientras NextPlay esté en local: es más necesaria al publicar o si la importación crece mucho.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Propuesta nueva. Hay ejecución en paralelo dentro de la petición (ThreadPoolExecutor en los logros de Steam y los trofeos), pero nada fuera de ella.",
+      "profundizar": [
+        "Una tarea por usuario también de noche: un fallo o un bloqueo de una cuenta deja de frenar a los demás, y se puede reintentar solo lo que falló.",
+        "Importar en dos tiempos: juegos y horas al momento, para que se vea el resultado, y logros y emparejados difíciles después, con un aviso al acabar.",
+        "Si no compensa un worker aparte, un hilo en el mismo proceso para los trabajos cortos: sin cola ni persistencia, y por tanto compatible con no guardar el NPSSO."
+      ]
+    }
+  },
+  {
+    "titulo": "Cuánto has gastado y ahorrado: compras detectadas al sincronizar",
+    "fecha": "2026-11-01",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Cuando un juego de tu lista de deseos de Steam desaparece de ella y aparece en tu biblioteca, es que lo has comprado: apuntarlo con el precio de ese día para saber cuánto has gastado, cuánto te has ahorrado y cuánto te sale la hora, sin teclear nada.",
+    "motivo": "El precio pagado está previsto a mano en «Colección física con escáner de código de barras», y a mano casi nadie lo rellena. steam.import_wishlist ya detecta lo que deja de estar en la lista y update_library, lo que entra nuevo; falta cruzarlos. En tester_steam, 86 de los 90 deseados ya tienen precio guardado.",
+    "pasos": [
+      "Modelo Purchase (usuario, juego, tienda, precio, precio normal, fecha y si está confirmado), creado en la misma sincronización cuando coinciden las dos cosas.",
+      "Precio estimado: el de Steam guardado en GamePrice, pidiéndolo en ese momento si es viejo.",
+      "Aviso para confirmarlo o corregirlo («¿Lo compraste a 14,99 €?»), o decir que fue un regalo.",
+      "Página privada en el perfil: gastado por año, ahorrado frente al precio normal y coste por hora con las horas importadas."
+    ],
+    "notas": "Sale de la revisión del 01/11/2026. Solo funciona con Steam y el precio es una estimación, porque Steam no dice lo que se pagó: el texto tiene que decirlo así. Si se compró en otra tienda, lo corrige el jugador.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Propuesta nueva. Las dos detecciones existen por separado.",
+      "profundizar": [
+        "«Esto te ha ahorrado NextPlay»: si compras tras un aviso de precio, sumar la diferencia. Es la cifra que mejor explica para qué sirve la web.",
+        "Presupuesto de rebajas: un tope por mes o por rebajas, y cuánto llevas.",
+        "Cruzarlo con el pendiente: «Has comprado 12 juegos este año y has empezado 3»."
+      ]
+    }
   },
   {
     "titulo": "Importar Epic, GOG, EA y Battle.net con Playnite, y CSV de otros trackers",
@@ -866,7 +1837,24 @@
       "Importador de CSV genérico con un paso para decir qué columna es cada cosa, para los trackers que exportan (Grouvee y otros).",
       "Más adelante, una extensión de Playnite propia que sincronice sola con un token personal del usuario."
     ],
-    "notas": "Comprobar las columnas exactas antes de empezar: en el foro de Playnite recomiendan la extensión Library Exporter Advanced. No leer la web de Backloggd para importar (es frágil y seguramente va contra sus condiciones); si saca su exportación a CSV, aceptarla el primer día."
+    "notas": "Comprobar las columnas exactas antes de empezar: en el foro de Playnite recomiendan la extensión Library Exporter Advanced. No leer la web de Backloggd para importar (es frágil y seguramente va contra sus condiciones); si saca su exportación a CSV, aceptarla el primer día.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar. Antes hay que resolver que LibraryEntry tiene dos columnas por plataforma: ver «Horas por plataforma sin una columna por tienda». Tampoco se ha visto aún un CSV real de Library Exporter Advanced.",
+      "plan": [
+        "Exportar un CSV real desde Playnite y fijar las columnas antes de escribir nada.",
+        "accounts/csv_import.py y una página de subida: csv.DictReader detectando separador y BOM, un paso para decir qué columna es cada cosa si no es de Playnite, y una vista previa de 20 filas.",
+        "Una plataforma por tienda en ExternalTitle.Platform (epic, gog, ea, ubisoft, battlenet, amazon); como ID, el de la tienda si lo trae o el nombre normalizado, como ya hacen PlayStation y Xbox («name:…»).",
+        "match_by_name por lotes, con MAX_SEARCHES por importación: los que no salgan quedan en «Sin emparejar», y se reintentan al volver a importar. Con muchos juegos, como tarea en segundo plano.",
+        "Estado solo en los juegos nuevos, sin pisar lo que haya puesto el usuario, y la última actividad a last_played."
+      ],
+      "profundizar": [
+        "Extensión propia de Playnite: un token personal en Editar perfil y un POST a /api/sync. Sincroniza solo las tiendas sin API y, como Playnite cuenta el tiempo de cada sesión, da mejores datos que Steam.",
+        "GOG Galaxy: su base de datos local también junta varias tiendas; un exportador daría una segunda vía para quien no use Playnite.",
+        "Exportar en el mismo CSV: entrada y salida libres generan confianza, y Backloggd aún no las tiene.",
+        "Plantillas por tracker: Grouvee y otros, con las columnas ya mapeadas, para que importar sea un solo paso."
+      ]
+    }
   },
   {
     "titulo": "Importar la lista de deseos de Steam",
@@ -898,7 +1886,21 @@
       "lists/detail.html: cambiar el ♡ por el icono heart de _icon.html.",
       "Difuminar el borde de .tabs por el lado en el que quedan pestañas cuando se pueden deslizar."
     ],
-    "notas": "Se pueden hacer de paso con cualquiera de las otras mejoras de diseño. 28/10/2026: en la rama listas-arrastrar, de paso con «Listas: colocar las carátulas arrastrándolas», ya están los dos primeros: un estilo común quita el recuadro a todos los fieldset (y de paso alinea «Tipo de reto» con los demás campos del formulario de retos) y el botón de las listas usa el icono del corazón. Falta difuminar las pestañas."
+    "notas": "Se pueden hacer de paso con cualquiera de las otras mejoras de diseño. 28/10/2026: en la rama listas-arrastrar, de paso con «Listas: colocar las carátulas arrastrándolas», ya están los dos primeros: un estilo común quita el recuadro a todos los fieldset (y de paso alinea «Tipo de reto» con los demás campos del formulario de retos) y el botón de las listas usa el icono del corazón. Falta difuminar las pestañas.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Dos de tres hechos. Falta el difuminado de las pestañas: .tabs (app.css, línea 477) no lleva ninguna máscara.",
+      "plan": [
+        "En app.css, una máscara con degradado en .tabs dentro de @supports, usando animation-timeline: scroll(self inline) para que solo aparezca en el lado en el que queda algo por ver. Sin JavaScript.",
+        "En los navegadores sin eso, una máscara fija a la derecha, que es mejor que nada.",
+        "Probar a 390 px en Editar perfil y en el perfil, y pasar a «hecha»."
+      ],
+      "profundizar": [
+        "Que la pestaña activa se vea al entrar: scrollIntoView con inline: center, para no aterrizar con ella cortada.",
+        "Un pase de detalles cada dos semanas con capturas a 390 px, vaciando esta propuesta de una vez en lugar de tener muchas pequeñas.",
+        "Capturas automáticas con Playwright en las páginas principales, para ver qué ha cambiado sin tener que mirarlo a mano."
+      ]
+    }
   },
   {
     "titulo": "Publicar NextPlay y abrir una beta antes de las rebajas de invierno",
@@ -916,7 +1918,60 @@
       "Medir lo justo: cuántos vinculan alguna plataforma y cuántos vuelven la semana siguiente.",
       "Con la beta estable, enseñarla en comunidades de videojuegos en español (subreddits, servidores de Discord, Mediavida) con algo que se pueda compartir: la tarjeta del perfil o «¿A qué jugamos?»."
     ],
-    "notas": "Primera meta realista: 50 personas que vuelvan cada semana. La importación de PlayStation usa una API no oficial: dejarla marcada como experimental. Si algún día se monetiza (anuncios o enlaces de afiliado), revisar antes las condiciones de uso comercial de IGDB e IsThereAnyDeal. 21/10/2026: aparcada; de momento el usuario prefiere centrarse en el perfil, las listas, los retos y las reseñas. 24/10/2026: las reseñas y los comentarios ya tienen botón de denunciar; antes de publicar faltan bloquear usuarios y llevar las imágenes que se suben (perfiles y reseñas) a un almacenamiento aparte, porque ahora se guardan en MEDIA_ROOT del propio servidor."
+    "notas": "Primera meta realista: 50 personas que vuelvan cada semana. La importación de PlayStation usa una API no oficial: dejarla marcada como experimental. Si algún día se monetiza (anuncios o enlaces de afiliado), revisar antes las condiciones de uso comercial de IGDB e IsThereAnyDeal. 21/10/2026: aparcada; de momento el usuario prefiere centrarse en el perfil, las listas, los retos y las reseñas. 24/10/2026: las reseñas y los comentarios ya tienen botón de denunciar; antes de publicar faltan bloquear usuarios y llevar las imágenes que se suben (perfiles y reseñas) a un almacenamiento aparte, porque ahora se guardan en MEDIA_ROOT del propio servidor.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Aparcada por decisión tuya (21/10), y sigo sin empujarla. Comprobado hoy, buenas noticias: check --deploy solo da 2 avisos menores (HSTS), los 422 tests pasan en 33 s y las migraciones están al día. Faltan gunicorn y whitenoise (no están en requirements.txt), correo de verdad, CACHES, un almacén para las imágenes, probar con PostgreSQL y CI (no hay carpeta .github), y he encontrado tres problemas que solo saldrían en producción (pasos 3 a 5). La fecha de su título, 17/12, solo se sostiene si se decide pronto.",
+      "plan": [
+        "Lo único que haría ya, aunque nunca se publique: GitHub Actions con los tests en cada PR, en SQLite y en PostgreSQL. En local se prueba con SQLite y en producción iría PostgreSQL, y JSONField, update_conflicts o los órdenes pueden comportarse distinto.",
+        "Cuando toque: gunicorn, whitenoise, una caché compartida y las imágenes en un almacén compatible con S3 en la UE (django-storages). La compresión importa: app.css pasa de 136 a 28 KB, el perfil de 207 a 23 KB y la lista de deseos de 248 a 15 KB, y hoy no hay nada que comprima.",
+        "Que los errores se vean: settings no define LOGGING ni ADMINS, y con DEBUG apagado un error 500 no sale en ningún sitio (comprobado: django.request no escribe nada). Añadir LOGGING a la consola y un servicio de errores.",
+        "Que una visita sin sesión no gaste cuota: games.views.game_media y price_history llaman a IGDB y a IsThereAnyDeal y escriben en la base de datos en un GET, sin pedir sesión. Hay 2188 juegos sin imágenes pedidas y 1182 sin historial: un buscador recorriendo las fichas son más de 3000 llamadas. Sin sesión, enseñar lo que haya; pedirlo solo con sesión o de noche para los más vistos.",
+        "Sin esperas dentro de una petición: ITADClient._send duerme hasta 5 minutos tras un 429 (time.sleep), y desde price_history eso bloquea un proceso web, que gunicorn mataría a los 30 s. En la web, sin reintentos; los reintentos, solo en los comandos.",
+        "Servidor pequeño en la UE con PostgreSQL, copias diarias con pg_dump a otro sitio, correo transaccional y nightly por cron (ver «Sincronización automática de la biblioteca»).",
+        "Ensayar el paso de SQLite a PostgreSQL con dumpdata y loaddata antes del día D.",
+        "Direcciones públicas: URI de vuelta de Azure, realm de Steam, SITE_URL y DJANGO_ALLOWED_HOSTS.",
+        "Requisitos para dejar entrar a nadie: claves cambiadas, «Borrar la cuenta, descargar mis datos y privacidad (RGPD)», «Bloquear, silenciar y quitar seguidores» y «Páginas de error propias: no encontrada, fallo del servidor y formulario caducado». Después, beta por invitación."
+      ],
+      "profundizar": [
+        "Condiciones de uso: IGDB es gratis para uso no comercial; si algún día hay afiliados o anuncios, hablar antes con Twitch. Mirar también las de IsThereAnyDeal, y el aviso que piden para los enlaces y los datos.",
+        "Seguridad de las cuentas: un límite de intentos de inicio de sesión y la política de contenido (CSP) que trae Django 6. Comprobar que el NPSSO no llega nunca a los logs, ni siquiera en un error.",
+        "Un entorno de pruebas público con datos de seed_test_profile, para enseñar NextPlay sin arriesgar cuentas de nadie.",
+        "Vigilancia barata: un servicio de errores con plan gratuito y una dirección /salud/ para un monitor externo, que avise de que algo se ha caído antes que los usuarios."
+      ]
+    }
+  },
+  {
+    "titulo": "Sincronización automática de la biblioteca",
+    "fecha": "2026-10-17",
+    "estado": "en curso",
+    "prioridad": "baja",
+    "tipo": "Infraestructura",
+    "resumen": "Que la biblioteca de Steam se actualice sola cada noche (horas y juegos nuevos) y que update_prices se programe de verdad, sin tener que pulsar nada.",
+    "motivo": "Ahora todo es manual: el botón de sincronizar y el comando de precios. Las alertas de precio, Game Pass y los logros necesitan tareas que se ejecuten solas.",
+    "pasos": [
+      "Comando sync_libraries que recorra las cuentas de Steam vinculadas.",
+      "Programar las tareas: cron del servidor o un planificador de Django (django-q2, Celery beat).",
+      "Repartir las llamadas a lo largo de la noche para no pasar los límites de Steam e IGDB.",
+      "Mostrar en el perfil la fecha de la última sincronización automática y un interruptor para desactivarla."
+    ],
+    "notas": "Xbox solo se podría si se guarda cifrado el token de refresco, que ahora no se guarda a propósito. PlayStation no se puede sin guardar el NPSSO, y se decidió no guardarlo. Hecha el 18/10/2026 con cron (sin Celery ni django-q): comandos sync_libraries (pausa entre usuarios, salta a los sincronizados en las últimas 12 h, un fallo no para a los demás) y nightly (Steam y después precios), interruptor y fecha de la última sincronización en el panel de Steam. Probada con una cuenta real de Steam. Falta programarla de verdad: cron en el servidor o Programador de tareas de Windows (instrucciones en el README). 01/11/2026: el usuario la programará cuando despliegue NextPlay; en local se queda sin programar y se sincroniza a mano.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "El comando existe y funciona; lo único que falta es programarlo, y lo harás al desplegar (decisión tuya del 01/11/2026), así que pasa a prioridad baja. Mientras tanto, sincronizar a mano sigue apuntando sesiones: solo tu propio historial queda menos detallado. Por eso hay 8 sesiones y los precios son del 24/10, y mientras no haya más usuarios no afecta a nadie más.",
+      "plan": [
+        "Al desplegar: cron en el servidor, con la línea que ya está en el README, como parte de «Publicar NextPlay y abrir una beta antes de las rebajas de invierno». Conviene que sea de lo primero: desde ese día, lo que no se apunta cada noche no se recupera.",
+        "Que nightly deje rastro: un registro con rotación y un modelo pequeño TaskRun (tarea, inicio, fin, resultado y cifras) visible en el admin. Si en 36 h no hay ninguno, un aviso al administrador en la campana.",
+        "Añadir a Command.TASKS lo que vaya apareciendo (close_challenges, update_releases…): cada una sigue aunque falle la anterior.",
+        "Si alguna vez se usa en Windows: el schtasks del README no hace nada si el ordenador está apagado a las 4:00; Register-ScheduledTask con -StartWhenAvailable se lanza en cuanto se enciende. Corregirlo en el README cuando se toque."
+      ],
+      "profundizar": [
+        "Sesiones mejores con playtime_2weeks: GetOwnedGames trae lo jugado en las dos últimas semanas (comprobado: 7 juegos en tester_steam). En la primera importación se pueden crear sesiones en vez de no apuntar nada, y una noche perdida se recupera.",
+        "«Jugando ahora» y sesiones con hora: GetPlayerSummaries acepta 100 SteamID por llamada y dice a qué juega cada uno. Un sondeo cada 10 minutos da el principio y el fin de cada sesión gastando muy poco de las 100.000 llamadas diarias.",
+        "Recordatorio para lo que no puede ser automático: «Hace 30 días que no sincronizas PlayStation», con el enlace directo. No guarda nada de Sony, que fue lo que se decidió.",
+        "Ahorrar de noche: saltarse a quien lleva 60 días sin entrar; sync_libraries ya va del más antiguo al más nuevo."
+      ]
+    }
   },
   {
     "titulo": "Páginas de error propias: no encontrada, fallo del servidor y formulario caducado",
@@ -932,7 +1987,23 @@
       "templates/403_csrf.html para el formulario caducado y templates/403.html.",
       "Un test con DEBUG apagado que pida una dirección que no existe y compruebe que sale la página propia."
     ],
-    "notas": "Va con «Publicar NextPlay y abrir una beta antes de las rebajas de invierno»."
+    "notas": "Va con «Publicar NextPlay y abrir una beta antes de las rebajas de invierno».",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Igual: no hay ninguna de estas plantillas en templates/. Con DEBUG apagado sale la página de Django, en inglés.",
+      "plan": [
+        "templates/404.html y 403.html sobre base.html, con el buscador y enlaces al inicio y al catálogo.",
+        "templates/500.html sin extends ni etiquetas que puedan fallar: HTML con un poco de CSS en la propia página, porque si ha fallado la base de datos, base.html y sus avisos también fallarían.",
+        "templates/403_csrf.html para el formulario caducado, explicando qué hacer. HTMX ya lo avisa por su lado en base.html.",
+        "Tests con override_settings(DEBUG=False) y el cliente con raise_request_exception=False: una dirección que no existe, un fallo provocado y un POST sin CSRF."
+      ],
+      "profundizar": [
+        "Un 404 útil en juegos: si /juegos/<slug>/ no existe, buscar ese nombre en IGDB y ofrecer traerlo. Cada 404 hace crecer el catálogo en vez de ser un callejón sin salida.",
+        "Registrar los 404 con su procedencia, para encontrar enlaces rotos en vez de esperar a que alguien avise.",
+        "429 y mantenimiento: páginas propias para cuando haya límites de peticiones o una actualización en curso.",
+        "Con personalidad propia: la 404 es una de las pocas páginas que se recuerdan; textos con guiños a videojuegos escritos para NextPlay."
+      ]
+    }
   },
   {
     "titulo": "Retos del año y control del pendiente",
@@ -948,7 +2019,24 @@
       "Valor del pendiente sumando el mejor precio actual de cada juego.",
       "Asistente «Revisa tu biblioteca» con los juegos en Jugando sin partidas en 6 meses (las fechas de la última partida ya se importan) para pasarlos a Abandonado o Pendiente."
     ],
-    "notas": "Con la duración estimada de los juegos se podría añadir «a tu ritmo terminarías el pendiente en N años»."
+    "notas": "Con la duración estimada de los juegos se podría añadir «a tu ritmo terminarías el pendiente en N años».",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "La mitad ya no hace falta: los retos cubren el anual (un reto privado «20 juegos en 2027») y completed_at existe. Queda lo más interesante. En tester_steam, el pendiente son 120 juegos, 447,91 € contando solo los 34 con precio, porque a 85 nunca se les han pedido (update_prices no corre desde el 24/10); 2 de los 7 en Jugando llevan más de 6 meses sin tocarse, y 220 están en Jugado sin saber si se terminaron.",
+      "plan": [
+        "Renombrarla «Valor del pendiente y repaso de la biblioteca» y quitar lo del reto anual, con un botón «Reto del año» que abra el formulario de retos con las fechas ya puestas.",
+        "library/backlog.py: value(user) suma game.cheapest en sus tiendas y dice sin disimular lo que falta: «447,91 € en 34 de tus 120 juegos». Sin inventarse el resto.",
+        "Asistente /biblioteca/repasar/: una tarjeta por juego con botones grandes («Lo terminé», «Lo dejo», «Sigo», «Al pendiente»); con HTMX, responder trae la siguiente. Primero los de Jugando sin tocar y luego los de Jugado con más horas respecto a su duración.",
+        "LibraryEntry.reviewed_at, para no volver a preguntar. Lo marcado aquí se agrupa en la actividad («Ha ordenado 40 juegos»), en lugar de llenar el feed con 40 tarjetas.",
+        "Al terminar, un resumen: «Has ordenado 40 juegos: 12 terminados y 9 abandonados»."
+      ],
+      "profundizar": [
+        "Pistas para contestar en un clic: «Llevas 40 h y suele durar 30: ¿lo terminaste?», o el logro del final si existe. Medido en tester_steam: de sus 220 en Jugado, 40 tienen entre 1 y 4 veces la duración normal (Elden Ring, Hollow Knight, Red Dead Redemption 2, God of War…), 20 están entre el 70 y el 100 % y 61 no llegan al 15 %, así que 121 tendrían ya una respuesta propuesta. Hay que excluir los juegos de servicio: Fortnite, Dead by Daylight o Rocket League también salen, porque IGDB les da modo de un jugador. Es lo que llena Completado, y de eso dependen los retos, las estadísticas y la duración de la comunidad. La revisión lo convierte en una de las piezas más útiles de la lista.",
+        "Fecha aproximada: al marcarlo terminado aquí, usar la última partida o el logro final como completed_at, y no la fecha de hoy, para que no cuente en un reto que no le toca.",
+        "Proyección: «A tu ritmo terminarías tu pendiente en N años», con la duración de los juegos y PlaySession, y juegos añadidos frente a terminados este año.",
+        "Lo que ya podrías jugar gratis: cuánto de tu pendiente está en Game Pass, o cuánto te ahorrarías cancelando la suscripción."
+      ]
+    }
   },
   {
     "titulo": "Etiquetas de la comunidad y «¿Qué juego esta noche?»",
@@ -964,7 +2052,24 @@
       "Mostrar las más votadas en la ficha y filtrar por ellas en el catálogo.",
       "Formulario «¿Qué juego esta noche?»: cuánto tiempo tienes, solo o acompañado y qué te apetece; busca primero en tu propia biblioteca."
     ],
-    "notas": ""
+    "notas": "",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar y, sin usuarios, sin datos. Pero hay de dónde arrancar: las categorías de Steam incluyen cooperativo y accesibilidad en español (comprobado) e IGDB tiene temas en 2180 juegos y perspectivas en 2178.",
+      "plan": [
+        "Modelos Tag (nombre y familia: ánimo, dificultad, sesión, accesibilidad, compañía) y GameTagVote, solo para quien tiene el juego y no lo tiene en Pendiente.",
+        "Sembrar con los temas de IGDB y las categorías de Steam como votos «del sistema», marcados como tales, para que no empiece vacío.",
+        "Ficha: las más votadas como chips, votables con HTMX. Pedirlas en el mejor momento: al pasar a Completado, «¿Cómo es?» con cinco chips.",
+        "Filtro en el catálogo con Exists, en el mismo sitio que los demás filtros.",
+        "«¿Qué juego esta noche?»: tres preguntas (tiempo, solo o acompañado y qué te apetece) que buscan primero en tu biblioteca y tu pendiente."
+      ],
+      "profundizar": [
+        "Etiquetas que salen de los datos: «para ratos cortos» (mediana de sesión baja, con PlaySession), «largo de verdad» (duración) o «difícil» (porcentajes bajos de logros). No piden nada a nadie y funcionan desde el primer día.",
+        "Accesibilidad como filtro propio: opciones de subtítulos, alternativas de color, dificultad ajustable o sin restricciones de tiempo. Steam ya lo da, con esos nombres en español.",
+        "Palabras nuestras: «de sofá», «para jugar con mi hermano», «para desconectar». La lista cerrada es parte del carácter de NextPlay; cuidarla en castellano la distingue de las etiquetas traducidas de Steam.",
+        "Un botón «¿Qué juego?» siempre a mano en la barra: es lo que promete el nombre de la web."
+      ]
+    }
   },
   {
     "titulo": "Ranking personal por duelos",
@@ -980,7 +2085,24 @@
       "Tu top 10 en el perfil, ordenado por esa puntuación.",
       "Más adelante, usar estas preferencias en las recomendaciones."
     ],
-    "notas": ""
+    "notas": "",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar. Con 2 de 348 juegos valorados, tiene más sentido del que parecía: comparar dos juegos cuesta menos que poner nota.",
+      "plan": [
+        "Inserción binaria en vez de Elo: para colocar un juego en tu orden bastan unas 8 comparaciones con 256 juegos, y no hay empates. Elo pide muchos duelos para estabilizarse y necesita elegirlos bien.",
+        "Guardar el resultado como una GameList numerada normal, usando GameList.move: se ve, se comparte y se comenta como cualquier lista, sin modelos nuevos salvo el de la sesión de duelos.",
+        "Página /duelos/: dos portadas grandes, flechas del teclado, «No lo he jugado» y «Saltar»; cada respuesta por HTMX.",
+        "Orden de entrada: primero los más jugados por horas, que son los que uno recuerda.",
+        "Tu top 10 en una sección nueva del escaparate (SECTIONS), y que pueda rellenar los favoritos."
+      ],
+      "profundizar": [
+        "Clasificar la fila «Sin clasificar» de una tier list por duelos: en el móvil es mucho más cómodo que arrastrar, y coloca en niveles según el orden.",
+        "Notas sugeridas: del orden se puede deducir una nota aproximada y proponerla en un paso. Otra vía de llenar una columna casi vacía.",
+        "Duelo público de la semana: dos juegos, votan todos y se acumula un ranking de la comunidad; fácil de contestar y de compartir.",
+        "Como señal para «Recomendaciones «Qué jugar después»»: preferencias claras con muy poco esfuerzo."
+      ]
+    }
   },
   {
     "titulo": "Directos de Twitch en la ficha del juego",
@@ -996,7 +2118,24 @@
       "Guardar la respuesta en caché unos minutos para no llamar a Twitch en cada visita.",
       "Bloque «En directo ahora» en la ficha, oculto si no hay directos."
     ],
-    "notas": ""
+    "notas": "",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Comprobado: las credenciales de IGDB sirven para Helix. games?igdb_id=1942 da The Witcher 3 con su ID de Twitch, y streams con language=es y clips responden.",
+      "plan": [
+        "games/twitch.py reutilizando IGDBClient._token y el mismo client_id. Game.twitch_id se guarda la primera vez que se pide.",
+        "streams(game, language=«es», first=4), con 3 minutos de caché.",
+        "Fragmento cargado con HTMX, como games:media, para no frenar la ficha; oculto si no hay directos.",
+        "Tarjeta con título, espectadores y miniatura, con enlace a Twitch. El reproductor, solo al pulsar, como el de YouTube, para no meter a Twitch en cada visita.",
+        "Si no hay ninguno en español, «N directos en otros idiomas»."
+      ],
+      "profundizar": [
+        "Gente de NextPlay en directo: SOCIAL_LINKS ya guarda el usuario de Twitch y streams?user_login= admite 100 a la vez. Insignia «En directo» en el perfil y un bloque con la gente que sigues. Cuesta muy poco y es algo propio.",
+        "Clips en el carrusel de la ficha, como un filtro más (helix/clips responde, comprobado).",
+        "Lo que se ve hoy: popularity_primitives de tipo 34 da las horas vistas en 24 h, sin llamar a Twitch por cada juego, para un bloque «Lo más visto».",
+        "Aviso opcional si alguien que sigues empieza un directo con un juego de tu lista de deseos: verlo jugado ayuda a decidir la compra."
+      ]
+    }
   },
   {
     "titulo": "Buscar grupo para jugar",
@@ -1012,7 +2151,24 @@
       "Página de búsquedas activas filtrable por juego y plataforma, y aviso a quien tiene el juego en su biblioteca.",
       "Botón de denunciar y límite de publicaciones por usuario."
     ],
-    "notas": ""
+    "notas": "",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar. Depende de los modos multijugador (838 juegos en IGDB) y de «Bloquear, silenciar y quitar seguidores»: sin bloqueo no lo abriría a desconocidos.",
+      "plan": [
+        "LFGPost (usuario, juego, plataforma, cuándo, idioma, micrófono, plazas, texto y caducidad, 24 h como mucho). Nightly borra los caducados.",
+        "Solo con juegos que tienes y que tienen multijugador.",
+        "Página /grupos/ filtrable por juego y plataforma, y un bloque en la ficha de esos juegos.",
+        "Contacto: «Me apunto» enseña sus ID de plataforma y Discord, y el autor ve quién se ha apuntado. No se expone nada a quien solo mira.",
+        "Límite de publicaciones por usuario, denuncias con Report y avisar solo a quien lo pida para ese juego."
+      ],
+      "profundizar": [
+        "Sin chat propio, a propósito: moderarlo es caro y arriesgado. Llevar a la gente a Discord o a su plataforma.",
+        "Emparejar por nivel: con las horas verificadas, «busca gente con menos de 20 h» o «ya te lo has pasado»; es algo que los foros no pueden hacer.",
+        "Partidas con fecha: «sábado a las 22:00», añadible a tu calendario, con un aviso una hora antes.",
+        "Empezar solo entre gente que se sigue: mucho menos arriesgado que abrirlo a todo el mundo, y da una versión pequeña que ya sirve."
+      ]
+    }
   },
   {
     "titulo": "Joyas ocultas y juegos en los que la comunidad discrepa",
@@ -1027,7 +2183,24 @@
       "Comparar la nota de la crítica (0-100) con la de la comunidad pasada a la misma escala.",
       "Dos listados en el catálogo: «Joyas ocultas» y «La comunidad no está de acuerdo»."
     ],
-    "notas": "Tiene más sentido cuando haya bastantes usuarios valorando."
+    "notas": "Tiene más sentido cuando haya bastantes usuarios valorando.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Su nota dice que hacen falta muchos usuarios, y no es verdad: IGDB tiene nota de usuarios (rating) en 2148 de 2206 juegos, además de la de la crítica. Se puede hacer hoy, y no se guarda porque no está en GAME_FIELDS.",
+      "plan": [
+        "Game.user_rating y Game.user_rating_count con fill_game_fields, y añadir los dos a GAME_FIELDS.",
+        "Joyas: popularity en la parte baja del catálogo y nota de 80 o más, con un mínimo de votos.",
+        "Discrepancias: diferencia de 15 puntos o más entre crítica y usuarios, en dos listados, uno hacia cada lado.",
+        "Páginas /descubrir/joyas/ y /descubrir/discrepancias/, paginadas y enlazadas desde el catálogo. Cuando NextPlay tenga bastantes notas, se suma su media a las de IGDB.",
+        "Ojo con el catálogo: hoy se llena por popularidad, así que al ampliarlo saldrán más joyas de verdad."
+      ],
+      "profundizar": [
+        "A tu medida: joyas de tus géneros que no tienes, en un bloque del inicio que cambie cada semana.",
+        "Joyas baratas: las que además están rebajadas o por debajo de cierto precio. Es lo que hace pasar de mirar a comprar.",
+        "Joyas en castellano: filtrar por spanish_audio o spanish_text, algo que no se puede buscar en casi ningún otro sitio.",
+        "Como lista mensual: generarla sola como GameList pública de una cuenta de NextPlay, para que salga en el feed y se pueda comentar."
+      ]
+    }
   },
   {
     "titulo": "Cuándo se abandona, si mejora con las horas y cuánto sale la hora",
@@ -1043,7 +2216,25 @@
       "Precio por hora: mejor precio de hoy entre la mediana de horas de quienes lo han jugado («sale a 0,40 € la hora»).",
       "En la biblioteca, cuánto te ha salido a ti la hora si apuntas lo que pagaste (el campo de precio pagado de «Colección física con escáner de código de barras»)."
     ],
-    "notas": "Necesita bastantes usuarios por juego: enseñarlo solo a partir de unos 20. La mediana de horas de quienes lo completan ya está en «Duración estimada de los juegos»."
+    "notas": "Necesita bastantes usuarios por juego: enseñarlo solo a partir de unos 20. La mediana de horas de quienes lo completan ya está en «Duración estimada de los juegos».",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Casi todo necesita usuarios (20 por juego), con una excepción: el precio por hora se puede dar ya con la duración de IGDB (1523 juegos) y el mejor precio.",
+      "plan": [
+        "Empezar por el precio por hora: mejor precio entre la duración normal, «sale a 0,40 € la hora de historia», en la ficha y en la lista de deseos, diciendo de dónde sale.",
+        "library/insights.py: cálculo nocturno por juego guardado en un JSON en Game, a partir de 20 personas. Nunca al abrir la ficha.",
+        "Mediana de horas de quienes lo tienen en Abandonado y nota por tramos de horas (menos de 2, de 2 a 10 y más de 10).",
+        "En la ficha solo cuando haya datos; sin datos no se enseña nada.",
+        "Tu coste real por hora, cuando exista el precio pagado de «Colección física con escáner de código de barras»."
+      ],
+      "profundizar": [
+        "Abandono sin depender de que lo marquen: sin sesiones en 6 meses y con menos de la mitad de la duración. La gente rara vez marca Abandonado.",
+        "Abandono temprano con logros: en Steam, la caída entre los primeros logros da una idea desde hoy, sin usuarios propios.",
+        "«¿Mejora con las horas?» con las reseñas: cada una guarda sus horas y su nota (Review.hours y rating). Una curva de nota según horas es un dato que solo se puede sacar con horas verificadas.",
+        "Ordenar la lista de deseos por precio por hora: una forma distinta de decidir en rebajas.",
+        "Historial de tu nota: hoy LibraryEntry.rating se sobrescribe. Guardar cada cambio con sus horas enseña «le diste 4,5 a las 5 h y 3 a las 40 h», a ti y, con bastante gente, como curva del juego."
+      ]
+    }
   },
   {
     "titulo": "Colección física con escáner de código de barras",
@@ -1059,7 +2250,24 @@
       "Tabla compartida de códigos de barras: la primera persona que escanea un juego elige cuál es y a partir de ahí sale solo para todos.",
       "Contador de la colección por plataforma en el perfil."
     ],
-    "notas": ""
+    "notas": "",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar. LibraryEntry no guarda plataforma ni formato, aunque ImportedTitle.platforms ya sabe dónde se jugó lo importado.",
+      "plan": [
+        "OwnedCopy (usuario, juego, plataforma, formato, edición, precio pagado y fecha), aparte de LibraryEntry: se pueden tener varias copias del mismo juego.",
+        "Lo digital se deduce de las importaciones: no pedirlo a mano.",
+        "Página /escanear/ con BarcodeDetector y una biblioteca de respaldo (ZXing) para iPhone. Requiere HTTPS para la cámara, así que en local solo se prueba desde localhost o con un túnel.",
+        "BarcodeMapping compartido (código y juego), con origen y bloqueo como ExternalTitle: el primero que lo escanea elige y sirve para todos.",
+        "Contador de la colección por plataforma en una sección nueva del escaparate."
+      ],
+      "profundizar": [
+        "Foto de la estantería: un modelo de visión lee los lomos y propone los juegos, con pantalla de revisión. Cincuenta juegos en una foto, y es el mismo lector que el de «Importar Nintendo Switch con capturas de la app Nintendo Store».",
+        "Préstamos: «se lo dejé a Luis», con recordatorio. Pequeño y muy de jugadores.",
+        "Formato automático: según psn-api, PlayStation dice si un juego viene de PS Plus (service). Comprobarlo; evitaría preguntarlo.",
+        "Coste por hora real al cruzar el precio pagado con las horas importadas, y el valor total de tu colección a precio de hoy."
+      ]
+    }
   },
   {
     "titulo": "¿Qué edición compro? Precios de cada edición y remaster",
@@ -1074,7 +2282,23 @@
       "Bloque «Ediciones» en la ficha con el mejor precio de cada una y la diferencia con la estándar.",
       "Si el usuario ya tiene el juego y existe un remaster, decirlo: «tienes el original; el remaster está a 19,99 €»."
     ],
-    "notas": "Multiplica las llamadas a IsThereAnyDeal de los juegos con ediciones: limitarlo o pedirlo al abrir la ficha, como el historial."
+    "notas": "Multiplica las llamadas a IsThereAnyDeal de los juegos con ediciones: limitarlo o pedirlo al abrir la ficha, como el historial.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Sin empezar. prices.update_prices para en la primera edición con ofertas, y store_alternatives ya está guardado.",
+      "plan": [
+        "No en nightly, porque multiplicaría las llamadas: pedirlo al abrir la ficha, con HTMX y un día de caché, como games.views.price_history.",
+        "games/editions.py: [{nombre, mejor precio, diferencia}] con _lookup y _fetch_prices de games/prices.py, sin guardar GamePrice.",
+        "Bloque «Ediciones» en «Dónde comprarlo», solo si hay más de una a la venta, con la diferencia sobre la estándar.",
+        "Si tienes el original y hay remaster (remasters está en 278 juegos): «Tienes el original; el remaster está a 19,99 €»."
+      ],
+      "profundizar": [
+        "Qué incluye: con los dlcs de IGDB, «incluye 2 DLC». Y comparar la completa con la base más sus DLC comprados por separado en su mínimo.",
+        "¿Merece el remaster?: nota del original frente a la del remaster, y el precio de pasar de uno a otro.",
+        "Cuál viene en castellano: a veces solo una versión lo trae, y Steam lo dice por app.",
+        "Aviso en la lista de deseos cuando la edición completa baja más que la base."
+      ]
+    }
   },
   {
     "titulo": "Miniatura ya encuadrada de la foto de perfil para las listas",
@@ -1089,7 +2313,22 @@
       "Usarla en accounts/_avatar.html con los tamaños sm y md.",
       "Rehacerla cuando cambien la foto o su encuadre, y borrar del disco la anterior."
     ],
-    "notas": "Sale del encuadre de imágenes del 22/10/2026."
+    "notas": "Sale del encuadre de imágenes del 22/10/2026.",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Igual: accounts/_avatar.html carga la foto entera (hasta 800 px) en cualquier tamaño. Cambiaría su plan: recortar en el servidor obliga a repetir en Python los cálculos de zoom y posición que ya hace el CSS.",
+      "plan": [
+        "Una copia entera pequeña (240 px) con el mismo encuadre por CSS: cambiar el encuadre no obliga a regenerarla y no hay matemáticas duplicadas. Con el zoom máximo se verá algo más blanda, y a 40 px apenas se nota.",
+        "Profile.avatar_thumb, y «avatar_thumb» en accounts.images.KINDS; se genera en ProfileForm.save y se borra la anterior.",
+        "avatar_image devuelve la pequeña para los tamaños sm y md; lg sigue con la grande. accounts.signals.delete_profile_images también la borra.",
+        "Un comando para generarla a quienes ya tienen foto."
+      ],
+      "profundizar": [
+        "Medir antes con Lighthouse en la portada: las portadas de juegos (t_cover_big para todo) pesan bastante más que los avatares, y ahí se ahorra de verdad.",
+        "Cabecera y fondo en dos tamaños, con srcset: en el móvil se descarga una imagen de hasta 2000 px para una banda de 340.",
+        "AVIF además de WebP y Cache-Control largo: los nombres aleatorios hacen que estas imágenes nunca cambien."
+      ]
+    }
   },
   {
     "titulo": "Traducir al español los comentarios antiguos en inglés",
@@ -1103,7 +2342,21 @@
       "Recorrer accounts, games, library y config y traducir los comentarios # y de plantillas.",
       "No tocar las docstrings, que ya están en español."
     ],
-    "notas": ""
+    "notas": "",
+    "revision": {
+      "fecha": "2026-11-01",
+      "hoy": "Es mucho menos de lo que parecía: unos 38 comentarios en 10 archivos (15 en games/models.py y 6 en games/igdb.py; recuento con un script, puede faltar alguno) y ninguno en plantillas.",
+      "plan": [
+        "Traducirlos de una sentada, sin tocar nada de código.",
+        "Comprobar en el diff que solo cambian líneas de comentario.",
+        "Lanzar los tests, regenerar el PDF de funciones y pasar a «hecha» en un commit pequeño. Se hace en un rato."
+      ],
+      "profundizar": [
+        "Que no vuelva: el mismo script como test del proyecto, avisando de comentarios que parecen en inglés.",
+        "Mensajes internos: algunos errores siguen en inglés, como el ImproperlyConfigured de config/settings.py.",
+        "Un test que compruebe que toda función tiene docstring: la regla ya existe y generar_pdf.py depende de ella."
+      ]
+    }
   },
   {
     "titulo": "Vincular otras plataformas sin importar (PSN, Switch, Epic, GOG, Battle.net)",

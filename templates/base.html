@@ -13,6 +13,7 @@
 {% with section=request.resolver_match.url_name %}
 {# En la vista previa de Editar perfil (preview) la página se ve igual, pero inert hace que no se pueda pulsar ni enfocar nada. #}
 <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' class="{% if user.is_authenticated %}has-tabbar{% endif %}{% if preview %} is-preview{% endif %}"{% if preview %} inert{% endif %}>
+  {% include "library/_platform_symbols.html" %}
   <header class="topbar">
     <a class="brand" href="{% url 'home' %}" aria-label="NextPlay, inicio">
       <span class="brand-mark" aria-hidden="true">N</span><span class="brand-name">Next<span>Play</span></span>
