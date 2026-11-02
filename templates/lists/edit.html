@@ -5,13 +5,13 @@
 {% block content %}
   <div class="list-editor">
     <header class="page-head">
-      <h1>{% include "_icon.html" with name="list" %} {% if is_owner %}Editar lista{% else %}Editar «{{ game_list.title }}»{% endif %}</h1>
-      <a class="btn" href="{{ game_list.get_absolute_url }}">Ver la lista {% include "_icon.html" with name="arrow" %}</a>
+      <h1>{% if game_list.is_tiered %}{% include "_icon.html" with name="tiers" %}{% else %}{% include "_icon.html" with name="list" %}{% endif %} {% if is_owner %}Editar {{ game_list.noun }}{% else %}Editar «{{ game_list.title }}»{% endif %}</h1>
+      <a class="btn" href="{{ game_list.get_absolute_url }}">Ver la {{ game_list.noun }} {% include "_icon.html" with name="arrow" %}</a>
     </header>
 
     {% if is_owner %}
       <section class="card-box">
-        <h2>Datos de la lista</h2>
+        <h2>Datos de la {{ game_list.noun }}</h2>
         <form class="list-details" method="post" action="{% url 'lists:edit' game_list.pk %}">
           {% csrf_token %}
           {% include "lists/_fields.html" %}
@@ -21,7 +21,7 @@
         </form>
       </section>
     {% else %}
-      <p class="widget list-collab-note">Colaboras en esta lista de <a href="{{ game_list.user.profile.get_absolute_url }}">{{ game_list.user.profile.name }}</a>: puedes añadir, ordenar, comentar y quitar sus juegos. Sus datos los cambia su dueño.</p>
+      <p class="widget list-collab-note">Colaboras en esta {{ game_list.noun }} de <a href="{{ game_list.user.profile.get_absolute_url }}">{{ game_list.user.profile.name }}</a>: puedes añadir, ordenar, comentar y quitar sus juegos. Sus datos los cambia su dueño.</p>
     {% endif %}
 
     {# Los juegos se guardan uno a uno al momento (lists.views.add, move, tier, note y remove); sus peticiones van en cola en esta sección (hx-sync). #}
@@ -45,12 +45,12 @@
       <section class="card-box" id="colaboradores">{% include "lists/_collaborators.html" %}</section>
 
       <section class="card-box list-danger">
-        <h2>Borrar la lista</h2>
-        <p class="muted small">Se borra la lista, no sus juegos: siguen en tu biblioteca y en el catálogo.</p>
+        <h2>Borrar la {{ game_list.noun }}</h2>
+        <p class="muted small">Se borra la {{ game_list.noun }}, no sus juegos: siguen en tu biblioteca y en el catálogo.</p>
         <form method="post" action="{% url 'lists:delete' game_list.pk %}"
-              onsubmit="return confirm('¿Borrar la lista «{{ game_list.title|escapejs }}»? No se puede deshacer.');">
+              onsubmit="return confirm('¿Borrar la {{ game_list.noun }} «{{ game_list.title|escapejs }}»? No se puede deshacer.');">
           {% csrf_token %}
-          <button class="btn btn-danger" type="submit">Borrar la lista</button>
+          <button class="btn btn-danger" type="submit">Borrar la {{ game_list.noun }}</button>
         </form>
       </section>
     {% else %}

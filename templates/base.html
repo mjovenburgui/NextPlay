@@ -45,6 +45,7 @@
             <p class="account-menu-id"><strong>{{ user.profile.name }}</strong><span class="muted small">@{{ user.username }}</span></p>
             <a href="{% url 'profile' user.username %}">{% include "_icon.html" with name="user" %} Mi perfil</a>
             <a href="{% url 'profile' user.username %}?vista=listas">{% include "_icon.html" with name="list" %} Mis listas</a>
+            <a href="{% url 'profile' user.username %}?vista=tier-lists">{% include "_icon.html" with name="tiers" %} Mis tier lists</a>
             <a href="{% url 'challenges:explore' %}">{% include "_icon.html" with name="trophy" %} Retos</a>
             <a href="{% url 'library:wishlist' %}">{% include "_icon.html" with name="heart" %} Lista de deseos</a>
             <a href="{% url 'edit_profile' %}">{% include "_icon.html" with name="settings" %} Editar perfil</a>
@@ -107,6 +108,16 @@
           }
         });
       })();
+    </script>
+    <script>
+      // En el móvil las pestañas se deslizan de lado: al entrar, la activa se centra en su barra para que no quede
+      // cortada o fuera de la vista (solo se mueve la barra, no la página).
+      document.querySelectorAll(".tabs").forEach(function (tabs) {
+        var active = tabs.querySelector(".is-active");
+        if (!active || tabs.scrollWidth <= tabs.clientWidth) return;
+        var left = active.getBoundingClientRect().left - tabs.getBoundingClientRect().left + tabs.scrollLeft;
+        tabs.scrollLeft = left - (tabs.clientWidth - active.offsetWidth) / 2;
+      });
     </script>
 
     {# Visor a pantalla completa de las imágenes de las reseñas, igual que el del carrusel de la ficha. #}

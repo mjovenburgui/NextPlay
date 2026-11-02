@@ -28,6 +28,7 @@ SECTIONS = [
     ("estadisticas", "Estadísticas"),
     ("generos", "Géneros que más juega"),
     ("listas", "Listas"),
+    ("tier-lists", "Tier lists"),
 ]
 
 # Redes sociales que se pueden enseñar en el perfil: clave → (nombre, expresión que debe cumplir el usuario,

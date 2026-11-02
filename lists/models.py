@@ -72,8 +72,10 @@ class GameList(models.Model):
 
     Los juegos van en el orden que elija (ListItem.position), cada uno con su comentario si quiere. Según su tipo
     (mode) es una lista sin más, una numerada (cada juego lleva su puesto, para rankings) o una tier list (cada juego
-    va en uno de sus niveles: S, A, B...). Su dueño puede invitar a otros a editar sus juegos (ListCollaborator). La
-    ven los demás si es pública y su perfil también (visible_to); las privadas solo las ven su dueño y los invitados.
+    va en uno de sus niveles: S, A, B...). Las tier lists tienen su propia sección (su página para crearlas y su
+    pestaña del perfil), pero son listas como las demás: una puede cambiar de tipo en su editor y conserva sus niveles.
+    Su dueño puede invitar a otros a editar sus juegos (ListCollaborator). La ven los demás si es pública y su perfil
+    también (visible_to); las privadas solo las ven su dueño y los invitados.
     Los demás pueden darle «me gusta», comentarla y denunciarla, y sale en la actividad de su dueño
     (social.activity.list_created).
     """
@@ -144,6 +146,16 @@ class GameList(models.Model):
     def kind_note(self):
         """Lo que se dice de su tipo junto a cuántos juegos tiene: «numerada», «tier list» o nada."""
         return {self.Mode.RANKED: "numerada", self.Mode.TIERS: "tier list"}.get(self.mode, "")
+
+    @property
+    def noun(self):
+        """Cómo se la llama en los textos y los avisos: «tier list» o «lista»."""
+        return "tier list" if self.is_tiered else "lista"
+
+    @property
+    def profile_tab(self):
+        """Pestaña del perfil de su dueño en la que sale (?vista=): las tier lists tienen la suya, aparte de las demás."""
+        return "tier-lists" if self.is_tiered else "listas"
 
     @property
     def tier_list(self):

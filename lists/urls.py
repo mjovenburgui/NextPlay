@@ -9,6 +9,9 @@ urlpatterns = [
     path("u/<str:username>/listas/<int:list_id>/", views.detail, name="detail"),
     path("juegos/<slug:slug>/listas/", views.game_lists, name="game"),
     path("listas/nueva/", views.new, name="new"),
+    # Las tier lists se crean en su propia página, en blanco o desde una plantilla de la biblioteca.
+    path("tier-lists/nueva/", views.new_tier_list, name="new_tier_list"),
+    path("tier-lists/desde-tu-biblioteca/", views.from_library, name="from_library"),
     path("listas/<int:list_id>/editar/", views.edit, name="edit"),
     path("listas/<int:list_id>/borrar/", views.delete, name="delete"),
     path("listas/<int:list_id>/buscar/", views.search, name="search"),

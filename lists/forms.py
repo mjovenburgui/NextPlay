@@ -30,6 +30,8 @@ class GameListForm(forms.ModelForm):
 
     # Campos que la plantilla pinta como interruptores.
     SWITCHES = ("is_public",)
+    # Si «Por niveles» está entre los tipos que se eligen (en «Nueva lista» no: ver NewListForm).
+    offers_tiers = True
 
     class Meta:
         model = GameList
@@ -120,3 +122,32 @@ class GameListForm(forms.ModelForm):
         if commit:
             game_list.save()
         return game_list
+
+
+class NewListForm(GameListForm):
+    """GameListForm de «Nueva lista»: una lista sin más o numerada. Las tier lists se crean en su página (TierListForm),
+    aunque una lista ya creada puede pasar a serlo en su editor."""
+
+    offers_tiers = False
+
+    def __init__(self, *args, **kwargs):
+        """Quita «Por niveles» de los tipos."""
+        super().__init__(*args, **kwargs)
+        mode = self.fields["mode"]
+        mode.choices = [(value, label) for value, label in mode.choices if value != GameList.Mode.TIERS]
+
+
+class TierListForm(GameListForm):
+    """GameListForm de «Nueva tier list»: el tipo va fijo y oculto, y sus niveles se ven siempre."""
+
+    def __init__(self, *args, **kwargs):
+        """Empieza con una tier list nueva (con los niveles de serie), oculta el tipo y pone ejemplos de tier list."""
+        kwargs.setdefault("instance", GameList(mode=GameList.Mode.TIERS))
+        super().__init__(*args, **kwargs)
+        self.fields["mode"].widget = forms.HiddenInput()
+        self.fields["title"].widget.attrs["placeholder"] = "Los Zelda, Roguelikes, Lo que jugué este verano…"
+        self.fields["description"].widget.attrs["placeholder"] = "Qué juegos entran o con qué criterio los colocas"
+
+    def clean_mode(self):
+        """Siempre tier list, aunque se mande otro tipo."""
+        return GameList.Mode.TIERS
