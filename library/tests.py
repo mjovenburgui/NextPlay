@@ -141,6 +141,56 @@ class LibraryTests(TestCase):
         self.assertContains(response, "Aún nadie lo ha valorado")
         self.assertContains(response, "width: 0%")
 
+    def test_hours_by_platform_go_from_most_to_least(self):
+        entry = LibraryEntry(steam_playtime_minutes=600, psn_playtime_minutes=1800, xbox_playtime_minutes=2)
+        self.assertEqual([(item["key"], item["name"], item["hours"]) for item in entry.hours_by_platform], [
+            ("psn", "PlayStation", 30.0), ("steam", "Steam", 10.0),
+        ])
+        self.assertEqual(LibraryEntry(steam_playtime_minutes=0).hours_by_platform, [])
+
+    def test_game_page_says_where_the_hours_come_from(self):
+        LibraryEntry.objects.create(
+            user=self.user, game=self.game, steam_playtime_minutes=600, psn_playtime_minutes=1800,
+            psn_last_played=timezone.now() - timedelta(days=3),
+        )
+        self.client.force_login(self.user)
+        response = self.client.get(self.game.get_absolute_url())
+        self.assertContains(response, "Tus horas")
+        self.assertContains(response, '<span class="hours-value">30 h</span>')
+        self.assertContains(response, '<span class="hours-value">10 h</span>')
+        self.assertContains(response, "Última partida:", count=1)
+        self.assertContains(response, "En total, <strong>40 h</strong>")
+        # Con una sola plataforma no hace falta el total.
+        LibraryEntry.objects.update(psn_playtime_minutes=None)
+        response = self.client.get(self.game.get_absolute_url())
+        self.assertContains(response, '<span class="hours-value">10 h</span>')
+        self.assertNotContains(response, "En total")
+
+    def test_game_page_without_imported_hours_has_no_hours_block(self):
+        LibraryEntry.objects.create(user=self.user, game=self.game)
+        self.client.force_login(self.user)
+        self.assertNotContains(self.client.get(self.game.get_absolute_url()), "Tus horas")
+
+    def test_profile_splits_hours_by_platform(self):
+        hollow = Game.objects.create(name="Hollow Knight", slug="hollow-knight")
+        LibraryEntry.objects.create(user=self.user, game=self.game, steam_playtime_minutes=600, psn_playtime_minutes=1800)
+        LibraryEntry.objects.create(user=self.user, game=hollow, steam_playtime_minutes=90)
+        response = self.client.get(reverse("profile", args=["ana"]))
+        # Hades, en dos plataformas: el total con el reparto al pasar el ratón y debajo; Hollow Knight, con su logo.
+        self.assertContains(response, 'title="PlayStation: 30 h · Steam: 10 h"')
+        self.assertContains(response, 'class="muted small card-split"', count=1)
+        self.assertContains(response, '<span class="visually-hidden"> en Steam</span>')
+        self.assertContains(response, '<dd class="stat-split">')
+        self.assertContains(response, 'href="#plataforma-psn"')
+        # Los logos se dibujan una sola vez en la página.
+        self.assertContains(response, 'id="plataforma-steam"', count=1)
+
+    def test_profile_with_a_single_platform_has_no_split(self):
+        LibraryEntry.objects.create(user=self.user, game=self.game, steam_playtime_minutes=600)
+        response = self.client.get(reverse("profile", args=["ana"]))
+        self.assertNotContains(response, 'class="muted small card-split"')
+        self.assertNotContains(response, '<dd class="stat-split">')
+
     def test_database_rejects_duplicate_entries(self):
         LibraryEntry.objects.create(user=self.user, game=self.game)
         with self.assertRaises(IntegrityError), transaction.atomic():

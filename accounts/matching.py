@@ -3,18 +3,20 @@
 Cada título importado se guarda en ExternalTitle (compartido por todos los usuarios) y en ImportedTitle
 (del usuario, con sus minutos). Los títulos ya emparejados —por una importación anterior o porque
 alguien lo corrigió a mano— no se vuelven a buscar; los demás se buscan con la función de cada
-plataforma: Steam por su ID de app y las demás por nombre (en el catálogo local y, si falta, en IGDB).
-Las horas de cada plataforma en la biblioteca salen después de todos los ImportedTitle del usuario.
+plataforma: Steam por su ID de app y las demás por nombre, sin fijarse en cómo está escrito (name_key), en el
+catálogo local y, si falta, en IGDB. Las horas de cada plataforma en la biblioteca salen después de todos los
+ImportedTitle del usuario.
 """
 
 import re
+import unicodedata
+from collections import defaultdict
 
 from django.db import transaction
-from django.db.models import Q
 from django.utils import timezone
 
 from challenges import progress as challenge_progress
-from games import igdb
+from games import igdb, spanish
 from games.models import Game
 from library.models import LibraryEntry, PlaySession, Review
 from library.reminders import remind_outdated_reviews
@@ -22,8 +24,16 @@ from social.activity import games_imported
 
 from .models import ExternalTitle, ImportedTitle
 
-# Búsquedas sueltas en IGDB como máximo por sincronización, para los juegos que no salen por nombre exacto.
+# Búsquedas sueltas en IGDB como máximo por sincronización, para los juegos que no salen por nombre exacto, y
+# resultados de cada una entre los que se busca el que se llama como el título.
 MAX_SEARCHES = 25
+SEARCH_RESULTS = 10
+# Títulos que no son un juego concreto sino un lanzador de varios (p. ej. «Call of Duty®» en PS5, desde el que se
+# abren MWII, MWIII y Black Ops 6). Se cuentan como no encontrados.
+LAUNCHERS = {"call of duty"}
+# Año o región al final del nombre de un juego («resident evil 4 (2005)», «LittleBigPlanet3 (LATAM)»), que su lista de
+# trofeos y el catálogo no suelen llevar.
+YEAR_OR_REGION = re.compile(r"\s*\((\d{4}|[A-Z]{2,5})\)\s*$")
 # Coletillas de plataforma que las tiendas añaden al nombre: «PS4 & PS5», «(PS5)», «- PS4 Edition»,
 # «Xbox One», «Xbox Series X|S», «for Windows 10», «(PC)»...
 PLATFORM_SUFFIX = re.compile(
@@ -46,6 +56,37 @@ def clean_name(name):
 def normalize(name):
     """Nombre para comparar: sin ™ ® ©, en minúsculas y con los espacios simplificados."""
     return igdb._normalize(name)
+
+
+def name_key(name):
+    """Nombre para comparar sin fijarse en cómo está escrito: sin ™ ® ©, signos, espacios, tildes ni mayúsculas, para que
+    «WATCH_DOGS 2» y «Watch Dogs 2», «Tom Clancy’s» y «Tom Clancy's» o «Ghostrunner2» y «Ghostrunner 2» sean el mismo."""
+    # Fuera ™ ® © antes de separar las tildes, que NFKD convierte ™ en «TM».
+    name = unicodedata.normalize("NFKD", re.sub(r"[™®©]", "", name or ""))
+    return re.sub(r"[\W_]+", "", "".join(char for char in name if not unicodedata.combining(char)).casefold())
+
+
+def _name_keys(name, name_es, search_names):
+    """Claves (name_key) de todos los nombres de un juego: el suyo, el de España y los otros que guarda para el buscador."""
+    return {name_key(other) for other in (name, name_es, *search_names.split(" | "))} - {""}
+
+
+def _catalog_games(keys):
+    """Juegos del catálogo que tienen alguna de las claves keys entre sus nombres, con sus plataformas ya cargadas.
+
+    La comparación no cabe en una consulta, así que recorre los nombres de todo el catálogo. Solo se hace cuando hay
+    títulos que buscar, no en cada visita: si un día el catálogo tiene cientos de miles de juegos, habrá que guardar las claves.
+    """
+    rows = Game.objects.values_list("pk", "name", "name_es", "search_names").iterator()
+    ids = [pk for pk, *names in rows if keys & _name_keys(*names)]
+    return Game.objects.filter(pk__in=ids).prefetch_related("platforms")
+
+
+def _title_parts(name):
+    """Lo que se busca de un título: (clave de su nombre, clave sin el año o la región del final, nombre sin ellos, año o None)."""
+    stem = YEAR_OR_REGION.sub("", name)
+    suffix = YEAR_OR_REGION.search(name)
+    return name_key(name), name_key(stem), stem, int(suffix[1]) if suffix and suffix[1].isdigit() else None
 
 
 def add_title(titles, external_id, name, minutes=0, last_played=None, platforms=(), first_played=None, deck_minutes=0):
@@ -79,61 +120,113 @@ def _fits(game, platforms):
 
     Sin plataformas conocidas (del título o del juego) cualquiera vale.
     """
-    names = _platform_names(game)
-    return not platforms or not names or bool(names & set(platforms))
+    return _share_platform(_platform_names(game), platforms)
+
+
+def _share_platform(names, platforms):
+    """Indica si un juego que sale en las plataformas names puede ser uno jugado en platforms (ver _fits)."""
+    return not platforms or not names or bool(set(names) & set(platforms))
+
+
+def _seen_games(keys):
+    """Juegos de los títulos ya emparejados, de cualquier plataforma, que se llaman como alguna de las claves keys, como
+    {clave: [Game]}: Steam los empareja por su ID de app y los demás pueden estar corregidos a mano, así que son una pista fiable."""
+    ids = defaultdict(set)
+    for name, game_id in ExternalTitle.objects.filter(game__isnull=False).values_list("name", "game_id").iterator():
+        key = name_key(clean_name(name))
+        if key in keys:
+            ids[key].add(game_id)
+    games = Game.objects.filter(pk__in={game_id for found in ids.values() for game_id in found}).prefetch_related("platforms")
+    by_id = {game.pk: game for game in games}
+    seen = defaultdict(list)
+    seen.update({key: [by_id[game_id] for game_id in found] for key, found in ids.items()})
+    return seen
+
+
+def _score(game, group, platforms, year):
+    """Lo bueno que es game para un título, para quedarse con el mayor: primero que sea del año que dice el título, después
+    que salga en sus plataformas, después cómo se ha encontrado (group: cuanto más alto, más se parece el nombre), después
+    el año más cercano y, por último, el más popular."""
+    released = game.release_year
+    return (
+        year is not None and released == year,
+        _fits(game, platforms),
+        group,
+        -abs(released - year) if year and released else 0,
+        game.popularity,
+    )
 
 
 def match_by_name(titles):
     """Busca en el catálogo los juegos de {clave: (nombre limpio, plataformas)} y devuelve {clave: Game}.
 
-    Primero mira el catálogo local; después pide a IGDB por nombre exacto (tal cual y con mayúsculas
-    de título, porque a veces vienen en mayúsculas) los que no tengan ningún candidato de sus
-    plataformas y, para los que sigan sin salir, hace hasta MAX_SEARCHES búsquedas sueltas quedándose
-    solo con resultados de nombre idéntico. Si varios juegos se llaman igual (remakes como God of War
-    o Resident Evil 4) gana el más popular de los que salieron en esas plataformas.
+    Los nombres se comparan sin fijarse en cómo están escritos (name_key), con el nombre de cada juego, con sus otros
+    nombres (el de España y los alternativos que guarda para el buscador) y con los títulos ya emparejados de otras
+    plataformas (_seen_games). Un título que acaba en un año o una región («resident evil 4 (2005)», «LittleBigPlanet3
+    (LATAM)») también vale sin ellos. Primero mira lo que ya hay; después pide a IGDB por nombre exacto (tal cual y con
+    mayúsculas de título, porque a veces vienen en mayúsculas) los que no tengan ningún juego que se llame así en sus
+    plataformas y, para los que sigan sin ningún candidato, hace hasta MAX_SEARCHES búsquedas sueltas quedándose solo con
+    los resultados que tienen ese nombre entre los suyos y salen en sus plataformas. Los lanzadores (LAUNCHERS) no se
+    buscan. Si varios juegos encajan (remakes como God of War o Resident Evil 4), decide _score.
     """
-    wanted = {normalize(name): name for name, _ in titles.values() if name}
-    candidates = {key: [] for key in wanted}
+    wanted = {
+        key: _title_parts(name) for key, (name, _) in titles.items()
+        if name_key(name) and normalize(name) not in LAUNCHERS
+    }
+    keys = {key for full, stem, *_ in wanted.values() for key in (full, stem)}
+    # Clave → juegos que se llaman así (named) y juegos que también se llaman así, con otro de sus nombres (aliased).
+    named, aliased = defaultdict(list), defaultdict(list)
+    seen = _seen_games(keys)
 
     def take(games):
-        """Apunta como candidatos los juegos cuyo nombre normalizado se buscaba, sin repetir."""
+        """Apunta cada juego como candidato de las claves buscadas que tiene entre sus nombres, sin repetir."""
         for game in games:
-            key = normalize(game.name)
-            if key in candidates and game not in candidates[key]:
-                candidates[key].append(game)
+            own = name_key(game.name)
+            for key in keys & _name_keys(game.name, game.name_es, game.search_names):
+                found = named[key] if key == own else aliased[key]
+                if game not in found:
+                    found.append(game)
 
-    def unfit():
-        """Nombres buscados que aún no tienen ningún candidato de las plataformas de sus títulos."""
-        keys = set()
-        for name, platforms in titles.values():
-            key = normalize(name)
-            if key in wanted and not any(_fits(game, platforms) for game in candidates[key]):
-                keys.add(key)
-        return [wanted[key] for key in wanted if key in keys]
+    def options(key):
+        """Candidatos de un título como (juego, grupo), con el grupo de peor a mejor: sin el año o la región y con ellos, y
+        en cada caso, con otro nombre o con el suyo. Lo que no se llama así de verdad solo vale si sale en sus plataformas."""
+        full, stem, *_ = wanted[key]
+        platforms = titles[key][1]
+        groups = (
+            [game for game in aliased[stem] if _fits(game, platforms)], named[stem],
+            [game for game in aliased[full] + seen[full] if _fits(game, platforms)], named[full],
+        )
+        return [(game, group) for group, games in enumerate(groups) for game in games]
 
-    keys = list(wanted)
-    for start in range(0, len(keys), 100):
-        query = Q()
-        for key in keys[start:start + 100]:
-            query |= Q(name__iexact=wanted[key])
-        take(Game.objects.filter(query).prefetch_related("platforms"))
-
+    take(_catalog_games(keys))
     if igdb.is_configured():
         client = igdb.IGDBClient()
-        missing = unfit()
+        # Sin ningún juego que se llame así en sus plataformas: con otro nombre puede ser otro juego, así que se pregunta.
+        missing = [
+            stem_name for key, (full, stem, stem_name, _) in wanted.items()
+            if not any(_fits(game, titles[key][1]) for game in named[full] + named[stem])
+        ]
+        missing = list(dict.fromkeys(missing))
         if missing:
             take(igdb.upsert_games(client.games_by_names(missing + [name.title() for name in missing])))
-        for name in [name for name in unfit() if not candidates[normalize(name)]][:MAX_SEARCHES]:
-            found = [data for data in client.search(name, limit=5) if normalize(data["name"]) == normalize(name)]
+        empty = {}  # nombre sin candidatos → plataformas de sus títulos
+        for key, (_, _, stem_name, _) in wanted.items():
+            if not options(key):
+                empty.setdefault(stem_name, set()).update(titles[key][1])
+        for name, platforms in list(empty.items())[:MAX_SEARCHES]:
+            found = [
+                data for data in client.search(name, limit=SEARCH_RESULTS)
+                if name_key(name) in _name_keys(data.get("name"), *spanish.spanish_names(data))
+                and _share_platform({item.get("name") for item in data.get("platforms") or []}, platforms)
+            ]
             if found:
-                take(igdb.upsert_games(found[:1]))
+                take(igdb.upsert_games(found))
 
     matches = {}
-    for key, (name, platforms) in titles.items():
-        options = candidates.get(normalize(name)) or []
-        fitting = [game for game in options if _fits(game, platforms)]
-        if options:
-            matches[key] = max(fitting or options, key=lambda game: game.popularity)
+    for key, (*_, year) in wanted.items():
+        found = options(key)
+        if found:
+            matches[key] = max(found, key=lambda option: _score(*option, titles[key][1], year))[0]
     return matches
 
 

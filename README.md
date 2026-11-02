@@ -122,12 +122,37 @@ mal emparejados (remakes que se llaman igual). La corrección sirve para todos l
 próxima importación. En `/admin/` › Títulos importados se revisan las correcciones («emparejado por:
 Usuario»), se corrigen al momento para todos y se pueden bloquear.
 
+PlayStation y Xbox no comparten un ID con IGDB, así que sus títulos se buscan por el nombre sin fijarse en cómo está
+escrito (`matching.name_key`: sin signos, espacios, tildes ni mayúsculas), con el nombre de cada juego, con sus otros
+nombres (el de España y los alternativos) y con los títulos ya emparejados de otras plataformas. Un nombre que acaba en
+un año o una región también vale sin ellos, y el año elige entre los juegos que se llaman igual
+(«resident evil 4 (2005)» es el original, no el remake). Lo que se encuentra por otro nombre o con una búsqueda en IGDB
+tiene que salir en la plataforma en la que se jugó.
+
+Para volver a buscar lo que se quedó sin emparejar, sin pedir el NPSSO ni iniciar sesión en Microsoft (por ejemplo, tras
+ampliar el catálogo). No toca lo corregido a mano, lo bloqueado ni lo que han ocultado todos los que lo tienen:
+
+```bash
+.venv/Scripts/python manage.py rematch_titles --dry-run   # enseña lo que haría, sin guardar nada
+.venv/Scripts/python manage.py rematch_titles
+```
+
+### Horas de cada plataforma
+
+Cada juego de la biblioteca guarda aparte las horas y la última partida de Steam, PlayStation y Xbox
+(`LibraryEntry.hours_by_platform`). La ficha las enseña en «Tus horas», una fila por plataforma con el total si son
+varias. Las portadas del perfil llevan el logo de la plataforma junto a las horas o, si se ha jugado en varias, el total y
+debajo las de cada una, y las cifras del perfil reparten las horas jugadas por plataforma. Los logos se dibujan una sola
+vez por página (`library/_platform_symbols.html`) y cada portada los reutiliza, para que una biblioteca de cientos de
+juegos no pese el triple.
+
 ### Logros y trofeos
 
 Cada `ImportedTitle` guarda también cuántos logros lleva el usuario de cuántos hay (en PlayStation, trofeos)
-y si tiene el platino. Xbox los trae en el mismo historial de juegos (decoración `achievement` de titlehub) y
-PlayStation, con el mismo token, en su lista de trofeos (`trophyTitles`), que se empareja por nombre porque usa
-otro identificador que los juegos; si falla, la importación de los juegos sigue valiendo. Steam necesita una
+y si tiene el platino. Xbox los trae en el mismo historial de juegos (decoración `achievement` de titlehub).
+PlayStation, con el mismo token, los pide por el ID de cada juego (`titles/trophyTitles`, de 5 en 5 y 6 peticiones
+a la vez; una colección suma las listas de sus juegos) y lo que no sale así lo busca por nombre en la lista de
+trofeos de la cuenta (`trophyTitles`); si falla, la importación de los juegos sigue valiendo. Steam necesita una
 llamada por juego (`GetPlayerAchievements`): cada importación lee los 40 juegos jugados hace menos de los que
 haya algo nuevo (8 a la vez) y la sincronización de cada noche, el resto. La ficha enseña «Tus logros» por
 plataforma y las portadas del perfil, una insignia de «Platino» o «100 %», con sus cifras en la cabecera
