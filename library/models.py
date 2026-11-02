@@ -129,11 +129,16 @@ class LibraryEntry(models.Model):
         return None if minutes is None else round(minutes / 60, 1)
 
     @property
-    def steam_hours(self):
-        """Horas jugadas en Steam redondeadas a una décima, o None si no viene de Steam."""
-        if self.steam_playtime_minutes is None:
-            return None
-        return round(self.steam_playtime_minutes / 60, 1)
+    def hours_by_platform(self):
+        """Horas de cada plataforma de la que vienen, de la que tiene más a la que menos: [{"key", "name", "hours",
+        "last_played"}]. key es la clave de HOURS_SOURCES («steam», «psn» o «xbox»), que da su logo
+        (library/_platform_mark.html). Solo salen las que llegan a una décima de hora: abrir un juego no es jugarlo."""
+        found = []
+        for key, name in HOURS_SOURCES.items():
+            hours = round((getattr(self, f"{key}_playtime_minutes") or 0) / 60, 1)
+            if hours:
+                found.append({"key": key, "name": name, "hours": hours, "last_played": getattr(self, f"{key}_last_played")})
+        return sorted(found, key=lambda item: -item["hours"])
 
     @property
     def playtime_sources(self):

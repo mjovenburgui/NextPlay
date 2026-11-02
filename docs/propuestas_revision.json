@@ -1,0 +1,248 @@
+{
+  "fecha": "2026-11-01",
+  "intro": "He repasado las tareas abiertas contra el código, la base de datos local y las APIs reales. Cada una lleva ahora un bloque aparte con cómo está hoy, cómo la haría y formas de profundizar. Aquí va lo que solo se ve mirándolas todas juntas. Los «comprobado» de este documento están probados el 01/11/2026; lo que dice «comprobar» no he podido probarlo. Las cifras de tester_steam son de antes de arreglar el emparejado, que le ha subido la biblioteca de 348 a 361 juegos.",
+  "primero": [
+    {
+      "titulo": "Cambia las claves antes de subir nada más",
+      "texto": "Las claves de IGDB, IsThereAnyDeal, Steam y GG.deals de tu .env son las mismas que quedaron en el historial de git, y el repositorio es público. Sacar .env de git no las protegió: siguen ahí. Y este documento lo dice, así que conviene cambiarlas antes de subirlo.",
+      "tareas": [
+        "Sacar .env del repositorio y cambiar las claves"
+      ]
+    },
+    {
+      "titulo": "Dos pruebas que dependen de ti",
+      "texto": "Un NPSSO para medir los trofeos de esta rama y crear la aplicación de Azure, para probar Xbox por primera vez con una cuenta real.",
+      "tareas": [
+        "Trofeos de PlayStation emparejados por el ID del juego, no por el nombre",
+        "Importar juegos y horas de Xbox"
+      ]
+    }
+  ],
+  "hallazgos": [
+    {
+      "titulo": "Había horas que no contaban por cómo se emparejaba",
+      "texto": "Ya arreglado. En tester_steam, 33 títulos sin emparejar dejaban fuera 689 h, entre ellas las 382,6 h de Rainbow Six Siege. Con el emparejado nuevo salen 22 títulos y 585 h, y quedan 4 títulos por emparejar a mano; lo demás no son juegos. Le habría pasado a cualquiera que importe de PlayStation o Xbox.",
+      "tareas": [
+        "Emparejar los juegos por nombre sin contar signos: recuperar horas perdidas"
+      ]
+    },
+    {
+      "titulo": "Completado está casi vacío",
+      "texto": "Solo 1 de los 348 juegos de tester_steam está en Completado, porque las importaciones nunca completan; otros 220 están en Jugado sin saber si se terminaron. Los retos de terminar juegos, las estadísticas y la duración de la comunidad se apoyan en esa columna. Un repaso guiado con pistas («llevas 40 h y suele durar 30: ¿lo terminaste?») la llena: cruzando las horas con la duración de IGDB, 121 de esos 220 tendrían ya una respuesta propuesta.",
+      "tareas": [
+        "Retos del año y control del pendiente",
+        "Logros uno a uno: cuáles tienes, cuándo los conseguiste y lo raros que son"
+      ]
+    },
+    {
+      "titulo": "Las notas, también",
+      "texto": "2 de 348 juegos valorados en tester_steam y 7 de 259 en tester. Compatibilidad y recomendaciones no pueden depender solo de las estrellas: la señal fuerte son las horas, relativas a lo que dura cada juego. Y hace falta valorar con menos esfuerzo, en ráfaga o por duelos.",
+      "tareas": [
+        "La gente que sigues en la ficha y en los perfiles",
+        "Recomendaciones «Qué jugar después»",
+        "Primer uso: traer tus juegos nada más crear la cuenta",
+        "Ranking personal por duelos"
+      ]
+    },
+    {
+      "titulo": "Los logros traen fecha, y eso recupera el pasado",
+      "texto": "Comprobado con tester_steam: 118 de 128 juegos con logros traen fechas, con actividad en cada año desde 2022. 36 tienen logros de 2025 y 14 de esos se perderían mirando solo la última partida. Es la única fuente retroactiva de cuándo se ha jugado, y hoy steam.player_achievements la cuenta y la tira. Por eso le daría más prioridad.",
+      "tareas": [
+        "Logros uno a uno: cuáles tienes, cuándo los conseguiste y lo raros que son",
+        "Diario de partidas que se escribe solo",
+        "Tier lists que se rellenan solas con tu biblioteca: «Jugados en 2026», tu pendiente, tus platinos…",
+        "Estadísticas del perfil y resumen anual"
+      ]
+    },
+    {
+      "titulo": "Lo que no se guarda hoy no se recupera",
+      "texto": "Pasa con los precios de Xbox y Nintendo, que se sobrescriben cada noche y no tienen historial, con las entradas y salidas de Game Pass y con las sesiones de juego. Mientras NextPlay esté en local solo se pierde tu propio historial, y por eso la tarea de cada noche puede esperar al despliegue; ese día conviene que sea de lo primero. Guardar esos datos cuesta muy poco y dentro de un año no se podrán conseguir.",
+      "tareas": [
+        "Sincronización automática de la biblioteca",
+        "Precios de Nintendo eShop y PlayStation Store",
+        "Saber qué juegos están en Game Pass"
+      ]
+    },
+    {
+      "titulo": "Varias tareas no necesitan usuarios, aunque lo parezca",
+      "texto": "IGDB da nota de usuarios en 2148 de 2206 juegos y duración en 1523, además de datos de popularidad de Steam y Twitch. Steam da porcentajes de logros sin clave. Las joyas ocultas, el precio por hora, la tendencia del catálogo y la tasa de finalización funcionan desde el primer día.",
+      "tareas": [
+        "Joyas ocultas y juegos en los que la comunidad discrepa",
+        "Cuándo se abandona, si mejora con las horas y cuánto sale la hora",
+        "Catálogo con filtros y orden al nivel de Backloggd (y más)",
+        "¿Cuánta gente lo termina? Tasa de finalización con los logros de Steam"
+      ]
+    }
+  ],
+  "piezas": [
+    {
+      "titulo": "Una pasada a IGDB",
+      "texto": "Un comando fill_game_fields, con 5 peticiones para todo el catálogo, trae de una vez tipo, estado, modos, temas, parecidos, compañías y nota de usuarios. Mejor una sola vez que una por propuesta.",
+      "tareas": [
+        "Quitar DLC y actualizaciones de las búsquedas en IGDB",
+        "Ficha del juego más completa",
+        "Catálogo con filtros y orden al nivel de Backloggd (y más)",
+        "¿A qué jugamos? Juegos en común con tus amigos",
+        "Recomendaciones «Qué jugar después»",
+        "Joyas ocultas y juegos en los que la comunidad discrepa"
+      ]
+    },
+    {
+      "titulo": "Avisos en un solo sitio",
+      "texto": "Antes de que ocho propuestas añadan avisos nuevos y de que el bloqueo tenga que tocarlos todos.",
+      "tareas": [
+        "Un solo sitio para crear los avisos, con preferencias por tipo",
+        "Retos: crea los tuyos y únete a los de otros",
+        "Bloquear, silenciar y quitar seguidores"
+      ]
+    },
+    {
+      "titulo": "Horas totales en la base de datos",
+      "texto": "El primer paso, total_minutes, es pequeño y deja de obligar a cargar bibliotecas enteras para ordenarlas. El resto abre la puerta a más plataformas.",
+      "tareas": [
+        "Horas por plataforma sin una columna por tienda",
+        "Biblioteca del perfil por tandas en vez de entera",
+        "Importar Epic, GOG, EA y Battle.net con Playnite, y CSV de otros trackers",
+        "Importar Nintendo Switch con capturas de la app Nintendo Store"
+      ]
+    },
+    {
+      "titulo": "Imágenes para compartir con Pillow",
+      "texto": "Una sola función con varias plantillas, en PNG, porque las redes no aceptan SVG. Sirve para perfiles, tier lists, retos conseguidos y el resumen anual.",
+      "tareas": [
+        "Vistas previas al compartir y tarjeta para incrustar",
+        "Estadísticas del perfil y resumen anual",
+        "Tier lists que se rellenan solas con tu biblioteca: «Jugados en 2026», tu pendiente, tus platinos…"
+      ]
+    },
+    {
+      "titulo": "Una sola regla de quién ve qué",
+      "texto": "Las listas repiten user__profile__is_public en vez de usar Profile.visible_filter. Conviene unificarlo antes de añadir bloqueos y el nivel «solo seguidores».",
+      "tareas": [
+        "Bloquear, silenciar y quitar seguidores",
+        "Perfil solo para seguidores, con solicitudes"
+      ]
+    }
+  ],
+  "orden": [
+    {
+      "fase": "1. Esta semana: casi todo es cosa tuya",
+      "texto": "Seguridad y las dos pruebas con cuentas reales.",
+      "tareas": [
+        "Sacar .env del repositorio y cambiar las claves",
+        "Trofeos de PlayStation emparejados por el ID del juego, no por el nombre",
+        "Importar juegos y horas de Xbox"
+      ]
+    },
+    {
+      "fase": "2. Remates rápidos",
+      "texto": "Poco trabajo, y dejan la lista y la web más limpias.",
+      "tareas": [
+        "Arreglos pequeños que han salido al medir: mejor precio, redirección y consultas de más",
+        "Traducir al español los comentarios antiguos en inglés",
+        "Listas colaborativas: invitar solo a quien te sigue y avisar al aceptar",
+        "Detalles sueltos: recuadros de los formularios, el corazón de las listas y pestañas cortadas",
+        "Formularios que avisan mientras trabajan",
+        "Inicio en el móvil: la actividad antes que tu resumen",
+        "Primer uso: traer tus juegos nada más crear la cuenta",
+        "Avisar al salir de Editar perfil con cambios sin guardar",
+        "Páginas de error propias: no encontrada, fallo del servidor y formulario caducado",
+        "Rediseño de toda la web con aspecto de red social"
+      ]
+    },
+    {
+      "fase": "3. Retos, listas y perfil: lo que pediste primero",
+      "texto": "Es el núcleo de lo que quieres construir, y los logros le dan los datos que le faltan.",
+      "tareas": [
+        "Un solo sitio para crear los avisos, con preferencias por tipo",
+        "Retos: crea los tuyos y únete a los de otros",
+        "Logros uno a uno: cuáles tienes, cuándo los conseguiste y lo raros que son",
+        "Tier lists que se rellenan solas con tu biblioteca: «Jugados en 2026», tu pendiente, tus platinos…",
+        "Diario de partidas que se escribe solo",
+        "Retos del año y control del pendiente",
+        "La gente que sigues en la ficha y en los perfiles",
+        "Publicaciones con imágenes asociadas a un juego",
+        "Cabecera y color automáticos según lo que juegas",
+        "Intercambio de pendientes: elige un juego del pendiente de un amigo"
+      ]
+    },
+    {
+      "fase": "4. Una pasada a IGDB y el catálogo",
+      "texto": "Cada una es corta si la consulta de IGDB se hace una sola vez.",
+      "tareas": [
+        "Quitar DLC y actualizaciones de las búsquedas en IGDB",
+        "Ficha del juego más completa",
+        "Duración estimada de los juegos",
+        "Horas por plataforma sin una columna por tienda",
+        "Biblioteca del perfil por tandas en vez de entera",
+        "Catálogo con filtros y orden al nivel de Backloggd (y más)",
+        "Contadores y reparto de valoraciones en la ficha",
+        "Próximos lanzamientos: fechas por plataforma y aviso cuando sale",
+        "Joyas ocultas y juegos en los que la comunidad discrepa",
+        "Ediciones agrupadas bajo su juego (GOTY, Complete, Definitive…)"
+      ]
+    },
+    {
+      "fase": "5. Lo que se apoya en todo lo anterior",
+      "texto": "Salen mucho mejor con logros, duración y más datos del juego ya guardados.",
+      "tareas": [
+        "Estadísticas del perfil y resumen anual",
+        "Recomendaciones «Qué jugar después»",
+        "¿Cuánta gente lo termina? Tasa de finalización con los logros de Steam",
+        "¿A qué jugamos? Juegos en común con tus amigos",
+        "Vistas previas al compartir y tarjeta para incrustar",
+        "Etiquetas de la comunidad y «¿Qué juego esta noche?»",
+        "Ranking personal por duelos",
+        "¿Qué edición compro? Precios de cada edición y remaster",
+        "Cuándo se abandona, si mejora con las horas y cuánto sale la hora",
+        "Recuerdos: «un día como hoy» con tus fechas reales",
+        "Preguntas sobre un juego que no destripan nada"
+      ]
+    },
+    {
+      "fase": "6. Precios y tiendas, cuando apetezca",
+      "texto": "Independientes entre sí. «¿Cuándo bajará?» tiene más gracia si llega antes de las rebajas de invierno.",
+      "tareas": [
+        "¿Cuándo bajará? Próxima rebaja prevista en el veredicto",
+        "Saber qué juegos están en Game Pass",
+        "Juegos gratis para quedártelos",
+        "Steam Deck, parches y «jugando ahora»",
+        "Precios de Nintendo eShop y PlayStation Store",
+        "Directos de Twitch en la ficha del juego",
+        "Cuánto has gastado y ahorrado: compras detectadas al sincronizar"
+      ]
+    },
+    {
+      "fase": "7. Más plataformas",
+      "texto": "Mejor después de las horas por plataforma, y tras probar con datos reales que la lectura funciona.",
+      "tareas": [
+        "Tareas en segundo plano para lo que tarda",
+        "Importar Epic, GOG, EA y Battle.net con Playnite, y CSV de otros trackers",
+        "Importar Nintendo Switch con capturas de la app Nintendo Store",
+        "Colección física con escáner de código de barras"
+      ]
+    },
+    {
+      "fase": "8. Antes de abrir al público (aparcado)",
+      "texto": "Tu decisión del 21/10 sigue en pie: primero el producto. Esto es lo que haría falta el día que quieras abrirlo, incluida la tarea de cada noche, que programarás al desplegar.",
+      "tareas": [
+        "Borrar la cuenta, descargar mis datos y privacidad (RGPD)",
+        "Bloquear, silenciar y quitar seguidores",
+        "Perfil solo para seguidores, con solicitudes",
+        "Entrar con Steam o con cuenta Microsoft",
+        "Encontrar a tus amigos de Steam y Xbox en NextPlay",
+        "Miniatura ya encuadrada de la foto de perfil para las listas",
+        "Buscar grupo para jugar",
+        "Publicar NextPlay y abrir una beta antes de las rebajas de invierno",
+        "Sincronización automática de la biblioteca"
+      ]
+    }
+  ],
+  "ajustes": [
+    "Subir «Logros uno a uno» a prioridad alta, por lo que desbloquea.",
+    "Cerrar «Rediseño de toda la web» cuando se decida lo de las tres columnas: lo que queda ya tiene sus propias propuestas.",
+    "Dividir «Precios de Nintendo eShop y PlayStation Store»: Nintendo, hecha; PlayStation, aparte, pendiente de la clave de PlatPrices.",
+    "Renombrar «Retos del año y control del pendiente» a «Valor del pendiente y repaso de la biblioteca» y subirla a media: los retos ya cubren lo demás, y el repaso es lo que llena Completado.",
+    "Quitar «antes de las rebajas de invierno» del título de «Publicar NextPlay» mientras siga aparcada."
+  ]
+}

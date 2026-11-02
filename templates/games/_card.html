@@ -12,10 +12,22 @@
   </div>
   <p class="card-title">{{ game.name }}</p>
   {% if entry.rating or entry.playtime_hours %}
-    {# En los perfiles: las estrellas y las horas jugadas (Steam + PlayStation + Xbox) del dueño en lugar del año. #}
-    <p class="muted small card-extra">
-      {% if entry.rating %}{% include "library/_stars.html" with rating=entry.rating %}{% endif %}
-      {% if entry.playtime_hours %}<span>{{ entry.playtime_hours|floatformat:"-1" }} h</span>{% endif %}
-    </p>
+    {# En los perfiles: las estrellas y las horas jugadas del dueño en lugar del año, con el logo de la plataforma de la que salen. Si salen de varias, el total y debajo las de cada una. #}
+    {% with platforms=entry.hours_by_platform %}
+      <p class="muted small card-extra">
+        {% if entry.rating %}{% include "library/_stars.html" with rating=entry.rating %}{% endif %}
+        {% if entry.playtime_hours %}
+          <span class="card-hours" title="{% for item in platforms %}{{ item.name }}: {{ item.hours|floatformat:'-1' }} h{% if not forloop.last %} · {% endif %}{% endfor %}">
+            {% if platforms|length == 1 %}{% include "library/_platform_mark.html" with key=platforms.0.key %}{% endif %}
+            {{ entry.playtime_hours|floatformat:"-1" }} h{% if platforms|length == 1 %}<span class="visually-hidden"> en {{ platforms.0.name }}</span>{% endif %}
+          </span>
+        {% endif %}
+      </p>
+      {% if platforms|length > 1 %}
+        <p class="muted small card-split">
+          {% for item in platforms %}<span>{% include "library/_platform_mark.html" with key=item.key %}{{ item.hours|floatformat:"-1" }}<span class="visually-hidden"> h en {{ item.name }}</span></span>{% endfor %}
+        </p>
+      {% endif %}
+    {% endwith %}
   {% elif game.release_year %}<p class="muted small">{{ game.release_year }}</p>{% endif %}
 </a>

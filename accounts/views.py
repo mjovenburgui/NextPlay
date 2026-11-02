@@ -22,7 +22,7 @@ from games import igdb, media
 
 from games.models import LANGUAGE_FILTERS, Game, Genre, igdb_image_url, known_shops, language_filter
 from library import wishlist
-from library.models import LibraryEntry, Review
+from library.models import HOURS_SOURCES, LibraryEntry, Review
 from library.views import mark_liked
 from lists.views import SHOWCASE_LISTS, profile_lists
 from social.views import activity_context, follow_context
@@ -223,19 +223,26 @@ PROFILE_SORTS = {
 
 
 def _profile_stats(owner, entries, counts, reviews):
-    """Cifras de la cabecera del perfil: juegos, completados, horas jugadas (Steam + PlayStation + Xbox), nota media
-    (en estrellas: las notas van en medias estrellas) y reseñas publicadas (reviews, ya contadas).
+    """Cifras de la cabecera del perfil: juegos, completados, horas jugadas (Steam + PlayStation + Xbox) y las de cada
+    plataforma (hours_by_platform, de la que tiene más a la que menos y solo las que tienen alguna), nota media (en
+    estrellas: las notas van en medias estrellas) y reseñas publicadas (reviews, ya contadas).
 
     También calcula los tres géneros más repetidos de su biblioteca.
     """
     ratings = [e.stars for e in entries if e.rating]
     minutes = sum(e.playtime_minutes or 0 for e in entries)
+    by_platform = {key: sum(getattr(e, f"{key}_playtime_minutes") or 0 for e in entries) for key in HOURS_SOURCES}
     # Una fila por (género, juego de la biblioteca), así que cada género cuenta una vez por juego.
     genres = Counter(Genre.objects.filter(games__library_entries__user=owner).values_list("name", flat=True))
     return {
         "games": len(entries),
         "completed": counts[LibraryEntry.Status.COMPLETED],
         "hours": round(minutes / 60) if minutes else None,
+        "hours_by_platform": [
+            {"key": key, "name": HOURS_SOURCES[key], "hours": round(platform_minutes / 60)}
+            for key, platform_minutes in sorted(by_platform.items(), key=lambda item: -item[1])
+            if round(platform_minutes / 60)
+        ],
         "average_rating": sum(ratings) / len(ratings) if ratings else None,
         "reviews": reviews,
         "top_genres": [name for name, _ in genres.most_common(3)],

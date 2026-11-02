@@ -128,7 +128,7 @@
                     <span class="thumb">{% if entry.game.cover_url %}<img src="{{ entry.game.cover_url }}" alt="" loading="lazy">{% endif %}</span>
                     <span class="playing-info">
                       <strong>{{ entry.game.name }}</strong>
-                      <span class="muted small">{% if entry.playtime_hours %}{{ entry.playtime_hours|floatformat:"-1" }} h jugadas{% else %}Jugando{% endif %}</span>
+                      <span class="muted small playing-hours">{% if entry.playtime_hours %}{% for item in entry.hours_by_platform %}{% include "library/_platform_mark.html" with key=item.key %}<span class="visually-hidden">{{ item.name }} </span>{% endfor %}{{ entry.playtime_hours|floatformat:"-1" }} h jugadas{% else %}Jugando{% endif %}</span>
                     </span>
                     {% include "_icon.html" with name="chevron" %}
                   </a>
@@ -148,7 +148,15 @@
         <dl class="stats showcase">
           <div><dt>Juegos</dt><dd>{{ stats.games }}</dd></div>
           <div><dt>Completados</dt><dd>{{ stats.completed }}</dd></div>
-          {% if stats.hours %}<div><dt>Horas jugadas</dt><dd>{{ stats.hours }}</dd></div>{% endif %}
+          {% if stats.hours %}
+            <div>
+              <dt>Horas jugadas</dt><dd>{{ stats.hours }}</dd>
+              {# Las de cada plataforma, cuando son de más de una. #}
+              {% if stats.hours_by_platform|length > 1 %}
+                <dd class="stat-split">{% for item in stats.hours_by_platform %}<span>{% include "library/_platform_mark.html" with key=item.key %}{{ item.hours }}<span class="visually-hidden"> en {{ item.name }}</span></span>{% endfor %}</dd>
+              {% endif %}
+            </div>
+          {% endif %}
           <div><dt>Nota media</dt><dd>{% if stats.average_rating %}<span class="gold">★</span> {{ stats.average_rating|floatformat:1 }}{% else %}–{% endif %}</dd></div>
           <div><dt>Reseñas</dt><dd>{{ stats.reviews }}</dd></div>
           {# De sus logros importados (accounts.achievements.totals): solo si tiene alguno. #}
