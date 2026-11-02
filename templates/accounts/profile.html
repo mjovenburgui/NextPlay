@@ -188,6 +188,25 @@
             {% endif %}
           </section>
         {% endif %}
+      {% elif key == "tier-lists" %}
+        {# Sus tier lists más recientes, con su tablero en miniatura; a su dueño, aunque no tenga ninguna, para que sepa cómo empezarlas. #}
+        {% if showcase_tier_lists or is_owner %}
+          <section class="card-box showcase">
+            <header class="box-head">
+              <h2>{% include "_icon.html" with name="tiers" %} Tier lists</h2>
+              {% if tier_lists|length > showcase_tier_lists|length %}
+                <a href="?vista=tier-lists">Ver las {{ tier_lists|length }} {% include "_icon.html" with name="arrow" %}</a>
+              {% elif is_owner %}
+                <a href="{% url 'lists:new_tier_list' %}">{% include "_icon.html" with name="plus" %} Nueva tier list</a>
+              {% endif %}
+            </header>
+            {% if showcase_tier_lists %}
+              <div class="tier-lists-grid">{% for game_list in showcase_tier_lists %}{% include "lists/_tier_card.html" %}{% endfor %}</div>
+            {% else %}
+              <p class="muted small box-empty">Pon tus juegos por niveles, de S a F. Puedes empezar desde tu biblioteca, con lo que has jugado este año, tus más jugados o tu pendiente ya dentro: <a href="{% url 'lists:new_tier_list' %}">crea una tier list</a>.</p>
+            {% endif %}
+          </section>
+        {% endif %}
       {% endif %}
     {% endfor %}{% endif %}
 
@@ -195,6 +214,7 @@
       <a class="tab{% if not view %} is-active{% endif %}" href="{% url 'profile' owner.username %}">Biblioteca <span>{{ total }}</span></a>
       <a class="tab{% if view == 'resenas' %} is-active{% endif %}" href="?vista=resenas">Reseñas <span>{{ reviews|length }}</span></a>
       <a class="tab{% if view == 'listas' %} is-active{% endif %}" href="?vista=listas">Listas <span>{{ lists|length }}</span></a>
+      <a class="tab{% if view == 'tier-lists' %} is-active{% endif %}" href="?vista=tier-lists">Tier lists <span>{{ tier_lists|length }}</span></a>
       <a class="tab{% if view == 'actividad' %} is-active{% endif %}" href="?vista=actividad">Actividad</a>
     </nav>
 
@@ -211,6 +231,21 @@
       {% else %}
         <p class="empty">
           {% if is_owner %}Aún no tienes listas. Reúne juegos con algo en común: «Mis imprescindibles», «Para jugar en pareja», «Joyas que nadie conoce»…{% else %}{{ profile.name }} aún no tiene listas.{% endif %}
+        </p>
+      {% endif %}
+    {% elif view == "tier-lists" %}
+      {# Sus tier lists, aparte de las demás listas y con su tablero en miniatura (lists.views.mark_boards); las privadas solo las ve él. #}
+      {% if is_owner %}
+        <div class="lists-bar">
+          <p class="muted small">Las privadas solo las ves tú.</p>
+          <a class="btn btn-primary" href="{% url 'lists:new_tier_list' %}">{% include "_icon.html" with name="plus" %} Nueva tier list</a>
+        </div>
+      {% endif %}
+      {% if tier_lists %}
+        <div class="tier-lists-grid">{% for game_list in tier_lists %}{% include "lists/_tier_card.html" %}{% endfor %}</div>
+      {% else %}
+        <p class="empty">
+          {% if is_owner %}Aún no tienes tier lists. Empieza desde tu biblioteca: lo que has jugado este año, tus más jugados o tu pendiente ya están ahí, solo falta ponerlos por niveles.{% else %}{{ profile.name }} aún no tiene tier lists.{% endif %}
         </p>
       {% endif %}
     {% elif view == "actividad" %}

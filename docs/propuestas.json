@@ -227,32 +227,31 @@
   {
     "titulo": "Tier lists que se rellenan solas con tu biblioteca: «Jugados en 2026», tu pendiente, tus platinos…",
     "fecha": "2026-10-29",
-    "estado": "pendiente",
+    "estado": "en curso",
     "prioridad": "alta",
     "tipo": "Funcionalidad",
-    "resumen": "Al crear una lista, poder empezar desde una plantilla que mete sola los juegos de tu biblioteca en «Sin clasificar» de una tier list, para que solo haya que arrastrarlos: jugados este año, terminados este año, los que más horas llevan, tus platinos y 100 %, lo jugado en cada plataforma o tu pendiente.",
+    "resumen": "Al crear una tier list, poder empezar desde una plantilla que mete sola los juegos de tu biblioteca en «Sin clasificar», para que solo haya que arrastrarlos: jugados este año, terminados este año, los que más horas llevan, tus platinos y 100 %, lo jugado en cada plataforma o tu pendiente. Y que las tier lists tengan su propia sección, aparte de las listas.",
     "motivo": "Idea del usuario (29/10/2026). Las tier lists y el tablero para arrastrar ya existen (GameList en modo tiers, la fila «Sin clasificar», SortableJS), pero los juegos hay que buscarlos y añadirlos uno a uno. NextPlay ya sabe qué has jugado y cuándo gracias a las importaciones: con la cuenta de prueba tester_steam, «Jugados en 2026» saldría con 50 juegos sin escribir ninguno.",
     "pasos": [
-      "En «Nueva lista», un bloque «Empezar desde tu biblioteca» con las plantillas y cuántos juegos metería cada una; al elegir una se crea la tier list con su título («Jugados en 2026») y sus juegos sin clasificar, ordenados por horas, y se abre el tablero.",
+      "En «Nueva tier list», un bloque «Empieza desde tu biblioteca» con las plantillas y cuántos juegos metería cada una; al elegir una se crea la tier list con su título («Jugados en 2026») y sus juegos sin clasificar, ordenados por horas, y se abre el tablero.",
+      "Sección propia para las tier lists (idea del usuario, 02/11/2026: «es algo más grande»): su página «Nueva tier list», con las plantillas arriba y debajo el formulario para empezarla en blanco; su pestaña en el perfil y su sección en el escaparate, con un tablero en miniatura en cada tarjeta; y «Mis tier lists» en el menú. «Nueva lista» crea las normales y las numeradas. Por dentro siguen siendo listas (GameList en modo tiers), con sus «me gusta», comentarios y colaboradores, y una lista puede cambiar de tipo en su editor.",
       "Plantillas: jugados este año (última partida de Steam, PlayStation o Xbox, completed_at o una reseña terminada este año), terminados este año, tus 30 más jugados por horas, tus platinos y 100 % (accounts.achievements), lo jugado en cada plataforma y tu pendiente.",
       "Niveles propios de cada plantilla: S, A, B, C y D para lo jugado; «Ya mismo», «Pronto», «Algún día» y «Nunca» para el pendiente, que así sirve para decidir qué jugar después.",
       "Si los juegos tienen nota, ofrecer colocarlos de entrada según ella (5 estrellas en S, 4 en A…) para que solo haya que retocar.",
       "Lista viva: la del año en curso sigue metiendo en «Sin clasificar» los juegos nuevos que juegas al sincronizar, con un aviso («3 juegos nuevos por colocar»); el 1 de enero se cierra y empieza la del año siguiente.",
       "En el perfil, la serie de tus años juntos («Tus años en tier lists»)."
     ],
-    "notas": "Los años pasados no pueden ser exactos: Steam solo da la última partida y el historial de sesiones (PlaySession) empieza el 25/10/2026, así que «Jugados en 2025» se perdería los juegos de 2025 que se han vuelto a jugar en 2026 (PlayStation sí da la primera partida). Mejor ofrecer solo el año en curso y, desde 2027, los anteriores con el historial. Solo 2 de los 348 juegos de tester_steam tienen nota, así que colocar por nota es un extra: lo importante es el orden por horas. Encaja con «Estadísticas del perfil y resumen anual» y con la tarjeta para compartir de «Vistas previas al compartir y tarjeta para incrustar».",
+    "notas": "Los años pasados no pueden ser exactos: Steam solo da la última partida y el historial de sesiones (PlaySession) empieza el 25/10/2026, así que «Jugados en 2025» se perdería los juegos de 2025 que se han vuelto a jugar en 2026 (PlayStation sí da la primera partida). Mejor ofrecer solo el año en curso y, desde 2027, los anteriores con el historial. Solo 2 de los 348 juegos de tester_steam tienen nota, así que colocar por nota es un extra: lo importante es el orden por horas. Encaja con «Estadísticas del perfil y resumen anual» y con la tarjeta para compartir de «Vistas previas al compartir y tarjeta para incrustar». 02/11/2026: hechos en la rama tierlists-biblioteca los cinco primeros pasos. Las plantillas están en lists/presets.py y las crea lists.views.from_library; colocar por nota va de serie, sin casilla, porque solo mueve los juegos que la tienen. Faltan la lista viva y la serie de tus años.",
     "revision": {
-      "fecha": "2026-11-01",
-      "hoy": "Sin empezar, pero existe todo lo que necesita: GameList en modo tiers, el tablero con arrastre, la fila «Sin clasificar» y LIST_MAX_GAMES (250). Hoy he comprobado algo que corrige su nota: los años pasados sí se pueden reconstruir, porque los logros traen fecha (ver abajo).",
+      "fecha": "2026-11-02",
+      "hoy": "Primera fase hecha en la rama tierlists-biblioteca. Hay siete plantillas en lists/presets.py; con tester_steam, «Jugados en 2026» sale con 51 juegos, «Tus platinos y 100 %» con 10 y el pendiente con 119, y la de Xbox no sale porque no tiene horas ahí. Cada plantilla crea la tier list privada, ordenada por horas y con los juegos con nota ya en su nivel. Las tier lists tienen ya su sección: la página «Nueva tier list», su pestaña y su sección del escaparate en el perfil, con un tablero en miniatura en cada tarjeta (lists.views.mark_boards, dos consultas para todas), y «Mis tier lists» en el menú.",
       "plan": [
-        "lists/starters.py: un diccionario de plantillas, cada una con su clave, su título, sus niveles y una función que recibe al usuario y devuelve sus juegos ordenados. Añadir una plantilla serían cuatro líneas.",
-        "Primeras plantillas: «Jugados este año» (año de steam_, psn_ o xbox_last_played, completed_at o finished_on de una reseña), «Terminados este año», «Tus 30 más jugados», «Platinos y 100 %» (accounts.achievements.progress_by_game), una por plataforma (ImportedTitle.platforms) y «Tu pendiente», con los niveles «Ya mismo», «Pronto», «Algún día» y «Nunca».",
-        "GameList.add_many(games, user): un bulk_create de ListItem con puestos seguidos, porque añadirlos con add serían cientos de consultas; después activity.list_games_added(game_list, user, count=n), que ya acepta el número.",
-        "En lists/form.html, encima del formulario, una tarjeta por plantilla con cuántos juegos metería (un count, sin cargarlos). Va por POST a lists.views.from_starter, que crea la lista y abre el tablero. Si pasa de 250, avisa de que entran los 250 con más horas.",
-        "Colocar por nota solo como casilla opcional: con 2 de 348 juegos valorados en tester_steam no merece ir primero.",
-        "Segunda fase, la lista viva: GameList.source (JSON con la plantilla y el año); update_library mete lo nuevo en «Sin clasificar» con un aviso, y nightly la cierra el 1 de enero."
+        "Lista viva: al crearla desde una plantilla, guardar en GameList.source la plantilla y el año (JSON); update_library mete en «Sin clasificar» lo que la plantilla elegiría ahora y aún no está, con un aviso («3 juegos nuevos por colocar»), y nightly la cierra el 1 de enero y ofrece la del año nuevo.",
+        "«Tus años en tier lists»: en la pestaña Tier lists del perfil, las de las plantillas por año juntas, de la más reciente a la más antigua.",
+        "Los años pasados, con las fechas de los logros en cuanto «Logros uno a uno» las guarde (ver abajo)."
       ],
       "profundizar": [
+        "Una entrada «Tier lists» en el menú de arriba, como la de «Retos», cuando haya algo que explorar además de las tuyas: la tier list de la comunidad por plantilla y las de la gente que sigues.",
         "Años pasados con los logros: comprobado con tester_steam, 118 de sus 128 juegos con logros traen fechas, 36 tienen logros de 2025 y 14 de esos se perderían mirando solo la última partida, porque se volvieron a jugar en 2026. Con «Logros uno a uno», «Jugados en 2025» se puede ofrecer ya, diciendo «según tus logros».",
         "«Haz tu versión»: en la tier list de otra persona, un botón copia sus juegos a una tuya sin clasificar y, al terminar, enseña en qué discrepáis («S para ti, C para Ana»). Da conversación y se comparte sola.",
         "Tier list de la comunidad por plantilla: la mediana del nivel de cada juego entre todos los que han hecho «Jugados en 2026», como resumen del año sin pedir nada nuevo a nadie.",
@@ -1886,17 +1885,16 @@
       "lists/detail.html: cambiar el ♡ por el icono heart de _icon.html.",
       "Difuminar el borde de .tabs por el lado en el que quedan pestañas cuando se pueden deslizar."
     ],
-    "notas": "Se pueden hacer de paso con cualquiera de las otras mejoras de diseño. 28/10/2026: en la rama listas-arrastrar, de paso con «Listas: colocar las carátulas arrastrándolas», ya están los dos primeros: un estilo común quita el recuadro a todos los fieldset (y de paso alinea «Tipo de reto» con los demás campos del formulario de retos) y el botón de las listas usa el icono del corazón. Falta difuminar las pestañas.",
+    "notas": "Se pueden hacer de paso con cualquiera de las otras mejoras de diseño. 28/10/2026: en la rama listas-arrastrar, de paso con «Listas: colocar las carátulas arrastrándolas», ya están los dos primeros: un estilo común quita el recuadro a todos los fieldset (y de paso alinea «Tipo de reto» con los demás campos del formulario de retos) y el botón de las listas usa el icono del corazón. Falta difuminar las pestañas. 02/11/2026: en la rama tierlists-biblioteca, como el perfil tiene una pestaña más («Tier lists»), la pestaña activa ya se centra en su barra al entrar (un script en base.html para todas las .tabs, que solo mueve la barra).",
     "revision": {
-      "fecha": "2026-11-01",
-      "hoy": "Dos de tres hechos. Falta el difuminado de las pestañas: .tabs (app.css, línea 477) no lleva ninguna máscara.",
+      "fecha": "2026-11-02",
+      "hoy": "Dos de tres hechos, y la pestaña activa ya se centra al entrar. Falta el difuminado de las pestañas: .tabs no lleva ninguna máscara.",
       "plan": [
         "En app.css, una máscara con degradado en .tabs dentro de @supports, usando animation-timeline: scroll(self inline) para que solo aparezca en el lado en el que queda algo por ver. Sin JavaScript.",
         "En los navegadores sin eso, una máscara fija a la derecha, que es mejor que nada.",
         "Probar a 390 px en Editar perfil y en el perfil, y pasar a «hecha»."
       ],
       "profundizar": [
-        "Que la pestaña activa se vea al entrar: scrollIntoView con inline: center, para no aterrizar con ella cortada.",
         "Un pase de detalles cada dos semanas con capturas a 390 px, vaciando esta propuesta de una vez en lugar de tener muchas pequeñas.",
         "Capturas automáticas con Playwright en las páginas principales, para ver qué ha cambiado sin tener que mirarlo a mano."
       ]

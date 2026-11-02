@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Nueva tier list · NextPlay{% endblock %}
+
+{% block content %}
+  {# Crear una tier list: desde una plantilla que la rellena con la biblioteca (lists.presets; cada una se crea de un clic con #}
+  {# lists.views.from_library) o en blanco, con sus datos y sus niveles; la que se empieza en blanco lleva al editor para añadir los juegos. #}
+  <section class="panel panel-wide list-presets" id="biblioteca" aria-labelledby="tier-new-title">
+    <h1 id="tier-new-title">{% include "_icon.html" with name="tiers" %} Nueva tier list</h1>
+    {% if presets %}
+      <p class="muted">Empieza desde tu biblioteca: se crea con tus juegos ya dentro, en «Sin clasificar», y solo tienes que arrastrarlos a su nivel. Los que tienen nota empiezan colocados según ella. Se crea privada, para que la coloques con calma.</p>
+      <ul class="list-presets-grid">
+        {% for preset in presets %}
+          <li class="list-preset{% if not preset.ready %} is-off{% endif %}">
+            {% include "lists/_mosaic.html" with game_list=preset size="" %}
+            <span class="list-card-title">{{ preset.label }}</span>
+            <span class="list-card-meta muted small">{{ preset.count }} juego{{ preset.count|pluralize }} · {{ preset.help }}</span>
+            {% if preset.existing %}
+              <a class="btn btn-small" href="{{ preset.existing.get_absolute_url }}">{% include "_icon.html" with name="arrow" %} Ya la tienes<span class="visually-hidden">: «{{ preset.existing.title }}»</span></a>
+            {% elif preset.ready %}
+              <form method="post" action="{% url 'lists:from_library' %}">
+                {% csrf_token %}
+                <input type="hidden" name="plantilla" value="{{ preset.key }}">
+                <button class="btn btn-small btn-primary" type="submit">{% include "_icon.html" with name="plus" %} Crear<span class="visually-hidden"> «{{ preset.label }}»</span></button>
+              </form>
+            {% else %}
+              <span class="muted small">Hacen falta al menos {{ min_games }} juegos.</span>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">Cuando tengas juegos en tu biblioteca, añadidos a mano o importados de Steam, PlayStation o Xbox, aquí podrás empezar con ellos ya dentro: lo que has jugado este año, tus más jugados, tus platinos o tu pendiente.</p>
+    {% endif %}
+  </section>
+  <div class="panel panel-wide list-form">
+    <h2>O empieza una en blanco</h2>
+    <form method="post" action="{% url 'lists:new_tier_list' %}">
+      {% csrf_token %}
+      {% include "lists/_fields.html" %}
+      <div class="list-form-foot">
+        <button class="btn btn-primary" type="submit">Crear tier list</button>
+      </div>
+    </form>
+  </div>
+{% endblock %}

@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% load reviews %}
 
-{% block title %}{{ game_list.title }}, lista de {{ owner.profile.name }} · NextPlay{% endblock %}
-{% block description %}{% if game_list.description %}{{ game_list.description|review_plain|truncatechars:155 }}{% else %}{{ items|length }} juego{{ items|length|pluralize }} en la lista «{{ game_list.title }}» de {{ owner.profile.name }} en NextPlay.{% endif %}{% endblock %}
+{% block title %}{{ game_list.title }}, {{ game_list.noun }} de {{ owner.profile.name }} · NextPlay{% endblock %}
+{% block description %}{% if game_list.description %}{{ game_list.description|review_plain|truncatechars:155 }}{% else %}{{ items|length }} juego{{ items|length|pluralize }} en la {{ game_list.noun }} «{{ game_list.title }}» de {{ owner.profile.name }} en NextPlay.{% endif %}{% endblock %}
 
 {% block content %}
   {% with profile=owner.profile %}
@@ -11,7 +11,7 @@
     {% if invitation %}
       {# Quien está invitado a editarla y aún no ha dicho nada. #}
       <div class="card-box list-invitation">
-        <p><strong>{{ profile.name }} te ha invitado a editar esta lista.</strong> <span class="muted">Podrás añadir, ordenar y comentar sus juegos.</span></p>
+        <p><strong>{{ profile.name }} te ha invitado a editar esta {{ game_list.noun }}.</strong> <span class="muted">Podrás añadir, ordenar y comentar sus juegos.</span></p>
         <div class="list-invitation-actions">
           <form method="post" action="{% url 'lists:accept' game_list.pk %}">{% csrf_token %}<button class="btn btn-primary" type="submit">Aceptar</button></form>
           <form method="post" action="{% url 'lists:leave' game_list.pk %}">{% csrf_token %}<button class="btn" type="submit">Rechazar</button></form>
@@ -21,7 +21,7 @@
     <header class="card-box list-hero">
       {% include "lists/_mosaic.html" with size="lg" %}
       <div class="list-hero-info">
-        <p class="list-kicker">{% include "_icon.html" with name="list" %} {% if game_list.is_tiered %}Tier list{% elif game_list.is_ranked %}Lista numerada{% else %}Lista{% endif %}{% if not game_list.is_public %} <span class="pill">Privada: solo la ves tú{% if collaborators %} y quien colabora{% endif %}</span>{% endif %}</p>
+        <p class="list-kicker">{% if game_list.is_tiered %}{% include "_icon.html" with name="tiers" %} Tier list{% else %}{% include "_icon.html" with name="list" %} {% if game_list.is_ranked %}Lista numerada{% else %}Lista{% endif %}{% endif %}{% if not game_list.is_public %} <span class="pill">Privada: solo la ves tú{% if collaborators %} y quien colabora{% endif %}</span>{% endif %}</p>
         <h1>{{ game_list.title }}</h1>
         <p class="list-author">
           <a href="{{ profile.get_absolute_url }}">{% include "accounts/_avatar.html" with size="sm" %} {{ profile.name }}</a>
@@ -36,7 +36,7 @@
         {% if game_list.description %}<div class="list-description review-text">{{ game_list.description|review_html }}</div>{% endif %}
         <div class="list-actions">
           {% if is_owner %}
-            <a class="btn" href="{% url 'lists:edit' game_list.pk %}">{% include "_icon.html" with name="edit" %} Editar lista</a>
+            <a class="btn" href="{% url 'lists:edit' game_list.pk %}">{% include "_icon.html" with name="edit" %} Editar {{ game_list.noun }}</a>
           {% elif can_edit %}
             <a class="btn" href="{% url 'lists:edit' game_list.pk %}#juegos">{% include "_icon.html" with name="edit" %} Editar juegos</a>
           {% endif %}

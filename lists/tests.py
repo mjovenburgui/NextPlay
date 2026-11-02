@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -8,14 +8,16 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from accounts.models import Notification
+from accounts.models import ExternalTitle, ImportedTitle, Notification
 from games.models import Game, GamePrice
-from library.models import LibraryEntry, Report, WishlistItem
+from library.models import LibraryEntry, Report, Review, WishlistItem
 from social.models import Activity, Follow
 
+from . import presets
 from .models import (
     LIST_MAX_GAMES, MAX_COLLABORATORS, NOTE_MAX_LENGTH, GameList, ListCollaborator, ListComment, ListItem, ListLike,
 )
+from .views import BOARD_COVERS, mark_boards
 
 User = get_user_model()
 HTMX = {"HTTP_HX_REQUEST": "true"}
@@ -668,8 +670,8 @@ class TierListTests(TestCase):
         self.client.force_login(self.ana)
 
     def create(self, **changes):
-        """Crea como ana la tier list «Roguelikes» desde el formulario, con sus tres juegos."""
-        self.client.post(reverse("lists:new"), tier_form(**changes))
+        """Crea como ana la tier list «Roguelikes» desde el formulario de «Nueva tier list», con sus tres juegos."""
+        self.client.post(reverse("lists:new_tier_list"), tier_form(**changes))
         game_list = GameList.objects.get(title="Roguelikes")
         for game in (self.hades, self.celeste, self.tunic):
             game_list.add(game, self.ana)
@@ -707,9 +709,9 @@ class TierListTests(TestCase):
 
     def test_a_tier_list_needs_a_tier_and_valid_colours(self):
         empty = {f"nivel_{n}": "" for n in range(6)}
-        response = self.client.post(reverse("lists:new"), tier_form(**empty))
+        response = self.client.post(reverse("lists:new_tier_list"), tier_form(**empty))
         self.assertContains(response, "Ponle nombre al menos a un nivel.")
-        response = self.client.post(reverse("lists:new"), tier_form(color_0="rojo"))
+        response = self.client.post(reverse("lists:new_tier_list"), tier_form(color_0="rojo"))
         self.assertContains(response, "Elige un color.")
         self.assertFalse(GameList.objects.exists())
 
@@ -741,7 +743,10 @@ class TierListTests(TestCase):
         self.assertContains(response, 'class="tier-chip is-on" style="--tier: #ff4d5e; --tier-text: #ffffff;">S</span>', html=False)
 
     def test_numbered_lists_keep_their_mode(self):
-        game_list = self.create(mode="ranked")
+        self.client.post(reverse("lists:new"), {"title": "Ranking", "description": "", "mode": "ranked"})
+        game_list = GameList.objects.get(title="Ranking")
+        for game in (self.hades, self.celeste, self.tunic):
+            game_list.add(game, self.ana)
         self.assertTrue(game_list.is_ranked)
         response = self.client.get(game_list.get_absolute_url())
         self.assertEqual(response.context["view"], "portadas")
@@ -827,6 +832,111 @@ class TierListTests(TestCase):
         self.assertNotContains(response, "data-tier-board data-desde")
         self.assertContains(response, "data-sortable-rows>")
         self.assertContains(response, 'class="drag-handle"', count=3)
+
+    def test_tier_lists_have_their_own_page_to_start_them(self):
+        # «Nueva lista» ya no ofrece el tipo «Por niveles», sino un enlace a su página.
+        response = self.client.get(reverse("lists:new"))
+        self.assertNotContains(response, 'value="tiers"')
+        self.assertContains(response, f'href="{reverse("lists:new_tier_list")}"')
+        response = self.client.post(reverse("lists:new"), tier_form())
+        self.assertIn("mode", response.context["form"].errors)
+        self.assertFalse(GameList.objects.exists())
+        # En la suya el tipo va fijo y los niveles se ven siempre. Sin juegos en la biblioteca no hay plantillas: dice
+        # cómo tenerlas.
+        url = reverse("lists:new_tier_list")
+        response = self.client.get(url)
+        self.assertContains(response, '<input type="hidden" name="mode" value="tiers"', html=False)
+        self.assertContains(response, "Niveles, de mejor a peor")
+        self.assertContains(response, "Cuando tengas juegos en tu biblioteca")
+        # Aunque se mande otro tipo, sale una tier list, y lleva a su editor para añadir los juegos.
+        response = self.client.post(url, tier_form(mode="list"))
+        game_list = GameList.objects.get()
+        self.assertRedirects(response, f"{reverse('lists:edit', args=[game_list.pk])}#juegos", fetch_redirect_response=False)
+        self.assertTrue(game_list.is_tiered)
+        self.assertContains(self.client.get(response.url), "Tier list creada.")
+        self.client.logout()
+        self.assertRedirects(self.client.get(url), f"{reverse('login')}?next={url}", fetch_redirect_response=False)
+
+
+class TierListSectionTests(TestCase):
+    """Las tier lists, aparte de las demás listas: su pestaña del perfil, su sección del escaparate, su tablero en
+    miniatura (lists.views.mark_boards) y cómo se las llama."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.games = make_games(*[f"Juego {n}" for n in range(10)])
+        cls.plain = GameList.objects.create(user=cls.ana, title="Roguelikes")
+        cls.plain.add(cls.games[0])
+        cls.tiers = GameList.objects.create(user=cls.ana, title="Mis niveles", mode=GameList.Mode.TIERS)
+        for game in cls.games:
+            cls.tiers.add(game)
+        # Ocho juegos en S, uno en B y uno sin clasificar.
+        cls.tiers.items.update(tier=0)
+        cls.tiers.items.filter(game=cls.games[8]).update(tier=2)
+        cls.tiers.items.filter(game=cls.games[9]).update(tier=None)
+
+    def profile(self, view=""):
+        return self.client.get(reverse("profile", args=["ana"]), {"vista": view} if view else {})
+
+    def test_each_kind_has_its_own_tab(self):
+        response = self.profile("listas")
+        self.assertEqual([game_list.title for game_list in response.context["lists"]], ["Roguelikes"])
+        self.assertNotContains(response, "Mis niveles")
+        self.assertContains(response, 'href="?vista=listas">Listas <span>1</span>')
+        self.assertContains(response, 'href="?vista=tier-lists">Tier lists <span>1</span>')
+        response = self.profile("tier-lists")
+        self.assertEqual([game_list.title for game_list in response.context["tier_lists"]], ["Mis niveles"])
+        self.assertNotContains(response, "Roguelikes")
+        self.assertNotContains(response, "Nueva tier list")
+        # Su dueño la crea desde ahí y la encuentra en su menú.
+        self.client.force_login(self.ana)
+        response = self.profile("tier-lists")
+        self.assertContains(response, f'href="{reverse("lists:new_tier_list")}"')
+        self.assertContains(response, f'href="{reverse("profile", args=["ana"])}?vista=tier-lists"')
+
+    def test_the_card_shows_a_small_board(self):
+        game_list = self.profile("tier-lists").context["tier_lists"][0]
+        board = [(level["label"], len(items), more) for level, items, more in game_list.board]
+        self.assertEqual(
+            board, [("S", BOARD_COVERS, 8 - BOARD_COVERS), ("A", 0, 0), ("B", 1, 0), ("C", 0, 0), ("D", 0, 0), ("F", 0, 0)],
+        )
+        self.assertEqual(game_list.loose_count, 1)
+        response = self.profile("tier-lists")
+        self.assertContains(response, f'<span class="tier-mini-more">+{8 - BOARD_COVERS}</span>', html=False)
+        self.assertContains(response, "1 sin clasificar")
+        # Los juegos de un nivel que ya no existe también cuentan como sin clasificar.
+        self.tiers.tiers = [tier for tier in self.tiers.tiers if tier["id"] != 2]
+        self.tiers.save()
+        game_list = mark_boards(list(GameList.objects.filter(pk=self.tiers.pk)))[0]
+        self.assertEqual(
+            ([level["label"] for level, _, _ in game_list.board], game_list.loose_count), (["S", "A", "C", "D", "F"], 2),
+        )
+
+    def test_the_showcase_has_a_section_for_them(self):
+        response = self.profile()
+        self.assertEqual([game_list.title for game_list in response.context["showcase_lists"]], ["Roguelikes"])
+        self.assertEqual([game_list.title for game_list in response.context["showcase_tier_lists"]], ["Mis niveles"])
+        self.assertContains(response, 'class="tier-mini"')
+        # Sin ninguna, a los demás no les sale; a su dueño, sí, con cómo empezar una.
+        self.tiers.delete()
+        self.assertNotContains(self.profile(), " Tier lists</h2>")
+        self.client.force_login(self.ana)
+        response = self.profile()
+        self.assertContains(response, " Tier lists</h2>")
+        self.assertContains(response, "crea una tier list")
+
+    def test_it_is_called_a_tier_list(self):
+        luis = User.objects.create_user("luis", "luis@example.com", "x")
+        self.client.force_login(luis)
+        self.client.post(reverse("lists:like", args=[self.tiers.pk]))
+        self.assertEqual(Notification.objects.get().text, "A luis le ha gustado tu tier list «Mis niveles».")
+        self.client.force_login(self.ana)
+        self.assertContains(self.client.get(self.tiers.get_absolute_url()), "Editar tier list")
+        # Al borrarla vuelve a sus tier lists.
+        response = self.client.post(reverse("lists:delete", args=[self.tiers.pk]))
+        self.assertRedirects(response, f"{reverse('profile', args=['ana'])}?vista=tier-lists", fetch_redirect_response=False)
+        self.assertContains(self.client.get(response.url), "Tier list «Mis niveles» borrada.")
 
 
 class CollaborationTests(TestCase):
@@ -952,3 +1062,128 @@ class CollaborationTests(TestCase):
         self.assertContains(response, "Invitación pendiente")
         # Para escribir el nombre, la gente a la que sigue y aún no ha invitado.
         self.assertEqual(response.context["suggested"], ["eva"])
+
+
+class LibraryPresetTests(TestCase):
+    """Tier lists que se rellenan solas con la biblioteca (lists.presets y lists.views.from_library)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.year = timezone.localdate().year
+        this_year = timezone.make_aware(datetime(cls.year, 1, 1, 12))
+        last_year = timezone.make_aware(datetime(cls.year - 1, 6, 1))
+        cls.hades, cls.celeste, cls.tunic, cls.inside, cls.outer, cls.doom = make_games(
+            "Hades", "Celeste", "Tunic", "Inside", "Outer Wilds", "Doom",
+        )
+        played = LibraryEntry.Status.PLAYED
+        # Hades, jugado este año en Steam y con cinco estrellas; Celeste, jugado el año pasado en PlayStation pero
+        # completado este año; Tunic, jugado el año pasado en Xbox y nada más.
+        LibraryEntry.objects.create(
+            user=cls.ana, game=cls.hades, status=played, rating=10, steam_playtime_minutes=600, steam_last_played=this_year,
+        )
+        LibraryEntry.objects.create(
+            user=cls.ana, game=cls.celeste, status=LibraryEntry.Status.COMPLETED, completed_at=this_year,
+            psn_playtime_minutes=1200, psn_last_played=last_year,
+        )
+        LibraryEntry.objects.create(
+            user=cls.ana, game=cls.tunic, status=played, xbox_playtime_minutes=60, xbox_last_played=last_year,
+        )
+        # Inside, sin horas importadas pero con una reseña terminada este año; Outer Wilds, jugándolo (sin horas
+        # importadas); Doom, pendiente.
+        LibraryEntry.objects.create(user=cls.ana, game=cls.inside, status=played)
+        Review.objects.create(user=cls.ana, game=cls.inside, text="Corto y redondo.", finished_on=date(cls.year, 1, 1))
+        LibraryEntry.objects.create(user=cls.ana, game=cls.outer, status=LibraryEntry.Status.PLAYING)
+        LibraryEntry.objects.create(user=cls.ana, game=cls.doom, status=LibraryEntry.Status.BACKLOG)
+
+    def setUp(self):
+        self.client.force_login(self.ana)
+
+    def chosen(self, key):
+        """Nombres de los juegos que elige para ana la plantilla key, en su orden."""
+        return [entry.game.name for entry in presets.PRESETS[key].choose(self.ana, self.year)]
+
+    def achieve(self, game, platform, unlocked, total, platinum=False):
+        """Apunta a ana unlocked de total logros de game en platform, como una importación."""
+        title = ExternalTitle.objects.create(platform=platform, external_id=game.slug, name=game.name, game=game)
+        row = ImportedTitle(user=self.ana, title=title, game=game)
+        row.set_achievements(unlocked, total, platinum)
+        row.save()
+
+    def create(self, key):
+        """Crea como ana la tier list de la plantilla key."""
+        return self.client.post(reverse("lists:from_library"), {"plantilla": key})
+
+    def test_each_preset_chooses_from_the_library(self):
+        # De más a menos horas y, sin horas, de lo añadido hace menos a lo que más. Tunic es del año pasado.
+        self.assertEqual(self.chosen("jugados"), ["Celeste", "Hades", "Outer Wilds", "Inside"])
+        self.assertEqual(self.chosen("terminados"), ["Celeste", "Inside"])
+        self.assertEqual(self.chosen("mas-jugados"), ["Celeste", "Hades", "Tunic"])
+        self.assertEqual(
+            [self.chosen(f"jugados-{key}") for key in ("steam", "psn", "xbox")], [["Hades"], ["Celeste"], ["Tunic"]],
+        )
+        self.assertEqual(self.chosen("pendiente"), ["Doom"])
+        self.assertEqual(self.chosen("platinos"), [])
+        self.achieve(self.hades, "steam", 49, 49)
+        self.achieve(self.celeste, "psn", 30, 31, platinum=True)
+        self.achieve(self.tunic, "xbox", 10, 40)
+        self.assertEqual(self.chosen("platinos"), ["Celeste", "Hades"])
+
+    def test_a_preset_becomes_a_private_tier_list_ready_to_drag(self):
+        response = self.create("jugados")
+        game_list = GameList.objects.get()
+        # Sin abrirla aún: al abrirla se lee el aviso de que se ha creado.
+        self.assertRedirects(response, game_list.get_absolute_url(), fetch_redirect_response=False)
+        self.assertEqual(
+            (game_list.title, game_list.mode, game_list.is_public, [tier["label"] for tier in game_list.tiers]),
+            (f"Jugados en {self.year}", GameList.Mode.TIERS, False, ["S", "A", "B", "C", "D", "F"]),
+        )
+        # En el orden de la plantilla y sin clasificar, salvo Hades, que empieza en S por sus cinco estrellas.
+        self.assertEqual(
+            [(item.game.name, item.tier, item.added_by) for item in game_list.items.select_related("game")],
+            [("Celeste", None, self.ana), ("Hades", 0, self.ana), ("Outer Wilds", None, self.ana), ("Inside", None, self.ana)],
+        )
+        activity = Activity.objects.get(kind=Activity.Kind.LIST)
+        self.assertEqual((activity.list_created, activity.list_added), (True, 4))
+        page = self.client.get(response.url)
+        self.assertContains(page, "Tier list creada con 4 juegos (1 ya colocado por tu nota)")
+        self.assertContains(page, "data-tier-board")
+        # La misma plantilla otra vez lleva a la que ya tiene en vez de repetirla.
+        self.assertRedirects(self.create("jugados"), game_list.get_absolute_url())
+        self.assertEqual(GameList.objects.count(), 1)
+
+    def test_the_backlog_has_its_own_tiers_and_every_preset_needs_two_games(self):
+        response = self.create("pendiente")
+        self.assertRedirects(response, reverse("lists:new_tier_list"), fetch_redirect_response=False)
+        self.assertFalse(GameList.objects.exists())
+        hollow = make_games("Hollow Knight")[0]
+        LibraryEntry.objects.create(user=self.ana, game=hollow, status=LibraryEntry.Status.BACKLOG, rating=8)
+        self.create("pendiente")
+        game_list = GameList.objects.get()
+        self.assertEqual([tier["label"] for tier in game_list.tiers], ["Ya mismo", "Pronto", "Algún día", "Nunca"])
+        # El pendiente no coloca por nota: todo empieza sin clasificar.
+        self.assertEqual(list(game_list.items.values_list("tier", flat=True)), [None, None])
+
+    def test_the_new_tier_list_page_offers_them(self):
+        response = self.client.get(reverse("lists:new_tier_list"))
+        self.assertContains(response, "Empieza desde tu biblioteca")
+        self.assertContains(response, f"Jugados en {self.year}")
+        shown = {preset["key"]: preset for preset in response.context["presets"]}
+        # Las que no tienen juegos no salen y las que tienen uno solo aún no se pueden crear.
+        self.assertNotIn("platinos", shown)
+        self.assertEqual((shown["jugados"]["count"], shown["jugados"]["ready"]), (4, True))
+        self.assertFalse(shown["jugados-xbox"]["ready"])
+        self.assertContains(response, "Hacen falta al menos 2 juegos")
+        # Si ya tiene una lista con ese título, la enseña en vez de ofrecer crearla.
+        game_list = GameList.objects.create(user=self.ana, title=f"Jugados en {self.year}")
+        self.assertContains(self.client.get(reverse("lists:new_tier_list")), game_list.get_absolute_url())
+        # «Nueva lista» ya no las ofrece: son tier lists, y tienen su página.
+        self.assertNotContains(self.client.get(reverse("lists:new")), "Empieza desde tu biblioteca")
+
+    def test_only_known_presets_by_post_and_with_a_session(self):
+        self.assertEqual(self.create("no-existe").status_code, 404)
+        self.assertEqual(self.client.get(reverse("lists:from_library")).status_code, 405)
+        self.client.logout()
+        self.assertRedirects(
+            self.create("jugados"), f"{reverse('login')}?next={reverse('lists:from_library')}", fetch_redirect_response=False,
+        )

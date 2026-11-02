@@ -5,7 +5,9 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
-from django.db.models import Count, Exists, OuterRef, Q
+from django.db import transaction
+from django.db.models import Count, Exists, F, OuterRef, Q, Window
+from django.db.models.functions import RowNumber
 from django.http import Http404, HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.defaultfilters import pluralize
@@ -20,7 +22,8 @@ from library.models import LibraryEntry, WishlistItem
 from library.views import _report, comment_thread
 from social import activity
 
-from .forms import GameListForm, ListCommentForm
+from . import presets
+from .forms import GameListForm, ListCommentForm, NewListForm, TierListForm
 from .models import (
     LIST_MAX_GAMES, MAX_COLLABORATORS, NOTE_MAX_LENGTH, GameList, ListCollaborator, ListComment, ListItem, ListLike,
 )
@@ -29,9 +32,13 @@ User = get_user_model()
 
 # Juegos que salen al buscar en el editor de una lista.
 SEARCH_RESULTS = 8
-# Listas que salen en la ficha de un juego («En N listas») y en el escaparate del perfil.
+# Listas que salen en la ficha de un juego («En N listas») y en el escaparate del perfil; de las tier lists, que
+# llevan su tablero en miniatura, caben menos.
 GAME_PAGE_LISTS = 4
 SHOWCASE_LISTS = 3
+SHOWCASE_TIER_LISTS = 2
+# Portadas de cada nivel en el tablero en miniatura de las tarjetas de las tier lists (lists/_tier_card.html).
+BOARD_COVERS = 6
 # Listas por página en la de todas las listas en las que está un juego.
 LISTS_PER_PAGE = 24
 # Estados de la biblioteca que cuentan como jugado en el progreso de una lista: todos menos Pendiente.
@@ -90,6 +97,32 @@ def profile_lists(owner, viewer, public_only=False):
     lists = mark_progress(list(lists.with_preview()), viewer)
     for game_list in lists:
         game_list.from_other = game_list.user_id != owner.pk
+    return lists
+
+
+def mark_boards(lists):
+    """Apunta en cada tier list de lists su tablero en miniatura (lists/_tier_card.html): board, con [(nivel, juegos,
+    más)] de cada nivel en su orden (sus BOARD_COVERS primeros juegos y cuántos más tiene), y loose_count, cuántos
+    están sin clasificar (también los de un nivel que ya no existe, como en GameList.tier_rows).
+
+    Son dos consultas para todas: los primeros juegos de cada nivel y cuántos tiene cada uno. Devuelve la misma lista.
+    """
+    tiered = [game_list for game_list in lists if game_list.is_tiered]
+    if not tiered:
+        return lists
+    items = ListItem.objects.filter(game_list__in=tiered)
+    place = Window(RowNumber(), partition_by=[F("game_list"), F("tier")], order_by=[F("position"), F("id")])
+    shown = {}
+    for item in items.annotate(place=place).filter(place__lte=BOARD_COVERS).select_related("game").order_by("position", "id"):
+        shown.setdefault((item.game_list_id, item.tier), []).append(item)
+    sizes = {(list_id, tier): n for list_id, tier, n in items.values_list("game_list_id", "tier").annotate(n=Count("id"))}
+    for game_list in tiered:
+        game_list.board = []
+        for level in game_list.tier_list:
+            row = shown.get((game_list.pk, level["id"]), [])
+            game_list.board.append((level, row, sizes.get((game_list.pk, level["id"]), 0) - len(row)))
+        total = sum(n for (list_id, _), n in sizes.items() if list_id == game_list.pk)
+        game_list.loose_count = total - sum(len(row) + more for _, row, more in game_list.board)
     return lists
 
 
@@ -228,7 +261,7 @@ def _notify_like(game_list, actor):
     if not notices.exists():
         Notification.objects.create(
             user=game_list.user, kind=Notification.Kind.LIST_LIKE, actor=actor, url=url,
-            text=f"A {actor.profile.name} le ha gustado tu lista «{game_list.title}»."[:300],
+            text=f"A {actor.profile.name} le ha gustado tu {game_list.noun} «{game_list.title}»."[:300],
         )
 
 
@@ -276,7 +309,7 @@ def _notify_comment(game_list, actor):
     if not notices.exists():
         Notification.objects.create(
             user=game_list.user, kind=Notification.Kind.LIST_COMMENT, actor=actor, url=url,
-            text=f"{actor.profile.name} ha comentado tu lista «{game_list.title}»."[:300],
+            text=f"{actor.profile.name} ha comentado tu {game_list.noun} «{game_list.title}»."[:300],
         )
 
 
@@ -475,27 +508,92 @@ def search_context(game_list, query):
     return {"search_query": query, "results": results}
 
 
+def _create(request, form, game=None):
+    """Guarda como del usuario la lista nueva de form (ya validado), que empieza con game si se da; la apunta en su
+    actividad (social.activity.list_created) y lleva a su editor, para buscar y añadir sus juegos."""
+    game_list = form.save(commit=False)
+    game_list.user = request.user
+    game_list.save()
+    activity.list_created(game_list)
+    if game:
+        game_list.add(game, request.user)
+        activity.list_games_added(game_list, request.user)
+    messages.success(
+        request,
+        f"{game_list.noun.capitalize()} creada{' con ' + game.name if game else ''}. Busca aquí los juegos que quieras añadir.",
+    )
+    return redirect(f"{reverse('lists:edit', args=[game_list.pk])}#juegos")
+
+
 @login_required
 def new(request):
-    """Crea una lista del usuario (POST) o enseña el formulario para hacerlo (GET).
+    """Crea una lista del usuario (POST) o enseña el formulario para hacerlo (GET): una lista sin más o numerada; las
+    tier lists tienen su propia página (new_tier_list).
 
     Con juego= (desde «Nueva lista con este juego» en la ficha) la lista empieza con ese juego. Se apunta en su
-    actividad (social.activity.list_created) y lleva a su editor, para buscar y añadir más.
+    actividad y lleva a su editor, para buscar y añadir más (_create).
     """
     raw = request.POST.get("juego") or request.GET.get("juego", "")
     game = Game.objects.filter(pk=raw).first() if raw.isdigit() else None
-    form = GameListForm(request.POST or None)
+    form = NewListForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
-        game_list = form.save(commit=False)
-        game_list.user = request.user
-        game_list.save()
-        activity.list_created(game_list)
-        if game:
-            game_list.add(game, request.user)
-            activity.list_games_added(game_list, request.user)
-        messages.success(request, f"Lista creada{' con ' + game.name if game else ''}. Busca aquí los juegos que quieras añadir.")
-        return redirect(f"{reverse('lists:edit', args=[game_list.pk])}#juegos")
+        return _create(request, form, game)
     return render(request, "lists/form.html", {"form": form, "game": game})
+
+
+@login_required
+def new_tier_list(request):
+    """Página «Nueva tier list»: las plantillas que la crean ya rellena con la biblioteca del usuario (lists.presets; se
+    crean con from_library) y el formulario para empezar una en blanco con sus niveles (POST), que la crea como new."""
+    form = TierListForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        return _create(request, form)
+    return render(request, "lists/tier_form.html", {
+        "form": form, "presets": presets.choices(request.user), "min_games": presets.MIN_GAMES,
+    })
+
+
+@require_POST
+@login_required
+def from_library(request):
+    """Crea una tier list del usuario con una de las plantillas de su biblioteca (plantilla=, ver lists.presets) y lleva
+    a su página, para arrastrar sus juegos en el tablero.
+
+    Los juegos entran en el orden de la plantilla, sin clasificar o ya colocados por su nota, y la lista se crea privada:
+    recién hecha está sin colocar, y su dueño la hace visible cuando quiera. Se apunta en su actividad como cualquier
+    lista (social.activity). Si ya tiene una lista con ese título, lleva a ella en vez de repetirla; con menos de
+    presets.MIN_GAMES juegos, vuelve a «Nueva tier list» con un aviso.
+    """
+    preset = presets.PRESETS.get(request.POST.get("plantilla", ""))
+    if preset is None:
+        raise Http404
+    year = timezone.localdate().year
+    title = preset.title_for(year)
+    existing = GameList.objects.filter(user=request.user, title=title).first()
+    if existing:
+        messages.info(request, f"Ya tienes la {existing.noun} «{title}».")
+        return redirect(existing)
+    entries = preset.choose(request.user, year)
+    if len(entries) < presets.MIN_GAMES:
+        messages.error(request, f"Para «{title}» hacen falta al menos {presets.MIN_GAMES} juegos de tu biblioteca.")
+        return redirect("lists:new_tier_list")
+    with transaction.atomic():
+        game_list = GameList.objects.create(
+            user=request.user, title=title, mode=GameList.Mode.TIERS, tiers=preset.tier_list(), is_public=False,
+        )
+        ListItem.objects.bulk_create([
+            ListItem(game_list=game_list, game=entry.game, position=position, tier=preset.tier_of(entry), added_by=request.user)
+            for position, entry in enumerate(entries)
+        ])
+    activity.list_created(game_list)
+    activity.list_games_added(game_list, request.user, count=len(entries))
+    placed = sum(1 for entry in entries if preset.tier_of(entry) is not None)
+    messages.success(request, (
+        f"Tier list creada con {len(entries)} juegos"
+        + (f" ({placed} ya colocado{pluralize(placed)} por tu nota)" if placed else "")
+        + ". Arrástralos a su nivel; es privada hasta que la hagas visible en «Editar tier list»."
+    ))
+    return redirect(game_list)
 
 
 @login_required
@@ -514,8 +612,8 @@ def edit(request, list_id):
         if not is_owner:
             return HttpResponseForbidden("Solo su dueño puede cambiar los datos de la lista.")
         if form.is_valid():
-            form.save()
-            messages.success(request, "Lista guardada.")
+            saved = form.save()
+            messages.success(request, f"{saved.noun.capitalize()} guardada.")
             return redirect(game_list)
         messages.error(request, "No se ha guardado: revisa los campos marcados en rojo.")
     return render(request, "lists/edit.html", {
@@ -530,12 +628,13 @@ def edit(request, list_id):
 @require_POST
 @login_required
 def delete(request, list_id):
-    """Borra una lista del usuario (los juegos siguen en su biblioteca y en el catálogo) y vuelve a sus listas."""
+    """Borra una lista del usuario (los juegos siguen en su biblioteca y en el catálogo) y vuelve a sus listas, o a sus
+    tier lists si lo era."""
     game_list = _own_list(request, list_id)
-    title = game_list.title
+    title, noun, tab = game_list.title, game_list.noun, game_list.profile_tab
     game_list.delete()
-    messages.success(request, f"Lista «{title}» borrada.")
-    return redirect(f"{reverse('profile', args=[request.user.username])}?vista=listas")
+    messages.success(request, f"{noun.capitalize()} «{title}» borrada.")
+    return redirect(f"{reverse('profile', args=[request.user.username])}?vista={tab}")
 
 
 @login_required
@@ -690,7 +789,7 @@ def invite(request, list_id):
         ListCollaborator.objects.create(game_list=game_list, user=invitee)
         Notification.objects.create(
             user=invitee, kind=Notification.Kind.LIST_INVITE, actor=request.user, url=game_list.get_absolute_url(),
-            text=f"{request.user.profile.name} te ha invitado a editar su lista «{game_list.title}»."[:300],
+            text=f"{request.user.profile.name} te ha invitado a editar su {game_list.noun} «{game_list.title}»."[:300],
         )
     return _collaborators_response(request, game_list, error)
 
@@ -721,7 +820,8 @@ def accept(request, list_id):
 def leave(request, list_id):
     """Rechaza la invitación del usuario a editar una lista o deja de colaborar en ella (lo que añadió se queda).
 
-    Vuelve a la lista si aún puede verla y, si no (era privada), a sus listas; 404 si no le habían invitado.
+    Vuelve a la lista si aún puede verla y, si no (era privada), a sus listas (o a sus tier lists, si lo era); 404 si no
+    le habían invitado.
     """
     invitation = get_object_or_404(
         ListCollaborator.objects.select_related("game_list__user__profile"), game_list_id=list_id, user=request.user,
@@ -731,7 +831,7 @@ def leave(request, list_id):
     messages.success(request, "Ya no colaboras en esta lista." if joined else "Invitación rechazada.")
     if game_list.visible_to(request.user):
         return redirect(game_list)
-    return redirect(f"{reverse('profile', args=[request.user.username])}?vista=listas")
+    return redirect(f"{reverse('profile', args=[request.user.username])}?vista={game_list.profile_tab}")
 
 
 def _item_response(request, game_list, game, error=""):

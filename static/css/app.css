@@ -1764,6 +1764,15 @@ p.update-hint { display: flex; border-left-color: var(--gold); }
 /* Crear y editar una lista */
 .list-form h1 .icon, .list-editor h1 .icon { color: var(--violet); }
 .list-form-foot { display: flex; justify-content: flex-end; margin-top: 1.25rem; }
+/* «Nueva tier list»: arriba las plantillas que la rellenan con la biblioteca, en tarjetas como las de las listas, y
+   debajo el formulario para empezarla en blanco. */
+.list-presets > p { margin: 0 0 1.1rem; }
+.list-presets-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 1.25rem 1rem; margin: 0; padding: 0; list-style: none; }
+.list-preset { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.list-preset form { margin: 0; }
+.list-preset .btn { display: inline-flex; align-items: center; gap: .3rem; align-self: flex-start; margin-top: .5rem; }
+.list-preset.is-off .list-mosaic { opacity: .45; }
+.list-form h2 { margin: 0 0 1rem; font-size: 1.15rem; }
 .list-editor { display: flex; flex-direction: column; gap: 1.25rem; max-width: 760px; margin: 0 auto; }
 .list-editor .page-head { margin-bottom: 0; }
 .list-editor h1 { display: flex; align-items: center; gap: .55rem; margin: 0; }
@@ -1913,6 +1922,19 @@ form:has(input[name="mode"]:checked:not([value="tiers"])) .list-tiers { display:
 .tier-field input[type=color] { flex: none; }
 .tier-field .errorlist { flex-basis: 100%; }
 .list-mode .choice-chips { margin-top: .3rem; }
+/* Tarjetas de las tier lists en el perfil (lists/_tier_card.html): su tablero en miniatura, con el nombre de cada nivel
+   en su color y sus primeras portadas; las filas se alinean porque son las dos columnas de una misma rejilla. */
+.tier-lists-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.25rem 1rem; }
+.tier-mini { display: grid; grid-template-columns: minmax(1.75rem, max-content) 1fr; gap: 2px; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); background: var(--border); transition: border-color .15s; }
+.tier-card:hover .tier-mini { border-color: var(--violet); }
+.tier-mini-label {
+  max-width: 5rem; height: 36px; padding: 0 .4rem; overflow: hidden; background: var(--tier); color: var(--tier-text);
+  font-size: .7rem; font-weight: 800; line-height: 36px; text-align: center; white-space: nowrap; text-overflow: ellipsis;
+}
+.tier-mini-games { display: flex; align-items: center; gap: 2px; min-width: 0; height: 36px; padding: 0 2px; overflow: hidden; background: var(--surface); }
+.tier-mini-game { flex: none; width: 24px; height: 32px; overflow: hidden; border-radius: 3px; background: linear-gradient(145deg, #1b1440, #0b2740); }
+.tier-mini-game img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.tier-mini-more { flex: none; padding: 0 .3rem; color: var(--muted); font-size: .72rem; font-weight: 700; }
 
 /* Listas colaborativas: la invitación en la página de la lista, quién colabora y el formulario para invitar. */
 .list-invitation { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem 1.25rem; border-color: var(--violet); background: linear-gradient(120deg, rgba(var(--accent-rgb, 157, 92, 255), .2), rgba(14, 18, 34, .88) 60%); }

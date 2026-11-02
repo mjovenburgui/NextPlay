@@ -291,6 +291,24 @@ cambia el orden de los demás). En el editor de las listas normales y numeradas,
 botones de nivel y los de subir y bajar de cada juego siguen ahí para quien usa el teclado. Los niveles se guardan en
 `GameList.tiers` con un id fijo, así que renombrarlos no mueve los juegos.
 
+Las tier lists tienen su propia sección: se crean en «Nueva tier list» (`/tier-lists/nueva/`; «Nueva lista» crea las
+normales y las numeradas), tienen su pestaña en el perfil (`?vista=tier-lists`), su entrada «Mis tier lists» en el menú
+y su sección en el escaparate, y sus tarjetas enseñan un tablero en miniatura en vez del mosaico: las primeras portadas
+de cada nivel, cuántas más tiene y cuántos juegos quedan sin clasificar (`lists.views.mark_boards`, dos consultas para
+todas). Los textos y los avisos las llaman «tier list». Por dentro siguen siendo listas (`GameList` con su `mode`), con
+los mismos «me gusta», comentarios, colaboradores y actividad, y una lista puede cambiar de tipo en su editor
+conservando sus niveles.
+
+En «Nueva tier list», el bloque de arriba crea de un clic una tier list con juegos de la biblioteca ya dentro, para
+solo arrastrarlos (`lists/presets.py` y `/tier-lists/desde-tu-biblioteca/`), y debajo está el formulario para
+empezarla en blanco. Las plantillas: jugados este año (última partida de Steam, PlayStation o Xbox, partidas apuntadas,
+reseñas con fechas, completados y lo que está jugando), terminados este año, los 30 más jugados, los platinos y 100 %,
+lo jugado en cada plataforma y el pendiente, este con sus propios niveles («Ya mismo», «Pronto», «Algún día» y
+«Nunca»). Los juegos entran de más a menos horas en «Sin clasificar», salvo los que tienen nota, que empiezan en su
+nivel (cinco estrellas en S…), y la lista se crea privada. Cada tarjeta enseña cuántos juegos metería y sus primeras
+portadas; si ya hay una lista con ese título, lleva a ella en vez de repetirla. Solo hay año en curso: Steam solo da la
+última partida, así que un año pasado perdería los juegos que se volvieron a jugar después.
+
 Su dueño puede invitar a otros a editarla con él (hasta 10): les llega un aviso y, cuando aceptan, pueden añadir,
 ordenar, poner en un nivel, comentar y quitar sus juegos, aunque la lista sea privada; sus datos, quién colabora y
 borrarla siguen siendo cosa del dueño. La lista dice quién colabora y quién añadió cada juego, sale en la pestaña
