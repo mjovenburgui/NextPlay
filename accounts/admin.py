@@ -3,7 +3,8 @@ from django.contrib.auth.admin import UserAdmin
 
 from .matching import update_library
 from .models import (
-    ExternalTitle, FavoriteGame, Notification, PlatformAccount, Profile, PSNAccount, SteamAccount, User, XboxAccount,
+    Achievement, ExternalTitle, FavoriteGame, Notification, PlatformAccount, Profile, PSNAccount, SteamAccount, User,
+    XboxAccount,
 )
 
 admin.site.register(User, UserAdmin)
@@ -91,6 +92,16 @@ class ExternalTitleAdmin(admin.ModelAdmin):
     def unlock(self, request, queryset):
         """Desbloquea los títulos elegidos."""
         queryset.update(locked=False)
+
+
+@admin.register(Achievement)
+class AchievementAdmin(admin.ModelAdmin):
+    """Logros de cada juego tal como los da su plataforma; se rellenan solos al leer los de los jugadores."""
+
+    list_display = ("name", "title", "percent", "hidden", "position")
+    list_filter = ("hidden", "title__platform")
+    search_fields = ("name", "api_name", "title__name")
+    raw_id_fields = ("title",)
 
 
 @admin.register(Notification)

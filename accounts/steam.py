@@ -2,7 +2,7 @@
 
 import re
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone as dt_timezone
+from datetime import datetime, timedelta, timezone as dt_timezone
 from urllib.parse import urlencode
 
 import requests
@@ -15,8 +15,9 @@ from games import igdb
 from games.models import Game
 from library.models import LibraryEntry, WishlistItem
 
+from . import achievements
 from .matching import add_title, save_titles, update_library
-from .models import ExternalTitle, ImportedTitle
+from .models import Achievement, ExternalTitle, ImportedTitle
 
 OPENID_URL = "https://steamcommunity.com/openid/login"
 OPENID_NS = "http://specs.openid.net/auth/2.0"
@@ -31,6 +32,17 @@ STEAM_PLATFORM = "PC (Microsoft Windows)"
 ACHIEVEMENTS_URL = f"{API_URL}/ISteamUserStats/GetPlayerAchievements/v1/"
 ACHIEVEMENTS_PER_IMPORT = 40
 ACHIEVEMENTS_WORKERS = 8
+# Los logros de cada juego (nombres y descripciones en castellano, iconos y cuáles son ocultos) y el porcentaje de los
+# jugadores de Steam que tiene cada uno, que no necesita la clave. Se vuelven a leer cuando alguien juega a ese juego
+# si tienen más de ACHIEVEMENTS_INFO_DAYS días: la rareza cambia poco a poco.
+SCHEMA_URL = f"{API_URL}/ISteamUserStats/GetSchemaForGame/v2/"
+PERCENTAGES_URL = f"{API_URL}/ISteamUserStats/GetGlobalAchievementPercentagesForApp/v2/"
+ACHIEVEMENTS_LANGUAGE = "spanish"
+ACHIEVEMENTS_INFO_DAYS = 30
+# Steam da los iconos de los logros en su dirección antigua, donde ya no están los de los logros nuevos (dan 404): se
+# piden a la actual, que los tiene todos.
+OLD_ICON_PATH = re.compile(r"^https?://[^/]+/steamcommunity/public/images/apps/")
+ICON_URL = "https://shared.akamai.steamstatic.com/community_assets/images/apps/"
 
 
 class SteamError(Exception):
@@ -173,11 +185,14 @@ def _match_games(app_ids):
     return matches
 
 
+def _timestamp(value):
+    """Fecha de una marca de tiempo de Steam (segundos desde 1970), o None si no viene o es 0."""
+    return datetime.fromtimestamp(value, tz=dt_timezone.utc) if value else None
+
+
 def _played_at(data):
     """Fecha de la última partida de un juego de Steam, o None si nunca se ha jugado."""
-    if not data.get("rtime_last_played"):
-        return None
-    return datetime.fromtimestamp(data["rtime_last_played"], tz=dt_timezone.utc)
+    return _timestamp(data.get("rtime_last_played"))
 
 
 def import_library(user, include_unplayed=False):
@@ -237,8 +252,9 @@ def import_library(user, include_unplayed=False):
 
 
 def player_achievements(steam_id, app_id):
-    """Logros de un juego en una cuenta de Steam: (conseguidos, totales), (0, 0) si el juego no tiene o None si no se
-    pueden leer (perfil o detalles de juego privados, o Steam no responde).
+    """Logros de un juego en una cuenta de Steam, todos y en el orden de Steam: [(clave, conseguido, fecha)], con la
+    fecha en que lo consiguió o None si no lo tiene (o si es de los muy antiguos, de los que Steam no guarda la fecha);
+    [] si el juego no tiene logros o None si no se pueden leer (perfil o detalles de juego privados, o Steam no responde).
 
     A un juego sin logros Steam le contesta con un 400 y «Requested app has no stats», así que no se mira el código
     de la respuesta sino su «playerstats».
@@ -252,16 +268,90 @@ def player_achievements(steam_id, app_id):
     except (requests.RequestException, ValueError, AttributeError):
         return None
     if not stats.get("success"):
-        return (0, 0) if "no stats" in (stats.get("error") or "").lower() else None
-    achievements = stats.get("achievements") or []
-    return sum(1 for achievement in achievements if achievement.get("achieved")), len(achievements)
+        return [] if "no stats" in (stats.get("error") or "").lower() else None
+    return [
+        (item["apiname"], bool(item.get("achieved")), _timestamp(item.get("unlocktime")) if item.get("achieved") else None)
+        for item in stats.get("achievements") or []
+        if item.get("apiname")
+    ]
+
+
+def _icon(url):
+    """Dirección actual de un icono de logro de Steam (ICON_URL en vez de OLD_ICON_PATH), o vacía si no viene."""
+    return OLD_ICON_PATH.sub(ICON_URL, url or "")
+
+
+def achievement_schema(app_id):
+    """Logros de un juego de Steam con sus textos en castellano, en el orden de Steam: [{"api_name", "name",
+    "description", "icon", "icon_locked", "hidden"}], [] si no tiene o None si Steam no responde.
+
+    De los ocultos Steam no da la descripción (tampoco en los logros de cada jugador), así que se queda vacía. Los
+    iconos van con su dirección actual (_icon).
+    """
+    try:
+        response = requests.get(
+            SCHEMA_URL, params={"key": settings.STEAM_API_KEY, "appid": app_id, "l": ACHIEVEMENTS_LANGUAGE},
+            timeout=TIMEOUT,
+        )
+        response.raise_for_status()
+        game = response.json().get("game") or {}
+    except (requests.RequestException, ValueError, AttributeError):
+        return None
+    return [
+        {
+            "api_name": item["name"],
+            "name": (item.get("displayName") or item["name"])[:255],
+            "description": (item.get("description") or "")[:500],
+            "icon": _icon(item.get("icon")),
+            "icon_locked": _icon(item.get("icongray")),
+            "hidden": bool(item.get("hidden")),
+        }
+        for item in (game.get("availableGameStats") or {}).get("achievements") or []
+        if item.get("name")
+    ]
+
+
+def global_percentages(app_id):
+    """Porcentaje de los jugadores de Steam que tiene cada logro de un juego, redondeado a una décima: {clave:
+    porcentaje}, o None si Steam no lo da. No necesita la clave de la API, y el porcentaje llega como texto («63.1»)."""
+    try:
+        response = requests.get(PERCENTAGES_URL, params={"gameid": app_id}, timeout=TIMEOUT)
+        response.raise_for_status()
+        items = (response.json().get("achievementpercentages") or {}).get("achievements") or []
+        return {item["name"]: round(float(item["percent"]), 1) for item in items if item.get("name")}
+    except (requests.RequestException, ValueError, AttributeError, KeyError, TypeError):
+        return None
+
+
+def achievement_info(app_id):
+    """Logros de un juego de Steam con su rareza, para achievements.save_info: (esquema, porcentajes) como los dan
+    achievement_schema y global_percentages (los porcentajes, None si no se han podido leer), o None si Steam no da el
+    esquema."""
+    schema = achievement_schema(app_id)
+    if schema is None:
+        return None
+    return schema, global_percentages(app_id) if schema else {}
+
+
+def _needs_info(title, result, known, now):
+    """Si hay que (volver a) leer los logros del juego de title: si nunca se han leído, si se leyeron hace más de
+    ACHIEVEMENTS_INFO_DAYS días o si el jugador trae alguno que no está. result es lo que da player_achievements y known,
+    las (título, clave) que ya hay."""
+    if title.achievements_read_at is None or title.achievements_read_at < now - timedelta(days=ACHIEVEMENTS_INFO_DAYS):
+        return True
+    return any((title.pk, api_name) not in known for api_name, _, _ in result)
 
 
 def import_achievements(user, limit=ACHIEVEMENTS_PER_IMPORT):
     """Lee de Steam los logros de los juegos del usuario que ha jugado desde la última vez que se leyeron (o que nunca
     se han leído), de la partida más reciente a la más antigua y como mucho limit (None: todos), y los apunta en sus
-    títulos importados (ImportedTitle). Con varias cuentas de Steam se queda con la que más lleva de cada juego; lo que
-    no se puede leer se intenta la próxima vez. Van ACHIEVEMENTS_WORKERS peticiones a la vez.
+    títulos importados (ImportedTitle): cuántos tiene y, uno a uno, cuáles y cuándo los consiguió
+    (achievements.save_unlocked). Con varias cuentas de Steam se queda con la que más lleva de cada juego.
+
+    De los juegos cuyos logros aún no se conocen (o con más de ACHIEVEMENTS_INFO_DAYS días, o si el jugador trae uno
+    nuevo) lee también cuáles tienen, con sus textos en castellano y su rareza (achievement_info). Lo que no se puede
+    leer se intenta la próxima vez: también los logros de un jugador si no se sabe aún cuáles son los de su juego. Van
+    ACHIEVEMENTS_WORKERS peticiones a la vez.
 
     Devuelve de cuántos juegos se han leído.
     """
@@ -281,21 +371,39 @@ def import_achievements(user, limit=ACHIEVEMENTS_PER_IMPORT):
     def read(row):
         """Lo que más lleva de ese juego entre las cuentas de Steam del usuario, o None si ninguna deja leerlo."""
         found = [player_achievements(steam_id, row.title.external_id) for steam_id in steam_ids]
-        return max((result for result in found if result is not None), default=None)
+        return max(
+            (result for result in found if result is not None),
+            key=lambda result: sum(1 for _, achieved, _ in result if achieved), default=None,
+        )
 
+    now = timezone.now()
     # Solo las peticiones van en otros hilos: lo que se guarda, en este.
     with ThreadPoolExecutor(max_workers=ACHIEVEMENTS_WORKERS) as pool:
-        results = list(pool.map(read, rows))
-    now = timezone.now()
-    read_rows = []
-    for row, result in zip(rows, results):
-        if result is not None:
-            row.set_achievements(*result, at=now)
-            read_rows.append(row)
-    ImportedTitle.objects.bulk_update(
-        read_rows, ["achievements_unlocked", "achievements_total", "platinum", "achievements_at"],
-    )
-    return len(read_rows)
+        found = [(row, result) for row, result in zip(rows, pool.map(read, rows)) if result is not None]
+        known = set(
+            Achievement.objects.filter(title_id__in={row.title_id for row, _ in found}).values_list("title_id", "api_name")
+        )
+        titles = {row.title_id: row.title for row, result in found if result and _needs_info(row.title, result, known, now)}
+        infos = dict(zip(titles, pool.map(achievement_info, [title.external_id for title in titles.values()])))
+
+    def ready(row, result):
+        """Si ya se pueden guardar los logros de row: se acaban de leer los de su juego o ya se conocían todos."""
+        if infos.get(row.title_id) is not None:
+            return True
+        return all((row.title_id, api_name) in known for api_name, _, _ in result)
+
+    with transaction.atomic():
+        for title_id, info in infos.items():
+            if info is not None:
+                achievements.save_info(titles[title_id], *info, at=now)
+        saved = [(row, result) for row, result in found if ready(row, result)]
+        achievements.save_unlocked(saved)
+        for row, result in saved:
+            row.set_achievements(sum(1 for _, achieved, _ in result if achieved), len(result), at=now)
+        ImportedTitle.objects.bulk_update(
+            [row for row, _ in saved], ["achievements_unlocked", "achievements_total", "platinum", "achievements_at"],
+        )
+    return len(saved)
 
 
 def _first(values):

@@ -3,7 +3,7 @@ import json
 import shutil
 import tempfile
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal
 from unittest import mock
 
@@ -26,8 +26,8 @@ from social.models import Activity
 
 from . import images, matching, psn, steam, views, xbox
 from .models import (
-    ExternalTitle, FavoriteGame, ImportedTitle, Notification, PlatformAccount, Profile, PSNAccount, SteamAccount,
-    XboxAccount,
+    Achievement, ExternalTitle, FavoriteGame, ImportedTitle, Notification, PlatformAccount, Profile, PSNAccount,
+    SteamAccount, UnlockedAchievement, XboxAccount,
 )
 
 User = get_user_model()
@@ -36,8 +36,11 @@ User = get_user_model()
 # todo el módulo no leen nada, salvo en AchievementsTests, que dice qué contestan (y prueba las funciones de verdad).
 REAL_PLAYER_ACHIEVEMENTS, REAL_TROPHY_TITLES = steam.player_achievements, psn.trophy_titles
 REAL_TROPHIES_BY_TITLE_ID = psn.trophies_by_title_id
+REAL_ACHIEVEMENT_SCHEMA, REAL_GLOBAL_PERCENTAGES = steam.achievement_schema, steam.global_percentages
 NETWORK_PATCHES = [
     mock.patch.object(steam, "player_achievements", return_value=None),
+    mock.patch.object(steam, "achievement_schema", return_value=None),
+    mock.patch.object(steam, "global_percentages", return_value=None),
     mock.patch.object(psn, "trophy_titles", return_value=[]),
     mock.patch.object(psn, "trophies_by_title_id", return_value={}),
     # Después de importar se piden los precios de los juegos que nunca los han tenido: tampoco, salvo en las pruebas
@@ -1538,7 +1541,7 @@ class ProfileCustomizationTests(TestCase):
     def test_sections_order_and_visibility(self):
         FavoriteGame.objects.create(user=self.user, game=self.games[0])
         self.post_profile(
-            secciones=["estadisticas", "favoritos", "jugando", "resena", "generos", "listas", "tier-lists"],
+            secciones=["estadisticas", "favoritos", "jugando", "resena", "generos", "listas", "tier-lists", "logros"],
             secciones_visibles=["estadisticas", "jugando"],
         )
         profile = self.profile()
@@ -1553,7 +1556,8 @@ class ProfileCustomizationTests(TestCase):
         layout = profile.section_layout
         self.assertEqual(layout[0], ("jugando", "Jugando ahora", False))
         self.assertEqual(
-            [key for key, _, _ in layout[1:]], ["favoritos", "resena", "estadisticas", "generos", "listas", "tier-lists"],
+            [key for key, _, _ in layout[1:]],
+            ["favoritos", "resena", "estadisticas", "generos", "listas", "tier-lists", "logros"],
         )
 
     def test_showcase_is_only_on_the_main_view(self):
@@ -1846,6 +1850,34 @@ def trophy_title(name, defined, earned):
     }
 
 
+def steam_achievements(unlocked, total, when=None):
+    """Logros de un juego como los da steam.player_achievements: total, con los unlocked primeros conseguidos, el
+    primero en when (ahora, si no se da) y cada uno de los demás un día antes."""
+    when = when or timezone.now()
+    return [(f"ACH_{i}", i < unlocked, when - timedelta(days=i) if i < unlocked else None) for i in range(total)]
+
+
+def steam_schema(total, hidden=()):
+    """Logros de un juego como los da steam.achievement_schema: total, ocultos (y sin descripción) los de hidden."""
+    return [
+        {
+            "api_name": f"ACH_{i}", "name": f"Logro {i}", "description": "" if i in hidden else f"Consigue {i} cosas",
+            "icon": f"https://cdn.example.com/{i}.jpg", "icon_locked": f"https://cdn.example.com/{i}-gris.jpg",
+            "hidden": i in hidden,
+        }
+        for i in range(total)
+    ]
+
+
+def steam_percentages(total):
+    """Rareza de los logros de steam_schema(total): el primero lo tiene el 90 % y cada uno, 1,7 puntos menos."""
+    return {f"ACH_{i}": round(90 - i * 1.7, 1) for i in range(total)}
+
+
+# Cuántos logros tiene cada juego de AchievementsTests en Steam, por su ID de app.
+SCHEMA_TOTALS = {620: 51, 1145360: 2, 504230: 31}
+
+
 @override_settings(STEAM_API_KEY="key", IGDB_CLIENT_ID="", IGDB_CLIENT_SECRET="")
 class AchievementsTests(TestCase):
     @classmethod
@@ -1856,8 +1888,23 @@ class AchievementsTests(TestCase):
         cls.hades = Game.objects.create(name="Hades", slug="hades", steam_app_id=1145360)
         cls.celeste = Game.objects.create(name="Celeste", slug="celeste", steam_app_id=504230)
 
+    def setUp(self):
+        """Steam da los logros de cada juego (SCHEMA_TOTALS) y su rareza; cada prueba puede cambiar lo que contesta con
+        self.schema y self.percentages."""
+        self.schema = self.patch("achievement_schema", lambda app_id: steam_schema(SCHEMA_TOTALS.get(int(app_id), 0)))
+        self.percentages = self.patch(
+            "global_percentages", lambda app_id: steam_percentages(SCHEMA_TOTALS.get(int(app_id), 0)),
+        )
+
+    def patch(self, name, fake):
+        """Sustituye steam.<name> por fake mientras dura la prueba y devuelve el simulacro."""
+        patcher = mock.patch.object(steam, name, side_effect=fake)
+        self.addCleanup(patcher.stop)
+        return patcher.start()
+
     def import_steam(self, games, achievements):
-        """Importa de Steam games (como los da GetOwnedGames) con los logros de achievements ({appid: resultado})."""
+        """Importa de Steam games (como los da GetOwnedGames) con los logros de achievements ({appid: lo que da
+        player_achievements})."""
         with mock.patch.object(steam, "owned_games", return_value=games), mock.patch.object(
             steam, "player_achievements", side_effect=lambda steam_id, app_id: achievements.get(int(app_id)),
         ) as read:
@@ -1881,27 +1928,28 @@ class AchievementsTests(TestCase):
     def test_steam_reads_what_was_played_since_last_time(self):
         games = self.steam_games()
         # Hades no tiene logros y los de Celeste no se pueden leer.
-        result, read = self.import_steam(games, {620: (10, 51), 1145360: (0, 0)})
+        result, read = self.import_steam(games, {620: steam_achievements(10, 51), 1145360: []})
         self.assertEqual((result["achievements"], read.call_count), (2, 3))
         self.assertEqual(self.achievements_of(self.portal), (10, 51, False))
         self.assertEqual(self.achievements_of(self.hades), (0, 0, False))
         self.assertIsNone(ImportedTitle.objects.get(title__game=self.celeste).achievements_at)
         # La vez siguiente solo se pide lo que no se pudo leer y lo que se ha vuelto a jugar.
         games[0]["rtime_last_played"] = int(time.time()) + 60
-        result, read = self.import_steam(games, {620: (12, 51), 504230: (5, 31)})
+        result, read = self.import_steam(games, {620: steam_achievements(12, 51), 504230: steam_achievements(5, 31)})
         self.assertEqual(sorted(call.args[1] for call in read.call_args_list), ["504230", "620"])
         self.assertEqual(self.achievements_of(self.portal), (12, 51, False))
         self.assertEqual(self.achievements_of(self.celeste), (5, 31, False))
 
     def test_steam_reads_the_latest_first_and_the_best_account(self):
         self.import_steam(self.steam_games(), {})
-        with mock.patch.object(steam, "player_achievements", return_value=(1, 2)) as read:
+        with mock.patch.object(steam, "player_achievements", return_value=steam_achievements(1, 2)) as read:
             self.assertEqual(steam.import_achievements(self.user, limit=1), 1)
         self.assertEqual(read.call_args.args[1], "1145360")
         # Con dos cuentas de Steam, cuenta la que más lleva de cada juego.
         SteamAccount.objects.create(user=self.user, steam_id="76561197960287931", persona="Ana 2")
         with mock.patch.object(
-            steam, "player_achievements", side_effect=lambda steam_id, app_id: (3, 31) if steam_id.endswith("31") else (1, 31),
+            steam, "player_achievements",
+            side_effect=lambda steam_id, app_id: steam_achievements(3 if steam_id.endswith("31") else 1, 31),
         ):
             self.assertEqual(steam.import_achievements(self.user, limit=None), 2)
         self.assertEqual(self.achievements_of(self.celeste), (3, 31, False))
@@ -1909,14 +1957,139 @@ class AchievementsTests(TestCase):
 
     def test_steam_answers(self):
         answers = [
-            fake_response(data={"playerstats": {"success": True, "achievements": [{"achieved": 1}, {"achieved": 0}, {"achieved": 1}]}}),
+            fake_response(data={"playerstats": {"success": True, "achievements": [
+                {"apiname": "ACH_A", "achieved": 1, "unlocktime": 1700000000},
+                {"apiname": "ACH_B", "achieved": 0, "unlocktime": 0},
+                # De algunos logros muy antiguos Steam no guarda la fecha.
+                {"apiname": "ACH_C", "achieved": 1, "unlocktime": 0},
+            ]}}),
             fake_response(status=400, data={"playerstats": {"success": False, "error": "Requested app has no stats"}}),
             fake_response(status=403, data={"playerstats": {"success": False, "error": "Profile is not public"}}),
             steam.requests.ConnectionError("caído"),
         ]
         with mock.patch("accounts.steam.requests.get", side_effect=answers):
             results = [REAL_PLAYER_ACHIEVEMENTS("76561197960287930", 620) for _ in answers]
-        self.assertEqual(results, [(2, 3), (0, 0), None, None])
+        unlocked_at = datetime(2023, 11, 14, 22, 13, 20, tzinfo=dt_timezone.utc)
+        self.assertEqual(results, [[("ACH_A", True, unlocked_at), ("ACH_B", False, None), ("ACH_C", True, None)], [], None, None])
+
+    def test_steam_schema_and_rarity_answers(self):
+        rejected = fake_response(status=400)
+        rejected.raise_for_status.side_effect = steam.requests.HTTPError("400")
+        answers = [
+            fake_response(data={"game": {"availableGameStats": {"achievements": [
+                # Los iconos llegan con la dirección antigua de Steam, que ya no tiene los nuevos.
+                {"name": "ACH_A", "displayName": "Primera sangre", "description": "Gana una partida.", "hidden": 0,
+                 "icon": "https://steamcdn-a.akamaihd.net/steamcommunity/public/images/apps/620/a.jpg",
+                 "icongray": "https://cdn.akamai.steamstatic.com/steamcommunity/public/images/apps/620/a-gris.jpg"},
+                # De los ocultos Steam no da la descripción.
+                {"name": "ACH_B", "displayName": "El final", "hidden": 1, "icon": "https://cdn.example.com/b.jpg"},
+            ]}}}),
+            fake_response(data={"game": {}}),
+            rejected,
+            steam.requests.ConnectionError("caído"),
+        ]
+        with mock.patch("accounts.steam.requests.get", side_effect=answers) as get:
+            results = [REAL_ACHIEVEMENT_SCHEMA(620) for _ in answers]
+        self.assertEqual(get.call_args_list[0].kwargs["params"]["l"], "spanish")
+        self.assertEqual(
+            (results[0][0]["icon"], results[0][0]["icon_locked"]),
+            (f"{steam.ICON_URL}620/a.jpg", f"{steam.ICON_URL}620/a-gris.jpg"),
+        )
+        self.assertEqual(results[0][1], {
+            "api_name": "ACH_B", "name": "El final", "description": "", "icon": "https://cdn.example.com/b.jpg",
+            "icon_locked": "", "hidden": True,
+        })
+        self.assertEqual(results[1:], [[], None, None])
+        # La rareza llega como texto y no necesita la clave.
+        answers = [
+            fake_response(data={"achievementpercentages": {"achievements": [
+                {"name": "ACH_A", "percent": "63.14"}, {"name": "ACH_B", "percent": 0.4},
+            ]}}),
+            rejected,
+        ]
+        with mock.patch("accounts.steam.requests.get", side_effect=answers) as get:
+            results = [REAL_GLOBAL_PERCENTAGES(620) for _ in answers]
+        self.assertNotIn("key", get.call_args.kwargs["params"])
+        self.assertEqual(results, [{"ACH_A": 63.1, "ACH_B": 0.4}, None])
+
+    def test_steam_saves_each_achievement_with_its_date_and_rarity(self):
+        when = timezone.now() - timedelta(days=3)
+        self.import_steam(self.steam_games(), {620: steam_achievements(2, 51, when)})
+        title = ExternalTitle.objects.get(platform=ExternalTitle.Platform.STEAM, external_id="620")
+        self.assertIsNotNone(title.achievements_read_at)
+        self.assertEqual(title.achievements.count(), 51)
+        first, last = title.achievements.get(api_name="ACH_0"), title.achievements.get(api_name="ACH_50")
+        self.assertEqual((first.name, first.description, first.percent, first.rarity), ("Logro 0", "Consigue 0 cosas", 90, ""))
+        self.assertEqual((last.position, last.percent, last.rarity), (50, 5, "Muy raro"))
+        unlocks = UnlockedAchievement.objects.filter(imported__user=self.user)
+        self.assertEqual(
+            sorted(unlocks.values_list("achievement__api_name", "unlocked_at")),
+            [("ACH_0", when), ("ACH_1", when - timedelta(days=1))],
+        )
+
+    def test_steam_reads_the_achievements_of_each_game_once(self):
+        games = self.steam_games()
+        self.import_steam(games, {620: steam_achievements(2, 51)})
+        self.assertEqual((self.schema.call_count, self.percentages.call_count), (1, 1))
+        # Otra persona con el mismo juego no los vuelve a pedir...
+        bea = User.objects.create_user("bea", "bea@example.com", "x")
+        SteamAccount.objects.create(user=bea, steam_id="76561197960287999", persona="Bea")
+        with mock.patch.object(steam, "owned_games", return_value=games[:1]), mock.patch.object(
+            steam, "player_achievements", return_value=steam_achievements(5, 51),
+        ):
+            steam.import_library(bea)
+        self.assertEqual(self.schema.call_count, 1)
+        self.assertEqual(UnlockedAchievement.objects.filter(imported__user=bea).count(), 5)
+        # ... hasta que tienen más de ACHIEVEMENTS_INFO_DAYS días, cuando se vuelve a jugar.
+        ExternalTitle.objects.filter(external_id="620").update(
+            achievements_read_at=timezone.now() - timedelta(days=steam.ACHIEVEMENTS_INFO_DAYS + 1),
+        )
+        games[0]["rtime_last_played"] = int(time.time()) + 60
+        self.import_steam(games, {620: steam_achievements(2, 51)})
+        self.assertEqual((self.schema.call_count, self.percentages.call_count), (2, 2))
+
+    def test_steam_keeps_achievements_that_its_game_does_not_list(self):
+        self.import_steam(self.steam_games(), {620: steam_achievements(52, 52)})
+        self.assertEqual(self.schema.call_count, 1)
+        self.assertEqual(Achievement.objects.get(title__external_id="620", api_name="ACH_51").name, "ACH_51")
+        self.assertEqual(self.achievements_of(self.portal), (52, 52, False))
+        self.assertEqual(UnlockedAchievement.objects.filter(imported__user=self.user).count(), 52)
+
+    def test_steam_waits_until_it_knows_the_achievements_of_the_game(self):
+        self.schema.side_effect = lambda app_id: None
+        games = self.steam_games()
+        result, _ = self.import_steam(games, {620: steam_achievements(10, 51)})
+        self.assertEqual(result["achievements"], 0)
+        self.assertIsNone(ImportedTitle.objects.get(user=self.user, title__game=self.portal).achievements_at)
+        self.assertFalse(UnlockedAchievement.objects.exists())
+        # Con Steam respondiendo, la siguiente vez se guardan.
+        self.schema.side_effect = lambda app_id: steam_schema(51)
+        result, _ = self.import_steam(games, {620: steam_achievements(10, 51)})
+        self.assertEqual(result["achievements"], 1)
+        self.assertEqual(UnlockedAchievement.objects.count(), 10)
+
+    def test_steam_keeps_the_rarity_if_it_cannot_read_it_again(self):
+        games = self.steam_games()
+        self.import_steam(games, {620: steam_achievements(2, 51)})
+        ExternalTitle.objects.filter(external_id="620").update(achievements_read_at=timezone.now() - timedelta(days=60))
+        self.percentages.side_effect = lambda app_id: None
+        games[0]["rtime_last_played"] = int(time.time()) + 60
+        self.import_steam(games, {620: steam_achievements(2, 51)})
+        self.assertEqual(self.schema.call_count, 2)
+        self.assertEqual(Achievement.objects.get(title__external_id="620", api_name="ACH_0").percent, 90)
+
+    def test_steam_unlocks_follow_what_steam_says(self):
+        games = self.steam_games()
+        self.import_steam(games, {620: steam_achievements(3, 51)})
+        # Si deja de tener uno (Steam deja reiniciarlos) se quita, y si cambia la fecha, se corrige.
+        games[0]["rtime_last_played"] = int(time.time()) + 60
+        when = timezone.now() - timedelta(days=100)
+        self.import_steam(games, {620: steam_achievements(2, 51, when)})
+        self.assertEqual(
+            sorted(UnlockedAchievement.objects.values_list("achievement__api_name", "unlocked_at")),
+            [("ACH_0", when), ("ACH_1", when - timedelta(days=1))],
+        )
+        self.assertEqual(self.achievements_of(self.portal), (2, 51, False))
 
     def fake_psn(self, trophies, by_title=None):
         """Simula Sony con Hades (CUSA00001_00) y God of War Ragnarök (PPSA00002_00) jugados, la lista de trofeos de la
@@ -2079,11 +2252,63 @@ class AchievementsTests(TestCase):
         self.assertContains(response, "Tus logros")
         progress = [(item["label"], item["unlocked"], item["platinum"]) for item in response.context["entry"].achievements]
         self.assertEqual(progress, [("Steam", 49, False), ("PlayStation", 46, True)])
-        # El widget que devuelve HTMX al cambiar el estado los sigue enseñando.
+        # Van en su propia tarjeta, aparte del widget de la biblioteca, que HTMX cambia sin tocarlos.
         response = self.client.post(
             reverse("library:set_status", args=[self.portal.pk]), {"status": "completed"}, HTTP_HX_REQUEST="true",
         )
-        self.assertContains(response, "10 de 51 logros")
+        self.assertNotContains(response, "Tus logros")
+        self.assertContains(self.client.get(self.portal.get_absolute_url()), "10 de 51 logros")
         response = self.client.get(reverse("profile", args=["ana"]))
         self.assertContains(response, '<span class="card-trophy is-platinum">', count=1)
         self.assertEqual((response.context["stats"]["platinums"], response.context["stats"]["complete"]), (1, 1))
+        # Solo contados (sin leer aún uno a uno), no se pueden desplegar.
+        self.assertNotContains(self.client.get(self.hades.get_absolute_url()), "Ver tus logros de")
+
+    def test_your_achievements_one_by_one_on_the_game_page(self):
+        self.schema.side_effect = lambda app_id: steam_schema(SCHEMA_TOTALS.get(int(app_id), 0), hidden={1, 49})
+        self.import_steam(self.steam_games(), {620: steam_achievements(2, 51, timezone.now() - timedelta(days=10))})
+        url = reverse("game_achievements", args=[self.portal.pk])
+        self.assertEqual(self.client.get(url).status_code, 302)
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(self.portal.get_absolute_url()), "Ver tus logros de Steam")
+        response = self.client.get(url)
+        self.assertContains(response, "<strong>2 de 51</strong>", html=True)
+        # Los que tienes, del más reciente al más antiguo; los que te faltan, del más común al más raro y, pasados los
+        # primeros, plegados.
+        context = response.context
+        self.assertEqual([achievement.api_name for achievement in context["unlocked_shown"]], ["ACH_0", "ACH_1"])
+        self.assertEqual(context["locked_shown"][0].api_name, "ACH_2")
+        self.assertEqual((len(context["locked_shown"]), len(context["locked_more"])), (12, 37))
+        self.assertEqual(context["rarest"].api_name, "ACH_1")
+        # El oculto que tienes se ve; el que te falta va tapado hasta pulsarlo.
+        self.assertContains(response, "<strong>Logro 1</strong>", html=True)
+        self.assertContains(response, 'title="Logro oculto: pulsa para ver su nombre">Logro 49</span>')
+        self.assertEqual(self.client.get(url, {"orden": "raros"}).context["locked_shown"][0].api_name, "ACH_50")
+        in_order = self.client.get(url, {"orden": "juego"}).context["locked_shown"]
+        self.assertEqual([achievement.api_name for achievement in in_order[:2]], ["ACH_2", "ACH_3"])
+        # De un juego sin logros leídos uno a uno no hay nada que enseñar.
+        self.assertEqual(self.client.get(reverse("game_achievements", args=[self.hades.pk])).status_code, 404)
+
+    def test_the_profile_shows_the_latest_and_the_rarest(self):
+        self.schema.side_effect = lambda app_id: steam_schema(SCHEMA_TOTALS.get(int(app_id), 0), hidden={1})
+        when = timezone.now() - timedelta(days=10)
+        self.import_steam(self.steam_games(), {
+            620: steam_achievements(2, 51, when), 504230: steam_achievements(1, 31, when - timedelta(days=30)),
+        })
+        url = reverse("profile", args=["ana"])
+        response = self.client.get(url)
+        showcase = response.context["achievement_showcase"]
+        self.assertEqual(showcase["count"], 3)
+        self.assertEqual(
+            [(unlock.achievement.title.external_id, unlock.achievement.api_name) for unlock in showcase["latest"]],
+            [("620", "ACH_0"), ("620", "ACH_1"), ("504230", "ACH_0")],
+        )
+        self.assertEqual(showcase["rarest"].achievement.name, "Logro 1")
+        # El oculto va tapado para los demás (en «El más raro» y en «Los últimos»), pero no para su dueño.
+        covered = 'title="Logro oculto: pulsa para ver su nombre">Logro 1</span>'
+        self.assertContains(response, covered, count=2)
+        self.client.force_login(self.user)
+        self.assertNotContains(self.client.get(url), covered)
+        # Sin la sección en el escaparate no se pide nada.
+        Profile.objects.filter(user=self.user).update(sections=[["logros", False]])
+        self.assertIsNone(self.client.get(url).context["achievement_showcase"])

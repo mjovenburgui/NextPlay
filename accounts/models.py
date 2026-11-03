@@ -29,6 +29,7 @@ SECTIONS = [
     ("generos", "Géneros que más juega"),
     ("listas", "Listas"),
     ("tier-lists", "Tier lists"),
+    ("logros", "Logros"),
 ]
 
 # Redes sociales que se pueden enseñar en el perfil: clave → (nombre, expresión que debe cumplir el usuario,
@@ -663,6 +664,9 @@ class ExternalTitle(models.Model):
         verbose_name="asignado por",
     )
     updated_at = models.DateTimeField(auto_now=True)
+    # Cuándo se leyeron los logros del juego en su plataforma (nombres, iconos y rareza, en Achievement): vacío si
+    # nunca. Se vuelven a leer si un jugador trae uno que no está o si tienen más de steam.ACHIEVEMENTS_INFO_DAYS días.
+    achievements_read_at = models.DateTimeField("logros del juego leídos", null=True, blank=True)
 
     class Meta:
         ordering = ["name"]
@@ -732,6 +736,82 @@ class ImportedTitle(models.Model):
         self.achievements_unlocked, self.achievements_total, self.platinum = unlocked, total, platinum
         self.achievements_at = at or timezone.now()
         return changed
+
+
+# Rareza de un logro según el porcentaje de jugadores que lo tienen: (menos de este porcentaje, nombre). Por encima del
+# último es un logro común y no lleva nombre.
+RARITY_TIERS = [(5, "Rarísimo"), (10, "Muy raro"), (25, "Raro")]
+
+
+class Achievement(models.Model):
+    """Logro de un juego en su plataforma (de momento, solo de Steam), compartido por todos los que lo tienen: su nombre
+    y su descripción en castellano, sus iconos, si es oculto y qué parte de los jugadores de la plataforma lo tiene
+    (percent, de donde sale su rareza). Lo guarda steam.import_achievements la primera vez que alguien tiene logros de
+    ese juego; lo que ha conseguido cada uno va en UnlockedAchievement.
+    """
+
+    title = models.ForeignKey(
+        ExternalTitle, on_delete=models.CASCADE, related_name="achievements", verbose_name="título",
+    )
+    # Clave del logro en la plataforma («ACH_WIN_ONE_GAME» en Steam): no cambia y no se enseña.
+    api_name = models.CharField("clave en la plataforma", max_length=255)
+    name = models.CharField("nombre", max_length=255)
+    # Vacía en los ocultos: Steam no da su descripción.
+    description = models.CharField("descripción", max_length=500, blank=True)
+    icon = models.URLField("icono", max_length=300, blank=True)
+    icon_locked = models.URLField("icono sin conseguir", max_length=300, blank=True)
+    # Los ocultos no se destapan hasta conseguirlos: en la ficha van con el nombre tapado y sin su icono.
+    hidden = models.BooleanField("oculto", default=False)
+    # Porcentaje de los jugadores de la plataforma que lo tienen; vacío si no se sabe.
+    percent = models.FloatField("lo tiene (%)", null=True, blank=True)
+    # Orden en que lo da la plataforma, que suele ser el del juego.
+    position = models.PositiveSmallIntegerField("orden", default=0)
+
+    class Meta:
+        ordering = ["title", "position", "pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["title", "api_name"], name="unique_achievement_per_title"),
+        ]
+        verbose_name = "logro"
+        verbose_name_plural = "logros"
+
+    def __str__(self):
+        """Texto en el admin: «Plataforma: juego · logro»."""
+        return f"{self.title} · {self.name}"
+
+    @property
+    def rarity(self):
+        """Nombre de su rareza (RARITY_TIERS): «Rarísimo», «Muy raro» o «Raro», o vacío si es común o no se sabe."""
+        if self.percent is None:
+            return ""
+        return next((label for limit, label in RARITY_TIERS if self.percent < limit), "")
+
+
+class UnlockedAchievement(models.Model):
+    """Logro que ha conseguido un usuario en uno de sus títulos importados y cuándo. Algunos logros muy antiguos de Steam
+    no tienen fecha. Lo apunta steam.import_achievements cada vez que lee los logros de ese juego.
+    """
+
+    imported = models.ForeignKey(
+        ImportedTitle, on_delete=models.CASCADE, related_name="unlocked_achievements",
+        verbose_name="título del usuario",
+    )
+    achievement = models.ForeignKey(
+        Achievement, on_delete=models.CASCADE, related_name="unlocks", verbose_name="logro",
+    )
+    unlocked_at = models.DateTimeField("conseguido", null=True, blank=True)
+
+    class Meta:
+        ordering = [models.F("unlocked_at").desc(nulls_last=True), "-pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["imported", "achievement"], name="unique_unlocked_achievement"),
+        ]
+        verbose_name = "logro conseguido"
+        verbose_name_plural = "logros conseguidos"
+
+    def __str__(self):
+        """Texto en el admin: «usuario · logro»."""
+        return f"{self.imported.user} · {self.achievement.name}"
 
 
 class Notification(models.Model):
