@@ -18,7 +18,7 @@ from django.utils.html import format_html
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from games import igdb, media
+from games import igdb, media, prices
 
 from games.models import LANGUAGE_FILTERS, Game, Genre, igdb_image_url, known_shops, language_filter
 from library import wishlist
@@ -502,7 +502,7 @@ def _report_wishlist(request, result):
     """Avisa de lo que se ha traído de la lista de deseos de Steam y, con los precios de hoy, de cuántos de sus
     deseados están en su mínimo histórico o son más baratos fuera de Steam (HTML seguro: el texto se escapa).
 
-    Los precios de PC de los juegos nuevos se piden en ese momento (library.wishlist.fetch_missing_prices).
+    Los precios de los juegos nuevos se piden en ese momento (games.prices.fetch_missing).
     """
     if result["unreadable"]:
         messages.info(
@@ -513,7 +513,7 @@ def _report_wishlist(request, result):
     total = result["total"]
     if not total:
         return
-    wishlist.fetch_missing_prices([item.game for item in result["added"]])
+    prices.fetch_missing([item.game for item in result["added"]])
     count, at_low, cheaper = wishlist.steam_deals(request.user)
     added, removed, owned, unmatched = len(result["added"]), result["removed"], result["owned"], result["unmatched"]
     details = [f"{added} nuevo{pluralize(added)} en «Lo quiero»"]
@@ -532,12 +532,25 @@ def _report_wishlist(request, result):
     messages.success(request, format_html('{}. <a href="{}">Ver tu lista de deseos</a>', text, reverse("library:wishlist")))
 
 
+def _fetch_library_prices(user):
+    """Pide ya los precios de los juegos de la biblioteca del usuario que nunca se han buscado
+    (games.prices.fetch_missing), para que lo recién importado tenga precio sin esperar a la tarea de cada noche.
+
+    Si una tienda no responde, la importación vale igual: lo que falte llega con update_prices. La sincronización de
+    cada noche (sync_libraries) no lo hace, porque justo después va update_prices con todo el catálogo.
+    """
+    prices.fetch_missing(
+        Game.objects.filter(library_entries__user=user, prices_updated_at__isnull=True).prefetch_related("platforms")
+    )
+
+
 def _import_steam(request, include_unplayed=False):
     """Lanza la importación de todas las cuentas de Steam del usuario y le avisa del resultado o del fallo.
 
     Si lo tiene activado (Profile.steam_wishlist), trae también su lista de deseos de Steam a «Lo quiero»;
     que falle eso no estropea lo de la biblioteca. Si falla por Steam o IGDB deja el error completo en el
-    log del servidor para poder revisarlo.
+    log del servidor para poder revisarlo. Si sale bien, pide los precios de los juegos que nunca los han tenido
+    (_fetch_library_prices).
     """
     if not steam.is_configured():
         messages.error(request, STEAM_KEY_MISSING)
@@ -549,6 +562,8 @@ def _import_steam(request, include_unplayed=False):
     except (steam.SteamError, igdb.IGDBError):
         logger.exception("Falló la importación de Steam de %s", request.user.username)
         messages.error(request, "No se pudieron importar tus juegos de Steam. Inténtalo de nuevo más tarde.")
+    else:
+        _fetch_library_prices(request.user)
     if not request.user.profile.steam_wishlist:
         return
     try:
@@ -690,7 +705,8 @@ def psn_sync(request):
     """Vincula la cuenta de PlayStation del código NPSSO pegado (o la actualiza) e importa sus juegos de PS4/PS5.
 
     El código solo se usa durante esta petición: no se guarda. Avisa si el código no tiene el formato
-    esperado, si Sony no lo acepta o si esa cuenta de PlayStation ya es de otro usuario.
+    esperado, si Sony no lo acepta o si esa cuenta de PlayStation ya es de otro usuario. Después pide los
+    precios de los juegos que nunca los han tenido (_fetch_library_prices).
     """
     npsso = psn.clean_npsso(request.POST.get("npsso"))
     if not npsso:
@@ -709,6 +725,7 @@ def psn_sync(request):
         logger.exception("Falló la importación de PlayStation de %s", request.user.username)
         return _psn_error(request, "No se pudieron importar tus juegos de PlayStation. Inténtalo de nuevo más tarde.")
 
+    _fetch_library_prices(request.user)
     added, updated = result["added"], result["updated"]
     text = f"PlayStation ({result['account'].name}): {added} juego{pluralize(added)} añadido{pluralize(added)}"
     if updated:
@@ -784,7 +801,7 @@ def xbox_callback(request):
     """Vuelta desde Microsoft: comprueba el código anti-CSRF, vincula la cuenta de Xbox e importa sus juegos.
 
     Si el usuario canceló el inicio de sesión, si el código no coincide o si Xbox Live falla, avisa y
-    vuelve a Editar perfil.
+    vuelve a Editar perfil. Después pide los precios de los juegos que nunca los han tenido (_fetch_library_prices).
     """
     expected = request.session.pop(XBOX_STATE_KEY, None)
     back = f"{reverse('edit_profile')}#xbox"
@@ -804,6 +821,7 @@ def xbox_callback(request):
         messages.error(request, f"No se pudieron importar tus juegos de Xbox. {exc}")
         return redirect(back)
 
+    _fetch_library_prices(request.user)
     added, updated = result["added"], result["updated"]
     text = f"Xbox ({result['account'].name}): {added} juego{pluralize(added)} añadido{pluralize(added)}"
     if updated:

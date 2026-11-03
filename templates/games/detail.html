@@ -116,87 +116,17 @@
         </details>
       {% endif %}{% endwith %}
 
-      <section class="widget">
-        <p class="widget-label">
-          {% if game.is_free %}Dónde jugarlo <span class="free-badge">Free to play</span>{% else %}Dónde comprarlo{% endif %}
-        </p>
-        {% if game.prices_edition %}<p class="help edition">Edición a la venta: {{ game.prices_edition }}</p>{% endif %}
-        {# Lo primero, lo que se busca al mirar precios: el más barato ahora (aunque su tienda esté plegada) y su mínimo. #}
-        {% if best_price %}{% if featured_prices or listed_prices %}
-          <p class="best-price">
-            <span>Mejor precio ahora: <strong>{% if best_price.is_free %}Gratis{% else %}{{ best_price.price|floatformat:2 }} {{ best_price.symbol }}{% endif %}</strong>
-              en <a href="{{ best_price.url }}" target="_blank" rel="nofollow sponsored noopener">{{ best_price.shop_name }}</a></span>
-            {% if game.historical_low is not None and not game.is_free %}
-              <span class="muted small">Mínimo histórico en PC: {{ game.historical_low|floatformat:2 }} {{ game.historical_low_symbol }}</span>
-            {% endif %}
-          </p>
-        {% endif %}{% endif %}
-        {% if user.is_authenticated and not game.is_free %}{% include "library/_wish.html" %}{% endif %}
-        {% if featured_prices or store_searches %}
-          <div class="shop-tiles">
-            {% for price in featured_prices %}
-              <a class="shop-tile" href="{{ price.url }}" target="_blank" rel="nofollow sponsored noopener">
-                {% include price.logo_template %}
-                <span class="shop-tile-name">{{ price.shop_name }}</span>
-                <span class="shop-tile-price">
-                  <strong>{% if price.is_free %}Gratis{% else %}{{ price.price|floatformat:2 }} {{ price.symbol }}{% endif %}</strong>
-                  {% if price.cut %}
-                    <span class="cut">-{{ price.cut }}%</span>
-                    <s class="muted">{{ price.regular_price|floatformat:2 }} {{ price.symbol }}</s>
-                  {% endif %}
-                </span>
-              </a>
-            {% endfor %}
-            {% for store, logo, url in store_searches %}
-              <a class="shop-tile shop-tile-search" href="{{ url }}" target="_blank" rel="noopener">
-                {% include logo %}
-                <span class="shop-tile-name">{{ store }}</span>
-                <span class="shop-tile-price">Buscar ↗</span>
-              </a>
-            {% endfor %}
-          </div>
-        {% endif %}
-        {% if listed_prices %}
-          <ul class="prices">
-            {% for price in listed_prices %}{% include "games/_price.html" %}{% endfor %}
-          </ul>
-        {% endif %}
-        {% if featured_prices or listed_prices %}
-          {% if folded_prices %}
-            <details class="more-prices">
-              <summary>Ver {{ folded_prices|length }} tienda{{ folded_prices|length|pluralize }} más</summary>
-              <ul class="prices">
-                {% for price in folded_prices %}{% include "games/_price.html" %}{% endfor %}
-              </ul>
-            </details>
-          {% endif %}
-          <p class="help">
-            {# El mínimo ya va arriba, junto al mejor precio, cuando lo hay. #}
-            {% if game.historical_low is not None and not game.is_free and not best_price %}
-              Mínimo histórico en PC: {{ game.historical_low|floatformat:2 }} {{ game.historical_low_symbol }} ·
-            {% endif %}
-            {% if game.prices_updated_at %}Actualizado hace {{ game.prices_updated_at|timesince }} ·{% endif %}
-            Precios de PC de <a href="https://isthereanydeal.com/" target="_blank" rel="noopener">IsThereAnyDeal</a>
-          </p>
-          {% if not has_pc_prices %}<p class="help">No se han encontrado precios en tiendas de PC.</p>{% endif %}
-          {% if history_has_data %}
-            {% include "games/_price_history.html" %}
-          {% elif load_price_history %}
-            <div id="price-history" hx-get="{% url 'games:price_history' game.slug %}" hx-trigger="load" hx-swap="outerHTML">
-              <p class="help">Cargando el historial de precios…</p>
-            </div>
-          {% endif %}
-        {% elif hidden_prices %}
-          <p class="muted no-prices">Ninguna de tus tiendas lo vende.</p>
-        {% else %}
-          <p class="muted no-prices">No se han encontrado precios en las tiendas.</p>
-        {% endif %}
-        {% if hidden_prices %}
-          <p class="help shops-note">{{ hidden_prices }} tienda{{ hidden_prices|pluralize }} en la{{ hidden_prices|pluralize }} que no compras oculta{{ hidden_prices|pluralize }} · <a href="?tiendas=todas">Ver todas</a> · <a href="{% url 'edit_profile' %}#tiendas">Elegir tiendas</a></p>
-        {% elif user_shops and request.GET.tiendas == "todas" %}
-          <p class="help shops-note">Viendo todas las tiendas · <a href="{{ request.path }}">Solo las mías</a></p>
-        {% endif %}
-      </section>
+      {# «Dónde comprarlo»: con los precios buscados alguna vez va ya; si nunca se han buscado, la ficha los pide con HTMX #}
+      {# (lleva la misma ?tiendas= y ?tienda= de la ficha) y mientras tanto avisa de que los está buscando. #}
+      {% if load_prices %}
+        <section class="widget" id="prices" aria-busy="true"
+                 hx-get="{% url 'games:prices' game.slug %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" hx-trigger="load" hx-swap="outerHTML">
+          <p class="widget-label">Dónde comprarlo</p>
+          <p class="help">Buscando precios…</p>
+        </section>
+      {% else %}
+        {% include "games/_prices.html" %}
+      {% endif %}
 
       {% include "library/_reviews.html" %}
     </div>
