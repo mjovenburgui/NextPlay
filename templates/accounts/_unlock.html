@@ -1,0 +1,18 @@
+{# Un logro conseguido, en la sección «Logros» del perfil (accounts.achievements.showcase): icono, nombre, juego y cuándo. Si es oculto, a quien no es su dueño se le tapa el nombre hasta que lo pulsa. #}
+{% with achievement=unlock.achievement game=unlock.achievement.title.game %}
+  <div class="unlock">
+    {% if achievement.icon %}
+      <img class="achievement-icon" src="{{ achievement.icon }}" alt="" width="48" height="48" loading="lazy">
+    {% else %}
+      <span class="achievement-icon is-blank" aria-hidden="true">{% include "_icon.html" with name="trophy" %}</span>
+    {% endif %}
+    <span class="achievement-text">
+      {% if achievement.hidden and not is_owner %}
+        <strong><span class="spoiler-inline" tabindex="0" role="button" aria-expanded="false" title="Logro oculto: pulsa para ver su nombre">{{ achievement.name }}</span></strong>
+      {% else %}
+        <strong>{{ achievement.name }}</strong>
+      {% endif %}
+      <span class="muted small">{% if game %}<a href="{{ game.get_absolute_url }}">{{ game.name }}</a>{% else %}{{ achievement.title.name }}{% endif %}{% if unlock.unlocked_at %} · <time datetime="{{ unlock.unlocked_at|date:'c' }}">{{ unlock.unlocked_at|date:"j M Y" }}</time>{% endif %}</span>
+    </span>
+  </div>
+{% endwith %}

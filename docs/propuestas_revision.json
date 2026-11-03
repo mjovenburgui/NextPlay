@@ -138,6 +138,7 @@
       "fase": "2. Remates rápidos",
       "texto": "Poco trabajo, y dejan la lista y la web más limpias.",
       "tareas": [
+        "Que ningún juego se quede sin precio: pedirlo al importar o al abrir la ficha, y el de Steam a Steam",
         "Arreglos pequeños que han salido al medir: mejor precio, redirección y consultas de más",
         "Traducir al español los comentarios antiguos en inglés",
         "Listas colaborativas: invitar solo a quien te sigue y avisar al aceptar",

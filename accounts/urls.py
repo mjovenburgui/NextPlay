@@ -9,6 +9,7 @@ urlpatterns = [
     path("cuenta/perfil/imagenes-de-juego/", views.banner_arts, name="banner_arts"),
     path("cuenta/perfil/cabecera-de-juego/<int:game_id>/", views.banner_from_game, name="banner_from_game"),
     path("cuenta/favoritos/<int:game_id>/", views.favorite_toggle, name="favorite_toggle"),
+    path("cuenta/logros/<int:game_id>/", views.game_achievements, name="game_achievements"),
     path("cuenta/tiendas/", views.shops_update, name="shops_update"),
     path("cuenta/steam/vincular/", views.steam_link, name="steam_link"),
     path("cuenta/steam/vuelta/", views.steam_callback, name="steam_callback"),

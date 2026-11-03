@@ -116,7 +116,8 @@ def _profile_context(request, owner, favorites=None, preview=False):
     (social.views.follow_context), y sus listas y, aparte, sus tier lists (lists.views.profile_lists), para sus
     pestañas y el escaparate; las tier lists que se enseñan llevan su tablero en miniatura (lists.views.mark_boards).
     Con sus logros importados (accounts.achievements), cada juego de la biblioteca lleva su insignia de «Platino» o
-    «100 %» (achievement_badge) y las cifras de la cabecera, sus platinos y sus juegos al 100 %.
+    «100 %» (achievement_badge) y las cifras de la cabecera, sus platinos y sus juegos al 100 %; si el escaparate
+    enseña la sección «Logros», lleva también sus últimos logros y el más raro (achievements.showcase).
     """
     is_owner = request.user == owner and not preview
     entries = list(
@@ -168,6 +169,8 @@ def _profile_context(request, owner, favorites=None, preview=False):
     mark_boards(tier_lists if view == "tier-lists" else tier_lists[:SHOWCASE_TIER_LISTS])
 
     tabs = [(value, label, counts[value]) for value, label in LibraryEntry.Status.choices]
+    # El escaparate solo va en la vista principal: al filtrar u ordenar, la biblioteca sube.
+    show_showcase = not (status or sort or view or language)
     return {
         "owner": owner,
         "entries": shown[:PREVIEW_LIBRARY] if preview else shown,
@@ -190,8 +193,10 @@ def _profile_context(request, owner, favorites=None, preview=False):
         "activities": [],
         "next_cursor": "",
         **activity_tab,
-        # El escaparate solo va en la vista principal: al filtrar u ordenar, la biblioteca sube.
-        "show_showcase": not (status or sort or view or language),
+        "show_showcase": show_showcase,
+        "achievement_showcase": (
+            achievements.showcase(owner) if show_showcase and "logros" in owner.profile.visible_sections else None
+        ),
         "favorites": list(owner.favorite_games.select_related("game")) if favorites is None else favorites,
         "max_favorites": FavoriteGame.MAX_PER_USER,
         "playing": [e for e in entries if e.status == LibraryEntry.Status.PLAYING][:PLAYING_SHOWN],
@@ -370,6 +375,18 @@ def game_arts(game):
         {"id": image_id, "thumb": igdb_image_url(image_id, "t_screenshot_med"), "full": igdb_image_url(image_id, "t_1080p")}
         for image_id in ids
     ]
+
+
+@login_required
+def game_achievements(request, game_id):
+    """«Tus logros» de un juego, uno a uno (fragmento HTML que la ficha pide con HTMX al desplegarlos y al cambiar de
+    orden con ?orden=): los que tiene quien mira, con cuándo los consiguió, y los que le faltan, con su rareza
+    (accounts.achievements.detail). Da 404 si no tiene logros de ese juego leídos uno a uno."""
+    game = get_object_or_404(Game, pk=game_id)
+    found = achievements.detail(request.user, game, request.GET.get("orden", ""))
+    if found is None:
+        raise Http404
+    return render(request, "accounts/_achievements.html", {"game": game, **found})
 
 
 @login_required
