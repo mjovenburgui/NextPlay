@@ -38,11 +38,18 @@ MEDIA_FIELDS = (
 )
 
 STEAM_FIELDS = "external_games.uid, external_games.name, external_games.external_game_source"
+# Fichas de IGDB relacionadas con el juego cuyos IDs de tienda le sirven para buscar precio si él no los tiene
+# (_store_alternatives), por preferencia: sus ports y sus ediciones ampliadas, que son el mismo juego en otra ficha
+# (la versión de PC de Red Dead Redemption, The Witcher 2: Enhanced Edition), y sus remasters.
+RELATED_STORES = ("ports", "expanded_games", "remasters")
 GAME_FIELDS = (
     "fields name, slug, summary, first_release_date, total_rating_count, cover.image_id, "
     f"aggregated_rating, aggregated_rating_count, {STEAM_FIELDS}, "
-    f"remasters.name, {STEAM_FIELDS.replace('external_games', 'remasters.external_games')}, "
-    f"genres.name, genres.slug, platforms.name, platforms.abbreviation, platforms.slug, {spanish.SPANISH_FIELDS};"
+    + "".join(
+        f"{related}.name, {STEAM_FIELDS.replace('external_games', related + '.external_games')}, "
+        for related in RELATED_STORES
+    )
+    + f"genres.name, genres.slug, platforms.name, platforms.abbreviation, platforms.slug, {spanish.SPANISH_FIELDS};"
 )
 
 
@@ -144,13 +151,16 @@ class IGDBClient:
             ):
                 if item.get("game") and str(item.get("uid") or "").isdigit():
                     steam_to_igdb.setdefault(int(item["uid"]), item["game"])
-        igdb_ids = sorted(set(steam_to_igdb.values()))
+        return self.games_by_ids(sorted(set(steam_to_igdb.values()))), steam_to_igdb
+
+    def games_by_ids(self, igdb_ids):
+        """Juegos de IGDB (con sus ediciones) a partir de sus ids, en lotes de MAX_PAGE_SIZE."""
         games = []
         for start in range(0, len(igdb_ids), MAX_PAGE_SIZE):
             ids = ",".join(str(game_id) for game_id in igdb_ids[start:start + MAX_PAGE_SIZE])
-            time.sleep(0.25)
+            time.sleep(0.25)  # IGDB admite 4 peticiones por segundo
             games += self.query("games", f"{GAME_FIELDS} where id = ({ids}); limit {MAX_PAGE_SIZE};")
-        return self._with_editions(games), steam_to_igdb
+        return self._with_editions(games)
 
     def games_by_names(self, names):
         """Juegos de IGDB (con sus ediciones) cuyo nombre es exactamente uno de names, sin ediciones sueltas.
@@ -285,13 +295,15 @@ def _store_ids(data):
 
 
 def _store_alternatives(data, own_ids):
-    """IDs de tienda de las ediciones del juego y después de sus remasters, sin repetir los suyos.
+    """IDs de tienda de las ediciones del juego y después de las fichas de RELATED_STORES (sus ports, sus ediciones
+    ampliadas y sus remasters), sin repetir los suyos.
 
-    Sirven para encontrar precios cuando el juego original ya no se vende.
+    Sirven para encontrar precios cuando el juego original ya no se vende o cuando IGDB guarda sus IDs de tienda en
+    otra ficha, como la versión de PC de Red Dead Redemption o la edición ampliada de The Witcher 2.
     """
     seen = {(store, uid) for store, uids in own_ids.items() for uid in uids}
     alternatives = []
-    for related in (data.get("editions") or []) + (data.get("remasters") or []):
+    for related in [item for key in ("editions", *RELATED_STORES) for item in data.get(key) or []]:
         ids = {}
         for store, uids in _store_ids(related).items():
             new = [uid for uid in uids if (store, uid) not in seen]
