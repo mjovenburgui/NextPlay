@@ -96,6 +96,8 @@ def source_files():
     """Archivos .py versionados en git que se documentan, ordenados por app y nombre."""
     files = subprocess.check_output(["git", "ls-files", "*.py"], cwd=ROOT, text=True).split()
     files = [f for f in files if not any(part in f for part in SKIP) and not f.endswith("__init__.py")]
+    # Lo que git aún tiene pero ya no está (un archivo borrado o movido sin confirmar) no se puede leer.
+    files = [f for f in files if (ROOT / f).exists()]
     order = list(APPS)
     return sorted(files, key=lambda f: (order.index(f.split("/")[0]) if f.split("/")[0] in order else 99, f))
 
@@ -196,11 +198,6 @@ def split_screens(doc, names):
     return rest, value, found, unknown
 
 
-def _modname(path):
-    """Nombre de módulo de un archivo: accounts/views.py → accounts.views."""
-    return path[:-3].replace("/", ".").removesuffix(".__init__")
-
-
 def _resolve(module, node):
     """Módulo e importaciones de un archivo: {alias: módulo o módulo.nombre}, para seguir las vistas de urls.py."""
     names = {}
@@ -213,6 +210,32 @@ def _resolve(module, node):
             for alias in child.names:
                 names[alias.asname or alias.name] = f"{base}.{alias.name}" if base else alias.name
     return names
+
+
+def locate(view):
+    """Dónde está de verdad una vista dada con su nombre completo: (archivo, función, nombre completo), o None.
+
+    Sigue los reexports de los __init__.py: accounts.views.profile está en accounts/views/perfil.py, porque
+    accounts/views/__init__.py la trae con «from .perfil import profile».
+    """
+    module, _, function = view.rpartition(".")
+    for _ in range(4):
+        path = ROOT / (module.replace(".", "/") + ".py")
+        if path.exists():
+            return path, function, f"{module}.{function}"
+        package = ROOT / module.replace(".", "/") / "__init__.py"
+        if not package.exists():
+            return None
+        for node in ast.parse(package.read_text(encoding="utf-8")).body:
+            if isinstance(node, ast.ImportFrom) and any((a.asname or a.name) == function for a in node.names):
+                parts = module.split(".")
+                if node.level:
+                    parts = parts[: len(parts) - node.level + 1]
+                module = ".".join(parts + ([node.module] if node.module else []))
+                break
+        else:
+            return None
+    return None
 
 
 def url_index():
@@ -253,7 +276,8 @@ def url_index():
             head, _, attr = view.partition(".")
             if head in imports:
                 view = f"{imports[head]}.{attr}" if attr else imports[head]
-            index[f"{namespace}:{name}" if namespace else name] = ("/" + prefix + route, view)
+            found = locate(view)
+            index[f"{namespace}:{name}" if namespace else name] = ("/" + prefix + route, found[2] if found else view)
 
     walk("config.urls", "")
     return index
@@ -264,10 +288,10 @@ def view_templates(view):
     if view.startswith("django.contrib.auth"):
         name = view[view.index("(") + 1 : -1]
         return [AUTH_URLS[name][1]] if AUTH_URLS.get(name, ("", ""))[1] else []
-    module, _, function = view.rpartition(".")
-    path = ROOT / (module.replace(".", "/") + ".py")
-    if not path.exists():
+    found = locate(view)
+    if not found:
         return []
+    path, function, _ = found
     tree = ast.parse(path.read_text(encoding="utf-8"))
     defs = {n.name: n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
     found, pending, seen = [], [function], set()

@@ -805,7 +805,7 @@
   {
     "titulo": "Partir las vistas más grandes por pantalla",
     "fecha": "2026-11-03",
-    "estado": "pendiente",
+    "estado": "hecha",
     "prioridad": "media",
     "tipo": "Infraestructura",
     "resumen": "Cambiar accounts/views.py (44 funciones), lists/views.py (45) y library/views.py (29) por una carpeta views/ con un archivo por pantalla o por grupo de botones, para que el nombre del archivo ya diga a qué pantalla afecta cada función.",
@@ -816,10 +816,10 @@
       "Cambiar las rutas de los @patch de los tests (accounts.views.steam pasa a accounts.views.vincular.steam) y lanzar los tests sin claves y con claves falsas.",
       "Regenerar el PDF de funciones: el mapa de pantallas ya lo agrupa por archivo, así que se verá cada pantalla con sus archivos."
     ],
-    "notas": "Sale del 03/11/2026, al pedir que todas las funciones digan qué hacen y a qué pantallas afectan. Mejor después de «Que las pantallas de cada función se comprueben solas», que avisaría si al moverlas se pierde algo.",
+    "notas": "Hecha el 03/11/2026, en la misma rama que la documentación de las pantallas: accounts/views/ (registro, perfil, editar_perfil, cuentas_vinculadas, juegos_importados, avisos, ficha_del_juego y comun), lists/views/ (pagina_de_la_lista, editar_lista, colaboradores, nueva_lista, listas_del_juego, tarjetas y comun) y library/views/ (ficha_del_juego, escribir_resena, pagina_de_la_resena, lista_de_deseos y comentarios_y_denuncias). Los nombres de los archivos van en español porque son los de las pantallas de docs/pantallas.json. Ninguna función ha cambiado: se movieron con un script que comprobó que el código de cada una seguía igual. Los __init__.py reexportan las vistas, así que urls.py y las otras apps no cambian; solo dos tests importan ahora del archivo nuevo (accounts.views.perfil y lists.views.tarjetas).",
     "revision": {
       "fecha": "2026-11-03",
-      "hoy": "Propuesta nueva, sin empezar: el código no se ha movido, solo se han documentado las pantallas de cada función.",
+      "hoy": "Hecha. social/views.py (28 funciones: seguir, el feed, la actividad y las publicaciones) sigue de una pieza; se puede partir igual si crece.",
       "profundizar": [
         "Ir más allá de las vistas: los modelos y los formularios se usan en muchas pantallas, así que ahí partir por pantalla no ayuda; mejor dejarlos por app.",
         "Las plantillas ya van por app y por pantalla; los trozos que salen en varias (la tarjeta de juego, el avatar) podrían ir a una carpeta común para que se vea que no son de una sola."

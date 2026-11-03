@@ -375,9 +375,14 @@ schtasks /Create /TN "NextPlay nightly" /SC DAILY /ST 04:00 /TR "cmd /c cd /d %C
 | `lists`    | `GameList` y `ListItem`: las listas de juegos de cada usuario |
 | `challenges` | `Challenge` y `Participation`: los retos y quién está en cada uno |
 
+Las vistas de `accounts`, `lists` y `library` van en un paquete `views/` con un archivo por pantalla (por ejemplo
+`accounts/views/perfil.py`, `lists/views/editar_lista.py` o `library/views/escribir_resena.py`). El `__init__.py` de
+cada paquete dice qué hay en cada archivo y reexporta las vistas, así que `urls.py` y las otras apps siguen
+importando de `accounts.views`, `lists.views` y `library.views`.
+
 ## Pantallas y documentación
 
-Cada app tiene sus vistas (`views.py`), que pintan pantallas con las plantillas de `templates/` y responden a los
+Cada app tiene sus vistas (`views.py`, o una carpeta `views/` con un archivo por pantalla), que pintan pantallas con las plantillas de `templates/` y responden a los
 botones (muchos con HTMX, que cambia solo un trozo de la página). Estas son las pantallas, con su catálogo en
 `docs/pantallas.json`:
 
@@ -386,26 +391,26 @@ botones (muchos con HTMX, que cambia solo un trozo de la página). Estas son las
 | Inicio | `/` | `games.views.home` | `games/home.html` |
 | Catálogo | `/juegos/` | `games.views.catalog` | `games/catalog.html` |
 | Ficha del juego | `/juegos/<juego>/` | `games.views.detail` | `games/detail.html` |
-| Listas del juego | `/juegos/<juego>/listas/` | `lists.views.game_lists` | `lists/game_lists.html` |
-| Perfil | `/u/<usuario>/` | `accounts.views.profile` | `accounts/profile.html` |
+| Listas del juego | `/juegos/<juego>/listas/` | `game_lists` en `lists/views/listas_del_juego.py` | `lists/game_lists.html` |
+| Perfil | `/u/<usuario>/` | `profile` en `accounts/views/perfil.py` | `accounts/profile.html` |
 | Seguidores y seguidos | `/u/<usuario>/seguidores/` y `siguiendo/` | `social.views.followers` y `following` | `social/people.html` |
 | Publicar | `/publicar/` | `social.views.post_new` | `social/post_form.html` |
 | Página de la publicación | `/u/<usuario>/publicaciones/<id>/` | `social.views.post_detail` | `social/post_detail.html` |
-| Escribir reseña | `/biblioteca/<juego>/resenas/nueva/` y `resenas/<id>/editar/` | `library.views.review_new` y `review_edit` | `library/review_form.html` |
-| Página de la reseña | `/u/<usuario>/resenas/<id>/` | `library.views.review_detail` | `library/review_detail.html` |
-| Lista de deseos | `/biblioteca/lista-de-deseos/` | `library.views.wishlist` | `library/wishlist.html` |
-| Página de la lista | `/u/<usuario>/listas/<id>/` | `lists.views.detail` | `lists/detail.html` |
-| Nueva lista | `/listas/nueva/` | `lists.views.new` | `lists/form.html` |
-| Nueva tier list | `/tier-lists/nueva/` | `lists.views.new_tier_list` | `lists/tier_form.html` |
-| Editar lista | `/listas/<id>/editar/` | `lists.views.edit` | `lists/edit.html` |
+| Escribir reseña | `/biblioteca/<juego>/resenas/nueva/` y `resenas/<id>/editar/` | `review_new` y `review_edit` en `library/views/escribir_resena.py` | `library/review_form.html` |
+| Página de la reseña | `/u/<usuario>/resenas/<id>/` | `review_detail` en `library/views/pagina_de_la_resena.py` | `library/review_detail.html` |
+| Lista de deseos | `/biblioteca/lista-de-deseos/` | `wishlist` en `library/views/lista_de_deseos.py` | `library/wishlist.html` |
+| Página de la lista | `/u/<usuario>/listas/<id>/` | `detail` en `lists/views/pagina_de_la_lista.py` | `lists/detail.html` |
+| Nueva lista | `/listas/nueva/` | `new` en `lists/views/nueva_lista.py` | `lists/form.html` |
+| Nueva tier list | `/tier-lists/nueva/` | `new_tier_list` en `lists/views/nueva_lista.py` | `lists/tier_form.html` |
+| Editar lista | `/listas/<id>/editar/` | `edit` en `lists/views/editar_lista.py` | `lists/edit.html` |
 | Retos | `/retos/` | `challenges.views.explore` | `challenges/explore.html` |
 | Página del reto | `/retos/<id>/` | `challenges.views.detail` | `challenges/detail.html` |
 | Nuevo reto | `/retos/nuevo/` | `challenges.views.new` | `challenges/form.html` |
 | Editar reto | `/retos/<id>/editar/` | `challenges.views.edit` | `challenges/edit.html` |
-| Avisos | `/avisos/` | `accounts.views.notifications` | `accounts/notifications.html` |
-| Editar perfil | `/cuenta/perfil/` | `accounts.views.edit_profile` | `accounts/edit_profile.html` |
-| Juegos importados | `/cuenta/juegos-importados/` | `accounts.views.imported_titles` | `accounts/imported_titles.html` |
-| Registro | `/cuenta/registro/` | `accounts.views.signup` | `registration/signup.html` |
+| Avisos | `/avisos/` | `notifications` en `accounts/views/avisos.py` | `accounts/notifications.html` |
+| Editar perfil | `/cuenta/perfil/` | `edit_profile` en `accounts/views/editar_perfil.py` | `accounts/edit_profile.html` |
+| Juegos importados | `/cuenta/juegos-importados/` | `imported_titles` en `accounts/views/juegos_importados.py` | `accounts/imported_titles.html` |
+| Registro | `/cuenta/registro/` | `signup` en `accounts/views/registro.py` | `registration/signup.html` |
 | Iniciar sesión | `/cuenta/login/` | la de Django | `registration/login.html` |
 | Recuperar contraseña | `/cuenta/password_reset/` y siguientes | las de Django | `registration/password_reset_*.html` |
 | Panel de administración | `/admin/` | el admin de Django | |

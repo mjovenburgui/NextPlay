@@ -24,7 +24,8 @@ from games.models import Game, GamePrice, Platform
 from library.models import LibraryEntry, PlaySession, Review, WishlistItem
 from social.models import Activity
 
-from . import images, matching, psn, steam, views, xbox
+from . import images, matching, psn, steam, xbox
+from .views import perfil
 from .models import (
     Achievement, ExternalTitle, FavoriteGame, ImportedTitle, Notification, PlatformAccount, Profile, PSNAccount,
     SteamAccount, UnlockedAchievement, XboxAccount,
@@ -1817,7 +1818,7 @@ class ProfileCustomizationTests(TestCase):
         self.assertEqual(self.profile().sections, [])
 
     def test_preview_cuts_the_library_but_not_the_stats(self):
-        with mock.patch.object(views, "PREVIEW_LIBRARY", 2):
+        with mock.patch.object(perfil, "PREVIEW_LIBRARY", 2):
             response = self.preview()
         self.assertEqual(len(response.context["entries"]), 2)
         self.assertEqual(response.context["stats"]["games"], 3)
