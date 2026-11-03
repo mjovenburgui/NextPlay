@@ -1,0 +1,25 @@
+{# Tarjeta «Tus logros» de la ficha, en la columna de la carátula, debajo de la valoración de la comunidad: cuántos llevas en cada plataforma (accounts.achievements) o el 100 % y el platino de PlayStation. Si se conocen uno a uno, se despliega con la lista, que llega con HTMX la primera vez que se abre (accounts.views.game_achievements). #}
+{% with achievements=entry.achievements %}{% if achievements %}
+  <section class="widget side-achievements">
+    <p class="widget-label">Tus logros</p>
+    <ul class="achievement-list">
+      {% for item in achievements %}
+        <li class="achievement{% if item.complete %} is-complete{% endif %}{% if item.platinum %} is-platinum{% endif %}">
+          <span class="achievement-platform">{{ item.label }}</span>
+          <span class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="{{ item.total }}" aria-valuenow="{{ item.unlocked }}"
+                aria-label="{{ item.noun|capfirst }} de {{ item.label }}"><span style="width: {{ item.percent }}%"></span></span>
+          <span class="achievement-count">
+            {% if item.platinum %}{% include "_icon.html" with name="trophy" %} Platino{% elif item.complete %}{% include "_icon.html" with name="trophy" %} 100 %{% else %}{{ item.unlocked }} de {{ item.total }} {{ item.noun }}{% endif %}
+          </span>
+        </li>
+      {% endfor %}
+    </ul>
+    {% for item in achievements %}{% if item.detailed %}
+      <details class="achievement-details" hx-get="{% url 'game_achievements' game.id %}" hx-trigger="toggle once"
+               hx-target="find .achievement-panel" hx-swap="outerHTML">
+        <summary>Ver tus logros de {{ item.label }}</summary>
+        <div class="achievement-panel"><p class="help">Cargando tus logros…</p></div>
+      </details>
+    {% endif %}{% endfor %}
+  </section>
+{% endif %}{% endwith %}

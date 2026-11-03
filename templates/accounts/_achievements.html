@@ -1,0 +1,41 @@
+{# «Tus logros» uno a uno (accounts.views.game_achievements): resumen, órdenes y los que tienes y los que te faltan, cada grupo con los primeros a la vista y el resto plegado. Al cambiar de orden, HTMX cambia solo este bloque. #}
+<div class="achievement-panel" id="achievement-panel">
+  <p class="achievement-summary">
+    <strong>{{ unlocked }} de {{ total }}</strong>
+    {% if first %}
+      <span class="muted">· {% if first|date:"Ymd" == last|date:"Ymd" %}conseguidos el {{ first|date:"j M Y" }}{% else %}el primero, el {{ first|date:"j M Y" }}; el último, el {{ last|date:"j M Y" }}{% endif %}</span>
+    {% endif %}
+  </p>
+  {% if rarest %}
+    <p class="achievement-rarest">{% include "_icon.html" with name="trophy" %} Tu logro más raro: <strong>{{ rarest.name }}</strong> <span class="muted">· lo tiene el {{ rarest.percent|floatformat:"-1" }} % de los jugadores de {{ label }}</span></p>
+  {% endif %}
+  <nav class="chip-links" aria-label="Orden de los logros">
+    {% for value, name in orders %}
+      <button class="chip-link{% if value == order %} is-active{% endif %}" type="button"{% if value == order %} aria-current="true"{% endif %}
+              hx-get="{% url 'game_achievements' game.pk %}{% if value %}?orden={{ value }}{% endif %}" hx-target="#achievement-panel" hx-swap="outerHTML">{{ name }}</button>
+    {% endfor %}
+  </nav>
+  {% if unlocked %}
+    <h3 class="achievement-heading">Los que tienes <span class="muted">{{ unlocked }}</span></h3>
+    <ul class="achievement-rows">{% for achievement in unlocked_shown %}{% include "accounts/_achievement.html" with got=True %}{% endfor %}</ul>
+    {% if unlocked_more %}
+      <details class="achievement-more">
+        <summary>Ver {{ unlocked_more|length }} más</summary>
+        <ul class="achievement-rows">{% for achievement in unlocked_more %}{% include "accounts/_achievement.html" with got=True %}{% endfor %}</ul>
+      </details>
+    {% endif %}
+  {% endif %}
+  {% if locked %}
+    <h3 class="achievement-heading">Te faltan <span class="muted">{{ locked }}</span></h3>
+    <ul class="achievement-rows">{% for achievement in locked_shown %}{% include "accounts/_achievement.html" with got=False %}{% endfor %}</ul>
+    {% if locked_more %}
+      <details class="achievement-more">
+        <summary>Ver {{ locked_more|length }} más</summary>
+        <ul class="achievement-rows">{% for achievement in locked_more %}{% include "accounts/_achievement.html" with got=False %}{% endfor %}</ul>
+      </details>
+    {% endif %}
+  {% else %}
+    <p class="help">Los tienes todos.</p>
+  {% endif %}
+  <p class="help">Datos de {{ label }}. El porcentaje es el de sus jugadores que tienen cada logro.</p>
+</div>

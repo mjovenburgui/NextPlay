@@ -578,11 +578,12 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 /* Your own rating in the library widget; buttons go 5→1 so hover lights the star and those before it */
 .rate { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
 .rate-label { font-size: .9rem; color: var(--muted); }
-/* Logros importados en el widget de la ficha: una fila por plataforma, con la barra de progreso de las listas. */
-.achievements { display: grid; gap: .4rem; margin: .9rem 0 .7rem; }
-.achievement-list { display: grid; gap: .45rem; margin: 0; padding: 0; list-style: none; }
-.achievement { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr) auto; align-items: center; gap: .65rem; font-size: .88rem; }
-.achievement .progress-bar { margin: 0; }
+/* Tarjeta «Tus logros» de la ficha, en la columna de la carátula como la valoración de la comunidad: una fila por
+   plataforma con lo que llevas y debajo la barra de progreso de las listas. */
+.game-side .side-achievements { margin: 1rem 0 0; }
+.achievement-list { display: grid; gap: .65rem; margin: 0; padding: 0; list-style: none; }
+.achievement { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .3rem .65rem; font-size: .88rem; }
+.achievement .progress-bar { grid-column: 1 / -1; grid-row: 2; margin: 0; }
 .achievement-platform { color: var(--text-2); font-weight: 600; }
 .achievement-count { display: inline-flex; align-items: center; gap: .3rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .achievement-count .icon { width: .95rem; height: .95rem; }
@@ -590,6 +591,43 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .achievement.is-complete .progress-bar span { background: var(--gold); }
 .achievement.is-platinum .achievement-count { color: var(--platinum); }
 .achievement.is-platinum .progress-bar span { background: linear-gradient(90deg, var(--violet-text), var(--platinum)); }
+/* Al desplegar la tarjeta, los logros uno a uno, que llegan por HTMX. Los que tienes, en recuadro; los que te faltan,
+   sin fondo y con el icono apagado. La rareza va en oro cuando el logro es raro. Como la columna es estrecha, la fecha
+   y la rareza van debajo del nombre. */
+.achievement-details { margin-top: .85rem; padding-top: .7rem; border-top: 1px solid var(--border); }
+.achievement-details > summary { color: var(--cyan); font-size: .9rem; cursor: pointer; }
+.achievement-panel { display: grid; gap: .6rem; margin-top: .7rem; }
+.achievement-summary { margin: 0; font-size: .85rem; }
+.achievement-rarest { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin: 0; font-size: .85rem; }
+.achievement-rarest .icon { width: 1rem; height: 1rem; color: var(--gold); }
+.achievement-panel .chip-links { margin: .1rem 0; }
+button.chip-link { background: none; font-family: inherit; cursor: pointer; }
+.achievement-heading { margin: .35rem 0 0; font-size: .95rem; }
+.achievement-rows, .unlock-list { display: grid; gap: .35rem; margin: 0; padding: 0; list-style: none; }
+.achievement-row { display: grid; grid-template-columns: 2.25rem minmax(0, 1fr); align-items: center; gap: .2rem .6rem; padding: .45rem .5rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); font-size: .88rem; }
+.achievement-row.is-locked { background: none; }
+.achievement-row.is-locked .achievement-text strong { color: var(--text-2); font-weight: 600; }
+.achievement-row.is-locked img.achievement-icon { opacity: .75; }
+.achievement-icon { display: grid; place-items: center; width: 3rem; height: 3rem; border-radius: 8px; background: var(--surface-3); object-fit: cover; }
+.achievement-icon.is-blank .icon { width: 1.4rem; height: 1.4rem; color: var(--muted); }
+.achievement-row .achievement-icon { grid-row: span 2; width: 2.25rem; height: 2.25rem; border-radius: 7px; }
+.achievement-row .achievement-icon.is-blank .icon { width: 1.15rem; height: 1.15rem; }
+.achievement-text { display: grid; gap: .1rem; min-width: 0; }
+.achievement-text strong { overflow-wrap: anywhere; }
+.achievement-meta { display: flex; flex-wrap: wrap; gap: .15rem .6rem; color: var(--text-2); font-size: .78rem; font-variant-numeric: tabular-nums; }
+.achievement-rarity { color: var(--muted); font-size: .78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.achievement-rarity.is-rare { color: var(--gold-text); font-weight: 600; }
+.achievement-more > summary { padding: .35rem 0; color: var(--cyan); font-size: .88rem; cursor: pointer; }
+.achievement-more > .achievement-rows { margin-top: .35rem; }
+/* Sección «Logros» del perfil: el más raro destacado en oro y debajo los últimos. */
+.unlock { display: grid; grid-template-columns: 3rem minmax(0, 1fr); align-items: center; gap: .7rem; min-width: 0; }
+.rarest-achievement { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem .75rem; padding: .6rem .7rem; border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent); border-radius: 12px; background: rgba(255, 200, 74, .06); }
+.rarest-achievement .unlock { flex: 1 1 14rem; }
+.unlock-list { margin-top: .1rem; }
+@media (max-width: 480px) {
+  .unlock { grid-template-columns: 2.5rem minmax(0, 1fr); }
+  .unlock .achievement-icon { width: 2.5rem; height: 2.5rem; }
+}
 /* Horas de cada plataforma en el widget de la ficha: una fila por plataforma, con su última partida debajo. */
 .play-hours { display: grid; gap: .4rem; margin: .9rem 0 .7rem; }
 .hours-list { display: grid; gap: .5rem; margin: 0; padding: 0; list-style: none; }
@@ -953,13 +991,14 @@ html:has(.viewer[open]) { overflow: hidden; }
   .game-hero-credit { display: none; }
   /* La carátula, pequeña, al lado de las notas. minmax(0, …): sin él, la columna se ensancha hasta lo que mide la línea más larga.
      La columna lateral se deshace (display: contents) para que lo que se usa a diario, el estado en tu biblioteca, venga
-     justo después de las notas y «En N listas» baje al final de la ficha. */
+     justo después de las notas y «Tus logros» y «En N listas» bajen al final de la ficha. */
   .game { grid-template-columns: 104px minmax(0, 1fr); gap: .75rem; }
   .game-side { display: contents; }
   .game-side .cover-lg { grid-row: span 2; max-width: none; margin: 0; }
   .game-side .side-score { margin: 0; padding: .75rem; }
   .game-body { grid-column: 1 / -1; order: 1; min-width: 0; }
   .game-side .side-lists { order: 2; }
+  .game-side .side-achievements { grid-column: 1 / -1; order: 2; margin: 0; }
   /* Los cinco estados en dos filas que llenan el ancho, en vez de tres renglones desiguales. */
   .status-row { gap: .4rem; }
   .status-row .status { flex: 1 1 auto; justify-content: center; padding: .45rem .65rem; font-size: .92rem; }
