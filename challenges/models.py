@@ -1,3 +1,7 @@
+"""Modelos de los retos: cada reto (de número de juegos, de horas o de juegos concretos, con sus fechas y filtros) y
+quién se ha unido a él. Se ven en Retos, en la Página del reto y en Editar reto.
+"""
+
 from django.conf import settings
 from django.db import models
 from django.urls import reverse
@@ -13,20 +17,29 @@ MAX_TARGET_HOURS = 10000
 
 
 def long_date(day):
-    """Una fecha como se escribe en España: «1 de octubre de 2026»."""
+    """Una fecha como se escribe en España: «1 de octubre de 2026».
+
+    Pantallas: Retos, Página del reto, Editar reto (las fechas en palabras).
+    """
     return formats.date_format(day, r"j \d\e F \d\e Y")
 
 
 class ChallengeQuerySet(models.QuerySet):
     def visible_to(self, viewer):
-        """Retos que viewer puede ver: los públicos y los suyos. Es la regla de Challenge.visible_to en una consulta."""
+        """Retos que viewer puede ver: los públicos y los suyos. Es la regla de Challenge.visible_to en una consulta.
+
+        Pantallas: Retos, Página del reto (solo los públicos y los tuyos).
+        """
         visible = models.Q(is_public=True)
         if viewer.is_authenticated:
             visible |= models.Q(creator=viewer)
         return self.filter(visible)
 
     def with_counts(self):
-        """Retos con su creador cargado y cuánta gente se ha unido (participant_count)."""
+        """Retos con su creador cargado y cuánta gente se ha unido (participant_count).
+
+        Pantallas: Retos, Página del reto (cuánta gente se ha unido).
+        """
         return self.select_related("creator__profile").annotate(participant_count=models.Count("participations"))
 
 
@@ -84,20 +97,32 @@ class Challenge(models.Model):
         verbose_name_plural = "retos"
 
     def __str__(self):
-        """Texto en el admin: su título."""
+        """Texto en el admin: su título.
+
+        Pantallas: Panel de administración.
+        """
         return self.title
 
     def get_absolute_url(self):
-        """URL de la página del reto: /retos/<id>/."""
+        """URL de la página del reto: /retos/<id>/.
+
+        Pantallas: Retos, Página del reto, Editar reto (los enlaces a cada reto).
+        """
         return reverse("challenges:detail", args=[self.pk])
 
     def visible_to(self, viewer):
-        """Indica si viewer puede ver el reto: los públicos, cualquiera; los privados, solo quien los crea."""
+        """Indica si viewer puede ver el reto: los públicos, cualquiera; los privados, solo quien los crea.
+
+        Pantallas: Página del reto (los privados solo los ve quien los crea).
+        """
         return self.is_public or viewer == self.creator
 
     @property
     def goal(self):
-        """Lo que hay que llegar a tener, en la unidad de challenges.progress: juegos terminados o minutos jugados."""
+        """Lo que hay que llegar a tener, en la unidad de challenges.progress: juegos terminados o minutos jugados.
+
+        Pantallas: Retos (cómo vas en cada uno), Página del reto (tu progreso y la clasificación).
+        """
         if self.kind == self.Kind.HOURS:
             return (self.target or 0) * 60
         if self.kind == self.Kind.GAMES:
@@ -106,24 +131,36 @@ class Challenge(models.Model):
 
     @property
     def is_upcoming(self):
-        """Indica si aún no ha empezado."""
+        """Indica si aún no ha empezado.
+
+        Pantallas: Retos, Página del reto (si aún no ha empezado).
+        """
         return self.starts_on is not None and self.starts_on > timezone.localdate()
 
     @property
     def is_over(self):
-        """Indica si ya ha terminado: desde entonces no se puede unir nadie."""
+        """Indica si ya ha terminado: desde entonces no se puede unir nadie.
+
+        Pantallas: Retos, Página del reto (si ya ha terminado y ya no se puede unir nadie).
+        """
         return self.ends_on is not None and self.ends_on < timezone.localdate()
 
     @property
     def days_left(self):
-        """Días que le quedan si está en marcha y tiene fecha de fin (hoy incluido); si no, None."""
+        """Días que le quedan si está en marcha y tiene fecha de fin (hoy incluido); si no, None.
+
+        Pantallas: Retos, Página del reto (los días que le quedan).
+        """
         if self.ends_on is None or self.is_over or self.is_upcoming:
             return None
         return (self.ends_on - timezone.localdate()).days + 1
 
     @property
     def filters_text(self):
-        """De qué juegos va, en palabras: «de Rol de PC lanzados entre 2000 y 2010»; vacío si de cualquiera."""
+        """De qué juegos va, en palabras: «de Rol de PC lanzados entre 2000 y 2010»; vacío si de cualquiera.
+
+        Pantallas: Retos, Página del reto, Editar reto (de qué juegos va).
+        """
         parts = []
         if self.genre_id:
             parts.append(f"de {self.genre.name}")
@@ -140,7 +177,10 @@ class Challenge(models.Model):
 
     @property
     def rules_text(self):
-        """Lo que hay que hacer, en una frase: «Termina 5 juegos de Terror», «Juega 50 horas», «Termina los 6 juegos»."""
+        """Lo que hay que hacer, en una frase: «Termina 5 juegos de Terror», «Juega 50 horas», «Termina los 6 juegos».
+
+        Pantallas: Retos, Página del reto, Editar reto (lo que hay que hacer).
+        """
         if self.kind == self.Kind.HOURS:
             what = f"Juega {self.target} hora{'s' if self.target != 1 else ''}"
             return f"{what} a juegos {self.filters_text}" if self.filters_text else what
@@ -154,7 +194,10 @@ class Challenge(models.Model):
 
     @property
     def dates_text(self):
-        """Cuándo cuenta, en palabras: «del 1 de octubre al 31 de octubre de 2026», «desde…», «hasta…» o «sin fechas»."""
+        """Cuándo cuenta, en palabras: «del 1 de octubre al 31 de octubre de 2026», «desde…», «hasta…» o «sin fechas».
+
+        Pantallas: Retos, Página del reto, Editar reto (cuándo cuenta).
+        """
         if self.starts_on and self.ends_on:
             return f"del {long_date(self.starts_on)} al {long_date(self.ends_on)}"
         if self.starts_on:
@@ -180,5 +223,8 @@ class Participation(models.Model):
         verbose_name_plural = "participaciones en retos"
 
     def __str__(self):
-        """Texto en el admin: «usuario en reto»."""
+        """Texto en el admin: «usuario en reto».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.user} en {self.challenge}"

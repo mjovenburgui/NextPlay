@@ -23,7 +23,10 @@ IMPORT_COVERS = 4
 
 
 def _recent(user):
-    """Lo último que ha hecho user, si fue hace menos de MERGE_WINDOW (para juntar con ello lo siguiente); si no, None."""
+    """Lo último que ha hecho user, si fue hace menos de MERGE_WINDOW (para juntar con ello lo siguiente); si no, None.
+
+    Pantallas: Inicio (feed: junta lo que haces seguido en una sola actividad), Perfil (pestaña Actividad).
+    """
     latest = Activity.objects.filter(user=user).order_by("-updated_at", "-id").first()
     if latest and latest.updated_at >= timezone.now() - MERGE_WINDOW:
         return latest
@@ -35,6 +38,8 @@ def _game_activity(user, game, merge_only=False, **changes):
 
     Con merge_only no crea ninguna: sirve para deshacer algo recién hecho (quitar la nota que acaba de poner).
     Si se queda vacía, se borra. Devuelve la actividad, o None si no hay ninguna.
+
+    Pantallas: Inicio (feed: lo que haces con un juego), Perfil (pestaña Actividad).
     """
     now = timezone.now()
     activity = _recent(user)
@@ -54,12 +59,18 @@ def _game_activity(user, game, merge_only=False, **changes):
 
 
 def status_changed(user, game, status):
-    """Apunta que user ha pasado game a status (o que lo ha añadido a su biblioteca con ese estado)."""
+    """Apunta que user ha pasado game a status (o que lo ha añadido a su biblioteca con ese estado).
+
+    Pantallas: Ficha del juego (al cambiar el estado), Inicio (feed), Perfil (pestaña Actividad).
+    """
     return _game_activity(user, game, status=status)
 
 
 def rated(user, game, rating):
-    """Apunta la nota que user le ha puesto a game. Si la ha quitado (None), solo se deshace la que acababa de poner."""
+    """Apunta la nota que user le ha puesto a game. Si la ha quitado (None), solo se deshace la que acababa de poner.
+
+    Pantallas: Ficha del juego (al poner o quitar la nota), Inicio (feed), Perfil (pestaña Actividad).
+    """
     if rating:
         return _game_activity(user, game, rating=rating)
     return _game_activity(user, game, merge_only=True, rating=None)
@@ -69,6 +80,8 @@ def review_published(review):
     """Apunta que su autor ha publicado review, con su nota si la lleva.
 
     Solo la primera vez: si la volvió a dejar en borrador y la publica otra vez, ya tenía su actividad.
+
+    Pantallas: Escribir reseña (al publicar), Inicio (feed), Perfil (pestaña Actividad).
     """
     if Activity.objects.filter(review=review).exists():
         return None
@@ -79,14 +92,20 @@ def review_published(review):
 
 
 def game_removed(user, game):
-    """user ha quitado game de su biblioteca: se olvida lo que hizo con él, salvo sus reseñas, que siguen publicadas."""
+    """user ha quitado game de su biblioteca: se olvida lo que hizo con él, salvo sus reseñas, que siguen publicadas.
+
+    Pantallas: Ficha del juego (al quitar un juego de la biblioteca), Inicio (feed), Perfil (pestaña Actividad).
+    """
     activities = Activity.objects.filter(user=user, kind=Activity.Kind.GAME, game=game)
     activities.filter(review__isnull=True).delete()
     activities.update(status="", rating=None)
 
 
 def post_published(post):
-    """Apunta la publicación post en la actividad de su autor. Cada una va sola: no se junta con nada."""
+    """Apunta la publicación post en la actividad de su autor. Cada una va sola: no se junta con nada.
+
+    Pantallas: Inicio (caja para publicar y feed), Publicar, Perfil (pestaña Actividad).
+    """
     return Activity.objects.create(
         user=post.user, kind=Activity.Kind.POST, post=post, game=post.game,
         created_at=post.created_at, updated_at=post.created_at,
@@ -99,6 +118,9 @@ def games_imported(user, platform, entries):
     platform es la clave de la plataforma ("steam", "psn" o "xbox") y entries, las entradas nuevas de la
     biblioteca; se guardan cuántas son y los ids de los IMPORT_COVERS juegos más jugados. Una importación de la
     misma plataforma justo después (al volver a sincronizar, por ejemplo) se suma a la anterior.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: al importar), Perfil (modal «Vincular cuentas» de su dueño; pestaña
+    Actividad), Inicio (feed).
     """
     if not entries:
         return None
@@ -124,7 +146,10 @@ def games_imported(user, platform, entries):
 
 
 def _list_activity(game_list, user):
-    """Lo último que ha hecho user si fue con game_list hace poco (MERGE_WINDOW); si no, None."""
+    """Lo último que ha hecho user si fue con game_list hace poco (MERGE_WINDOW); si no, None.
+
+    Pantallas: Inicio (feed: lo que haces con una lista), Perfil (pestaña Actividad).
+    """
     activity = _recent(user)
     if activity and activity.kind == Activity.Kind.LIST and activity.game_list_id == game_list.pk:
         return activity
@@ -135,6 +160,8 @@ def list_created(game_list):
     """Apunta que su dueño ha creado game_list. Los juegos que le añada enseguida se juntan con esto (list_games_added).
 
     Si la lista es privada (o lo es después), la actividad solo la ve su dueño; mientras no tenga juegos no se enseña.
+
+    Pantallas: Nueva lista, Nueva tier list (al crearla), Inicio (feed), Perfil (pestaña Actividad).
     """
     now = timezone.now()
     return Activity.objects.create(
@@ -146,7 +173,11 @@ def list_created(game_list):
 def list_games_added(game_list, user, count=1):
     """Apunta que user (su dueño o quien colabora en ella) ha añadido count juegos a game_list: se suman a lo último que
     hizo si fue con esta lista hace poco (crearla o añadirle otros); si no, es una actividad nueva («añadió 3 juegos a
-    la lista…»)."""
+    la lista…»).
+
+    Pantallas: Editar lista (los juegos: al añadir juegos), Ficha del juego (desplegable «Añadir a una lista»),
+    Página de la lista (tablero de las tier lists), Inicio (feed), Perfil (pestaña Actividad).
+    """
     now = timezone.now()
     activity = _list_activity(game_list, user) or Activity(
         user=user, kind=Activity.Kind.LIST, game_list=game_list, data={}, created_at=now,
@@ -159,7 +190,11 @@ def list_games_added(game_list, user, count=1):
 
 def list_game_removed(game_list, user):
     """user ha quitado un juego de game_list: si él le había añadido juegos hace poco, se descuenta de esa actividad (y
-    si solo era eso, se borra), como quitar una nota recién puesta. Lo de antes no se toca."""
+    si solo era eso, se borra), como quitar una nota recién puesta. Lo de antes no se toca.
+
+    Pantallas: Editar lista (los juegos: al quitar un juego), Ficha del juego (desplegable «Añadir a una lista»),
+    Página de la lista (tablero de las tier lists), Inicio (feed), Perfil (pestaña Actividad).
+    """
     activity = _list_activity(game_list, user)
     if activity is None or not activity.list_added:
         return

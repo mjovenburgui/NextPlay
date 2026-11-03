@@ -1,3 +1,8 @@
+"""Modelos de las listas: cada lista o tier list (con sus niveles), sus juegos en orden, quién colabora en ella, sus «me
+gusta» y sus comentarios. Se ven en la Página de la lista, en Editar lista, en las pestañas Listas y Tier lists del
+Perfil, en la Ficha del juego y en Listas del juego.
+"""
+
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
@@ -26,7 +31,10 @@ MAX_COLLABORATORS = 10
 
 
 def default_tiers():
-    """Niveles con los que empieza una tier list: [{"id", "label", "color"}] de DEFAULT_TIERS."""
+    """Niveles con los que empieza una tier list: [{"id", "label", "color"}] de DEFAULT_TIERS.
+
+    Pantallas: Nueva tier list (niveles de serie), Editar lista (niveles al convertir una lista en tier list).
+    """
     return [{"id": n, "label": label, "color": color} for n, (label, color) in enumerate(DEFAULT_TIERS)]
 
 
@@ -35,6 +43,9 @@ class GameListQuerySet(models.QuerySet):
         """Listas que viewer puede ver: las suyas, las que le han invitado a editar y las públicas de perfiles públicos.
 
         Es la regla de GameList.visible_to como condición de consulta: tienen que decir lo mismo.
+
+        Pantallas: Perfil (pestañas Listas y Tier lists y escaparate), Ficha del juego (listas en las que sale),
+        Listas del juego, Inicio (feed), Página de la lista (solo las que puede ver quien mira).
         """
         visible = models.Q(is_public=True, user__profile__is_public=True)
         if viewer.is_authenticated:
@@ -43,7 +54,11 @@ class GameListQuerySet(models.QuerySet):
         return self.filter(visible)
 
     def editable_by(self, user):
-        """Listas cuyos juegos puede cambiar user: las suyas y en las que colabora (ha aceptado la invitación)."""
+        """Listas cuyos juegos puede cambiar user: las suyas y en las que colabora (ha aceptado la invitación).
+
+        Pantallas: Ficha del juego (desplegable «Añadir a una lista»), Nuevo reto (listas que se pueden convertir en
+        reto).
+        """
         joined = ListCollaborator.objects.filter(game_list=models.OuterRef("pk"), user=user, accepted_at__isnull=False)
         return self.filter(models.Q(user=user) | models.Q(models.Exists(joined)))
 
@@ -53,6 +68,9 @@ class GameListQuerySet(models.QuerySet):
         para el mosaico (preview_items).
 
         Van de la más reciente a la más antigua: con los recuentos, Django ya no aplica el orden de Meta.
+
+        Pantallas: Perfil (pestañas Listas y Tier lists y escaparate: lo que enseña cada tarjeta), Ficha del juego
+        (listas en las que sale), Listas del juego, Inicio (feed).
         """
         first = ListItem.objects.select_related("game").order_by("position", "id")[:MOSAIC_COVERS]
         return (
@@ -109,11 +127,19 @@ class GameList(models.Model):
         verbose_name_plural = "listas"
 
     def __str__(self):
-        """Texto en el admin: «título (usuario)»."""
+        """Texto en el admin: «título (usuario)».
+
+        Pantallas: Panel de administración, Nuevo reto (las listas que se pueden elegir).
+        """
         return f"{self.title} ({self.user})"
 
     def get_absolute_url(self):
-        """URL de la página de la lista: /u/<usuario>/listas/<id>/."""
+        """URL de la página de la lista: /u/<usuario>/listas/<id>/.
+
+        Pantallas: Página de la lista, Perfil (pestañas Listas y Tier lists y escaparate), Ficha del juego (listas en
+        las que sale), Listas del juego, Inicio (feed), Editar lista, Página del reto, Avisos (los enlaces a cada
+        lista).
+        """
         return reverse("lists:detail", args=[self.user.username, self.pk])
 
     def visible_to(self, viewer):
@@ -121,51 +147,81 @@ class GameList(models.Model):
         aceptado: tiene que verla para hacerlo); los demás, si es pública y pueden ver el perfil de su dueño.
 
         En las consultas la aplica GameListQuerySet.visible_to, que tiene que decir lo mismo.
+
+        Pantallas: Página de la lista (404 si no puedes verla), Editar lista.
         """
         if viewer == self.user or (self.is_public and self.user.profile.visible_to(viewer)):
             return True
         return viewer.is_authenticated and self.collaborators.filter(user=viewer).exists()
 
     def can_edit_games(self, user):
-        """Indica si user puede añadir, quitar, ordenar y comentar los juegos: su dueño y quien colabora en ella."""
+        """Indica si user puede añadir, quitar, ordenar y comentar los juegos: su dueño y quien colabora en ella.
+
+        Pantallas: Página de la lista (botones para editar sus juegos), Editar lista, Ficha del juego (desplegable
+        «Añadir a una lista»).
+        """
         if not user.is_authenticated:
             return False
         return user == self.user or self.collaborators.filter(user=user, accepted_at__isnull=False).exists()
 
     @property
     def is_ranked(self):
-        """Indica si es numerada: cada juego lleva su puesto."""
+        """Indica si es numerada: cada juego lleva su puesto.
+
+        Pantallas: Página de la lista, Editar lista, Perfil, Inicio (los puestos de las listas numeradas).
+        """
         return self.mode == self.Mode.RANKED
 
     @property
     def is_tiered(self):
-        """Indica si es una tier list: cada juego va en uno de sus niveles."""
+        """Indica si es una tier list: cada juego va en uno de sus niveles.
+
+        Pantallas: Página de la lista, Editar lista, Perfil (pestaña Tier lists), Ficha del juego, Nueva lista,
+        Nueva tier list.
+        """
         return self.mode == self.Mode.TIERS
 
     @property
     def kind_note(self):
-        """Lo que se dice de su tipo junto a cuántos juegos tiene: «numerada», «tier list» o nada."""
+        """Lo que se dice de su tipo junto a cuántos juegos tiene: «numerada», «tier list» o nada.
+
+        Pantallas: Perfil, Listas del juego, Inicio (el tipo de cada lista en su tarjeta).
+        """
         return {self.Mode.RANKED: "numerada", self.Mode.TIERS: "tier list"}.get(self.mode, "")
 
     @property
     def noun(self):
-        """Cómo se la llama en los textos y los avisos: «tier list» o «lista»."""
+        """Cómo se la llama en los textos y los avisos: «tier list» o «lista».
+
+        Pantallas: Página de la lista, Editar lista, Perfil, Ficha del juego, Inicio, Avisos («tier list» o «lista» en
+        los textos).
+        """
         return "tier list" if self.is_tiered else "lista"
 
     @property
     def profile_tab(self):
-        """Pestaña del perfil de su dueño en la que sale (?vista=): las tier lists tienen la suya, aparte de las demás."""
+        """Pestaña del perfil de su dueño en la que sale (?vista=): las tier lists tienen la suya, aparte de las demás.
+
+        Pantallas: Página de la lista, Editar lista (a qué pestaña del perfil vuelven).
+        """
         return "tier-lists" if self.is_tiered else "listas"
 
     @property
     def tier_list(self):
-        """Sus niveles, de mejor a peor, cada uno con el color de su texto (text, ver accounts.models.text_on)."""
+        """Sus niveles, de mejor a peor, cada uno con el color de su texto (text, ver accounts.models.text_on).
+
+        Pantallas: Página de la lista (tablero), Editar lista (niveles), Perfil (tablero en miniatura),
+        Nueva tier list.
+        """
         return [{**tier, "text": text_on(tier["color"])} for tier in self.tiers]
 
     def tier_rows(self, items, keep_loose=False):
         """Los juegos items (ListItem, en su orden) repartidos por niveles: [(nivel, juegos)] en el orden de los
         niveles y, al final, los que no están en ninguno con el nivel None, si hay alguno (con keep_loose, aunque no
-        haya ninguno: en el tablero que se puede editar es donde se sueltan los que se sacan de su nivel)."""
+        haya ninguno: en el tablero que se puede editar es donde se sueltan los que se sacan de su nivel).
+
+        Pantallas: Página de la lista (tablero de la tier list), Editar lista (juegos por niveles).
+        """
         rows = {tier["id"]: (tier, []) for tier in self.tier_list}
         loose = []
         for item in items:
@@ -174,17 +230,29 @@ class GameList(models.Model):
 
     @property
     def mosaic_gaps(self):
-        """Huecos vacíos del mosaico cuando tiene menos de MOSAIC_COVERS juegos (para recorrerlos en la plantilla)."""
+        """Huecos vacíos del mosaico cuando tiene menos de MOSAIC_COVERS juegos (para recorrerlos en la plantilla).
+
+        Pantallas: Perfil, Ficha del juego, Listas del juego, Página de la lista, Inicio, Nueva tier list (huecos del
+        mosaico de portadas).
+        """
         return range(MOSAIC_COVERS - len(getattr(self, "preview_items", [])))
 
     def touch(self):
-        """Da la lista por actualizada ahora (sin tocar nada más)."""
+        """Da la lista por actualizada ahora (sin tocar nada más).
+
+        Pantallas: Editar lista (los juegos), Ficha del juego (desplegable «Añadir a una lista»; listas en las que
+        sale), Página de la lista (tablero de las tier lists), Perfil (pestañas Listas y Tier lists y escaparate: la
+        fecha de la última vez que cambió), Listas del juego, Inicio (feed).
+        """
         self.save(update_fields=["updated_at"])
 
     def add(self, game, user=None):
         """Añade game al final de la lista, apuntando quién lo añade (user); devuelve True si no estaba ya.
 
         No mira LIST_MAX_GAMES ni si user puede editarla: eso lo hace quien la llama.
+
+        Pantallas: Editar lista (los juegos: añadir un juego), Ficha del juego (desplegable «Añadir a una lista»),
+        Página de la lista (tablero de las tier lists).
         """
         last = self.items.aggregate(last=models.Max("position"))["last"]
         _, created = ListItem.objects.get_or_create(
@@ -195,7 +263,11 @@ class GameList(models.Model):
         return created
 
     def remove(self, game):
-        """Quita game de la lista y corre los de detrás para no dejar hueco; devuelve True si estaba."""
+        """Quita game de la lista y corre los de detrás para no dejar hueco; devuelve True si estaba.
+
+        Pantallas: Editar lista (los juegos: quitar un juego), Ficha del juego (desplegable «Añadir a una lista»),
+        Página de la lista (tablero de las tier lists).
+        """
         deleted, _ = self.items.filter(game=game).delete()
         if deleted:
             self._save_order(list(self.items.order_by("position", "id")))
@@ -206,6 +278,8 @@ class GameList(models.Model):
         """Lleva game al puesto position (desde 0; si se pasa, al principio o al final) y corre los demás.
 
         Devuelve True si game está en la lista.
+
+        Pantallas: Editar lista (cambiar de puesto un juego), Página de la lista.
         """
         items = list(self.items.order_by("position", "id"))
         current = next((item for item in items if item.game_id == game.pk), None)
@@ -225,6 +299,8 @@ class GameList(models.Model):
         solo en la fila, sin nadie más, conserva su puesto. Los demás juegos no cambian de orden entre sí. De row solo
         cuentan los juegos que están de verdad en ese nivel (quien arrastra puede tener la página sin actualizar).
         Devuelve True si game está en la lista; no mira si level es uno de sus niveles: eso lo hace quien la llama.
+
+        Pantallas: Página de la lista (arrastrar por el tablero de una tier list), Editar lista (nivel de cada juego).
         """
         items = list(self.items.order_by("position", "id"))
         current = next((item for item in items if item.game_id == game.pk), None)
@@ -249,7 +325,10 @@ class GameList(models.Model):
 
     @staticmethod
     def _save_order(items):
-        """Guarda como puestos seguidos (0, 1, 2...) el orden de items, solo en los que cambian."""
+        """Guarda como puestos seguidos (0, 1, 2...) el orden de items, solo en los que cambian.
+
+        Pantallas: Editar lista, Página de la lista (el orden de los juegos).
+        """
         changed = []
         for position, item in enumerate(items):
             if item.position != position:
@@ -281,7 +360,10 @@ class ListItem(models.Model):
         verbose_name_plural = "juegos de las listas"
 
     def __str__(self):
-        """Texto en el admin: «lista · juego»."""
+        """Texto en el admin: «lista · juego».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.game_list.title} · {self.game}"
 
 
@@ -307,7 +389,10 @@ class ListCollaborator(models.Model):
         verbose_name_plural = "colaboradores de las listas"
 
     def __str__(self):
-        """Texto en el admin: «usuario en lista (pendiente)»."""
+        """Texto en el admin: «usuario en lista (pendiente)».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.user} en {self.game_list.title}{'' if self.accepted_at else ' (pendiente)'}"
 
 
@@ -324,7 +409,10 @@ class ListLike(models.Model):
         verbose_name_plural = "me gusta de las listas"
 
     def __str__(self):
-        """Texto en el admin: «usuario → lista»."""
+        """Texto en el admin: «usuario → lista».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.user} → {self.game_list}"
 
 
@@ -345,13 +433,22 @@ class ListComment(models.Model):
         verbose_name_plural = "comentarios de las listas"
 
     def __str__(self):
-        """Texto en el admin: «usuario en lista: comienzo del comentario»."""
+        """Texto en el admin: «usuario en lista: comienzo del comentario».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.user} en {self.game_list.title}: {self.text[:40]}"
 
     def get_absolute_url(self):
-        """URL del comentario dentro de la página de su lista."""
+        """URL del comentario dentro de la página de su lista.
+
+        Pantallas: Avisos (enlace a un comentario de una lista).
+        """
         return f"{self.game_list.get_absolute_url()}#comentario-{self.pk}"
 
     def can_delete(self, user):
-        """Indica si user puede borrar el comentario: es suyo o es el dueño de la lista."""
+        """Indica si user puede borrar el comentario: es suyo o es el dueño de la lista.
+
+        Pantallas: Página de la lista (botón «Borrar» de los comentarios).
+        """
         return user.is_authenticated and user.pk in (self.user_id, self.game_list.user_id)

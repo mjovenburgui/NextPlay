@@ -1,3 +1,8 @@
+"""Vistas de la biblioteca: los botones de «Tu biblioteca» de la Ficha del juego (estado, nota, quitar) y su sección de
+reseñas, Escribir reseña, la Página de la reseña con sus «me gusta», comentarios y denuncias, y la Lista de deseos con
+su botón «Lo quiero».
+"""
+
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlencode
 
@@ -47,7 +52,10 @@ REPORT_TARGETS = {
 
 
 def mark_liked(reviews, user):
-    """Apunta en cada reseña de reviews (liked) si user le ha dado «me gusta»; devuelve la misma lista."""
+    """Apunta en cada reseña de reviews (liked) si user le ha dado «me gusta»; devuelve la misma lista.
+
+    Pantallas: Ficha del juego (reseñas), Perfil (pestaña Reseñas), Inicio (feed: tus «me gusta» marcados).
+    """
     liked = set()
     if user.is_authenticated:
         liked = set(ReviewLike.objects.filter(user=user, review__in=reviews).values_list("review_id", flat=True))
@@ -65,6 +73,8 @@ def review_context(request, game, entry):
     Review.hours_since) para proponerle actualizarla; lo mejor y lo peor que más se repite (consensus, ver
     library.points); y en cada reseña si le ha dado «me gusta» (liked) y si va más adelante que él en el
     juego (ahead, ver AHEAD_HOURS) para plegarla.
+
+    Pantallas: Ficha del juego (reseñas).
     """
     viewer = request.user
     reviews = Review.objects.filter(game=game).visible_to(viewer)
@@ -123,6 +133,8 @@ def _respond(request, game, entry):
     Si la petición viene de HTMX devuelve el widget de biblioteca ya actualizado junto con el
     recuadro de valoración de la comunidad y la sección de reseñas (que HTMX cambia en su sitio);
     si no, redirige a la ficha del juego.
+
+    Pantallas: Ficha del juego (Tu biblioteca: lo que cambia tras cada botón).
     """
     # HTMX swaps the widget in place; without JS the form falls back to a full reload.
     if request.headers.get("HX-Request"):
@@ -150,6 +162,10 @@ def set_status(request, game_id):
     Si el estado es nuevo, lo apunta en su actividad (social.activity) y, al pasarlo a «Completado», apunta cuándo
     (completed_at, que se vacía si después cambia de estado) y mira si con eso ha conseguido algún reto
     (challenges.progress.check). Responde 400 si el estado no es uno de los permitidos.
+
+    Pantallas: Ficha del juego (Tu biblioteca: estado), Perfil (biblioteca), Catálogo (estado de cada tarjeta),
+    Página de la lista (estado de cada juego), Inicio (feed y tu resumen), Retos (progreso), Página del reto
+    (progreso).
     """
     game = get_object_or_404(Game, pk=game_id)
     status = request.POST.get("status")
@@ -170,7 +186,12 @@ def set_status(request, game_id):
 @require_POST
 @login_required
 def remove(request, game_id):
-    """Quita el juego de la biblioteca del usuario (no da error si no estaba) y olvida su actividad con él, salvo las reseñas."""
+    """Quita el juego de la biblioteca del usuario (no da error si no estaba) y olvida su actividad con él, salvo las reseñas.
+
+    Pantallas: Ficha del juego (Tu biblioteca: quitar el juego), Perfil (biblioteca), Catálogo (estado de cada
+    tarjeta), Página de la lista (estado de cada juego), Inicio (feed y tu resumen), Retos (progreso), Página del reto
+    (progreso).
+    """
     game = get_object_or_404(Game, pk=game_id)
     deleted, _ = LibraryEntry.objects.filter(user=request.user, game=game).delete()
     if deleted:
@@ -185,6 +206,9 @@ def rate(request, game_id):
 
     Con rating=0 borra la valoración. Si cambia, lo apunta en su actividad (social.activity). Responde 404
     si el juego no está en su biblioteca y 400 si la valoración no es un número del 0 al 10.
+
+    Pantallas: Ficha del juego (tu nota y la valoración de la comunidad), Perfil (notas de la biblioteca), Inicio
+    (feed).
     """
     game = get_object_or_404(Game, pk=game_id)
     entry = get_object_or_404(LibraryEntry, user=request.user, game=game)
@@ -208,6 +232,8 @@ def review_new(request, game_id):
 
     Empieza con la nota que ya le había puesto y, si ya tiene alguna reseña publicada del juego, marcada
     como rejugada. Si el juego no está en su biblioteca, vuelve a la ficha avisando.
+
+    Pantallas: Escribir reseña.
     """
     game = get_object_or_404(Game.objects.prefetch_related("platforms"), pk=game_id)
     entry = LibraryEntry.objects.filter(user=request.user, game=game).first()
@@ -220,7 +246,10 @@ def review_new(request, game_id):
 
 @login_required
 def review_edit(request, review_id):
-    """Editor de una reseña ya escrita (o de un borrador) del usuario; las de otros dan 404."""
+    """Editor de una reseña ya escrita (o de un borrador) del usuario; las de otros dan 404.
+
+    Pantallas: Escribir reseña.
+    """
     review = get_object_or_404(Review.objects.select_related("game"), pk=review_id, user=request.user)
     entry = LibraryEntry.objects.filter(user=request.user, game=review.game).first()
     return _review_editor(request, review, entry)
@@ -236,6 +265,9 @@ def _review_editor(request, review, entry):
     sugieren lo que han escrito otros (library.points). Las imágenes (subidas o capturas oficiales del
     juego) van en un formulario aparte, ReviewImagesForm, que se guarda a la vez. La primera vez que se
     publica se apunta en la actividad del autor (social.activity); al editarla, no.
+
+    Pantallas: Escribir reseña (publicar o guardar el borrador), Ficha del juego (reseñas), Perfil (pestaña Reseñas y
+    reseña destacada), Página de la reseña, Inicio (feed).
     """
     game = review.game
     # En una reseña nueva, la plataforma y las fechas se rellenan solas con lo que dejaron las importaciones.
@@ -285,7 +317,10 @@ def _review_editor(request, review, entry):
 @require_POST
 @login_required
 def review_delete(request, review_id):
-    """Borra una reseña del usuario (con sus «me gusta» y comentarios) y vuelve a las reseñas del juego."""
+    """Borra una reseña del usuario (con sus «me gusta» y comentarios) y vuelve a las reseñas del juego.
+
+    Pantallas: Escribir reseña (botón «Borrar»), Ficha del juego (reseñas), Perfil (pestaña Reseñas).
+    """
     review = get_object_or_404(Review.objects.select_related("game"), pk=review_id, user=request.user)
     game = review.game
     review.delete()
@@ -296,12 +331,19 @@ def review_delete(request, review_id):
 @require_POST
 @login_required
 def review_preview(request):
-    """Vista previa del texto de una reseña o un comentario con su formato (fragmento HTML para el editor)."""
+    """Vista previa del texto de una reseña o un comentario con su formato (fragmento HTML para el editor).
+
+    Pantallas: Escribir reseña (vista previa del texto con formato).
+    """
     return render(request, "library/_review_preview.html", {"text": request.POST.get("text", "")[:REVIEW_MAX_LENGTH]})
 
 
 def _readable_review(request, review_id):
-    """Reseña publicada review_id que el usuario puede leer; 404 si es un borrador o de un perfil privado ajeno."""
+    """Reseña publicada review_id que el usuario puede leer; 404 si es un borrador o de un perfil privado ajeno.
+
+    Pantallas: Página de la reseña, Ficha del juego, Perfil, Inicio (404 al pulsar algo de una reseña que no se puede
+    leer).
+    """
     review = get_object_or_404(Review.objects.select_related("user__profile", "game"), pk=review_id, is_draft=False)
     if not review.user.profile.visible_to(request.user):
         raise Http404
@@ -314,6 +356,8 @@ def review_detail(request, username, review_id):
     Los borradores y las reseñas de perfiles privados solo los ve su autor; a los demás les da 404. A su
     autor se le propone actualizarla si ha jugado mucho más desde que la escribió (solo en la última que
     ha publicado del juego); los demás pueden denunciarla (con ?denunciar, el formulario llega abierto).
+
+    Pantallas: Página de la reseña.
     """
     review = get_object_or_404(
         Review.objects.select_related("user__profile", "user__psn_account", "game", "platform")
@@ -342,7 +386,10 @@ def review_detail(request, username, review_id):
 
 
 def _comments_context(review, viewer):
-    """Variables de library/_comments.html para los comentarios de la reseña (ver comment_thread)."""
+    """Variables de library/_comments.html para los comentarios de la reseña (ver comment_thread).
+
+    Pantallas: Página de la reseña (comentarios).
+    """
     return comment_thread(
         review, review.comments.select_related("review"), viewer,
         comment_url=reverse("library:review_comment", args=[review.pk]),
@@ -358,6 +405,8 @@ def comment_thread(parent, comments, viewer, *, comment_url, delete_url_name, re
     autores, en orden, y en cada uno si viewer ya lo ha denunciado (reported). comment_url es la dirección del
     formulario para comentar; delete_url_name y report_url_name, los nombres de las URL para borrar y denunciar
     un comentario; y count_id, el id del contador de comentarios que HTMX cambia al comentar o borrar.
+
+    Pantallas: Página de la reseña, Página de la publicación, Página de la lista (comentarios).
     """
     comments = list(comments.select_related("user__profile", "user__psn_account").prefetch_related("user__steam_accounts"))
     reported = set()
@@ -386,6 +435,8 @@ def _notify(review, actor, kind):
 
     No se repite: un «me gusta» de la misma persona solo avisa una vez aunque lo quite y lo vuelva a dar, y
     un comentario no avisa si ya hay uno igual sin leer.
+
+    Pantallas: Avisos («me gusta» y comentarios en tus reseñas), todas (el número de la campana).
     """
     name = actor.profile.name
     if kind == Notification.Kind.LIKE:
@@ -405,6 +456,9 @@ def review_like(request, review_id):
 
     Con HTMX devuelve el botón con el contador nuevo; si no, vuelve a la página de la reseña. Las propias
     no se pueden marcar (400).
+
+    Pantallas: Ficha del juego, Perfil, Inicio, Página de la reseña (botón «me gusta» de las reseñas), Avisos (aviso a
+    su autor).
     """
     review = _readable_review(request, review_id)
     if review.user_id == request.user.pk:
@@ -422,7 +476,10 @@ def review_like(request, review_id):
 @require_POST
 @login_required
 def review_comment(request, review_id):
-    """Publica un comentario en una reseña (avisando a su autor si no es él) y vuelve a sus comentarios."""
+    """Publica un comentario en una reseña (avisando a su autor si no es él) y vuelve a sus comentarios.
+
+    Pantallas: Página de la reseña (comentarios), Avisos (aviso a su autor).
+    """
     review = _readable_review(request, review_id)
     form = CommentForm(request.POST)
     if form.is_valid():
@@ -444,7 +501,10 @@ def review_comment(request, review_id):
 @require_POST
 @login_required
 def comment_delete(request, comment_id):
-    """Borra un comentario: solo quien lo escribió o el autor de la reseña (si no, 403)."""
+    """Borra un comentario: solo quien lo escribió o el autor de la reseña (si no, 403).
+
+    Pantallas: Página de la reseña (botón «Borrar» de un comentario).
+    """
     comment = get_object_or_404(ReviewComment.objects.select_related("review__user__profile", "review__game"), pk=comment_id)
     if not comment.can_delete(request.user):
         return HttpResponseForbidden("No puedes borrar este comentario.")
@@ -460,7 +520,11 @@ def comment_delete(request, comment_id):
 @require_POST
 @login_required
 def review_report(request, review_id):
-    """Denuncia una reseña de otro para que la revise un administrador; las propias no se pueden denunciar (400)."""
+    """Denuncia una reseña de otro para que la revise un administrador; las propias no se pueden denunciar (400).
+
+    Pantallas: Página de la reseña, Ficha del juego, Perfil (botón «Denunciar» de las reseñas),
+    Panel de administración (denuncias).
+    """
     review = _readable_review(request, review_id)
     if review.user_id == request.user.pk:
         return HttpResponseBadRequest("No puedes denunciar tu propia reseña.")
@@ -473,6 +537,8 @@ def comment_report(request, comment_id):
     """Denuncia un comentario de otro para que lo revise un administrador; los propios no se pueden denunciar (400).
 
     Como con la reseña, da 404 si la reseña del comentario es un borrador o de un perfil privado ajeno.
+
+    Pantallas: Página de la reseña (denunciar un comentario), Panel de administración (denuncias).
     """
     comment = get_object_or_404(ReviewComment.objects.select_related("user", "review__game"), pk=comment_id)
     _readable_review(request, comment.review_id)
@@ -487,6 +553,9 @@ def _report(request, target, kind, game, back_url):
     Si ya lo había denunciado, cambia el motivo y la vuelve a dejar pendiente. Con HTMX devuelve el botón de
     denunciar (library/_report.html) ya como «Gracias» o, si falta el motivo, abierto con el error; si no,
     vuelve a back_url con un mensaje.
+
+    Pantallas: Ficha del juego, Perfil, Página de la reseña, Página de la publicación, Página de la lista (formularios
+    de denuncia), Panel de administración (denuncias), Avisos (aviso a los administradores).
     """
     form = ReportForm(request.POST)
     context = {"kind": kind, "target": target, "noun": REPORT_TARGETS[kind][0], "report_url": request.path}
@@ -512,6 +581,8 @@ def _notify_staff(report, what, game):
 
     game puede ser None (una publicación que no habla de ningún juego). El aviso lleva a la denuncia en el
     admin, desde donde se puede ir a lo denunciado y borrarlo.
+
+    Pantallas: Avisos (de los administradores), Panel de administración (denuncias).
     """
     url = reverse("admin:library_report_change", args=[report.pk])
     where = f" en {game.name}" if game else ""
@@ -525,7 +596,10 @@ def _notify_staff(report, what, game):
 
 def _wish_response(request, game, wish, error=""):
     """Respuesta de las acciones de la lista de deseos: el botón «Lo quiero» actualizado si es HTMX; si no,
-    vuelve a la página de la que vino (la ficha por defecto) avisando del error si lo hay."""
+    vuelve a la página de la que vino (la ficha por defecto) avisando del error si lo hay.
+
+    Pantallas: Ficha del juego (botón «Lo quiero»), Lista de deseos.
+    """
     if request.headers.get("HX-Request"):
         return render(request, "library/_wish.html", {"game": game, "wish": wish, "wish_error": error})
     if error:
@@ -543,6 +617,8 @@ def wish_toggle(request, game_id):
 
     Si lo quita estando en su lista de deseos de Steam, se apunta para que la importación de Steam no lo
     vuelva a traer; si lo vuelve a añadir él, se olvida.
+
+    Pantallas: Ficha del juego (botón «Lo quiero»), Lista de deseos.
     """
     game = get_object_or_404(Game, pk=game_id)
     wish, created = WishlistItem.objects.get_or_create(user=request.user, game=game)
@@ -566,6 +642,8 @@ def wish_target(request, game_id):
 
     Al cambiarlo se olvida el último aviso, para volver a comparar con el precio nuevo. Responde 404
     si el juego no está en su lista.
+
+    Pantallas: Ficha del juego (precio para avisar), Lista de deseos (tu precio límite), Avisos (bajadas de precio).
     """
     game = get_object_or_404(Game, pk=game_id)
     wish = get_object_or_404(WishlistItem, user=request.user, game=game)
@@ -584,7 +662,10 @@ def wish_target(request, game_id):
 
 def _steam_order(row):
     """Clave de orden «Como en Steam»: primero los que ha ordenado allí, por su puesto; después los demás de su lista
-    de Steam, del añadido más recientemente al más antiguo; al final, los que no están en Steam."""
+    de Steam, del añadido más recientemente al más antiguo; al final, los que no están en Steam.
+
+    Pantallas: Lista de deseos (orden «Como en Steam»).
+    """
     wish = row["wish"]
     if not wish.on_steam:
         return (2, 0)
@@ -607,7 +688,10 @@ def wishlist(request):
     """Lista de deseos del usuario con el mejor precio de hoy de cada juego (en sus tiendas, si las ha
     elegido), su mínimo histórico, si está por debajo de su límite y si está en su lista de Steam. Se ordena
     con ?orden= (recientes por defecto, descuento, precio, nombre o como en Steam) y se filtra por idioma
-    con ?idioma= (ver LANGUAGE_FILTERS)."""
+    con ?idioma= (ver LANGUAGE_FILTERS).
+
+    Pantallas: Lista de deseos.
+    """
     wishes = WishlistItem.objects.filter(user=request.user).select_related("game").prefetch_related("game__prices")
     total = wishes.count()
     language = request.GET.get("idioma", "")

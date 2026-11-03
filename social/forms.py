@@ -1,3 +1,7 @@
+"""Formularios de lo social: el de publicar (PostForm, en la caja de Inicio y en Publicar) y el de comentar una
+publicación (PostCommentForm, en la Página de la publicación).
+"""
+
 from django import forms
 from django.core.exceptions import ValidationError
 
@@ -33,13 +37,18 @@ class PostForm(forms.ModelForm):
         }
 
     def clean_text(self):
-        """Quita los espacios del principio y del final."""
+        """Quita los espacios del principio y del final.
+
+        Pantallas: Inicio (caja para publicar), Publicar (el texto).
+        """
         return self.cleaned_data["text"].strip()
 
     def clean(self):
         """Comprueba que lleve texto o imágenes y que no pasen de POST_MAX_IMAGES, y prepara las subidas.
 
         Las que no son una imagen válida, pesan demasiado o tienen demasiados píxeles dan un error con su nombre.
+
+        Pantallas: Inicio (caja para publicar), Publicar (texto e imágenes).
         """
         data = super().clean()
         uploads = data.get("imagenes") or []
@@ -56,7 +65,10 @@ class PostForm(forms.ModelForm):
         return data
 
     def save(self, user):
-        """Guarda la publicación de user con sus imágenes en el orden en que llegaron y la devuelve."""
+        """Guarda la publicación de user con sus imágenes en el orden en que llegaron y la devuelve.
+
+        Pantallas: Inicio (caja para publicar y feed), Publicar, Página de la publicación, Perfil (pestaña Actividad).
+        """
         post = super().save(commit=False)
         post.user = user
         post.save()

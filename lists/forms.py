@@ -1,3 +1,7 @@
+"""Formularios de las listas: el de sus datos (GameListForm, en Editar lista), el de Nueva lista (NewListForm), el de
+Nueva tier list (TierListForm) y el de comentar una lista (ListCommentForm, en la Página de la lista).
+"""
+
 from django import forms
 
 from accounts.models import HEX_COLOR
@@ -61,6 +65,9 @@ class GameListForm(forms.ModelForm):
         """Añade las filas de los niveles, rellenas con los de la lista (o los de una tier list nueva).
 
         Sin tipo en lo enviado, la lista se queda con el que tenía (una nueva, lista sin más).
+
+        Pantallas: Nueva lista (con los niveles de las tier lists), Nueva tier list, Editar lista (los datos de la
+        lista).
         """
         super().__init__(*args, **kwargs)
         self.fields["mode"].required = False
@@ -80,25 +87,41 @@ class GameListForm(forms.ModelForm):
 
     @property
     def switches(self):
-        """Los campos de sí o no (visible para los demás), que la plantilla pinta como interruptores."""
+        """Los campos de sí o no (visible para los demás), que la plantilla pinta como interruptores.
+
+        Pantallas: Nueva lista (interruptor de si la ven los demás), Nueva tier list, Editar lista (los datos de la
+        lista).
+        """
         return [self[name] for name in self.SWITCHES]
 
     @property
     def tier_fields(self):
-        """Las filas de los niveles para la plantilla: [(nombre, color)] de cada uno, de mejor a peor."""
+        """Las filas de los niveles para la plantilla: [(nombre, color)] de cada uno, de mejor a peor.
+
+        Pantallas: Nueva lista (filas de los niveles), Nueva tier list, Editar lista (los datos de la lista).
+        """
         return [(self[f"nivel_{n}"], self[f"color_{n}"]) for n in range(MAX_TIERS)]
 
     def clean_title(self):
-        """Deja un solo espacio entre palabras (el campo ya quita los del principio y el final, y sin título da error)."""
+        """Deja un solo espacio entre palabras (el campo ya quita los del principio y el final, y sin título da error).
+
+        Pantallas: Nueva lista (el título), Nueva tier list, Editar lista (los datos de la lista).
+        """
         return " ".join(self.cleaned_data["title"].split())
 
     def clean_description(self):
-        """Quita los espacios del principio y del final."""
+        """Quita los espacios del principio y del final.
+
+        Pantallas: Nueva lista (la descripción), Nueva tier list, Editar lista (los datos de la lista).
+        """
         return self.cleaned_data["description"].strip()
 
     def clean(self):
         """Arma los niveles con las filas que tienen nombre (cleaned_data["tiers"]); un color que no sea «#rrggbb»
-        da error. Una tier list necesita al menos un nivel; las demás guardan los niveles por si vuelven a serlo."""
+        da error. Una tier list necesita al menos un nivel; las demás guardan los niveles por si vuelven a serlo.
+
+        Pantallas: Nueva lista (los niveles y sus colores), Nueva tier list, Editar lista (los datos de la lista).
+        """
         data = super().clean()
         tiers = []
         for n in range(MAX_TIERS):
@@ -116,7 +139,12 @@ class GameListForm(forms.ModelForm):
         return data
 
     def save(self, commit=True):
-        """Guarda la lista con sus niveles."""
+        """Guarda la lista con sus niveles.
+
+        Pantallas: Nueva lista (al guardar), Nueva tier list, Editar lista (los datos de la lista),
+        Página de la lista, Perfil (pestañas Listas y Tier lists y escaparate), Ficha del juego (listas en las que
+        sale), Listas del juego, Inicio (feed).
+        """
         game_list = super().save(commit=False)
         game_list.tiers = self.cleaned_data["tiers"]
         if commit:
@@ -131,7 +159,10 @@ class NewListForm(GameListForm):
     offers_tiers = False
 
     def __init__(self, *args, **kwargs):
-        """Quita «Por niveles» de los tipos."""
+        """Quita «Por niveles» de los tipos.
+
+        Pantallas: Nueva lista (los tipos que se pueden elegir).
+        """
         super().__init__(*args, **kwargs)
         mode = self.fields["mode"]
         mode.choices = [(value, label) for value, label in mode.choices if value != GameList.Mode.TIERS]
@@ -141,7 +172,10 @@ class TierListForm(GameListForm):
     """GameListForm de «Nueva tier list»: el tipo va fijo y oculto, y sus niveles se ven siempre."""
 
     def __init__(self, *args, **kwargs):
-        """Empieza con una tier list nueva (con los niveles de serie), oculta el tipo y pone ejemplos de tier list."""
+        """Empieza con una tier list nueva (con los niveles de serie), oculta el tipo y pone ejemplos de tier list.
+
+        Pantallas: Nueva tier list (niveles de serie y ejemplos).
+        """
         kwargs.setdefault("instance", GameList(mode=GameList.Mode.TIERS))
         super().__init__(*args, **kwargs)
         self.fields["mode"].widget = forms.HiddenInput()
@@ -149,5 +183,8 @@ class TierListForm(GameListForm):
         self.fields["description"].widget.attrs["placeholder"] = "Qué juegos entran o con qué criterio los colocas"
 
     def clean_mode(self):
-        """Siempre tier list, aunque se mande otro tipo."""
+        """Siempre tier list, aunque se mande otro tipo.
+
+        Pantallas: Nueva tier list (siempre tier list).
+        """
         return GameList.Mode.TIERS

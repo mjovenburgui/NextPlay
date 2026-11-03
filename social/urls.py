@@ -1,3 +1,9 @@
+"""Direcciones de lo social. Pantallas: Seguidores y seguidos (u/<usuario>/seguidores/ y siguiendo/), Página de la
+publicación (u/<usuario>/publicaciones/<id>/) y Publicar (publicar/); actividad/ y u/<usuario>/actividad/ son el
+«Cargar más» del feed de Inicio y de la pestaña Actividad del Perfil. El resto son acciones de botones: seguir,
+borrar, «me gusta», comentar y denunciar.
+"""
+
 from django.urls import path
 
 from . import views

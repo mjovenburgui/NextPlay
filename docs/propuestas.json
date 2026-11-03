@@ -780,6 +780,53 @@
     }
   },
   {
+    "titulo": "Que las pantallas de cada función se comprueben solas",
+    "fecha": "2026-11-03",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Documentación",
+    "resumen": "Un test que pare las funciones nuevas sin su párrafo «Pantallas:» y un aviso en el PDF de funciones cuando el código usa una función en una pantalla que su docstring no dice, para que el mapa de pantallas no se quede viejo.",
+    "motivo": "Desde el 03/11/2026 las 695 funciones y los 14 bloques de JavaScript dicen a qué pantallas afectan, con los nombres de docs/pantallas.json, y el PDF de funciones arma con eso el mapa de pantallas. Pero lo escribe quien cambia el código: si una función empieza a usarse en otra pantalla, nada avisa, y el PDF solo marca en rojo lo que falta o lo que nombra una pantalla que no existe.",
+    "pasos": [
+      "docs/pantallas.py con el análisis que sirvió para escribirlas: las URL de cada urls.py, las plantillas que pinta cada vista, los {% include %} y los {% url %} de cada plantilla y las llamadas entre funciones. De ahí sale, para cada función, en qué pantallas se ejecuta.",
+      "Un test que falle si una función no termina su docstring con «Pantallas:» o nombra una pantalla que no está en el catálogo, para que no llegue a main.",
+      "En el PDF, una sección «Pantallas que el código ve y la docstring no dice», solo como aviso: el análisis no sabe dónde sale lo que se guarda (lo que importa Steam se ve en el Perfil), así que propone, no decide."
+    ],
+    "notas": "Sale de reestructurar la documentación para que cada función diga qué hace y a qué pantallas afecta (03/11/2026).",
+    "revision": {
+      "fecha": "2026-11-03",
+      "hoy": "Propuesta nueva. El análisis existe, pero fuera del repositorio: acierta con las vistas, lo que llaman y lo que usan las plantillas, y falla con los métodos que se llaman igual en varios modelos (get_absolute_url sale en todas las pantallas) y con lo que no se llama por su nombre (las señales y los métodos de los formularios).",
+      "profundizar": [
+        "Qué pantallas mirar en cada rama: con el diff, las pantallas de las funciones y plantillas que cambian. Es la lista de lo que revisar en el servidor antes de fusionar.",
+        "Las mismas pantallas en las plantillas: un comentario de cabecera en cada trozo (_algo.html) con dónde sale, que el análisis ya sabe calcular."
+      ]
+    }
+  },
+  {
+    "titulo": "Partir las vistas más grandes por pantalla",
+    "fecha": "2026-11-03",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Infraestructura",
+    "resumen": "Cambiar accounts/views.py (44 funciones), lists/views.py (45) y library/views.py (29) por una carpeta views/ con un archivo por pantalla o por grupo de botones, para que el nombre del archivo ya diga a qué pantalla afecta cada función.",
+    "motivo": "Ahora cada función dice sus pantallas, pero en los views.py grandes van mezcladas las de pantallas distintas: accounts/views.py tiene Registro, Perfil, Editar perfil, la vinculación de Steam, PlayStation y Xbox, Juegos importados y Avisos. Es la parte de «reestructurar el proyecto» que mueve código, que el 03/11/2026 no se hizo.",
+    "pasos": [
+      "accounts/views/ con perfil.py, editar_perfil.py, vincular.py (Steam, PlayStation, Xbox y otras plataformas), importados.py y avisos.py, y un __init__.py que lo reexporte todo para que urls.py y quien importa de accounts.views no cambien.",
+      "Lo mismo con lists/views.py (página de la lista, editor, colaboradores y tier lists) y library/views.py (los botones de la ficha, las reseñas y la lista de deseos).",
+      "Cambiar las rutas de los @patch de los tests (accounts.views.steam pasa a accounts.views.vincular.steam) y lanzar los tests sin claves y con claves falsas.",
+      "Regenerar el PDF de funciones: el mapa de pantallas ya lo agrupa por archivo, así que se verá cada pantalla con sus archivos."
+    ],
+    "notas": "Sale del 03/11/2026, al pedir que todas las funciones digan qué hacen y a qué pantallas afectan. Mejor después de «Que las pantallas de cada función se comprueben solas», que avisaría si al moverlas se pierde algo.",
+    "revision": {
+      "fecha": "2026-11-03",
+      "hoy": "Propuesta nueva, sin empezar: el código no se ha movido, solo se han documentado las pantallas de cada función.",
+      "profundizar": [
+        "Ir más allá de las vistas: los modelos y los formularios se usan en muchas pantallas, así que ahí partir por pantalla no ayuda; mejor dejarlos por app.",
+        "Las plantillas ya van por app y por pantalla; los trozos que salen en varias (la tarjeta de juego, el avatar) podrían ir a una carpeta común para que se vea que no son de una sola."
+      ]
+    }
+  },
+  {
     "titulo": "Intercambio de pendientes: elige un juego del pendiente de un amigo",
     "fecha": "2026-11-01",
     "estado": "pendiente",

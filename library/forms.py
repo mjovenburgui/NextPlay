@@ -1,3 +1,8 @@
+"""Formularios de la biblioteca: el de Escribir reseña (ReviewForm, con «Lo mejor» y «Lo peor», y ReviewImagesForm, sus
+imágenes), el de comentar una reseña (CommentForm, en la Página de la reseña) y el de denunciar (ReportForm, en los
+formularios de denuncia de reseñas, comentarios, publicaciones y listas).
+"""
+
 from django import forms
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -11,7 +16,11 @@ from .models import (
 
 
 def stars_label(value):
-    """Texto de una nota de 1 a 10 en estrellas, como se lee en España: «3,5 estrellas», «1 estrella»."""
+    """Texto de una nota de 1 a 10 en estrellas, como se lee en España: «3,5 estrellas», «1 estrella».
+
+    Pantallas: Catálogo, Inicio, Ficha del juego, Perfil, Página de la reseña, Página de la lista, Página del reto,
+    Escribir reseña (la nota en estrellas).
+    """
     stars = value / 2
     number = f"{stars:g}".replace(".", ",")
     return f"{number} estrella" if stars == 1 else f"{number} estrellas"
@@ -21,11 +30,17 @@ class PointsWidget(forms.MultiWidget):
     """MAX_POINTS casillas de texto para los puntos de «Lo mejor» o «Lo peor» (se llaman <campo>_0, <campo>_1...)."""
 
     def __init__(self, attrs=None):
-        """Una casilla por punto, con el largo máximo de un punto."""
+        """Una casilla por punto, con el largo máximo de un punto.
+
+        Pantallas: Escribir reseña («Lo mejor» y «Lo peor»).
+        """
         super().__init__([forms.TextInput(attrs={"maxlength": POINT_MAX_LENGTH}) for _ in range(MAX_POINTS)], attrs)
 
     def decompress(self, value):
-        """La lista guardada repartida en las casillas; las que sobran, vacías."""
+        """La lista guardada repartida en las casillas; las que sobran, vacías.
+
+        Pantallas: Escribir reseña («Lo mejor» y «Lo peor»).
+        """
         value = list(value or [])[:MAX_POINTS]
         return value + [""] * (MAX_POINTS - len(value))
 
@@ -36,12 +51,18 @@ class PointsField(forms.MultiValueField):
     widget = PointsWidget
 
     def __init__(self, **kwargs):
-        """Un CharField opcional por casilla; la lista entera también es opcional."""
+        """Un CharField opcional por casilla; la lista entera también es opcional.
+
+        Pantallas: Escribir reseña («Lo mejor» y «Lo peor»).
+        """
         fields = [forms.CharField(max_length=POINT_MAX_LENGTH, required=False) for _ in range(MAX_POINTS)]
         super().__init__(fields, require_all_fields=False, required=False, **kwargs)
 
     def compress(self, data_list):
-        """Los puntos escritos, en orden, sin espacios de sobra, vacíos ni repetidos."""
+        """Los puntos escritos, en orden, sin espacios de sobra, vacíos ni repetidos.
+
+        Pantallas: Escribir reseña («Lo mejor» y «Lo peor»).
+        """
         points, seen = [], set()
         for point in data_list or []:
             point = " ".join((point or "").split())
@@ -95,13 +116,19 @@ class ReviewForm(forms.ModelForm):
         }
 
     def __init__(self, *args, game, **kwargs):
-        """Limita la plataforma a las del juego (y la Steam Deck si sale en PC, ver Game.review_platforms)."""
+        """Limita la plataforma a las del juego (y la Steam Deck si sale en PC, ver Game.review_platforms).
+
+        Pantallas: Escribir reseña (plataformas que se pueden elegir).
+        """
         super().__init__(*args, **kwargs)
         self.fields["platform"].queryset = game.review_platforms()
         self.fields["platform"].empty_label = "Sin decir"
 
     def clean_text(self):
-        """Quita los espacios del principio y del final: una reseña en blanco no vale."""
+        """Quita los espacios del principio y del final: una reseña en blanco no vale.
+
+        Pantallas: Escribir reseña (el texto).
+        """
         text = self.cleaned_data["text"].strip()
         if not text:
             raise forms.ValidationError("Escribe algo en la reseña.")
@@ -111,6 +138,8 @@ class ReviewForm(forms.ModelForm):
         """Casillas de «Lo mejor» (name="pros") o «Lo peor» ("cons") para pintarlas una a una: [(nombre, id, valor)].
 
         Llevan lo que se acaba de enviar o, si no, lo guardado.
+
+        Pantallas: Escribir reseña (casillas de «Lo mejor» y «Lo peor»).
         """
         bound = self[name]
         values = bound.value() if self.is_bound else self.fields[name].widget.decompress(bound.value())
@@ -118,16 +147,25 @@ class ReviewForm(forms.ModelForm):
 
     @property
     def pro_slots(self):
-        """Casillas de «Lo mejor» (ver point_slots)."""
+        """Casillas de «Lo mejor» (ver point_slots).
+
+        Pantallas: Escribir reseña (casillas de «Lo mejor»).
+        """
         return self.point_slots("pros")
 
     @property
     def con_slots(self):
-        """Casillas de «Lo peor» (ver point_slots)."""
+        """Casillas de «Lo peor» (ver point_slots).
+
+        Pantallas: Escribir reseña (casillas de «Lo peor»).
+        """
         return self.point_slots("cons")
 
     def clean(self):
-        """Comprueba que las fechas no sean del futuro y que no se termine antes de empezar."""
+        """Comprueba que las fechas no sean del futuro y que no se termine antes de empezar.
+
+        Pantallas: Escribir reseña (fechas de la partida).
+        """
         data = super().clean()
         today = timezone.localdate()
         for field in ("started_on", "finished_on"):
@@ -149,12 +187,18 @@ class MultipleImageField(forms.FileField):
     """Varias imágenes subidas en el mismo campo: devuelve la lista de archivos (vacía si no se sube ninguna)."""
 
     def __init__(self, **kwargs):
-        """Con el selector múltiple y opcional."""
+        """Con el selector múltiple y opcional.
+
+        Pantallas: Escribir reseña (imágenes).
+        """
         kwargs.setdefault("widget", MultipleImageInput(attrs={"accept": "image/png,image/jpeg,image/webp,image/gif"}))
         super().__init__(required=False, **kwargs)
 
     def clean(self, data, initial=None):
-        """Comprueba cada archivo como lo haría un FileField y los devuelve en una lista."""
+        """Comprueba cada archivo como lo haría un FileField y los devuelve en una lista.
+
+        Pantallas: Escribir reseña (imágenes).
+        """
         files = data if isinstance(data, (list, tuple)) else [data]
         return [super(MultipleImageField, self).clean(file, initial) for file in files if file]
 
@@ -177,6 +221,8 @@ class ReviewImagesForm(forms.Form):
         """review es la reseña que se edita y official, las imágenes oficiales de su juego (games.media.official_images).
 
         En el elector solo salen las oficiales que la reseña aún no tiene.
+
+        Pantallas: Escribir reseña (imágenes subidas y de la ficha).
         """
         super().__init__(data, files)
         self.current = list(review.images.all()) if review.pk else []
@@ -189,7 +235,10 @@ class ReviewImagesForm(forms.Form):
 
     @property
     def free_slots(self):
-        """Cuántas imágenes más caben en la reseña sin quitar ninguna."""
+        """Cuántas imágenes más caben en la reseña sin quitar ninguna.
+
+        Pantallas: Escribir reseña (cuántas imágenes más caben).
+        """
         return MAX_IMAGES - len(self.current)
 
     def clean(self):
@@ -198,6 +247,8 @@ class ReviewImagesForm(forms.Form):
         Cada subida se convierte a WebP en dos tamaños (la grande para el visor y la miniatura para la
         reseña); las que no son una imagen válida, pesan demasiado o tienen demasiados píxeles dan un error
         con su nombre.
+
+        Pantallas: Escribir reseña (imágenes).
         """
         data = super().clean()
         removed = set(data.get("quitar") or [])
@@ -218,6 +269,9 @@ class ReviewImagesForm(forms.Form):
 
         Quita las marcadas (sus archivos se borran con ellas, ver library.signals), pone o quita el spoiler de
         las demás y añade las nuevas detrás.
+
+        Pantallas: Escribir reseña (imágenes), Página de la reseña (imágenes), Ficha del juego (imágenes de las
+        reseñas).
         """
         data = self.cleaned_data
         removed, spoilers = set(data["quitar"]), set(data["spoiler"])
@@ -252,7 +306,11 @@ class ReportForm(forms.Form):
     detail = forms.CharField(label="Algo más que debamos saber", required=False, max_length=REPORT_DETAIL_MAX_LENGTH)
 
     def clean_detail(self):
-        """Los detalles sin espacios de sobra al principio ni al final."""
+        """Los detalles sin espacios de sobra al principio ni al final.
+
+        Pantallas: Ficha del juego, Perfil, Página de la reseña, Página de la publicación, Página de la lista
+        (formularios de denuncia), Panel de administración (denuncias).
+        """
         return self.cleaned_data["detail"].strip()
 
 

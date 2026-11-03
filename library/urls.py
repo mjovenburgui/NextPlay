@@ -1,3 +1,9 @@
+"""Direcciones de la biblioteca. Pantallas: Escribir reseña (<juego>/resenas/nueva/ y resenas/<id>/editar/, con su vista
+previa) y Lista de deseos (lista-de-deseos/). El resto son acciones de botones de la Ficha del juego (estado, quitar,
+nota, «Lo quiero» y su precio) y de las reseñas y sus comentarios (borrar, «me gusta», comentar y denunciar). La
+Página de la reseña está en config/urls.py.
+"""
+
 from django.urls import path
 
 from . import views

@@ -1,3 +1,10 @@
+"""Direcciones de las cuentas. Pantallas: Registro (cuenta/registro/), Editar perfil (cuenta/perfil/, con su vista previa
+y las imágenes de un juego para la cabecera), Juegos importados (cuenta/juegos-importados/), Avisos (avisos/), Iniciar
+sesión y Recuperar contraseña (las de Django, en cuenta/) y Perfil (u/<usuario>/). El resto son acciones de botones:
+favoritos, tiendas, logros de la Ficha del juego y vincular, importar o desvincular Steam, PlayStation, Xbox y otras
+plataformas.
+"""
+
 from django.urls import include, path
 
 from . import views

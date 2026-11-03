@@ -37,7 +37,10 @@ SOURCES = {"Steam": "biblioteca de Steam", "IGDB": "IGDB"}
 
 
 def steam_app_id(game):
-    """ID de Steam de la imagen y el logo de la cabecera: el manual si lo hay; None si no está en Steam."""
+    """ID de Steam de la imagen y el logo de la cabecera: el manual si lo hay; None si no está en Steam.
+
+    Pantallas: Ficha del juego (imagen y logo de la cabecera de Steam).
+    """
     return game.steam_app_id_override or game.steam_app_id
 
 
@@ -46,6 +49,8 @@ def needs_update(game, now=None):
 
     Hay que pedirlos si el juego viene de IGDB y nunca se pidieron, tienen más de MAX_AGE o se pidieron
     con otro ID de Steam (o sin él).
+
+    Pantallas: Ficha del juego (si el carrusel va ya o se carga después con HTMX).
     """
     if not game.igdb_id:
         return False
@@ -60,6 +65,8 @@ def update_media(game, client=None, now=None):
 
     Si el juego está en Steam, mira también si su biblioteca tiene imagen de cabecera y logo. Del logo que
     se vaya a usar (el de Steam o, si no hay, el de IGDB) guarda el recorte sin el margen transparente.
+
+    Pantallas: Ficha del juego (cabecera y carrusel de imágenes y vídeos).
     """
     data = (client or igdb.IGDBClient()).game_media(game.igdb_id)
     artworks = [art for art in data.get("artworks") or [] if art.get("image_id")]
@@ -92,13 +99,19 @@ def update_media(game, client=None, now=None):
 
 
 def _size(image):
-    """ID y tamaño de una imagen de IGDB tal como se guardan en Game.media."""
+    """ID y tamaño de una imagen de IGDB tal como se guardan en Game.media.
+
+    Pantallas: Ficha del juego (carrusel).
+    """
     return {"id": image["image_id"], "w": image.get("width") or 0, "h": image.get("height") or 0}
 
 
 def _video_order(video):
     """Orden de los vídeos: el tráiler de lanzamiento (o el de la fecha de salida), los demás tráileres, los de
-    gameplay y el resto; dentro de cada grupo, el que antes subió IGDB."""
+    gameplay y el resto; dentro de cada grupo, el que antes subió IGDB.
+
+    Pantallas: Ficha del juego (orden de los vídeos del carrusel).
+    """
     name = (video.get("name") or "").casefold()
     if "launch" in name or "release" in name:
         rank = 0
@@ -110,7 +123,10 @@ def _video_order(video):
 
 
 def _exists(url):
-    """Indica si la imagen de url existe (True o False), o None si no se pudo comprobar."""
+    """Indica si la imagen de url existe (True o False), o None si no se pudo comprobar.
+
+    Pantallas: Ficha del juego (imagen y logo de la cabecera).
+    """
     try:
         with requests.get(url, timeout=TIMEOUT, headers={"User-Agent": USER_AGENT}, stream=True) as response:
             return response.status_code == 200
@@ -125,6 +141,8 @@ def _logo_crop(url):
     Son fracciones de la imagen entera: izquierda «l», arriba «t», ancho «w» y alto «h» de lo que no es
     transparente, y la proporción ancho/alto de ese trozo («ratio»). Los logos de la biblioteca de Steam
     vienen en un lienzo de 16:9 con mucho margen arriba y abajo.
+
+    Pantallas: Ficha del juego (logo de la cabecera).
     """
     try:
         response = requests.get(url, timeout=TIMEOUT, headers={"User-Agent": USER_AGENT})
@@ -152,12 +170,19 @@ def _logo_crop(url):
 
 
 def _igdb_logo_url(logo):
-    """URL del logo de IGDB en PNG (con su transparencia), a un tamaño que se ve nítido en la cabecera."""
+    """URL del logo de IGDB en PNG (con su transparencia), a un tamaño que se ve nítido en la cabecera.
+
+    Pantallas: Ficha del juego (logo de la cabecera).
+    """
     return igdb_image_url(logo["id"], "t_logo_med_2x", ext="png")
 
 
 def _is_wide(image):
-    """Indica si la imagen es apaisada (o no se sabe su tamaño); las verticales se enseñan enteras, sin recortar."""
+    """Indica si la imagen es apaisada (o no se sabe su tamaño); las verticales se enseñan enteras, sin recortar.
+
+    Pantallas: Ficha del juego (cabecera y carrusel), Escribir reseña (imágenes de la ficha para la reseña),
+    Editar perfil (imágenes de un juego para la cabecera).
+    """
     return not (image.get("w") and image.get("h")) or image["w"] >= image["h"]
 
 
@@ -169,6 +194,8 @@ def hero(game):
     ancho o la primera captura. Sin imagen, la ficha se queda con la carátula desenfocada. El logo, el de
     Steam o el blanco o de color de IGDB, solo va cuando se sabe su recorte (logo_style, variables CSS);
     si no, el nombre en texto. «credit» dice de dónde salen; «fallback_credit», si se pasa a «fallback».
+
+    Pantallas: Ficha del juego (imagen y logo de la cabecera).
     """
     media = game.media or {}
     igdb_image = _hero_image(media)
@@ -198,7 +225,10 @@ def hero(game):
 
 
 def _credit(image_source, logo_source):
-    """Texto que dice de dónde salen la imagen y el logo de la cabecera («Imagen y logo: biblioteca de Steam»)."""
+    """Texto que dice de dónde salen la imagen y el logo de la cabecera («Imagen y logo: biblioteca de Steam»).
+
+    Pantallas: Ficha del juego (de dónde salen la imagen y el logo de la cabecera).
+    """
     if image_source and image_source == logo_source:
         return f"Imagen y logo: {SOURCES[image_source]}"
     parts = [f"Imagen: {SOURCES[image_source]}" if image_source else "", f"Logo: {SOURCES[logo_source]}" if logo_source else ""]
@@ -210,6 +240,8 @@ def _hero_image(media):
 
     Es el arte principal sin logo; si no hay, el arte apaisado más ancho que no lleve el logo (repetiría
     el título); y si tampoco, la primera captura.
+
+    Pantallas: Ficha del juego (imagen de la cabecera).
     """
     arts = [art for art in media.get("arts") or [] if _is_wide(art)]
     best = next((art for art in arts if art.get("type") == igdb.KEY_ART_WITHOUT_LOGO), None)
@@ -230,6 +262,8 @@ def carousel(game):
     imagen grande), tall (vertical: se enseña entera), youtube (ID del vídeo) y art (ID de IGDB que se
     puede poner de cabecera del perfil; vacío en los vídeos y en las imágenes verticales). Solo hay
     filtros si hay más de un tipo.
+
+    Pantallas: Ficha del juego (carrusel de imágenes y vídeos).
     """
     media = game.media or {}
     videos, arts, shots = media.get("videos") or [], media.get("arts") or [], media.get("shots") or []
@@ -246,6 +280,8 @@ def official_images(game):
 
     Son miniaturas como las del carrusel (ver carousel), con «id», el ID de la imagen en IGDB. Vacía si aún
     no se han pedido las imágenes del juego.
+
+    Pantallas: Escribir reseña (imágenes de la ficha que se pueden poner sin subir nada).
     """
     media = game.media or {}
     shots, arts = media.get("shots") or [], media.get("arts") or []
@@ -255,7 +291,10 @@ def official_images(game):
 
 
 def _image_item(kind, image, n, total):
-    """Miniatura del carrusel de un arte o una captura (ver carousel), con su ID de IGDB en «id»."""
+    """Miniatura del carrusel de un arte o una captura (ver carousel), con su ID de IGDB en «id».
+
+    Pantallas: Ficha del juego (miniaturas del carrusel), Escribir reseña (imágenes de la ficha).
+    """
     tall = not _is_wide(image)
     name = ART_LABELS.get(image.get("type"), "Arte") if kind == "arte" else "Captura"
     return {
@@ -275,7 +314,10 @@ def _image_item(kind, image, n, total):
 
 
 def _video_item(video, n, total):
-    """Miniatura del carrusel de un vídeo de YouTube (ver carousel); el vídeo se carga al pulsarlo en el visor."""
+    """Miniatura del carrusel de un vídeo de YouTube (ver carousel); el vídeo se carga al pulsarlo en el visor.
+
+    Pantallas: Ficha del juego (vídeos del carrusel).
+    """
     return {
         "kind": "video",
         "tag": video["name"],
@@ -292,6 +334,9 @@ def _video_item(video, n, total):
 
 
 def banner_arts(game):
-    """IDs de IGDB de las imágenes de la ficha que valen de cabecera del perfil: artes y capturas apaisados."""
+    """IDs de IGDB de las imágenes de la ficha que valen de cabecera del perfil: artes y capturas apaisados.
+
+    Pantallas: Ficha del juego (botón del visor del carrusel para ponerla de cabecera), Perfil (cabecera).
+    """
     media = game.media or {}
     return {image["id"] for image in (media.get("arts") or []) + (media.get("shots") or []) if _is_wide(image)}

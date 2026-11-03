@@ -1,3 +1,8 @@
+"""Vistas de las cuentas: Registro, Perfil (con su vista previa en Editar perfil), Editar perfil (y sus tiendas y cuentas
+vinculadas: vincular, importar y desvincular Steam, PlayStation, Xbox y otras plataformas), Juegos importados y
+Avisos, más los botones de favoritos, «Tus logros» y «poner de cabecera» de la Ficha del juego.
+"""
+
 import logging
 import secrets
 from collections import Counter
@@ -54,6 +59,8 @@ def signup(request):
 
     Si el usuario ya ha iniciado sesión lo manda a su perfil. Al registrarse bien inicia su sesión y
     lo lleva al catálogo para que añada sus primeros juegos.
+
+    Pantallas: Registro.
     """
     if request.user.is_authenticated:
         return redirect("profile", username=request.user.username)
@@ -76,6 +83,8 @@ def profile(request, username):
     reseñas en vez de la biblioteca, con ?vista=listas sus listas, con ?vista=tier-lists sus tier lists y con
     ?vista=actividad lo que ha hecho (desde ?antes=, el cursor de «Cargar más»). Un perfil privado da 404 a
     cualquiera que no sea su dueño.
+
+    Pantallas: Perfil.
     """
     owner = get_object_or_404(_profile_owners(), username=username)
     # 404 rather than 403 so private profiles don't confirm that the account exists.
@@ -92,6 +101,8 @@ def profile_preview(request):
     La pide el JavaScript de Editar perfil cada vez que se cambia algo y la enseña a la vez en un marco
     del ancho de un ordenador y en otro del de un móvil. No guarda nada (ver ProfileForm.preview). Sale
     como la ven los demás, sin los botones del dueño, aunque el perfil sea privado.
+
+    Pantallas: Editar perfil (vista previa del perfil).
     """
     owner = _profile_owners().get(pk=request.user.pk)
     form = ProfileForm(request.POST, instance=owner.profile, user=owner)
@@ -100,7 +111,10 @@ def profile_preview(request):
 
 
 def _profile_owners():
-    """Usuarios con lo que enseña la cabecera del perfil ya cargado: perfil, juego de la cabecera y cuentas vinculadas."""
+    """Usuarios con lo que enseña la cabecera del perfil ya cargado: perfil, juego de la cabecera y cuentas vinculadas.
+
+    Pantallas: Perfil (cabecera: perfil, juego de la cabecera y cuentas), Editar perfil (vista previa).
+    """
     return User.objects.select_related("profile", "profile__banner_game", "psn_account", "xbox_account").prefetch_related(
         "steam_accounts", "platform_accounts"
     )
@@ -118,6 +132,8 @@ def _profile_context(request, owner, favorites=None, preview=False):
     Con sus logros importados (accounts.achievements), cada juego de la biblioteca lleva su insignia de «Platino» o
     «100 %» (achievement_badge) y las cifras de la cabecera, sus platinos y sus juegos al 100 %; si el escaparate
     enseña la sección «Logros», lleva también sus últimos logros y el más raro (achievements.showcase).
+
+    Pantallas: Perfil (cabecera, escaparate y pestañas), Editar perfil (vista previa).
     """
     is_owner = request.user == owner and not preview
     entries = list(
@@ -241,6 +257,8 @@ def _profile_stats(owner, entries, counts, reviews):
     estrellas: las notas van en medias estrellas) y reseñas publicadas (reviews, ya contadas).
 
     También calcula los tres géneros más repetidos de su biblioteca.
+
+    Pantallas: Perfil (cifras de la cabecera: juegos, completados y horas).
     """
     ratings = [e.stars for e in entries if e.rating]
     minutes = sum(e.playtime_minutes or 0 for e in entries)
@@ -270,6 +288,8 @@ def edit_profile(request):
     subidas, la barra superior) siga enseñando lo guardado. Al lado va la vista previa del perfil en un
     ordenador y en un móvil, que pinta profile_preview con lo que hay en el formulario. Las tiendas y las
     cuentas vinculadas tienen sus propios formularios en la misma página.
+
+    Pantallas: Editar perfil.
     """
     profile = request.user.profile
     form = ProfileForm(
@@ -303,7 +323,10 @@ def edit_profile(request):
 
 
 def _posted_sections(form):
-    """Secciones tal como venían en un envío no válido (orden y visibles), para no perder lo que movió; [] si no hay."""
+    """Secciones tal como venían en un envío no válido (orden y visibles), para no perder lo que movió; [] si no hay.
+
+    Pantallas: Editar perfil (Escaparate › Secciones del perfil, cuando no se ha podido guardar).
+    """
     if not form.is_bound or "secciones" not in form.data:
         return []
     names = dict(SECTIONS)
@@ -313,7 +336,10 @@ def _posted_sections(form):
 
 
 def favorite_context(user, game, error=""):
-    """Variables del botón «Añadir a mis favoritos» de la ficha de game para user."""
+    """Variables del botón «Añadir a mis favoritos» de la ficha de game para user.
+
+    Pantallas: Ficha del juego (botón «Añadir a mis favoritos»).
+    """
     favorites = list(user.favorite_games.values_list("game_id", flat=True))
     return {
         "is_favorite": game.pk in favorites,
@@ -330,6 +356,9 @@ def favorite_toggle(request, game_id):
 
     Como mucho FavoriteGame.MAX_PER_USER: con el cupo lleno avisa de que quite alguno. Los nuevos van al
     final. Con HTMX devuelve el botón actualizado; si no, vuelve a la ficha del juego.
+
+    Pantallas: Ficha del juego (botón «Añadir a mis favoritos»), Perfil (favoritos del escaparate), Editar perfil
+    (Juegos favoritos).
     """
     game = get_object_or_404(Game, pk=game_id)
     favorites = request.user.favorite_games
@@ -359,6 +388,8 @@ def game_arts(game):
 
     Se guardan un día en caché. Lista vacía si no hay juego, el juego no viene de IGDB, IGDB no está
     configurado o no responde.
+
+    Pantallas: Editar perfil (Apariencia › Cabecera: imágenes del juego elegido).
     """
     if game is None or not game.igdb_id or not igdb.is_configured():
         return []
@@ -381,7 +412,10 @@ def game_arts(game):
 def game_achievements(request, game_id):
     """«Tus logros» de un juego, uno a uno (fragmento HTML que la ficha pide con HTMX al desplegarlos y al cambiar de
     orden con ?orden=): los que tiene quien mira, con cuándo los consiguió, y los que le faltan, con su rareza
-    (accounts.achievements.detail). Da 404 si no tiene logros de ese juego leídos uno a uno."""
+    (accounts.achievements.detail). Da 404 si no tiene logros de ese juego leídos uno a uno.
+
+    Pantallas: Ficha del juego («Tus logros», al desplegarlos y al cambiar el orden).
+    """
     game = get_object_or_404(Game, pk=game_id)
     found = achievements.detail(request.user, game, request.GET.get("orden", ""))
     if found is None:
@@ -395,6 +429,8 @@ def banner_arts(request):
 
     El formulario lo pide con HTMX al cargar y al cambiar de juego (?banner_game=). Solo vale con juegos
     de la biblioteca del usuario o con el que ya tiene en la cabecera.
+
+    Pantallas: Editar perfil (Apariencia › Cabecera: imágenes del juego elegido).
     """
     profile = request.user.profile
     game_id = request.GET.get("banner_game", "")
@@ -425,6 +461,8 @@ def banner_from_game(request, game_id):
     Como en Editar perfil, solo con juegos de la biblioteca del usuario, y solo con imágenes apaisadas de
     la ficha (games.media.banner_arts). El encuadre vuelve al centro, como con cualquier imagen nueva. Con
     HTMX devuelve el aviso del visor; si no, vuelve a la ficha con un mensaje.
+
+    Pantallas: Ficha del juego (botón del visor del carrusel para ponerla de cabecera), Perfil (cabecera).
     """
     game = get_object_or_404(Game, pk=game_id)
     art = request.POST.get("art", "")
@@ -454,7 +492,10 @@ def banner_from_game(request, game_id):
 
 
 def linking_context():
-    """Variables que necesitan los paneles de vinculación de cuentas (en Editar perfil y en el modal del perfil)."""
+    """Variables que necesitan los paneles de vinculación de cuentas (en Editar perfil y en el modal del perfil).
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño).
+    """
     return {
         "steam_configured": steam.is_configured(),
         "xbox_configured": xbox.is_configured(),
@@ -472,6 +513,8 @@ def _back(request, default):
     """Redirige a la página de la que vino el formulario (campo «next») si es de esta web; si no, a default.
 
     Así las acciones lanzadas desde el modal del perfil vuelven al perfil y no a Editar perfil.
+
+    Pantallas: Editar perfil, Perfil, Juegos importados (vuelve a la página desde la que se envió el formulario).
     """
     target = request.POST.get("next", "")
     if target and url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}):
@@ -480,13 +523,20 @@ def _back(request, default):
 
 
 def _steam_return_to(request, state):
-    """URL absoluta a la que Steam devuelve al usuario tras iniciar sesión, con el código anti-CSRF state."""
+    """URL absoluta a la que Steam devuelve al usuario tras iniciar sesión, con el código anti-CSRF state.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: Steam), Perfil (modal «Vincular cuentas» de su dueño).
+    """
     return request.build_absolute_uri(f"{reverse('steam_callback')}?{urlencode({'state': state})}")
 
 
 def _report_import(request, result):
     """Avisa al usuario de cuántos juegos se han importado de Steam, cuántos no estaban en el catálogo
-    y qué cuentas se han saltado por ser privadas."""
+    y qué cuentas se han saltado por ser privadas.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: mensaje con el resultado de la importación de Steam), Perfil (modal
+    «Vincular cuentas» de su dueño).
+    """
     text = f"Steam: {result['added']} juego{pluralize(result['added'])} añadido{pluralize(result['added'])}"
     if result["updated"]:
         text += f", {result['updated']} con horas actualizadas"
@@ -500,13 +550,21 @@ def _report_import(request, result):
 
 
 def _achievements_note(count, noun="logros"):
-    """Coletilla del mensaje de una importación con los juegos de los que se han leído los logros (o los trofeos)."""
+    """Coletilla del mensaje de una importación con los juegos de los que se han leído los logros (o los trofeos).
+
+    Pantallas: Editar perfil (Cuentas vinculadas: mensaje con el resultado de la importación), Perfil (modal «Vincular
+    cuentas» de su dueño).
+    """
     return f", {noun} de {count} juego{pluralize(count)}" if count else ""
 
 
 def _with_unmatched(text, unmatched):
     """Mensaje de resultado de una importación, con el aviso de los juegos no encontrados y un enlace para
-    emparejarlos a mano (HTML seguro: el texto se escapa)."""
+    emparejarlos a mano (HTML seguro: el texto se escapa).
+
+    Pantallas: Editar perfil (Cuentas vinculadas: mensaje de la importación, con el enlace a Juegos importados),
+    Perfil (modal «Vincular cuentas» de su dueño).
+    """
     if not unmatched:
         return f"{text}."
     return format_html(
@@ -520,6 +578,9 @@ def _report_wishlist(request, result):
     deseados están en su mínimo histórico o son más baratos fuera de Steam (HTML seguro: el texto se escapa).
 
     Los precios de los juegos nuevos se piden en ese momento (games.prices.fetch_missing).
+
+    Pantallas: Editar perfil (Cuentas vinculadas: mensaje con lo que se ha traído de la lista de deseos de Steam),
+    Perfil (modal «Vincular cuentas» de su dueño).
     """
     if result["unreadable"]:
         messages.info(
@@ -555,6 +616,10 @@ def _fetch_library_prices(user):
 
     Si una tienda no responde, la importación vale igual: lo que falte llega con update_prices. La sincronización de
     cada noche (sync_libraries) no lo hace, porque justo después va update_prices con todo el catálogo.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño), Ficha del juego
+    (Dónde comprarlo de lo recién importado), Lista de deseos (precios), Página de la lista (lo que cuesta lo que te
+    falta).
     """
     prices.fetch_missing(
         Game.objects.filter(library_entries__user=user, prices_updated_at__isnull=True).prefetch_related("platforms")
@@ -568,6 +633,11 @@ def _import_steam(request, include_unplayed=False):
     que falle eso no estropea lo de la biblioteca. Si falla por Steam o IGDB deja el error completo en el
     log del servidor para poder revisarlo. Si sale bien, pide los precios de los juegos que nunca los han tenido
     (_fetch_library_prices).
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas;
+    insignias de las portadas, cifras y sección «Logros»), Ficha del juego (tus horas; tus logros; botón «Lo quiero»),
+    Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos (progreso), Página del reto
+    (progreso), Lista de deseos.
     """
     if not steam.is_configured():
         messages.error(request, STEAM_KEY_MISSING)
@@ -596,6 +666,9 @@ def steam_link(request):
     """Manda al usuario a iniciar sesión en Steam para vincular una cuenta más (Steam nunca nos da su contraseña).
 
     No deja pasar de SteamAccount.MAX_PER_USER cuentas.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: botón para vincular Steam), Perfil (modal «Vincular cuentas» de su
+    dueño).
     """
     if request.user.steam_accounts.count() >= SteamAccount.MAX_PER_USER:
         messages.error(request, f"Puedes vincular como mucho {SteamAccount.MAX_PER_USER} cuentas de Steam.")
@@ -610,6 +683,10 @@ def steam_callback(request):
 
     Rechaza la vuelta si el código anti-CSRF no coincide, si Steam no la confirma o si esa cuenta de
     Steam ya está vinculada a otro usuario. Si ya era suya, solo avisa.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas;
+    insignias de las portadas, cifras y sección «Logros»), Ficha del juego (tus horas; tus logros), Juegos importados
+    (los que no se encuentran), Inicio (feed: la importación), Retos (progreso), Página del reto (progreso).
     """
     expected = request.session.pop(STEAM_STATE_KEY, None)
     if not expected or request.GET.get("state") != expected:
@@ -648,7 +725,13 @@ def steam_callback(request):
 @require_POST
 @login_required
 def steam_import(request):
-    """Vuelve a importar los juegos de todas las cuentas de Steam vinculadas (con «unplayed» también los no jugados)."""
+    """Vuelve a importar los juegos de todas las cuentas de Steam vinculadas (con «unplayed» también los no jugados).
+
+    Pantallas: Editar perfil (Cuentas vinculadas: botón «Importar» de Steam), Perfil (modal «Vincular cuentas» de su
+    dueño; biblioteca y horas; insignias de las portadas, cifras y sección «Logros»), Ficha del juego (tus horas; tus
+    logros), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos (progreso),
+    Página del reto (progreso).
+    """
     accounts = list(request.user.steam_accounts.all())
     if not accounts:
         messages.error(request, "Primero vincula una cuenta de Steam.")
@@ -662,7 +745,11 @@ def steam_import(request):
 @require_POST
 @login_required
 def steam_auto_sync(request):
-    """Activa (auto_sync=1) o desactiva la sincronización nocturna de la biblioteca de Steam del usuario."""
+    """Activa (auto_sync=1) o desactiva la sincronización nocturna de la biblioteca de Steam del usuario.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: casilla de la sincronización de cada noche), Perfil (modal «Vincular
+    cuentas» de su dueño).
+    """
     profile = request.user.profile
     profile.auto_sync = request.POST.get("auto_sync") == "1"
     profile.save(update_fields=["auto_sync"])
@@ -679,6 +766,9 @@ def steam_wishlist(request):
     """Activa (steam_wishlist=1) o desactiva que la importación de Steam traiga la lista de deseos a «Lo quiero».
 
     Con restore=1, olvida los juegos que quitó a mano para que la próxima importación los vuelva a traer.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: casilla para traer la lista de deseos de Steam), Perfil (modal
+    «Vincular cuentas» de su dueño), Lista de deseos, Ficha del juego (botón «Lo quiero»).
     """
     profile = request.user.profile
     if request.POST.get("restore") == "1":
@@ -701,6 +791,9 @@ def steam_unlink(request, account_id):
     """Desvincula una cuenta de Steam del usuario; los juegos importados se quedan en su biblioteca.
 
     Solo puede desvincular cuentas suyas: con el ID de una cuenta ajena responde 404.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: botón para desvincular una cuenta de Steam), Perfil (modal «Vincular
+    cuentas» de su dueño; cuentas de la cabecera).
     """
     account = get_object_or_404(SteamAccount, pk=account_id, user=request.user)
     account.delete()
@@ -711,7 +804,11 @@ def steam_unlink(request, account_id):
 
 
 def _psn_error(request, text):
-    """Avisa del error de PlayStation y vuelve a donde estaba el formulario (por defecto, Editar perfil)."""
+    """Avisa del error de PlayStation y vuelve a donde estaba el formulario (por defecto, Editar perfil).
+
+    Pantallas: Editar perfil (Cuentas vinculadas: mensaje de error de PlayStation), Perfil (modal «Vincular cuentas»
+    de su dueño).
+    """
     messages.error(request, text)
     return _back(request, f"{reverse('edit_profile')}#psn")
 
@@ -724,6 +821,11 @@ def psn_sync(request):
     El código solo se usa durante esta petición: no se guarda. Avisa si el código no tiene el formato
     esperado, si Sony no lo acepta o si esa cuenta de PlayStation ya es de otro usuario. Después pide los
     precios de los juegos que nunca los han tenido (_fetch_library_prices).
+
+    Pantallas: Editar perfil (Cuentas vinculadas: formulario del código NPSSO de PlayStation), Perfil (modal «Vincular
+    cuentas» de su dueño; biblioteca y horas; insignias de las portadas, cifras y sección «Logros»), Ficha del juego
+    (tus horas; tus logros), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
     """
     npsso = psn.clean_npsso(request.POST.get("npsso"))
     if not npsso:
@@ -755,7 +857,11 @@ def psn_sync(request):
 @require_POST
 @login_required
 def psn_unlink(request):
-    """Desvincula la cuenta de PlayStation del usuario; los juegos importados se quedan en su biblioteca."""
+    """Desvincula la cuenta de PlayStation del usuario; los juegos importados se quedan en su biblioteca.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: botón para desvincular PlayStation), Perfil (modal «Vincular
+    cuentas» de su dueño; cuentas de la cabecera).
+    """
     PSNAccount.objects.filter(user=request.user).delete()
     messages.success(request, "Cuenta de PlayStation desvinculada. Tus juegos importados siguen en tu biblioteca.")
     return _back(request, f"{reverse('edit_profile')}#psn")
@@ -767,6 +873,9 @@ def platform_add(request):
     """Añade la cuenta de otra plataforma (Xbox, Switch, Epic, GOG, Battle.net) o cambia la que ya tenía.
 
     Si el formato no es el de esa plataforma avisa del error y no guarda nada.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: Otras plataformas), Perfil (modal «Vincular cuentas» de su dueño;
+    cuentas de la cabecera).
     """
     form = PlatformAccountForm(request.POST)
     if form.is_valid():
@@ -785,7 +894,11 @@ def platform_add(request):
 @require_POST
 @login_required
 def platform_remove(request, platform):
-    """Quita del perfil del usuario su cuenta de esa plataforma (no da error si no la tenía)."""
+    """Quita del perfil del usuario su cuenta de esa plataforma (no da error si no la tenía).
+
+    Pantallas: Editar perfil (Cuentas vinculadas: Otras plataformas), Perfil (modal «Vincular cuentas» de su dueño;
+    cuentas de la cabecera).
+    """
     PlatformAccount.objects.filter(user=request.user, platform=platform).delete()
     messages.success(request, "Cuenta quitada de tu perfil.")
     return _back(request, f"{reverse('edit_profile')}#plataformas")
@@ -795,7 +908,10 @@ XBOX_STATE_KEY = "xbox_oauth_state"
 
 
 def _xbox_redirect_uri(request):
-    """URL absoluta de vuelta desde Microsoft; tiene que coincidir con la registrada en la aplicación de Azure."""
+    """URL absoluta de vuelta desde Microsoft; tiene que coincidir con la registrada en la aplicación de Azure.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: Xbox), Perfil (modal «Vincular cuentas» de su dueño).
+    """
     return request.build_absolute_uri(reverse("xbox_callback"))
 
 
@@ -805,6 +921,9 @@ def xbox_link(request):
     """Manda al usuario a iniciar sesión con su cuenta Microsoft para vincular Xbox o volver a sincronizarla.
 
     Sirve para las dos cosas porque no se guarda ningún token: cada sincronización pide iniciar sesión.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: botón para vincular Xbox), Perfil (modal «Vincular cuentas» de su
+    dueño).
     """
     if not xbox.is_configured():
         messages.error(request, XBOX_NOT_CONFIGURED)
@@ -819,6 +938,10 @@ def xbox_callback(request):
 
     Si el usuario canceló el inicio de sesión, si el código no coincide o si Xbox Live falla, avisa y
     vuelve a Editar perfil. Después pide los precios de los juegos que nunca los han tenido (_fetch_library_prices).
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas;
+    insignias de las portadas, cifras y sección «Logros»), Ficha del juego (tus horas; tus logros), Juegos importados
+    (los que no se encuentran), Inicio (feed: la importación), Retos (progreso), Página del reto (progreso).
     """
     expected = request.session.pop(XBOX_STATE_KEY, None)
     back = f"{reverse('edit_profile')}#xbox"
@@ -851,7 +974,11 @@ def xbox_callback(request):
 @require_POST
 @login_required
 def xbox_unlink(request):
-    """Desvincula la cuenta de Xbox del usuario; los juegos importados se quedan en su biblioteca."""
+    """Desvincula la cuenta de Xbox del usuario; los juegos importados se quedan en su biblioteca.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: botón para desvincular Xbox), Perfil (modal «Vincular cuentas» de su
+    dueño; cuentas de la cabecera).
+    """
     XboxAccount.objects.filter(user=request.user).delete()
     messages.success(request, "Cuenta de Xbox desvinculada. Tus juegos importados siguen en tu biblioteca.")
     return _back(request, f"{reverse('edit_profile')}#xbox")
@@ -864,7 +991,10 @@ IMPORTED_SEARCH_IGDB_BELOW = 5
 
 
 def _search_games(query):
-    """Juegos del catálogo cuyo nombre contiene query, de más a menos popular, completando con IGDB si salen pocos."""
+    """Juegos del catálogo cuyo nombre contiene query, de más a menos popular, completando con IGDB si salen pocos.
+
+    Pantallas: Juegos importados (buscador para elegir el juego de un título).
+    """
     games = list(Game.objects.filter(name__icontains=query).prefetch_related("platforms")[:IMPORTED_SEARCH_RESULTS])
     if len(games) < IMPORTED_SEARCH_IGDB_BELOW and igdb.is_configured():
         try:
@@ -884,6 +1014,8 @@ def imported_titles(request):
     catálogo (con ?ocultos=1, los que ocultó). Con ?juego=<id>, los que han llevado a ese juego de su
     biblioteca, para corregirlo si no es el que jugó. Con ?titulo=<id>&q= busca candidatos para ese
     título (por defecto, por su nombre).
+
+    Pantallas: Juegos importados.
     """
     rows = request.user.imported_titles.select_related("title__game")
     game, hidden = None, request.GET.get("ocultos") == "1"
@@ -924,6 +1056,8 @@ def imported_title_assign(request, pk):
 
     La corrección sirve para todos los usuarios con ese título y sus horas pasan al juego nuevo en su
     biblioteca. Responde 404 si el título no es suyo o el juego no existe.
+
+    Pantallas: Juegos importados, Perfil (biblioteca y horas), Ficha del juego (tus horas).
     """
     imported = get_object_or_404(ImportedTitle.objects.select_related("title"), pk=pk, user=request.user)
     game_id = request.POST.get("game", "")
@@ -947,7 +1081,10 @@ def imported_title_assign(request, pk):
 @require_POST
 @login_required
 def imported_title_hide(request, pk):
-    """Oculta (hidden=1) un título sin emparejar del usuario —herramientas, demos, apps— o lo vuelve a mostrar."""
+    """Oculta (hidden=1) un título sin emparejar del usuario —herramientas, demos, apps— o lo vuelve a mostrar.
+
+    Pantallas: Juegos importados (ocultar un título o volver a mostrarlo).
+    """
     imported = get_object_or_404(ImportedTitle.objects.select_related("title"), pk=pk, user=request.user)
     imported.hidden = request.POST.get("hidden") == "1"
     imported.save(update_fields=["hidden"])
@@ -964,6 +1101,8 @@ def notifications(request):
     """Últimos avisos del usuario (bajadas de precio, nuevos seguidores...). Al abrir la página, los no leídos pasan a leídos.
 
     Los que tienen quién los ha provocado (actor) traen ya lo que hace falta para enseñar su foto.
+
+    Pantallas: Avisos, todas (la campana de la barra de arriba se queda sin número al abrirla).
     """
     shown = list(
         request.user.notifications.select_related("game", "actor__profile", "actor__psn_account", "actor__xbox_account")
@@ -978,7 +1117,11 @@ def notifications(request):
 @login_required
 def shops_update(request):
     """Guarda las tiendas en las que compra el usuario (casillas «shops»). Ninguna o todas = enseñar todas,
-    así las tiendas que aparezcan más adelante también se ven."""
+    así las tiendas que aparezcan más adelante también se ven.
+
+    Pantallas: Editar perfil (Tiendas en las que compras), Ficha del juego (Dónde comprarlo: primero tus tiendas),
+    Lista de deseos (mejor precio en tus tiendas).
+    """
     known = {shop_id for shop_id, _ in known_shops()}
     chosen = sorted({int(value) for value in request.POST.getlist("shops") if value.isdigit()} & known)
     profile = request.user.profile

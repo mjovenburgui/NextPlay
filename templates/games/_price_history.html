@@ -44,6 +44,7 @@
         <script>
           // Etiqueta de la gráfica: fecha, precio, tienda y rebaja del tramo bajo el cursor (o el elegido con las flechas).
           // Vale tanto si la ficha la pinta directamente como si llega después por HTMX (que ejecuta este script).
+          // Pantallas: Ficha del juego (historial de precios).
           (function () {
             document.querySelectorAll(".price-chart[data-chart]:not([data-ready])").forEach(function (figure) {
               figure.dataset.ready = "1";
@@ -55,6 +56,7 @@
               var tip = plot.querySelector(".price-chart-tip");
               var current = points.length - 1;
 
+              // Fecha de ms escrita como en España («3 nov 2026»).
               function day(ms) {
                 return new Date(ms).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
               }
@@ -75,10 +77,12 @@
                 tip.style.left = Math.min(Math.max((left / 100) * width - tipWidth / 2, 0), Math.max(width - tipWidth, 0)) + "px";
               }
 
+              // Esconde la guía, el punto y la etiqueta.
               function hide() {
                 guide.hidden = dot.hidden = tip.hidden = true;
               }
 
+              // Sigue al cursor: busca el tramo que hay debajo y lo muestra.
               function follow(event) {
                 var rect = plot.getBoundingClientRect();
                 var x = ((event.clientX - rect.left) / rect.width) * data.width;

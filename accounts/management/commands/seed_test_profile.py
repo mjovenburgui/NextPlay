@@ -1,3 +1,8 @@
+"""Comando «manage.py seed_test_profile»: crea la cuenta de prueba con biblioteca, reseñas, listas, retos, logros y
+actividad de ejemplo (o, con --vacio, la cuenta vacía «tester_steam» para probar las importaciones). Solo para
+desarrollo.
+"""
+
 from datetime import timedelta
 
 from django.conf import settings
@@ -134,7 +139,10 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser):
-        """Opción --vacio para crear la cuenta vacía en vez de la de ejemplo."""
+        """Opción --vacio para crear la cuenta vacía en vez de la de ejemplo.
+
+        Pantallas: ninguna (opciones del comando seed_test_profile).
+        """
         parser.add_argument(
             "--vacio", action="store_true", help="Crea o vacía «tester_steam» (sin juegos ni cuentas vinculadas)."
         )
@@ -144,6 +152,9 @@ class Command(BaseCommand):
 
         Solo funciona con DJANGO_DEBUG=1. Si el usuario ya existía, rehace su biblioteca desde cero.
         Con --vacio crea (o deja vacía) la cuenta «tester_steam».
+
+        Pantallas: Perfil, Inicio, Ficha del juego, Página de la reseña, Página de la lista, Retos, Página del reto
+        (los datos de ejemplo de la cuenta de prueba).
         """
         if not settings.DEBUG:
             raise CommandError("Solo se puede usar en desarrollo (DJANGO_DEBUG=1).")
@@ -230,7 +241,10 @@ class Command(BaseCommand):
     def achievements(self, user, games):
         """Rehace los títulos importados de prueba del usuario con sus logros (ACHIEVEMENTS), sin tocar los de verdad.
         Los de Steam van también uno a uno (demo_achievements), para ver «Tus logros» desplegados en la ficha y la
-        sección «Logros» del perfil."""
+        sección «Logros» del perfil.
+
+        Pantallas: Perfil (logros de ejemplo), Ficha del juego (tus logros).
+        """
         ImportedTitle.objects.filter(user=user, title__external_id__startswith="demo-").delete()
         now = timezone.now()
         for index, platform, unlocked, total, platinum in ACHIEVEMENTS:
@@ -249,7 +263,10 @@ class Command(BaseCommand):
     def demo_achievements(self, imported, unlocked, total, now):
         """Rehace los logros de ejemplo del título de Steam de imported: total, con los nombres de DEMO_ACHIEVEMENTS,
         uno de cada ocho oculto y del más común al más raro, y los unlocked primeros conseguidos a lo largo de los dos
-        últimos años, del más antiguo al más reciente."""
+        últimos años, del más antiguo al más reciente.
+
+        Pantallas: Ficha del juego (tus logros de ejemplo), Perfil (sección «Logros»).
+        """
         title = imported.title
         title.achievements.all().delete()
         rows = []
@@ -271,7 +288,10 @@ class Command(BaseCommand):
         ExternalTitle.objects.filter(pk=title.pk).update(achievements_read_at=now)
 
     def review(self, user, entry, text, spoilers, when):
-        """Publica una reseña de user sobre el juego de entry con fecha when, con su nota, horas y estado."""
+        """Publica una reseña de user sobre el juego de entry con fecha when, con su nota, horas y estado.
+
+        Pantallas: Página de la reseña, Ficha del juego (reseñas), Perfil (pestaña Reseñas), Inicio (feed).
+        """
         review = Review(user=user, game=entry.game, rating=entry.rating, text=text, has_spoilers=spoilers, published_at=when)
         review.snapshot(entry)
         review.save()
@@ -281,7 +301,11 @@ class Command(BaseCommand):
         """Rehace las listas de ejemplo (LISTS) del usuario de prueba y de los usuarios demo que existan, con sus juegos
         (catalog: los de su biblioteca y los extra, en orden), sus comentarios y sus niveles, cada una con su actividad
         (creada hace unas horas, con sus juegos), con los «me gusta» y comentarios de LIST_REACTIONS y con quien colabora
-        en ellas (LIST_COLLABORATORS)."""
+        en ellas (LIST_COLLABORATORS).
+
+        Pantallas: Perfil (pestañas Listas y Tier lists), Página de la lista, Ficha del juego (listas en las que
+        sale), Listas del juego.
+        """
         GameList.objects.filter(user=user).delete()
         names = {owner for owner, *_ in LISTS} | {username for username, *_ in LIST_REACTIONS}
         names |= {username for _, username, _ in LIST_COLLABORATORS}
@@ -319,7 +343,10 @@ class Command(BaseCommand):
 
     def challenges(self, user, games):
         """Rehace los retos de ejemplo (CHALLENGES) con quienes se unen a ellos, y las sesiones de juego del usuario de
-        prueba (SESSIONS, sobre games, los juegos de su biblioteca) para que el reto de horas tenga progreso."""
+        prueba (SESSIONS, sobre games, los juegos de su biblioteca) para que el reto de horas tenga progreso.
+
+        Pantallas: Retos, Página del reto.
+        """
         names = {creator for creator, *_ in CHALLENGES} | {name for *_, others in CHALLENGES for name in others}
         people = {u.username: u for u in User.objects.filter(username__in=names)}
         today = timezone.localdate()
@@ -348,14 +375,20 @@ class Command(BaseCommand):
                 PlaySession.add(user, games[index].pk, "steam", today - timedelta(days=days), minutes)
 
     def activity(self, user, game, when, status, rating, review):
-        """Apunta en la actividad de user lo que hizo con game en el momento when: su estado, su nota y su reseña (o None)."""
+        """Apunta en la actividad de user lo que hizo con game en el momento when: su estado, su nota y su reseña (o None).
+
+        Pantallas: Inicio (feed), Perfil (pestaña Actividad).
+        """
         Activity.objects.create(
             user=user, kind=Activity.Kind.GAME, game=game, status=status, rating=rating, review=review,
             created_at=when, updated_at=when,
         )
 
     def create_empty_user(self):
-        """Crea «tester_steam» o lo deja como recién creado: sin juegos ni cuentas de Steam, PlayStation, Xbox u otras plataformas."""
+        """Crea «tester_steam» o lo deja como recién creado: sin juegos ni cuentas de Steam, PlayStation, Xbox u otras plataformas.
+
+        Pantallas: Perfil, Editar perfil (la cuenta «tester_steam» queda vacía y sin cuentas vinculadas).
+        """
         user, _ = User.objects.get_or_create(username=EMPTY_USERNAME, defaults={"email": EMPTY_EMAIL})
         user.set_password(PASSWORD)
         user.save()

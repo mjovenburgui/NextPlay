@@ -1,3 +1,8 @@
+"""Vistas de las listas: Página de la lista, Listas del juego, Nueva lista, Nueva tier list (también desde las plantillas
+de la biblioteca) y Editar lista, con sus botones (añadir, quitar, mover y poner en un nivel cada juego, comentarios,
+«me gusta», denuncias y colaboradores), y lo que enseñan de las listas el Perfil y la Ficha del juego.
+"""
+
 from decimal import Decimal
 from urllib.parse import urlencode
 
@@ -57,6 +62,8 @@ def mark_progress(lists, viewer):
     """Apunta en cada lista de lists cuántos de sus juegos ha jugado viewer (viewer_played; None sin sesión).
 
     Jugado es cualquier estado de la biblioteca menos Pendiente (PLAYED_STATUSES). Devuelve la misma lista.
+
+    Pantallas: Perfil (pestaña Listas), Listas del juego, Inicio (feed: cuántos juegos de cada lista has jugado).
     """
     counts = {}
     if viewer.is_authenticated and lists:
@@ -72,7 +79,10 @@ def mark_progress(lists, viewer):
 
 
 def mark_liked_lists(lists, viewer):
-    """Apunta en cada lista de lists (liked) si viewer le ha dado «me gusta»; devuelve la misma lista."""
+    """Apunta en cada lista de lists (liked) si viewer le ha dado «me gusta»; devuelve la misma lista.
+
+    Pantallas: Página de la lista, Perfil, Inicio (tus «me gusta» marcados).
+    """
     liked = set()
     if viewer.is_authenticated and lists:
         liked = set(ListLike.objects.filter(user=viewer, game_list__in=lists).values_list("game_list_id", flat=True))
@@ -87,6 +97,8 @@ def profile_lists(owner, viewer, public_only=False):
     que son de otro llevan from_other, para decir de quién son.
 
     Con public_only salen solo las públicas, como las vería cualquiera (la vista previa de Editar perfil).
+
+    Pantallas: Perfil (pestañas Listas y Tier lists y escaparate).
     """
     joined = ListCollaborator.objects.filter(game_list=OuterRef("pk"), user=owner, accepted_at__isnull=False)
     lists = GameList.objects.filter(Q(user=owner) | Q(Exists(joined)))
@@ -106,6 +118,8 @@ def mark_boards(lists):
     están sin clasificar (también los de un nivel que ya no existe, como en GameList.tier_rows).
 
     Son dos consultas para todas: los primeros juegos de cada nivel y cuántos tiene cada uno. Devuelve la misma lista.
+
+    Pantallas: Perfil (tablero en miniatura de cada tier list).
     """
     tiered = [game_list for game_list in lists if game_list.is_tiered]
     if not tiered:
@@ -127,7 +141,10 @@ def mark_boards(lists):
 
 
 def _lists_with(game, viewer):
-    """Listas que viewer puede ver en las que está game, de la más reciente a la más antigua, con sus tarjetas cargadas."""
+    """Listas que viewer puede ver en las que está game, de la más reciente a la más antigua, con sus tarjetas cargadas.
+
+    Pantallas: Ficha del juego (listas en las que sale), Listas del juego.
+    """
     return (
         GameList.objects.visible_to(viewer)
         .filter(pk__in=ListItem.objects.filter(game=game).values("game_list_id"))
@@ -140,6 +157,8 @@ def picker_context(user, game):
 
     Las listas que user puede editar (las suyas y en las que colabora), de la más reciente a la más antigua, cada una
     con su dueño, cuántos juegos tiene (game_count) y si game ya está en ella (has_game), y en cuántas está (in_lists).
+
+    Pantallas: Ficha del juego (desplegable «Añadir a una lista»).
     """
     lists = list(
         GameList.objects.editable_by(user).select_related("user__profile").annotate(
@@ -153,7 +172,10 @@ def picker_context(user, game):
 def game_page_context(request, game):
     """Variables de las listas en la ficha de game: con sesión, las del desplegable «Añadir a una lista»
     (picker_context); y para todos, «En N listas»: las GAME_PAGE_LISTS más recientes que puede ver quien mira
-    (game_lists) y cuántas son (game_lists_count)."""
+    (game_lists) y cuántas son (game_lists_count).
+
+    Pantallas: Ficha del juego (desplegable «Añadir a una lista» y «En N listas»).
+    """
     lists = _lists_with(game, request.user)
     context = {"game_lists": list(lists[:GAME_PAGE_LISTS]), "game_lists_count": lists.count()}
     if request.user.is_authenticated:
@@ -163,7 +185,10 @@ def game_page_context(request, game):
 
 def game_lists(request, slug):
     """Todas las listas en las que está un juego que puede ver quien mira, de la más reciente a la más antigua, de
-    LISTS_PER_PAGE en LISTS_PER_PAGE (?page=)."""
+    LISTS_PER_PAGE en LISTS_PER_PAGE (?page=).
+
+    Pantallas: Listas del juego.
+    """
     game = get_object_or_404(Game, slug=slug)
     page = Paginator(_lists_with(game, request.user), LISTS_PER_PAGE).get_page(request.GET.get("page"))
     return render(request, "lists/game_lists.html", {
@@ -181,6 +206,8 @@ def detail(request, username, list_id):
     Con sesión, enseña cuánto ha jugado quien mira de la lista, el estado de cada juego en su biblioteca y, de lo que
     no tiene, cuánto cuesta (list_progress). Los demás pueden darle «me gusta» y denunciarla (con ?denunciar, el
     formulario llega abierto).
+
+    Pantallas: Página de la lista.
     """
     game_list = get_object_or_404(GameList.objects.with_preview(), pk=list_id, user__username=username)
     viewer = request.user
@@ -225,7 +252,10 @@ def detail(request, username, list_id):
 
 
 def _readable_list(request, list_id):
-    """Lista list_id con su dueño cargado, si el usuario puede verla; si no, 404."""
+    """Lista list_id con su dueño cargado, si el usuario puede verla; si no, 404.
+
+    Pantallas: Página de la lista, Perfil, Inicio (404 al pulsar algo de una lista que no se puede ver).
+    """
     game_list = get_object_or_404(GameList.objects.select_related("user__profile"), pk=list_id)
     if not game_list.visible_to(request.user):
         raise Http404
@@ -238,6 +268,8 @@ def like(request, list_id):
     """Da o quita el «me gusta» del usuario a una lista de otro, avisando a su dueño la primera vez.
 
     Con HTMX devuelve el botón con el contador nuevo; si no, vuelve a la lista. Las propias no se pueden marcar (400).
+
+    Pantallas: Página de la lista, Perfil, Inicio (botón «me gusta» de las listas), Avisos (aviso a su dueño).
     """
     game_list = _readable_list(request, list_id)
     if game_list.user_id == request.user.pk:
@@ -255,7 +287,10 @@ def like(request, list_id):
 
 
 def _notify_like(game_list, actor):
-    """Avisa al dueño de game_list de que a actor le ha gustado, solo la primera vez aunque lo quite y lo vuelva a dar."""
+    """Avisa al dueño de game_list de que a actor le ha gustado, solo la primera vez aunque lo quite y lo vuelva a dar.
+
+    Pantallas: Avisos (a quien le gusta tu lista), todas (el número de la campana).
+    """
     url = game_list.get_absolute_url()
     notices = Notification.objects.filter(user=game_list.user, kind=Notification.Kind.LIST_LIKE, actor=actor, url=url)
     if not notices.exists():
@@ -266,7 +301,10 @@ def _notify_like(game_list, actor):
 
 
 def _list_comments(game_list, viewer):
-    """Variables de library/_comments.html para los comentarios de game_list (ver library.views.comment_thread)."""
+    """Variables de library/_comments.html para los comentarios de game_list (ver library.views.comment_thread).
+
+    Pantallas: Página de la lista (comentarios).
+    """
     return comment_thread(
         game_list, game_list.comments.select_related("game_list"), viewer,
         comment_url=reverse("lists:comment", args=[game_list.pk]),
@@ -281,6 +319,8 @@ def comment(request, list_id):
     """Publica un comentario en una lista (avisando a su dueño si no es él) y vuelve a sus comentarios.
 
     Con HTMX devuelve los comentarios ya con el nuevo (o el formulario con el error) y el contador de la página.
+
+    Pantallas: Página de la lista (comentarios), Avisos (aviso a su dueño).
     """
     game_list = _readable_list(request, list_id)
     form = ListCommentForm(request.POST)
@@ -301,7 +341,10 @@ def comment(request, list_id):
 
 
 def _notify_comment(game_list, actor):
-    """Avisa al dueño de game_list de que actor la ha comentado, salvo si ya tiene un aviso igual sin leer."""
+    """Avisa al dueño de game_list de que actor la ha comentado, salvo si ya tiene un aviso igual sin leer.
+
+    Pantallas: Avisos (comentarios en tus listas), todas (el número de la campana).
+    """
     url = f"{game_list.get_absolute_url()}#comentarios"
     notices = Notification.objects.filter(
         user=game_list.user, kind=Notification.Kind.LIST_COMMENT, actor=actor, url=url, read_at=None,
@@ -316,7 +359,10 @@ def _notify_comment(game_list, actor):
 @require_POST
 @login_required
 def comment_delete(request, comment_id):
-    """Borra un comentario de una lista: solo quien lo escribió o el dueño de la lista (si no, 403)."""
+    """Borra un comentario de una lista: solo quien lo escribió o el dueño de la lista (si no, 403).
+
+    Pantallas: Página de la lista (botón «Borrar» de un comentario).
+    """
     target = get_object_or_404(ListComment.objects.select_related("game_list__user__profile"), pk=comment_id)
     if not target.can_delete(request.user):
         return HttpResponseForbidden("No puedes borrar este comentario.")
@@ -332,7 +378,10 @@ def comment_delete(request, comment_id):
 @require_POST
 @login_required
 def comment_report(request, comment_id):
-    """Denuncia un comentario de otro en una lista; los propios no (400) y los de listas que no se pueden ver dan 404."""
+    """Denuncia un comentario de otro en una lista; los propios no (400) y los de listas que no se pueden ver dan 404.
+
+    Pantallas: Página de la lista (denunciar un comentario), Panel de administración (denuncias).
+    """
     target = get_object_or_404(ListComment.objects.select_related("user"), pk=comment_id)
     _readable_list(request, target.game_list_id)
     if target.user_id == request.user.pk:
@@ -343,7 +392,10 @@ def comment_report(request, comment_id):
 @require_POST
 @login_required
 def report(request, list_id):
-    """Denuncia una lista de otro para que la revise un administrador (library.views._report); las propias no (400)."""
+    """Denuncia una lista de otro para que la revise un administrador (library.views._report); las propias no (400).
+
+    Pantallas: Página de la lista (botón «Denunciar»), Panel de administración (denuncias).
+    """
     game_list = _readable_list(request, list_id)
     if game_list.user_id == request.user.pk:
         return HttpResponseBadRequest("No puedes denunciar tu propia lista.")
@@ -357,6 +409,8 @@ def list_progress(games, viewer):
     menos Pendiente; percent, en porcentaje), terminado (completed) y tiene en Pendiente (backlog), las horas que
     lleva en ellos (hours: las de Steam, PlayStation y Xbox), el estado de cada uno (statuses: id del juego →
     nombre del estado; status_keys: id del juego → valor del estado, para su color) y lo que le falta (ver _missing).
+
+    Pantallas: Página de la lista (cuánto llevas jugado y lo que cuesta lo que te falta).
     """
     entries = {entry.game_id: entry for entry in LibraryEntry.objects.filter(user=viewer, game__in=games)}
     played = sum(1 for entry in entries.values() if entry.status in PLAYED_STATUSES)
@@ -382,6 +436,8 @@ def _missing(games, viewer):
     que cada uno baje a su mínimo histórico de PC (at_lows; el de hoy si no lo tiene o si hoy está más barato),
     con saving si así sale más barato; cuántos no tienen precio (unpriced: los de consolas sin tienda); y cuántos
     están ya en su lista de deseos (wished) y cuántos no (to_wish), para el botón de pasarlos a «Lo quiero».
+
+    Pantallas: Página de la lista (lo que te falta y lo que cuesta).
     """
     shops = set(viewer.profile.shops) or None
     wished = WishlistItem.objects.filter(user=viewer, game__in=games).count()
@@ -412,7 +468,10 @@ def _missing(games, viewer):
 def wish_missing(request, list_id):
     """Pasa a la lista de deseos del usuario los juegos de una lista que ni tiene en su biblioteca ni quiere ya, y
     vuelve a la lista. Como «Lo quiero» en la ficha: si alguno lo había quitado de su lista de deseos de Steam, se
-    olvida, para que la importación de Steam no lo vuelva a quitar."""
+    olvida, para que la importación de Steam no lo vuelva a quitar.
+
+    Pantallas: Página de la lista (botón «Lo quiero» de lo que te falta), Lista de deseos.
+    """
     game_list = get_object_or_404(GameList.objects.select_related("user__profile"), pk=list_id)
     if not game_list.visible_to(request.user):
         raise Http404
@@ -440,12 +499,19 @@ def wish_missing(request, list_id):
 
 
 def _own_list(request, list_id):
-    """Lista list_id del usuario; las de otros dan 404."""
+    """Lista list_id del usuario; las de otros dan 404.
+
+    Pantallas: Editar lista (404 si no es tuya).
+    """
     return get_object_or_404(GameList, pk=list_id, user=request.user)
 
 
 def _editable_list(request, list_id):
-    """Lista list_id si el usuario puede editar sus juegos (su dueño o quien colabora en ella); si no, 404."""
+    """Lista list_id si el usuario puede editar sus juegos (su dueño o quien colabora en ella); si no, 404.
+
+    Pantallas: Editar lista (los juegos: 404 si no puedes editarla), Ficha del juego (desplegable «Añadir a una
+    lista»), Página de la lista (tablero de las tier lists).
+    """
     game_list = get_object_or_404(GameList.objects.select_related("user__profile"), pk=list_id)
     if not game_list.can_edit_games(request.user):
         raise Http404
@@ -455,7 +521,11 @@ def _editable_list(request, list_id):
 def editor_context(game_list):
     """Variables de los juegos del editor (lists/_editor_items.html): la lista, sus juegos en orden (con quién añadió
     cada uno), si es una tier list sus niveles (tiers) y el tablero en el que se arrastran sus portadas (tier_rows,
-    siempre con la fila «Sin clasificar»), y los máximos."""
+    siempre con la fila «Sin clasificar»), y los máximos.
+
+    Pantallas: Editar lista (los juegos del editor), Ficha del juego (al añadir desde «Añadir a una lista»),
+    Página de la lista.
+    """
     items = list(game_list.items.select_related("game", "added_by__profile"))
     return {
         "game_list": game_list,
@@ -470,7 +540,10 @@ def editor_context(game_list):
 def board_context(game_list, viewer):
     """Variables del tablero de la página de una tier list (lists/_tier_board.html) para quien puede editarla, que es
     lo que se le devuelve al soltar una portada en él: sus juegos por niveles, con la fila «Sin clasificar» aunque esté
-    vacía, y el estado de cada uno en la biblioteca de viewer (viewer_status), como en detail."""
+    vacía, y el estado de cada uno en la biblioteca de viewer (viewer_status), como en detail.
+
+    Pantallas: Página de la lista (tablero de la tier list al soltar una portada).
+    """
     items = list(game_list.items.select_related("game"))
     entries = LibraryEntry.objects.filter(user=viewer, game__in=[item.game_id for item in items])
     statuses = {entry.game_id: entry.get_status_display() for entry in entries}
@@ -482,7 +555,10 @@ def board_context(game_list, viewer):
 def collaborators_context(game_list, owner):
     """Variables de la sección «Quién puede editarla» del editor (lists/_collaborators.html): la gente invitada, con si
     ha aceptado; cuántos caben; y, para escribir su nombre, la gente a la que sigue owner que aún no está invitada
-    (suggested, como mucho SUGGESTED_COLLABORATORS)."""
+    (suggested, como mucho SUGGESTED_COLLABORATORS).
+
+    Pantallas: Editar lista («Quién puede editarla»).
+    """
     collaborators = list(game_list.collaborators.select_related("user__profile", "user__psn_account", "user__xbox_account"))
     invited = [collaborator.user_id for collaborator in collaborators]
     suggested = list(
@@ -498,7 +574,10 @@ def collaborators_context(game_list, owner):
 def search_context(game_list, query):
     """Variables del buscador del editor: la búsqueda (search_query; no query, que es la del buscador de la cabecera)
     y, si la hay, los SEARCH_RESULTS juegos más populares que la cumplen (results, como el buscador del catálogo), cada
-    uno marcado si ya está en la lista (in_list)."""
+    uno marcado si ya está en la lista (in_list).
+
+    Pantallas: Editar lista (buscador de juegos para añadir).
+    """
     results = []
     if query:
         results = list(Game.objects.filter(search_filter(query))[:SEARCH_RESULTS])
@@ -510,7 +589,10 @@ def search_context(game_list, query):
 
 def _create(request, form, game=None):
     """Guarda como del usuario la lista nueva de form (ya validado), que empieza con game si se da; la apunta en su
-    actividad (social.activity.list_created) y lleva a su editor, para buscar y añadir sus juegos."""
+    actividad (social.activity.list_created) y lleva a su editor, para buscar y añadir sus juegos.
+
+    Pantallas: Nueva lista, Nueva tier list (al crearla), Inicio (feed), Perfil (pestañas Listas y Tier lists).
+    """
     game_list = form.save(commit=False)
     game_list.user = request.user
     game_list.save()
@@ -532,6 +614,8 @@ def new(request):
 
     Con juego= (desde «Nueva lista con este juego» en la ficha) la lista empieza con ese juego. Se apunta en su
     actividad y lleva a su editor, para buscar y añadir más (_create).
+
+    Pantallas: Nueva lista.
     """
     raw = request.POST.get("juego") or request.GET.get("juego", "")
     game = Game.objects.filter(pk=raw).first() if raw.isdigit() else None
@@ -544,7 +628,10 @@ def new(request):
 @login_required
 def new_tier_list(request):
     """Página «Nueva tier list»: las plantillas que la crean ya rellena con la biblioteca del usuario (lists.presets; se
-    crean con from_library) y el formulario para empezar una en blanco con sus niveles (POST), que la crea como new."""
+    crean con from_library) y el formulario para empezar una en blanco con sus niveles (POST), que la crea como new.
+
+    Pantallas: Nueva tier list.
+    """
     form = TierListForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         return _create(request, form)
@@ -563,6 +650,8 @@ def from_library(request):
     recién hecha está sin colocar, y su dueño la hace visible cuando quiera. Se apunta en su actividad como cualquier
     lista (social.activity). Si ya tiene una lista con ese título, lleva a ella en vez de repetirla; con menos de
     presets.MIN_GAMES juegos, vuelve a «Nueva tier list» con un aviso.
+
+    Pantallas: Nueva tier list (botón de cada plantilla), Página de la lista.
     """
     preset = presets.PRESETS.get(request.POST.get("plantilla", ""))
     if preset is None:
@@ -604,6 +693,8 @@ def edit(request, list_id):
     collaborator_remove). Quien colabora solo ve los juegos (y puede irse, leave); a los demás les da 404.
 
     El formulario trabaja con una copia de la lista para que, si no es válido, la página siga con lo guardado.
+
+    Pantallas: Editar lista.
     """
     game_list = _editable_list(request, list_id)
     is_owner = game_list.user == request.user
@@ -629,7 +720,10 @@ def edit(request, list_id):
 @login_required
 def delete(request, list_id):
     """Borra una lista del usuario (los juegos siguen en su biblioteca y en el catálogo) y vuelve a sus listas, o a sus
-    tier lists si lo era."""
+    tier lists si lo era.
+
+    Pantallas: Editar lista (botón «Borrar»), Perfil (pestañas Listas y Tier lists).
+    """
     game_list = _own_list(request, list_id)
     title, noun, tab = game_list.title, game_list.noun, game_list.profile_tab
     game_list.delete()
@@ -642,6 +736,8 @@ def search(request, list_id):
     """Busca en el catálogo juegos para añadir a una lista que el usuario puede editar (?q=, ver search_context).
 
     Con HTMX devuelve solo los resultados; sin HTMX lleva al editor con la búsqueda hecha.
+
+    Pantallas: Editar lista (resultados del buscador).
     """
     game_list = _editable_list(request, list_id)
     query = request.GET.get("q", "").strip()
@@ -657,6 +753,9 @@ def add(request, list_id, game_id):
 
     Se apunta quién lo añade y su actividad (social.activity.list_games_added), y responde según desde dónde se pulsa
     (ver _item_response).
+
+    Pantallas: Editar lista (los juegos: añadir un juego), Ficha del juego (desplegable «Añadir a una lista»),
+    Página de la lista (tablero de las tier lists).
     """
     game_list = _editable_list(request, list_id)
     game = get_object_or_404(Game, pk=game_id)
@@ -672,7 +771,11 @@ def add(request, list_id, game_id):
 @login_required
 def remove(request, list_id, game_id):
     """Quita un juego de una lista que el usuario puede editar (si no estaba, no hace nada) y responde como add. Si lo
-    acababa de añadir él, también se descuenta de su actividad (social.activity.list_game_removed)."""
+    acababa de añadir él, también se descuenta de su actividad (social.activity.list_game_removed).
+
+    Pantallas: Editar lista (los juegos: quitar un juego), Ficha del juego (desplegable «Añadir a una lista»),
+    Página de la lista (tablero de las tier lists).
+    """
     game_list = _editable_list(request, list_id)
     game = get_object_or_404(Game, pk=game_id)
     if game_list.remove(game):
@@ -687,6 +790,8 @@ def move(request, list_id, game_id):
     puesto que se escriba (puesto=, desde 1; si se pasa, al principio o al final). Responde como add.
 
     Da 404 si el juego no está en la lista y 400 si el puesto no es un número.
+
+    Pantallas: Editar lista (subir, bajar o arrastrar un juego), Página de la lista.
     """
     game_list = _editable_list(request, list_id)
     game = get_object_or_404(Game, pk=game_id)
@@ -712,6 +817,8 @@ def note(request, list_id, game_id):
 
     Lo pueden escribir su dueño y quien colabora. Con HTMX devuelve solo su formulario, marcado como guardado o con el
     error, para no rehacer los demás juegos del editor; sin HTMX vuelve al editor, a ese juego.
+
+    Pantallas: Editar lista (comentario de cada juego), Página de la lista (los comentarios de los juegos).
     """
     game_list = _editable_list(request, list_id)
     item = get_object_or_404(ListItem.objects.select_related("game"), game_list=game_list, game_id=game_id)
@@ -739,7 +846,10 @@ def tier(request, list_id, game_id):
     """Pone un juego de una tier list en uno de sus niveles (nivel=, su id; vacío lo deja sin clasificar). Con orden=
     (los ids de los juegos de esa fila separados por comas, como han quedado al soltarlo en el tablero) además lo deja
     en su sitio dentro del nivel (GameList.place). Lo pueden hacer su dueño y quien colabora. Responde como add; 404 si
-    el juego no está en la lista y 400 si el nivel no existe."""
+    el juego no está en la lista y 400 si el nivel no existe.
+
+    Pantallas: Página de la lista (arrastrar por el tablero), Editar lista (nivel de cada juego).
+    """
     game_list = _editable_list(request, list_id)
     item = get_object_or_404(ListItem.objects.select_related("game"), game_list=game_list, game_id=game_id)
     raw = request.POST.get("nivel", "")
@@ -758,7 +868,10 @@ def tier(request, list_id, game_id):
 
 def _collaborators_response(request, game_list, error=""):
     """Respuesta de invitar o quitar a alguien de una lista: con HTMX, la sección «Quién puede editarla» del editor
-    (con el error, si lo hay); sin HTMX, vuelve a ella avisando del error."""
+    (con el error, si lo hay); sin HTMX, vuelve a ella avisando del error.
+
+    Pantallas: Editar lista («Quién puede editarla»).
+    """
     if request.headers.get("HX-Request"):
         return render(request, "lists/_collaborators.html", {
             **collaborators_context(game_list, request.user), "collaborator_error": error,
@@ -772,7 +885,11 @@ def _collaborators_response(request, game_list, error=""):
 @login_required
 def invite(request, list_id):
     """Invita a alguien (usuario=, su nombre de usuario, con o sin @) a editar los juegos de una lista del usuario y se
-    lo avisa en la campana. Caben MAX_COLLABORATORS; no puede invitarse a sí mismo ni a quien ya está invitado."""
+    lo avisa en la campana. Caben MAX_COLLABORATORS; no puede invitarse a sí mismo ni a quien ya está invitado.
+
+    Pantallas: Editar lista (invitar a alguien), Avisos (aviso al invitado), Página de la lista (le pregunta si
+    acepta).
+    """
     game_list = _own_list(request, list_id)
     username = request.POST.get("usuario", "").strip().lstrip("@")
     invitee = User.objects.select_related("profile").filter(username__iexact=username).first() if username else None
@@ -797,7 +914,10 @@ def invite(request, list_id):
 @require_POST
 @login_required
 def collaborator_remove(request, list_id, user_id):
-    """Quita a alguien de los que pueden editar una lista del usuario, o retira su invitación; lo que añadió se queda."""
+    """Quita a alguien de los que pueden editar una lista del usuario, o retira su invitación; lo que añadió se queda.
+
+    Pantallas: Editar lista (quitar a alguien o retirar su invitación).
+    """
     game_list = _own_list(request, list_id)
     game_list.collaborators.filter(user_id=user_id).delete()
     return _collaborators_response(request, game_list)
@@ -806,7 +926,10 @@ def collaborator_remove(request, list_id, user_id):
 @require_POST
 @login_required
 def accept(request, list_id):
-    """Acepta la invitación del usuario a editar una lista y lleva a su editor; 404 si no le han invitado."""
+    """Acepta la invitación del usuario a editar una lista y lleva a su editor; 404 si no le han invitado.
+
+    Pantallas: Página de la lista (aceptar la invitación), Editar lista.
+    """
     invitation = get_object_or_404(ListCollaborator, game_list_id=list_id, user=request.user)
     if invitation.accepted_at is None:
         invitation.accepted_at = timezone.now()
@@ -822,6 +945,8 @@ def leave(request, list_id):
 
     Vuelve a la lista si aún puede verla y, si no (era privada), a sus listas (o a sus tier lists, si lo era); 404 si no
     le habían invitado.
+
+    Pantallas: Página de la lista (rechazar la invitación), Editar lista (dejar de colaborar).
     """
     invitation = get_object_or_404(
         ListCollaborator.objects.select_related("game_list__user__profile"), game_list_id=list_id, user=request.user,
@@ -841,6 +966,9 @@ def _item_response(request, game_list, game, error=""):
     («buscador»), los juegos del editor y, fuera de su sitio, el resultado ya marcado como añadido; desde el tablero
     de la página de la lista («tablero»), el tablero; desde el editor, sus juegos. Sin HTMX vuelve a next (si es de
     esta web) o al editor, avisando del error si lo hay.
+
+    Pantallas: Editar lista (los juegos: lo que cambia tras añadir, quitar, mover o poner en un nivel),
+    Ficha del juego (desplegable «Añadir a una lista»), Página de la lista (tablero de las tier lists).
     """
     where = request.POST.get("desde", "")
     if request.headers.get("HX-Request"):

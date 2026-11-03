@@ -1,3 +1,7 @@
+"""Panel de administración de la biblioteca: entradas de cada usuario, lista de deseos, reseñas (con sus comentarios,
+imágenes y denuncias pendientes) y las denuncias de reseñas, comentarios, publicaciones y listas.
+"""
+
 from django.contrib import admin
 from django.contrib.contenttypes.admin import GenericTabularInline
 from django.db.models import Count, Q
@@ -43,7 +47,10 @@ class ReviewImageInline(admin.TabularInline):
 
     @admin.display(description="imagen")
     def preview(self, image):
-        """Miniatura de la imagen, que lleva a la grande."""
+        """Miniatura de la imagen, que lleva a la grande.
+
+        Pantallas: Panel de administración (miniaturas de las imágenes de una reseña).
+        """
         return format_html(
             '<a href="{}" target="_blank" rel="noopener"><img src="{}" alt="" style="height: 80px"></a>',
             image.url, image.thumb_url,
@@ -68,14 +75,20 @@ class ReviewAdmin(admin.ModelAdmin):
     inlines = [ReviewImageInline, ReviewCommentInline, ReportInline]
 
     def get_queryset(self, request):
-        """Las reseñas con sus denuncias pendientes contadas."""
+        """Las reseñas con sus denuncias pendientes contadas.
+
+        Pantallas: Panel de administración (reseñas con sus denuncias pendientes).
+        """
         return super().get_queryset(request).annotate(
             pending=Count("reports", filter=Q(reports__resolved_at__isnull=True))
         )
 
     @admin.display(description="denuncias pendientes", ordering="pending")
     def pending_reports(self, review):
-        """Cuántas denuncias de la reseña quedan por revisar."""
+        """Cuántas denuncias de la reseña quedan por revisar.
+
+        Pantallas: Panel de administración (columna de denuncias pendientes de las reseñas).
+        """
         return review.pending
 
 
@@ -94,11 +107,17 @@ class PendingFilter(admin.SimpleListFilter):
     parameter_name = "estado"
 
     def lookups(self, request, model_admin):
-        """Las dos opciones del filtro."""
+        """Las dos opciones del filtro.
+
+        Pantallas: Panel de administración (filtro de denuncias revisadas o sin revisar).
+        """
         return [("pendientes", "Pendientes"), ("revisadas", "Revisadas")]
 
     def queryset(self, request, queryset):
-        """Las denuncias sin revisar o las ya revisadas, según la opción elegida."""
+        """Las denuncias sin revisar o las ya revisadas, según la opción elegida.
+
+        Pantallas: Panel de administración (filtro de denuncias revisadas o sin revisar).
+        """
         if self.value() == "pendientes":
             return queryset.filter(resolved_at__isnull=True)
         if self.value() == "revisadas":
@@ -120,17 +139,26 @@ class ReportAdmin(admin.ModelAdmin):
     actions = ["mark_resolved", "mark_pending"]
 
     def has_add_permission(self, request):
-        """Las denuncias solo las crean los usuarios desde la web."""
+        """Las denuncias solo las crean los usuarios desde la web.
+
+        Pantallas: Panel de administración (denuncias: no se crean a mano).
+        """
         return False
 
     @admin.display(description="qué es")
     def kind(self, report):
-        """Qué se ha denunciado: «reseña» o «comentario»."""
+        """Qué se ha denunciado: «reseña» o «comentario».
+
+        Pantallas: Panel de administración (columna de qué se ha denunciado).
+        """
         return report.target_kind
 
     @admin.display(description="denunciado")
     def target_link(self, report):
-        """Enlaces a lo denunciado: su página en la web y su ficha en el admin; «borrado» si ya no existe."""
+        """Enlaces a lo denunciado: su página en la web y su ficha en el admin; «borrado» si ya no existe.
+
+        Pantallas: Panel de administración (enlaces a lo denunciado).
+        """
         target = report.target
         if target is None:
             return "(borrado)"
@@ -143,12 +171,18 @@ class ReportAdmin(admin.ModelAdmin):
 
     @admin.action(description="Marcar como revisadas")
     def mark_resolved(self, request, queryset):
-        """Marca las denuncias elegidas como revisadas ahora."""
+        """Marca las denuncias elegidas como revisadas ahora.
+
+        Pantallas: Panel de administración (acción de marcar denuncias como revisadas).
+        """
         updated = queryset.filter(resolved_at__isnull=True).update(resolved_at=timezone.now())
         self.message_user(request, f"{updated} denuncia(s) marcada(s) como revisada(s).")
 
     @admin.action(description="Volver a dejar pendientes")
     def mark_pending(self, request, queryset):
-        """Vuelve a dejar pendientes las denuncias elegidas."""
+        """Vuelve a dejar pendientes las denuncias elegidas.
+
+        Pantallas: Panel de administración (acción de volver a dejarlas pendientes).
+        """
         updated = queryset.update(resolved_at=None)
         self.message_user(request, f"{updated} denuncia(s) pendiente(s) otra vez.")

@@ -1,3 +1,7 @@
+"""Vistas de los retos: Retos, Página del reto, Nuevo reto y Editar reto, y los botones de borrar, unirse y dejar un
+reto.
+"""
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Exists, OuterRef, Q
@@ -20,13 +24,19 @@ RANKING_SIZE = 50
 
 
 def _open(challenges):
-    """Los retos de challenges a los que aún se puede unir alguien: los que no han terminado."""
+    """Los retos de challenges a los que aún se puede unir alguien: los que no han terminado.
+
+    Pantallas: Retos (los que siguen abiertos).
+    """
     return challenges.filter(Q(ends_on__isnull=True) | Q(ends_on__gte=timezone.localdate()))
 
 
 def _with_progress(challenges, user):
     """Pone en cada reto de challenges cómo va user en él (mine, ver challenges.progress.summary) y si lo ha
-    conseguido (won); devuelve la misma lista."""
+    conseguido (won); devuelve la misma lista.
+
+    Pantallas: Retos (cómo vas en cada uno).
+    """
     won = set(
         Participation.objects.filter(user=user, challenge__in=challenges, completed_at__isnull=False)
         .values_list("challenge_id", flat=True)
@@ -40,7 +50,10 @@ def _with_progress(challenges, user):
 def explore(request):
     """Página de retos: con sesión, los tuyos (con cómo vas en cada uno) y los de la gente que sigues; para todos, los
     más populares que siguen abiertos (con más gente) y los últimos que se han creado. Solo salen los públicos, salvo
-    los tuyos, y con sesión, abajo solo aquellos en los que aún no estás: los tuyos ya salen arriba."""
+    los tuyos, y con sesión, abajo solo aquellos en los que aún no estás: los tuyos ya salen arriba.
+
+    Pantallas: Retos.
+    """
     viewer = request.user
     others = _open(Challenge.objects.filter(is_public=True).with_counts())
     context = {}
@@ -57,7 +70,10 @@ def explore(request):
 
 
 def _visible(request, challenge_id):
-    """Reto challenge_id si el usuario puede verlo; si no, 404."""
+    """Reto challenge_id si el usuario puede verlo; si no, 404.
+
+    Pantallas: Página del reto (404 si no puedes verlo).
+    """
     challenge = get_object_or_404(Challenge.objects.with_counts().select_related("source_list__user", "genre", "platform"), pk=challenge_id)
     if not challenge.visible_to(request.user):
         raise Http404
@@ -70,6 +86,8 @@ def detail(request, challenge_id):
 
     En la clasificación solo salen quienes tienen el perfil visible para quien mira; los que han llegado al objetivo
     quedan apuntados como que lo han conseguido (challenges.progress.mark_completed).
+
+    Pantallas: Página del reto.
     """
     challenge = _visible(request, challenge_id)
     viewer = request.user
@@ -115,6 +133,8 @@ def new(request):
 
     Con lista= (desde «Convertir en reto» de una lista que puede ver) empieza como uno de juegos concretos con los de esa
     lista; si no, como uno de número de juegos.
+
+    Pantallas: Nuevo reto.
     """
     raw = request.POST.get("lista") or request.GET.get("lista", "")
     game_list = None
@@ -137,7 +157,10 @@ def new(request):
 
 @login_required
 def edit(request, challenge_id):
-    """Cambia el título, la descripción o si es público un reto del usuario (sus reglas no se cambian); los de otros dan 404."""
+    """Cambia el título, la descripción o si es público un reto del usuario (sus reglas no se cambian); los de otros dan 404.
+
+    Pantallas: Editar reto.
+    """
     challenge = get_object_or_404(Challenge, pk=challenge_id, creator=request.user)
     form = ChallengeEditForm(request.POST or None, instance=Challenge.objects.get(pk=challenge.pk))
     if request.method == "POST" and form.is_valid():
@@ -150,7 +173,10 @@ def edit(request, challenge_id):
 @require_POST
 @login_required
 def delete(request, challenge_id):
-    """Borra un reto del usuario, con quienes se habían unido, y vuelve a la página de retos."""
+    """Borra un reto del usuario, con quienes se habían unido, y vuelve a la página de retos.
+
+    Pantallas: Editar reto (botón «Borrar»), Retos.
+    """
     challenge = get_object_or_404(Challenge, pk=challenge_id, creator=request.user)
     challenge.delete()
     messages.success(request, f"Reto «{challenge.title}» borrado.")
@@ -161,7 +187,10 @@ def delete(request, challenge_id):
 @login_required
 def join(request, challenge_id):
     """Une al usuario a un reto que puede ver (si ya estaba, no hace nada) y mira si ya lo ha conseguido con lo que
-    lleva. A uno que ya ha terminado no se puede unir nadie (400)."""
+    lleva. A uno que ya ha terminado no se puede unir nadie (400).
+
+    Pantallas: Página del reto (botón para unirse), Retos.
+    """
     challenge = _visible(request, challenge_id)
     if challenge.is_over:
         return HttpResponseBadRequest("Este reto ya ha terminado.")
@@ -175,7 +204,10 @@ def join(request, challenge_id):
 @require_POST
 @login_required
 def leave(request, challenge_id):
-    """Saca al usuario de un reto en el que estaba (si no estaba, no hace nada) y vuelve a él si aún puede verlo."""
+    """Saca al usuario de un reto en el que estaba (si no estaba, no hace nada) y vuelve a él si aún puede verlo.
+
+    Pantallas: Página del reto (botón para dejarlo), Retos.
+    """
     challenge = get_object_or_404(Challenge, pk=challenge_id)
     challenge.participations.filter(user=request.user).delete()
     messages.success(request, "Has dejado el reto.")

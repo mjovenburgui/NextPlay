@@ -1,3 +1,8 @@
+"""Comando «manage.py localize_games» (parte de la tarea de cada noche): completa los datos en castellano de los juegos
+(nombre en España, idiomas, portada europea y sinopsis en español) para la Ficha del juego y los filtros de idioma del
+Catálogo, el Perfil y la Lista de deseos.
+"""
+
 from datetime import timedelta
 
 from django.core.management.base import BaseCommand, CommandError
@@ -19,7 +24,10 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser):
-        """Opciones: --limit, --dias, --igdb, --sin-tiendas y --pausa."""
+        """Opciones: --limit, --dias, --igdb, --sin-tiendas y --pausa.
+
+        Pantallas: ninguna (opciones del comando localize_games).
+        """
         parser.add_argument(
             "--limit", type=int, default=200, help="Juegos que se piden a Steam y Microsoft, los más populares primero."
         )
@@ -33,7 +41,11 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        """Primero IGDB (rápido, en lotes de 500) y después las tiendas (Steam de uno en uno, con pausas)."""
+        """Primero IGDB (rápido, en lotes de 500) y después las tiendas (Steam de uno en uno, con pausas).
+
+        Pantallas: Ficha del juego (nombre en España, sinopsis en español e idiomas), Catálogo (filtro de idioma y
+        portadas europeas), Perfil (filtro de idioma), Lista de deseos (filtro de idioma).
+        """
         self._from_igdb(everything=options["igdb"])
         if not options["sin_tiendas"]:
             self._from_stores(options["limit"], options["dias"], options["pausa"])
@@ -42,6 +54,9 @@ class Command(BaseCommand):
         """Pide a IGDB los idiomas, los nombres y la portada europea de los juegos que no los tienen (o de todos).
 
         Los que IGDB no devuelve se quedan con los datos de IGDB vacíos, para no volver a pedirlos cada noche.
+
+        Pantallas: Ficha del juego (nombre en España e idiomas), Catálogo (filtro de idioma y portadas europeas),
+        Perfil (filtro de idioma), Lista de deseos (filtro de idioma).
         """
         if not igdb.is_configured():
             self.stderr.write("IGDB: faltan IGDB_CLIENT_ID e IGDB_CLIENT_SECRET, no se piden idiomas ni nombres.")
@@ -63,7 +78,10 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f"IGDB: {len(games)} juegos revisados, {dubbed} con voces en castellano."))
 
     def _from_stores(self, limit, days, pause):
-        """Pide la sinopsis en español y los idiomas de Steam (y la descripción de Microsoft) de los más populares."""
+        """Pide la sinopsis en español y los idiomas de Steam (y la descripción de Microsoft) de los más populares.
+
+        Pantallas: Ficha del juego (sinopsis en español e idiomas de Steam y de Microsoft).
+        """
         cutoff = timezone.now() - timedelta(days=days)
         in_stores = (
             Q(steam_app_id__isnull=False) | Q(steam_app_id_override__isnull=False)

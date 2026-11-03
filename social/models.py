@@ -1,3 +1,8 @@
+"""Modelos de lo social: quién sigue a quién, las publicaciones con sus imágenes, «me gusta» y comentarios, y la
+actividad de cada jugador (lo que hace con sus juegos, sus listas, sus importaciones y sus publicaciones), que forma
+el feed de Inicio y la pestaña Actividad del Perfil.
+"""
+
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericRelation
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -20,6 +25,9 @@ class FollowManager(models.Manager):
         El aviso llega solo la primera vez: si follower deja de seguir a followed y vuelve, no se repite. Lleva a
         la página de follower o, si followed no puede verla (perfil privado), a la lista de seguidores de
         followed, donde sale sin enlace. No comprueba si followed se puede seguir (eso lo mira social.views.follow).
+
+        Pantallas: Perfil, Seguidores y seguidos, Inicio (botón «Seguir» de las sugerencias y feed «Siguiendo»),
+        Avisos (aviso al seguido).
         """
         _, created = self.get_or_create(follower=follower, followed=followed)
         notified = Notification.objects.filter(user=followed, kind=Notification.Kind.FOLLOW, actor=follower)
@@ -36,7 +44,10 @@ class FollowManager(models.Manager):
         return created
 
     def unfollow(self, follower, followed):
-        """Hace que follower deje de seguir a followed; devuelve True si lo seguía."""
+        """Hace que follower deje de seguir a followed; devuelve True si lo seguía.
+
+        Pantallas: Perfil, Seguidores y seguidos, Inicio (botón «Seguir» y feed «Siguiendo»).
+        """
         deleted, _ = self.filter(follower=follower, followed=followed).delete()
         return bool(deleted)
 
@@ -69,7 +80,10 @@ class Follow(models.Model):
         verbose_name_plural = "seguimientos"
 
     def __str__(self):
-        """Texto en el admin: «seguidor → seguido»."""
+        """Texto en el admin: «seguidor → seguido».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.follower} → {self.followed}"
 
 
@@ -98,11 +112,18 @@ class Post(models.Model):
         verbose_name_plural = "publicaciones"
 
     def __str__(self):
-        """Texto en el admin: «usuario: comienzo del texto»."""
+        """Texto en el admin: «usuario: comienzo del texto».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.user}: {self.text[:40] or '(solo imágenes)'}"
 
     def get_absolute_url(self):
-        """URL de la página de la publicación: /u/<usuario>/publicaciones/<id>/."""
+        """URL de la página de la publicación: /u/<usuario>/publicaciones/<id>/.
+
+        Pantallas: Inicio (feed), Perfil (pestaña Actividad), Página de la publicación, Avisos (los enlaces a cada
+        publicación).
+        """
         return reverse("social:post", args=[self.user.username, self.pk])
 
 
@@ -116,11 +137,17 @@ class PostImage(AttachedImage):
         verbose_name_plural = "imágenes de las publicaciones"
 
     def __str__(self):
-        """Texto en el admin: «publicación · imagen n»."""
+        """Texto en el admin: «publicación · imagen n».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.post} · imagen {self.position + 1}"
 
     def upload_folder(self):
-        """Las imágenes de las publicaciones van en publicaciones/<id del autor>."""
+        """Las imágenes de las publicaciones van en publicaciones/<id del autor>.
+
+        Pantallas: Inicio (caja para publicar), Publicar (carpeta de las imágenes de las publicaciones).
+        """
         return f"publicaciones/{self.post.user_id}"
 
 
@@ -137,7 +164,10 @@ class PostLike(models.Model):
         verbose_name_plural = "me gusta de las publicaciones"
 
     def __str__(self):
-        """Texto en el admin: «usuario → publicación»."""
+        """Texto en el admin: «usuario → publicación».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.user} → {self.post}"
 
 
@@ -157,15 +187,24 @@ class PostComment(models.Model):
         verbose_name_plural = "comentarios de las publicaciones"
 
     def __str__(self):
-        """Texto en el admin: «usuario en publicación: comienzo del comentario»."""
+        """Texto en el admin: «usuario en publicación: comienzo del comentario».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.user} en {self.post}: {self.text[:40]}"
 
     def get_absolute_url(self):
-        """URL del comentario dentro de la página de su publicación."""
+        """URL del comentario dentro de la página de su publicación.
+
+        Pantallas: Avisos (enlace a un comentario de una publicación).
+        """
         return f"{self.post.get_absolute_url()}#comentario-{self.pk}"
 
     def can_delete(self, user):
-        """Indica si user puede borrar el comentario: es suyo o es el autor de la publicación."""
+        """Indica si user puede borrar el comentario: es suyo o es el autor de la publicación.
+
+        Pantallas: Página de la publicación (botón «Borrar» de los comentarios).
+        """
         return user.is_authenticated and user.pk in (self.user_id, self.post.user_id)
 
 
@@ -238,19 +277,28 @@ class Activity(models.Model):
         verbose_name_plural = "actividad"
 
     def __str__(self):
-        """Texto en el admin: «usuario · lo que hizo»."""
+        """Texto en el admin: «usuario · lo que hizo».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.user} · {self.summary}"
 
     @property
     def is_empty(self):
-        """Indica si una actividad de un juego se ha quedado sin nada (sin estado, nota ni reseña) y sobra."""
+        """Indica si una actividad de un juego se ha quedado sin nada (sin estado, nota ni reseña) y sobra.
+
+        Pantallas: Inicio (feed: se borran las actividades que se quedan vacías), Perfil (pestaña Actividad).
+        """
         return self.kind == self.Kind.GAME and not self.status and self.rating is None and self.review_id is None
 
     @property
     def has_content(self):
         """Indica si hay algo que enseñar de ella a quien la mira: los juegos de una importación, la publicación, la
         lista (si puede verla y tiene juegos) o, en las de un juego, el estado, la nota o la reseña (si su reseña ya no
-        se puede leer, puede que nada)."""
+        se puede leer, puede que nada).
+
+        Pantallas: Inicio (feed: lo que se enseña de cada actividad), Perfil (pestaña Actividad).
+        """
         if self.kind == self.Kind.IMPORT:
             return bool(self.import_count)
         if self.kind == self.Kind.POST:
@@ -265,12 +313,18 @@ class Activity(models.Model):
 
     @property
     def list_created(self):
-        """Indica si una actividad de una lista cuenta que la ha creado (si no, solo que le ha añadido juegos)."""
+        """Indica si una actividad de una lista cuenta que la ha creado (si no, solo que le ha añadido juegos).
+
+        Pantallas: Inicio (feed: actividades de listas), Perfil (pestaña Actividad).
+        """
         return bool(self.data.get("created"))
 
     @property
     def list_added(self):
-        """Cuántos juegos ha añadido a la lista en esta actividad."""
+        """Cuántos juegos ha añadido a la lista en esta actividad.
+
+        Pantallas: Inicio (feed: actividades de listas), Perfil (pestaña Actividad).
+        """
         return self.data.get("added", 0)
 
     @property
@@ -278,6 +332,8 @@ class Activity(models.Model):
         """Qué hizo con el juego, en minúscula: (lo que va antes del nombre del juego, lo que va después).
 
         Con un estado, lo de STATUS_VERBS; si no, «reseñó» si publicó una reseña que se puede leer, o «valoró».
+
+        Pantallas: Inicio (feed: qué hizo con el juego), Perfil (pestaña Actividad).
         """
         if self.status in self.STATUS_VERBS:
             return self.STATUS_VERBS[self.status]
@@ -285,7 +341,10 @@ class Activity(models.Model):
 
     @property
     def shown_rating(self):
-        """Nota que se enseña: la que le puso o, si no, la de su reseña (si la reseña se puede leer); o None."""
+        """Nota que se enseña: la que le puso o, si no, la de su reseña (si la reseña se puede leer); o None.
+
+        Pantallas: Inicio (feed: la nota que se enseña), Perfil (pestaña Actividad).
+        """
         if self.rating:
             return self.rating
         review = self.review
@@ -293,18 +352,27 @@ class Activity(models.Model):
 
     @property
     def platform_name(self):
-        """Nombre de la plataforma de una importación («Steam», «PlayStation» o «Xbox»)."""
+        """Nombre de la plataforma de una importación («Steam», «PlayStation» o «Xbox»).
+
+        Pantallas: Inicio (feed: actividades de importación), Perfil (pestaña Actividad).
+        """
         return HOURS_SOURCES.get(self.data.get("platform"), "")
 
     @property
     def import_count(self):
-        """Cuántos juegos nuevos trajo una importación."""
+        """Cuántos juegos nuevos trajo una importación.
+
+        Pantallas: Inicio (feed: actividades de importación), Perfil (pestaña Actividad).
+        """
         return self.data.get("count", 0)
 
     @property
     def summary(self):
         """Lo que hizo, en una línea y sin formato, para el admin: «terminó Hades», «importó 12 juegos de Steam»,
-        «publicó» o «creó la lista Indies»."""
+        «publicó» o «creó la lista Indies».
+
+        Pantallas: Panel de administración (lo que hizo cada actividad, en una línea).
+        """
         if self.kind == self.Kind.IMPORT:
             return f"importó {self.import_count} juegos de {self.platform_name}"
         if self.kind == self.Kind.POST:

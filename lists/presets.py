@@ -33,7 +33,10 @@ RATING_TIERS = {10: 0, 9: 1, 8: 1, 7: 2, 6: 2, 5: 3, 4: 3, 3: 4, 2: 4, 1: 5}
 
 def library(user):
     """La biblioteca de user (LibraryEntry, con su juego) con los minutos jugados en todas las plataformas (minutes):
-    de más a menos horas y, a igualdad, de lo añadido hace menos a lo que más."""
+    de más a menos horas y, a igualdad, de lo añadido hace menos a lo que más.
+
+    Pantallas: Nueva tier list (plantillas «Desde tu biblioteca»).
+    """
     minutes = sum((Coalesce(f"{key}_playtime_minutes", Value(0)) for key in HOURS_SOURCES), Value(0))
     return (
         LibraryEntry.objects.filter(user=user).select_related("game")
@@ -42,14 +45,20 @@ def library(user):
 
 
 def year_bounds(year):
-    """Principio de year y del año siguiente, en la zona horaria del sitio."""
+    """Principio de year y del año siguiente, en la zona horaria del sitio.
+
+    Pantallas: Nueva tier list (plantillas «Desde tu biblioteca»: las del año).
+    """
     return timezone.make_aware(datetime(year, 1, 1)), timezone.make_aware(datetime(year + 1, 1, 1))
 
 
 def played_in(user, year):
     """Lo jugado en year: lo que tiene ese año su última partida de Steam, PlayStation o Xbox, partidas apuntadas
     (PlaySession) o una reseña empezada o terminada; lo completado ese año; y, si es el año en curso, lo que está
-    jugando."""
+    jugando.
+
+    Pantallas: Nueva tier list (plantillas «Desde tu biblioteca»: lo jugado este año).
+    """
     start, end = year_bounds(year)
     played = Q(completed_at__gte=start, completed_at__lt=end)
     for key in HOURS_SOURCES:
@@ -63,19 +72,28 @@ def played_in(user, year):
 
 
 def completed_in(user, year):
-    """Lo terminado en year: lo pasado a «Completado» ese año o con una reseña terminada ese año."""
+    """Lo terminado en year: lo pasado a «Completado» ese año o con una reseña terminada ese año.
+
+    Pantallas: Nueva tier list (plantillas «Desde tu biblioteca»: lo terminado este año).
+    """
     start, end = year_bounds(year)
     finished = Review.objects.filter(user=user, finished_on__year=year).values("game")
     return library(user).filter(Q(completed_at__gte=start, completed_at__lt=end) | Q(game__in=finished))
 
 
 def most_played(user, year):
-    """Los MOST_PLAYED juegos con más horas, sumando las de todas las plataformas."""
+    """Los MOST_PLAYED juegos con más horas, sumando las de todas las plataformas.
+
+    Pantallas: Nueva tier list (plantillas «Desde tu biblioteca»: lo más jugado).
+    """
     return library(user).filter(minutes__gt=0)[:MOST_PLAYED]
 
 
 def full_achievements(user, year):
-    """Lo que tiene con el platino de PlayStation o con todos los logros en alguna plataforma (accounts.achievements)."""
+    """Lo que tiene con el platino de PlayStation o con todos los logros en alguna plataforma (accounts.achievements).
+
+    Pantallas: Nueva tier list (plantillas «Desde tu biblioteca»: lo que tiene con todos los logros).
+    """
     entries = list(library(user))
     progress = progress_by_game(user, [entry.game_id for entry in entries])
     return [
@@ -86,7 +104,10 @@ def full_achievements(user, year):
 
 def played_on(platform):
     """Cómo elige sus juegos la plantilla de una plataforma: lo que tiene horas en platform (clave de HOURS_SOURCES), de
-    más a menos horas en ella."""
+    más a menos horas en ella.
+
+    Pantallas: Nueva tier list (plantillas «Desde tu biblioteca»: las de cada plataforma).
+    """
     field = f"{platform}_playtime_minutes"
 
     def entries(user, year):
@@ -97,7 +118,10 @@ def played_on(platform):
 
 
 def backlog(user, year):
-    """Lo pendiente, de lo añadido hace menos a lo que más."""
+    """Lo pendiente, de lo añadido hace menos a lo que más.
+
+    Pantallas: Nueva tier list (plantillas «Desde tu biblioteca»: lo pendiente).
+    """
     return library(user).filter(status=LibraryEntry.Status.BACKLOG).order_by("-created_at", "-id")
 
 
@@ -117,24 +141,41 @@ class Preset:
     by_rating: bool = True
 
     def label_for(self, year):
-        """Su nombre en «Nueva lista» en year."""
+        """Su nombre en «Nueva lista» en year.
+
+        Pantallas: Nueva tier list (plantillas «Desde tu biblioteca»: nombre de cada plantilla).
+        """
         return self.label.format(year=year)
 
     def title_for(self, year):
-        """Título de la tier list que crea en year."""
+        """Título de la tier list que crea en year.
+
+        Pantallas: Nueva tier list (plantillas «Desde tu biblioteca»: título de la tier list que crea),
+        Página de la lista.
+        """
         return self.title.format(year=year)
 
     def choose(self, user, year):
-        """Los juegos de la biblioteca de user que entran en year, en su orden (LibraryEntry), como mucho LIST_MAX_GAMES."""
+        """Los juegos de la biblioteca de user que entran en year, en su orden (LibraryEntry), como mucho LIST_MAX_GAMES.
+
+        Pantallas: Nueva tier list (plantillas «Desde tu biblioteca»: los juegos que entran).
+        """
         return list(self.entries(user, year)[:LIST_MAX_GAMES])
 
     def tier_list(self):
-        """Sus niveles como los guarda GameList.tiers: [{"id", "label", "color"}]."""
+        """Sus niveles como los guarda GameList.tiers: [{"id", "label", "color"}].
+
+        Pantallas: Nueva tier list (plantillas «Desde tu biblioteca»: sus niveles), Página de la lista.
+        """
         return [{"id": n, "label": label, "color": color} for n, (label, color) in enumerate(self.tiers)]
 
     def tier_of(self, entry):
         """Id del nivel en el que empieza el juego de entry: con by_rating, el de su nota (RATING_TIERS); si no, o sin
-        nota, ninguno (sin clasificar)."""
+        nota, ninguno (sin clasificar).
+
+        Pantallas: Nueva tier list (plantillas «Desde tu biblioteca»: el nivel en el que empieza cada juego),
+        Página de la lista (tablero).
+        """
         return RATING_TIERS.get(entry.rating) if self.by_rating else None
 
 
@@ -173,7 +214,10 @@ def choices(user):
     cada una: su clave, su nombre y su explicación (key, label y help), cuántos juegos metería (count), las portadas de
     los primeros (preview_items y mosaic_gaps, como el mosaico de una lista), si se puede crear (ready: al menos
     MIN_GAMES) y, si user ya tiene una lista con el título que le pondría, esa lista (existing). Las que no tienen
-    ningún juego no salen."""
+    ningún juego no salen.
+
+    Pantallas: Nueva tier list (plantillas «Desde tu biblioteca»).
+    """
     year = timezone.localdate().year
     titles = [preset.title_for(year) for preset in PRESETS.values()]
     existing = {game_list.title: game_list for game_list in GameList.objects.filter(user=user, title__in=titles)}

@@ -22,12 +22,20 @@ class XboxError(Exception):
 
 
 def _market():
-    """País de la tienda, el mismo que ITAD_COUNTRY (p. ej. «ES»)."""
+    """País de la tienda, el mismo que ITAD_COUNTRY (p. ej. «ES»).
+
+    Pantallas: Ficha del juego (Dónde comprarlo: el precio de Xbox; sinopsis de Microsoft), Lista de deseos (mejor
+    precio de hoy y mínimo histórico), Página de la lista (lo que cuesta lo que te falta).
+    """
     return settings.ITAD_COUNTRY.upper()
 
 
 def _locale():
-    """Idioma y país de la tienda, p. ej. «es-ES»."""
+    """Idioma y país de la tienda, p. ej. «es-ES».
+
+    Pantallas: Ficha del juego (Dónde comprarlo: el precio de Xbox; sinopsis de Microsoft), Lista de deseos (mejor
+    precio de hoy y mínimo histórico), Página de la lista (lo que cuesta lo que te falta).
+    """
     return f"{settings.LANGUAGE_CODE}-{_market()}"
 
 
@@ -35,6 +43,9 @@ def fetch_products(product_ids):
     """Devuelve {ID de producto: (precio, precio normal, moneda)} de los productos que se pueden comprar en consola Xbox.
 
     Pide los productos de 20 en 20; los que no se venden en consola no aparecen en el resultado.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: el precio de Xbox), Lista de deseos (mejor precio de hoy y mínimo
+    histórico), Página de la lista (lo que cuesta lo que te falta).
     """
     found = {}
     for start in range(0, len(product_ids), BATCH_SIZE):
@@ -61,6 +72,8 @@ def fetch_descriptions(product_ids):
 
     Es la descripción corta o, si no tiene, el primer párrafo de la larga. Pide los productos de 20 en
     20 en el idioma de la tienda (es-ES); los que no tienen descripción no aparecen.
+
+    Pantallas: Ficha del juego (sinopsis en español de la tienda de Microsoft).
     """
     found = {}
     for start in range(0, len(product_ids), BATCH_SIZE):
@@ -89,6 +102,9 @@ def _console_offer(product):
     """Oferta de compra más barata de un producto que funciona en Xbox, o None si no hay.
 
     Ignora las de 0,00, que son Game Pass, pruebas o copias incluidas en packs.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: el precio de Xbox), Lista de deseos (mejor precio de hoy y mínimo
+    histórico), Página de la lista (lo que cuesta lo que te falta).
     """
     best = None
     for sku in product.get("DisplaySkuAvailabilities") or []:
@@ -112,12 +128,20 @@ def _console_offer(product):
 
 
 def _normalize(title):
-    """Título para comparar: sin ™ ® ©, en minúsculas y con los espacios simplificados."""
+    """Título para comparar: sin ™ ® ©, en minúsculas y con los espacios simplificados.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: el precio de Xbox), Lista de deseos (mejor precio de hoy y mínimo
+    histórico), Página de la lista (lo que cuesta lo que te falta).
+    """
     return " ".join(re.sub(r"[™®©]", "", title or "").casefold().split())
 
 
 def search_games(name):
-    """IDs de producto de los juegos de Xbox que se llaman exactamente como name (títulos en inglés, como en IGDB)."""
+    """IDs de producto de los juegos de Xbox que se llaman exactamente como name (títulos en inglés, como en IGDB).
+
+    Pantallas: Ficha del juego (Dónde comprarlo: el precio de Xbox), Lista de deseos (mejor precio de hoy y mínimo
+    histórico), Página de la lista (lo que cuesta lo que te falta).
+    """
     try:
         response = requests.get(
             SEARCH_URL,
@@ -144,13 +168,20 @@ def search_games(name):
 
 
 def store_url(product_id):
-    """Enlace a la página del producto en xbox.com."""
+    """Enlace a la página del producto en xbox.com.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: enlace a la tienda de Xbox).
+    """
     return f"https://www.xbox.com/{_locale()}/games/store/_/{product_id}"
 
 
 @transaction.atomic
 def _store(game, product_id, offer):
-    """Sustituye el precio de Xbox del juego por offer y calcula el % de descuento; sin offer lo deja sin precio."""
+    """Sustituye el precio de Xbox del juego por offer y calcula el % de descuento; sin offer lo deja sin precio.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: el precio de Xbox), Lista de deseos (mejor precio de hoy y mínimo
+    histórico), Página de la lista (lo que cuesta lo que te falta).
+    """
     game.prices.filter(source=GamePrice.Source.XBOX).delete()
     if offer:
         price, regular, currency = offer
@@ -174,6 +205,9 @@ def update_xbox_prices(games, sleep=time.sleep):
     a menudo solo tiene productos que ya no se venden (p. ej. la versión original de un relanzamiento),
     los juegos de Xbox One/Series sin precio se buscan también por su título exacto, salvo que otro
     juego del catálogo se llame igual o que la búsqueda dé más de un producto.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: el precio de Xbox), Lista de deseos (mejor precio de hoy y mínimo
+    histórico), Página de la lista (lo que cuesta lo que te falta).
     """
     games = [game for game in games if game.xbox_lookup_ids or game.on_current_xbox]
     offers = fetch_products(sorted({pid for game in games for pid in game.xbox_lookup_ids}))

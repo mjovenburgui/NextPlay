@@ -375,6 +375,56 @@ schtasks /Create /TN "NextPlay nightly" /SC DAILY /ST 04:00 /TR "cmd /c cd /d %C
 | `lists`    | `GameList` y `ListItem`: las listas de juegos de cada usuario |
 | `challenges` | `Challenge` y `Participation`: los retos y quién está en cada uno |
 
+## Pantallas y documentación
+
+Cada app tiene sus vistas (`views.py`), que pintan pantallas con las plantillas de `templates/` y responden a los
+botones (muchos con HTMX, que cambia solo un trozo de la página). Estas son las pantallas, con su catálogo en
+`docs/pantallas.json`:
+
+| Pantalla | Dirección | Vista | Plantilla |
+|----------|-----------|-------|-----------|
+| Inicio | `/` | `games.views.home` | `games/home.html` |
+| Catálogo | `/juegos/` | `games.views.catalog` | `games/catalog.html` |
+| Ficha del juego | `/juegos/<juego>/` | `games.views.detail` | `games/detail.html` |
+| Listas del juego | `/juegos/<juego>/listas/` | `lists.views.game_lists` | `lists/game_lists.html` |
+| Perfil | `/u/<usuario>/` | `accounts.views.profile` | `accounts/profile.html` |
+| Seguidores y seguidos | `/u/<usuario>/seguidores/` y `siguiendo/` | `social.views.followers` y `following` | `social/people.html` |
+| Publicar | `/publicar/` | `social.views.post_new` | `social/post_form.html` |
+| Página de la publicación | `/u/<usuario>/publicaciones/<id>/` | `social.views.post_detail` | `social/post_detail.html` |
+| Escribir reseña | `/biblioteca/<juego>/resenas/nueva/` y `resenas/<id>/editar/` | `library.views.review_new` y `review_edit` | `library/review_form.html` |
+| Página de la reseña | `/u/<usuario>/resenas/<id>/` | `library.views.review_detail` | `library/review_detail.html` |
+| Lista de deseos | `/biblioteca/lista-de-deseos/` | `library.views.wishlist` | `library/wishlist.html` |
+| Página de la lista | `/u/<usuario>/listas/<id>/` | `lists.views.detail` | `lists/detail.html` |
+| Nueva lista | `/listas/nueva/` | `lists.views.new` | `lists/form.html` |
+| Nueva tier list | `/tier-lists/nueva/` | `lists.views.new_tier_list` | `lists/tier_form.html` |
+| Editar lista | `/listas/<id>/editar/` | `lists.views.edit` | `lists/edit.html` |
+| Retos | `/retos/` | `challenges.views.explore` | `challenges/explore.html` |
+| Página del reto | `/retos/<id>/` | `challenges.views.detail` | `challenges/detail.html` |
+| Nuevo reto | `/retos/nuevo/` | `challenges.views.new` | `challenges/form.html` |
+| Editar reto | `/retos/<id>/editar/` | `challenges.views.edit` | `challenges/edit.html` |
+| Avisos | `/avisos/` | `accounts.views.notifications` | `accounts/notifications.html` |
+| Editar perfil | `/cuenta/perfil/` | `accounts.views.edit_profile` | `accounts/edit_profile.html` |
+| Juegos importados | `/cuenta/juegos-importados/` | `accounts.views.imported_titles` | `accounts/imported_titles.html` |
+| Registro | `/cuenta/registro/` | `accounts.views.signup` | `registration/signup.html` |
+| Iniciar sesión | `/cuenta/login/` | la de Django | `registration/login.html` |
+| Recuperar contraseña | `/cuenta/password_reset/` y siguientes | las de Django | `registration/password_reset_*.html` |
+| Panel de administración | `/admin/` | el admin de Django | |
+
+Cada función dice al final de su docstring qué hace y a qué pantallas afecta, con un párrafo «Pantallas: …» que usa
+esos nombres: las pantallas en las que se nota lo que hace (donde se ve lo que calcula, desde donde se lanza y donde
+sale lo que guarda), con la parte de la pantalla entre paréntesis. «todas» es lo que sale en cualquier pantalla (la
+barra de arriba, la foto y el nombre de cada jugador) y «ninguna», lo que no se ve en la web. Los bloques de
+JavaScript de las plantillas lo dicen igual, en una línea `// Pantallas: …` de su comentario.
+
+Con eso, `docs/generar_pdf.py` arma `docs/NextPlay-funciones.pdf`: primero el mapa de pantallas (qué es cada una, su
+dirección, su vista, sus plantillas y qué funciones y qué JavaScript la afectan), después todas las funciones archivo
+por archivo y al final el JavaScript de las plantillas. Lo que no dice sus pantallas, o nombra una que no está en
+`docs/pantallas.json`, sale en rojo. Una pantalla nueva se añade a ese catálogo.
+
+```bash
+.venv/Scripts/python docs/generar_pdf.py
+```
+
 ## Siguientes cortes
 
 2. Importación de Steam, puntuaciones y reseñas, tarjeta compartible.

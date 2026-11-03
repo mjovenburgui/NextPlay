@@ -49,12 +49,20 @@ class XboxError(Exception):
 
 
 def is_configured():
-    """Indica si están puestas las credenciales de la aplicación de Azure para iniciar sesión con Microsoft."""
+    """Indica si están puestas las credenciales de la aplicación de Azure para iniciar sesión con Microsoft.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: sin credenciales de Azure no se puede vincular Xbox), Perfil (modal
+    «Vincular cuentas» de su dueño).
+    """
     return bool(settings.XBOX_CLIENT_ID and settings.XBOX_CLIENT_SECRET)
 
 
 def login_url(redirect_uri, state):
-    """URL de Microsoft donde el usuario inicia sesión; Microsoft lo devuelve a redirect_uri con un código."""
+    """URL de Microsoft donde el usuario inicia sesión; Microsoft lo devuelve a redirect_uri con un código.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: botón para vincular Xbox), Perfil (modal «Vincular cuentas» de su
+    dueño).
+    """
     params = {
         "client_id": settings.XBOX_CLIENT_ID,
         "response_type": "code",
@@ -67,7 +75,12 @@ def login_url(redirect_uri, state):
 
 
 def _post(url, **kwargs):
-    """POST a Microsoft o Xbox Live que devuelve el JSON; lanza XboxError si falla."""
+    """POST a Microsoft o Xbox Live que devuelve el JSON; lanza XboxError si falla.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
+    """
     try:
         response = requests.post(url, timeout=TIMEOUT, **kwargs)
     except requests.RequestException as exc:
@@ -90,6 +103,10 @@ def xbox_tokens(code, redirect_uri):
     """Cambia el código de Microsoft por los datos de Xbox Live: {"xuid", "gamertag", "auth"}.
 
     «auth» es la cabecera Authorization (XBL3.0) para llamar a las APIs de Xbox Live.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
     """
     microsoft = _post(TOKEN_URL, data={
         "client_id": settings.XBOX_CLIENT_ID,
@@ -125,7 +142,12 @@ def xbox_tokens(code, redirect_uri):
 
 
 def _get(url, auth, contract, **params):
-    """GET autenticado contra una API de Xbox Live con su versión de contrato; devuelve el JSON."""
+    """GET autenticado contra una API de Xbox Live con su versión de contrato; devuelve el JSON.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
+    """
     try:
         response = requests.get(
             url,
@@ -140,7 +162,11 @@ def _get(url, auth, contract, **params):
 
 
 def avatar(xuid, auth):
-    """URL del avatar (gamerpic) de la cuenta, o vacío si Xbox Live no la da."""
+    """URL del avatar (gamerpic) de la cuenta, o vacío si Xbox Live no la da.
+
+    Pantallas: Editar perfil (Cuentas vinculadas › Xbox), Perfil (cuenta de Xbox de la cabecera), todas (la foto del
+    perfil cuando es la de Xbox).
+    """
     try:
         data = _get(PROFILE_URL.format(xuid=xuid), auth, "3", settings="GameDisplayPicRaw")
         settings_list = data["profileUsers"][0]["settings"]
@@ -150,7 +176,12 @@ def avatar(xuid, auth):
 
 
 def played_titles(xuid, auth):
-    """Juegos del historial de la cuenta (solo de tipo «Game», sin apps como Netflix), con su última partida."""
+    """Juegos del historial de la cuenta (solo de tipo «Game», sin apps como Netflix), con su última partida.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
+    """
     titles = _get(TITLES_URL.format(xuid=xuid), auth, "2").get("titles") or []
     return [title for title in titles if title.get("type") == "Game"]
 
@@ -159,6 +190,10 @@ def minutes_played(xuid, auth, title_ids):
     """Minutos jugados por título según la estadística MinutesPlayed: {titleId: minutos}.
 
     Los juegos que no publican esa estadística (muchos de Xbox 360 y algunos de PC) no aparecen.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
     """
     minutes = {}
     for start in range(0, len(title_ids), STATS_BATCH):
@@ -182,7 +217,11 @@ def minutes_played(xuid, auth, title_ids):
 
 def save_achievements(user, played):
     """Apunta en los títulos de Xbox importados del usuario los logros que llegan con su historial (played, de
-    played_titles: «currentAchievements» de «totalAchievements») y devuelve en cuántos."""
+    played_titles: «currentAchievements» de «totalAchievements») y devuelve en cuántos.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; insignias de las
+    portadas, cifras y sección «Logros»), Ficha del juego (tus logros).
+    """
     by_id = {}
     for title in played:
         achievement = title.get("achievement") or {}
@@ -212,6 +251,10 @@ def import_library(user, code, redirect_uri):
     Devuelve un dict con la cuenta («account»), cuántos juegos se han añadido («added»), actualizado
     («updated») y no se han encontrado en el catálogo («unmatched»), y de cuántos se han leído los logros
     («achievements»: llegan con el historial, ver save_achievements).
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas;
+    insignias de las portadas, cifras y sección «Logros»), Ficha del juego (tus horas; tus logros), Juegos importados
+    (los que no se encuentran), Inicio (feed: la importación), Retos (progreso), Página del reto (progreso).
     """
     xbl = xbox_tokens(code, redirect_uri)
     if XboxAccount.objects.filter(xuid=xbl["xuid"]).exclude(user=user).exists():

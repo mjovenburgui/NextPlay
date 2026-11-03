@@ -1,3 +1,7 @@
+"""Direcciones principales: el admin (Panel de administración), Inicio (/), las de cada app y la Página de la reseña, que
+cuelga del perfil de su autor (u/<usuario>/resenas/<id>/). En local también sirve las imágenes subidas.
+"""
+
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin

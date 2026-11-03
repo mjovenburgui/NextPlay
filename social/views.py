@@ -1,3 +1,8 @@
+"""Vistas de lo social: el botón de seguir y Seguidores y seguidos, el feed de Inicio y la pestaña Actividad del Perfil
+(con su «Cargar más»), la caja para publicar de Inicio y Publicar, y la Página de la publicación con sus «me gusta»,
+comentarios y denuncias.
+"""
+
 from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
 from urllib.parse import urlencode
@@ -50,6 +55,9 @@ def follow_context(viewer, user):
     Cuántos seguidores tiene user (follower_count) y a cuántos sigue (following_count), si viewer ya sigue a
     user (is_following) y si user sigue a viewer (follows_you). Las dos últimas son falsas sin sesión y en el
     propio perfil.
+
+    Pantallas: Perfil (botón «Seguir» y contadores), Seguidores y seguidos, Inicio (sugerencias de gente a la que
+    seguir).
     """
     pairs = set()
     if viewer.is_authenticated and viewer != user:
@@ -75,6 +83,8 @@ def follow(request, username):
     (pudo hacerse privado después). Al seguir se avisa en la campana (Follow.objects.follow). Con HTMX
     devuelve el botón nuevo, del tamaño de donde estaba (desde: «perfil» o «lista»), y en el perfil también
     el número de seguidores de la cabecera; sin HTMX vuelve a la página de «next» o al perfil.
+
+    Pantallas: Perfil, Seguidores y seguidos, Inicio (botón «Seguir»), Avisos (aviso al seguido).
     """
     target = get_object_or_404(User.objects.select_related("profile"), username=username)
     if target == request.user:
@@ -101,12 +111,18 @@ def follow(request, username):
 
 
 def followers(request, username):
-    """Seguidores de username, del más reciente al más antiguo (ver _people)."""
+    """Seguidores de username, del más reciente al más antiguo (ver _people).
+
+    Pantallas: Seguidores y seguidos.
+    """
     return _people(request, username, "seguidores")
 
 
 def following(request, username):
-    """Gente a la que sigue username, de la más reciente a la más antigua (ver _people)."""
+    """Gente a la que sigue username, de la más reciente a la más antigua (ver _people).
+
+    Pantallas: Seguidores y seguidos.
+    """
     return _people(request, username, "siguiendo")
 
 
@@ -118,6 +134,8 @@ def _people(request, username, view):
     como lo que comenta), pero sin enlace a su página (profile_visible) ni botón para seguirlos, solo para
     dejar de seguirlos. En cada persona se apunta si quien mira la sigue (viewer_follows) y si ella sigue a
     quien mira (follows_viewer).
+
+    Pantallas: Seguidores y seguidos.
     """
     owner = get_object_or_404(User.objects.select_related("profile"), username=username)
     viewer = request.user
@@ -161,6 +179,8 @@ def _batch(activities, viewer, cursor):
     comentarios contados; su lista, solo si viewer puede verla, con su mosaico, sus «me gusta» y cuánto ha jugado
     de ella viewer; y las importaciones traen sus juegos (import_games). Las que se quedan sin nada que enseñar no
     salen. No mira de quién son: eso lo decide quien la llama.
+
+    Pantallas: Inicio (feed: cada tanda, también la de «Cargar más»), Perfil (pestaña Actividad).
     """
     start = _parse_cursor(cursor)
     if start:
@@ -193,6 +213,8 @@ def activity_context(user, viewer, cursor=""):
     La tanda que toca (activities), el cursor de la siguiente (next_cursor) y, si quedan más, las direcciones de
     «Cargar más»: la que pide HTMX (more_url) y la de la pestaña desde ahí, para quien no tenga JavaScript
     (more_href). No mira si viewer puede ver el perfil: eso lo hace quien la llama.
+
+    Pantallas: Perfil (pestaña Actividad).
     """
     activities, next_cursor = _batch(Activity.objects.filter(user=user), viewer, cursor)
     context = {"activities": activities, "next_cursor": next_cursor}
@@ -212,6 +234,8 @@ def feed_context(viewer, tab="", cursor=""):
     (Profile.visible_filter): si alguien a quien sigue se hace privado, deja de ver lo suyo. Además de la
     tanda y de «Cargar más» (como activity_context), lleva la pestaña (feed_tab) y las que hay (feed_tabs); si
     viewer no sigue a nadie (follows_nobody), en la primera tanda va también gente a la que seguir (suggestions).
+
+    Pantallas: Inicio (feed: pestañas «Siguiendo» y «Descubrir»).
     """
     if tab not in FEED_TABS:
         tab = "siguiendo"
@@ -251,6 +275,8 @@ def suggested_people(viewer, limit=SUGGESTIONS):
     Solo salen quienes tienen algún juego en común o actividad reciente. Cada uno trae cuántos juegos tiene en
     común (shared) y si sigue a viewer (follows_viewer), y lo que necesitan su foto y el botón de seguir.
     Se cuenta con subconsultas para no cruzar la biblioteca con la actividad de cada uno.
+
+    Pantallas: Inicio (gente a la que podrías seguir).
     """
     since = timezone.now() - timedelta(days=SUGGESTION_DAYS)
     mine = LibraryEntry.objects.filter(user=viewer).values("game_id")
@@ -286,12 +312,17 @@ def _cursor(activity):
     """Cursor de «Cargar más» para seguir después de activity: «microsegundos desde 1970 (UTC)-id».
 
     Se cuenta en microsegundos enteros, sin decimales, para que la fecha vuelva exacta al leerlo.
+
+    Pantallas: Inicio (feed: «Cargar más»), Perfil (pestaña Actividad).
     """
     return f"{(activity.updated_at - EPOCH) // timedelta(microseconds=1)}-{activity.pk}"
 
 
 def _parse_cursor(cursor):
-    """Lo contrario de _cursor: (fecha, id), o None si cursor está vacío o no tiene esa forma."""
+    """Lo contrario de _cursor: (fecha, id), o None si cursor está vacío o no tiene esa forma.
+
+    Pantallas: Inicio (feed: «Cargar más»), Perfil (pestaña Actividad).
+    """
     try:
         micros, pk = (int(part) for part in cursor.split("-"))
         return EPOCH + timedelta(microseconds=micros), pk
@@ -304,6 +335,8 @@ def activity(request, username):
 
     Con HTMX devuelve solo las actividades nuevas y el botón para la siguiente; sin HTMX lleva a la pestaña
     Actividad del perfil desde ese punto. Un perfil privado da 404 a cualquiera que no sea su dueño.
+
+    Pantallas: Perfil (pestaña Actividad: «Cargar más»).
     """
     owner = get_object_or_404(User.objects.select_related("profile"), username=username)
     if not owner.profile.visible_to(request.user):
@@ -319,6 +352,8 @@ def feed(request):
 
     Con HTMX devuelve solo las actividades nuevas y el botón para la siguiente; sin HTMX lleva a la portada
     desde ese punto.
+
+    Pantallas: Inicio (feed: «Cargar más»).
     """
     tab, cursor = request.GET.get("ver", ""), request.GET.get("antes", "")
     if not request.headers.get("HX-Request"):
@@ -328,7 +363,11 @@ def feed(request):
 
 def _posts():
     """Publicaciones con lo que enseñan sus tarjetas ya cargado: autor (con su foto), juego, imágenes, «me gusta»
-    (like_count) y comentarios (comment_count)."""
+    (like_count) y comentarios (comment_count).
+
+    Pantallas: Inicio (feed), Perfil (pestaña Actividad), Página de la publicación (las tarjetas de las
+    publicaciones).
+    """
     return (
         Post.objects.select_related("user__profile", "user__psn_account", "user__xbox_account", "game")
         .prefetch_related("images", "user__steam_accounts")
@@ -337,7 +376,10 @@ def _posts():
 
 
 def mark_liked_posts(posts, user):
-    """Apunta en cada publicación de posts (liked) si user le ha dado «me gusta»; devuelve la misma lista."""
+    """Apunta en cada publicación de posts (liked) si user le ha dado «me gusta»; devuelve la misma lista.
+
+    Pantallas: Inicio, Perfil, Página de la publicación (tus «me gusta» marcados).
+    """
     liked = set()
     if user.is_authenticated and posts:
         liked = set(PostLike.objects.filter(user=user, post__in=posts).values_list("post_id", flat=True))
@@ -352,6 +394,8 @@ def composer_context(user, game=None, form=None):
     El formulario (post_form: form o uno vacío), los juegos que ofrece para elegir de cuál va la publicación
     (composer_games: game, si se da, y los últimos COMPOSER_GAMES que está jugando), el elegido
     (composer_game, su id o None) y las medidas con las que el navegador reduce las imágenes muy grandes.
+
+    Pantallas: Inicio (caja para publicar), Publicar.
     """
     playing = [
         entry.game for entry in LibraryEntry.objects.filter(user=user, status=LibraryEntry.Status.PLAYING)
@@ -373,6 +417,8 @@ def post_new(request):
     Con ?juego= (desde la ficha de un juego) la publicación ya va sobre ese juego. Al publicar se apunta en su
     actividad (social.activity.post_published) y vuelve a la portada, donde sale la primera de Siguiendo; si
     falta algo, enseña esta página con los errores y lo que había escrito.
+
+    Pantallas: Publicar, Inicio (caja para publicar).
     """
     form = PostForm(request.POST or None, request.FILES or None)
     if request.method == "POST" and form.is_valid():
@@ -388,7 +434,10 @@ def post_new(request):
 
 
 def _readable_post(request, post_id):
-    """Publicación post_id con sus tarjetas cargadas, si el usuario puede verla; 404 si es de un perfil privado ajeno."""
+    """Publicación post_id con sus tarjetas cargadas, si el usuario puede verla; 404 si es de un perfil privado ajeno.
+
+    Pantallas: Página de la publicación, Inicio, Perfil (404 al pulsar algo de una publicación que no se puede ver).
+    """
     post = get_object_or_404(_posts(), pk=post_id)
     if not post.user.profile.visible_to(request.user):
         raise Http404
@@ -401,6 +450,8 @@ def post_detail(request, username, post_id):
 
     La ve quien puede ver el perfil de su autor (si no, 404). Su autor puede borrarla; los demás, denunciarla
     (con ?denunciar llega abierto el formulario).
+
+    Pantallas: Página de la publicación.
     """
     post = _readable_post(request, post_id)
     if post.user.username != username:
@@ -418,7 +469,10 @@ def post_detail(request, username, post_id):
 
 
 def _post_comments(post, viewer):
-    """Variables de library/_comments.html para los comentarios de post (ver library.views.comment_thread)."""
+    """Variables de library/_comments.html para los comentarios de post (ver library.views.comment_thread).
+
+    Pantallas: Página de la publicación (comentarios).
+    """
     return comment_thread(
         post, post.comments.select_related("post"), viewer,
         comment_url=reverse("social:post_comment", args=[post.pk]),
@@ -433,6 +487,8 @@ def post_comment(request, post_id):
     """Publica un comentario en una publicación (avisando a su autor si no es él) y vuelve a sus comentarios.
 
     Con HTMX devuelve los comentarios ya con el nuevo (o el formulario con el error) y el contador de la página.
+
+    Pantallas: Página de la publicación (comentarios), Avisos (aviso a su autor).
     """
     post = _readable_post(request, post_id)
     form = PostCommentForm(request.POST)
@@ -453,7 +509,10 @@ def post_comment(request, post_id):
 
 
 def _notify_post_comment(post, actor):
-    """Avisa al autor de post de que actor la ha comentado, salvo si ya tiene un aviso igual sin leer."""
+    """Avisa al autor de post de que actor la ha comentado, salvo si ya tiene un aviso igual sin leer.
+
+    Pantallas: Avisos (comentarios en tus publicaciones), todas (el número de la campana).
+    """
     url = f"{post.get_absolute_url()}#comentarios"
     notices = Notification.objects.filter(
         user=post.user, kind=Notification.Kind.POST_COMMENT, actor=actor, url=url, read_at=None
@@ -468,7 +527,10 @@ def _notify_post_comment(post, actor):
 @require_POST
 @login_required
 def post_comment_delete(request, comment_id):
-    """Borra un comentario de una publicación: solo quien lo escribió o el autor de la publicación (si no, 403)."""
+    """Borra un comentario de una publicación: solo quien lo escribió o el autor de la publicación (si no, 403).
+
+    Pantallas: Página de la publicación (botón «Borrar» de un comentario).
+    """
     comment = get_object_or_404(PostComment.objects.select_related("post__user__profile"), pk=comment_id)
     if not comment.can_delete(request.user):
         return HttpResponseForbidden("No puedes borrar este comentario.")
@@ -484,7 +546,10 @@ def post_comment_delete(request, comment_id):
 @require_POST
 @login_required
 def post_comment_report(request, comment_id):
-    """Denuncia un comentario de otro en una publicación; los propios no (400) y los de publicaciones que no se pueden ver dan 404."""
+    """Denuncia un comentario de otro en una publicación; los propios no (400) y los de publicaciones que no se pueden ver dan 404.
+
+    Pantallas: Página de la publicación (denunciar un comentario), Panel de administración (denuncias).
+    """
     comment = get_object_or_404(PostComment.objects.select_related("user", "post__game"), pk=comment_id)
     _readable_post(request, comment.post_id)
     if comment.user_id == request.user.pk:
@@ -495,7 +560,10 @@ def post_comment_report(request, comment_id):
 @require_POST
 @login_required
 def post_delete(request, post_id):
-    """Borra una publicación del usuario, con sus imágenes, sus «me gusta» y su actividad, y vuelve a la portada; las de otros dan 404."""
+    """Borra una publicación del usuario, con sus imágenes, sus «me gusta» y su actividad, y vuelve a la portada; las de otros dan 404.
+
+    Pantallas: Página de la publicación (botón «Borrar»), Inicio (feed), Perfil (pestaña Actividad).
+    """
     get_object_or_404(Post, pk=post_id, user=request.user).delete()
     messages.success(request, "Publicación borrada.")
     return redirect("home")
@@ -508,6 +576,8 @@ def post_like(request, post_id):
 
     Con HTMX devuelve el botón con el contador nuevo; si no, vuelve a la página de la publicación. Las propias no
     se pueden marcar (400).
+
+    Pantallas: Inicio, Perfil, Página de la publicación (botón «me gusta»), Avisos (aviso a su autor).
     """
     post = _readable_post(request, post_id)
     if post.user_id == request.user.pk:
@@ -523,7 +593,10 @@ def post_like(request, post_id):
 
 
 def _notify_post_like(post, actor):
-    """Avisa al autor de post de que a actor le ha gustado, solo la primera vez aunque lo quite y lo vuelva a dar."""
+    """Avisa al autor de post de que a actor le ha gustado, solo la primera vez aunque lo quite y lo vuelva a dar.
+
+    Pantallas: Avisos (a quien le gusta tu publicación), todas (el número de la campana).
+    """
     url = post.get_absolute_url()
     notices = Notification.objects.filter(user=post.user, kind=Notification.Kind.POST_LIKE, actor=actor, url=url)
     if not notices.exists():
@@ -536,7 +609,10 @@ def _notify_post_like(post, actor):
 @require_POST
 @login_required
 def post_report(request, post_id):
-    """Denuncia una publicación de otro para que la revise un administrador (library.views._report); las propias no (400)."""
+    """Denuncia una publicación de otro para que la revise un administrador (library.views._report); las propias no (400).
+
+    Pantallas: Página de la publicación (botón «Denunciar»), Panel de administración (denuncias).
+    """
     post = _readable_post(request, post_id)
     if post.user_id == request.user.pk:
         return HttpResponseBadRequest("No puedes denunciar tu propia publicación.")

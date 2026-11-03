@@ -29,6 +29,9 @@ def at_historical_low(game, best):
     """Indica si best (la oferta más barata del juego) está rebajada a su mínimo histórico o por debajo.
 
     Solo cuenta si está rebajada: un juego que nunca baja siempre está en su mínimo.
+
+    Pantallas: Lista de deseos (en su mínimo histórico), Avisos (bajadas de precio), Editar perfil (mensaje al traer
+    la lista de deseos de Steam).
     """
     low = game.historical_low
     return bool(best and best.cut and low is not None and best.price <= low)
@@ -40,6 +43,8 @@ def steam_deals(user):
 
     Cuentan solo las tiendas del usuario si las ha elegido; el precio de Steam con el que se compara es siempre el
     de Steam.
+
+    Pantallas: Editar perfil, Perfil (mensaje al traer la lista de deseos de Steam desde Cuentas vinculadas).
     """
     shops = set(user.profile.shops) or None
     items = list(
@@ -64,6 +69,8 @@ def alert_reason(item, best):
     """Por qué avisar del precio best (un GamePrice) de un juego de la lista: «objetivo», «minimo» o None.
 
     «minimo» solo cuenta si está rebajado: un juego que nunca baja siempre está en su mínimo.
+
+    Pantallas: Avisos (bajadas de precio de tu lista de deseos).
     """
     if best is None or best.is_free:
         return None
@@ -75,7 +82,10 @@ def alert_reason(item, best):
 
 
 def alert_text(item, best, reason):
-    """Texto del aviso: el juego, el precio, la tienda y el motivo."""
+    """Texto del aviso: el juego, el precio, la tienda y el motivo.
+
+    Pantallas: Avisos (texto de cada aviso de bajada de precio, también en el correo).
+    """
     price = format_price(best.price, best.symbol)
     if reason == "objetivo":
         return f"{item.game.name} ha bajado a {price} en {best.shop_name} (tu límite: {format_price(item.target_price)})."
@@ -84,7 +94,10 @@ def alert_text(item, best, reason):
 
 def check_alerts(games=None):
     """Crea los avisos de bajada de precio de las listas de deseos (de esos juegos, o de todos) y manda
-    un correo por usuario con los suyos si lo tiene activado. Devuelve cuántos avisos ha creado."""
+    un correo por usuario con los suyos si lo tiene activado. Devuelve cuántos avisos ha creado.
+
+    Pantallas: Avisos (bajadas de precio de tu lista de deseos, también por correo), todas (el número de la campana).
+    """
     owned = LibraryEntry.objects.filter(user=OuterRef("user"), game=OuterRef("game"))
     items = (
         WishlistItem.objects.filter(~Exists(owned))
@@ -119,7 +132,10 @@ def check_alerts(games=None):
 
 
 def _send_email(user, notifications):
-    """Manda al usuario un correo con sus avisos de precio; si falla, lo apunta en el log y sigue."""
+    """Manda al usuario un correo con sus avisos de precio; si falla, lo apunta en el log y sigue.
+
+    Pantallas: ninguna (manda por correo los avisos de precio a quien lo tiene activado en Privacidad y avisos).
+    """
     lines = [f"- {n.text}\n  {settings.SITE_URL}{n.url}" for n in notifications]
     body = (
         f"Hola, {user.profile.name}:\n\nHan bajado de precio juegos de tu lista de deseos en NextPlay:\n\n"

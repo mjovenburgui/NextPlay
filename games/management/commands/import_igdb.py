@@ -1,3 +1,7 @@
+"""Comando «manage.py import_igdb»: trae juegos de IGDB al catálogo (los más populares, una búsqueda o los que no tienen
+IDs de tienda). Lo que guarda se ve en el Catálogo, la Ficha del juego y en todas las pantallas que enseñan juegos.
+"""
+
 import time
 
 from django.core.management.base import BaseCommand, CommandError
@@ -14,7 +18,10 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         """Opciones del comando: --limit (cuántos populares), --search (importar una búsqueda) y --sin-ids-de-tienda
-        (repasar los del catálogo sin IDs de Steam ni de GOG)."""
+        (repasar los del catálogo sin IDs de Steam ni de GOG).
+
+        Pantallas: ninguna (opciones del comando import_igdb).
+        """
         parser.add_argument("--limit", type=int, default=500, help="Número de juegos populares a importar.")
         parser.add_argument("--search", help="Importa solo los resultados de esta búsqueda.")
         parser.add_argument(
@@ -24,7 +31,12 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         """Punto de entrada: importa una búsqueda, los más populares o repasa los que no tienen IDs de tienda, y dice
-        cuántos juegos guardó."""
+        cuántos juegos guardó.
+
+        Pantallas: Catálogo, Ficha del juego (Dónde comprarlo: con los IDs de tienda que trae), Inicio, Perfil,
+        Lista de deseos (mejor precio de hoy y mínimo histórico), Página de la lista (lo que cuesta lo que te falta),
+        Página del reto (los datos de cada juego: nombre, portada, géneros y plataformas).
+        """
         try:
             client = IGDBClient()
             if options["sin_ids_de_tienda"]:
@@ -42,7 +54,11 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f"{total} juegos importados o actualizados."))
 
     def _import_top(self, client, limit):
-        """Importa los limit juegos más populares en páginas de hasta 500. Devuelve cuántos importó."""
+        """Importa los limit juegos más populares en páginas de hasta 500. Devuelve cuántos importó.
+
+        Pantallas: Catálogo (los juegos más populares de IGDB), Ficha del juego, Inicio, Perfil, Lista de deseos,
+        Página de la lista, Página del reto (los datos de cada juego: nombre, portada, géneros y plataformas).
+        """
         total = 0
         while total < limit:
             page = client.top_games(limit=min(limit - total, MAX_PAGE_SIZE), offset=total)
@@ -58,7 +74,11 @@ class Command(BaseCommand):
         """Vuelve a pedir a IGDB los juegos del catálogo que no tienen con qué buscar sus precios de PC (sin IDs de
         Steam ni de GOG, ni suyos ni de sus ediciones), por si los tienen en un port o una edición ampliada
         (igdb.RELATED_STORES). Devuelve (cuántos tienen ahora con qué buscarlos, cuántos se han pedido); sus precios
-        llegan con update_prices."""
+        llegan con update_prices.
+
+        Pantallas: Ficha del juego (Dónde comprarlo: los juegos que no tenían con qué buscar sus precios),
+        Lista de deseos (mejor precio de hoy y mínimo histórico), Página de la lista (lo que cuesta lo que te falta).
+        """
         ids = [game.igdb_id for game in Game.objects.exclude(igdb_id=None) if not game.price_lookups]
         games = upsert_games(client.games_by_ids(ids)) if ids else []
         return sum(1 for game in games if game.price_lookups), len(ids)

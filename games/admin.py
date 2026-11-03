@@ -1,3 +1,7 @@
+"""Panel de administración de los juegos: sus datos, los IDs manuales de Steam, Xbox y Nintendo para cuando IGDB o el
+emparejado se equivocan, sus precios (solo para mirarlos), los géneros y las plataformas.
+"""
+
 from django.contrib import admin
 
 from .models import Game, GamePrice, Genre, Platform
@@ -11,7 +15,10 @@ class GamePriceInline(admin.TabularInline):
     fields = readonly_fields
 
     def has_add_permission(self, request, obj=None):
-        """Impide añadir precios a mano: solo los escribe update_prices."""
+        """Impide añadir precios a mano: solo los escribe update_prices.
+
+        Pantallas: Panel de administración (precios de cada juego: no se añaden a mano).
+        """
         return False
 
 

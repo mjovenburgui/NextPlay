@@ -1,3 +1,8 @@
+"""Modelos de las cuentas: el usuario y su perfil (lo que se personaliza en Editar perfil y se ve en el Perfil y, con su
+foto y su nombre, en todas las pantallas), sus juegos favoritos, las cuentas vinculadas de Steam, PlayStation, Xbox y
+otras plataformas, los títulos importados de cada una con sus horas y logros, y los avisos de la campana.
+"""
+
 import re
 from urllib.parse import urlparse
 
@@ -50,6 +55,8 @@ def normalize_handle(network, value):
 
     Quita los espacios y la @ del principio y, si pega la URL de su perfil, se queda con el usuario
     (en Bluesky, lo que va después de /profile/). El usuario de Discord se pasa a minúsculas.
+
+    Pantallas: Editar perfil (Redes sociales), Perfil (redes de la cabecera).
     """
     value = (value or "").strip()
     if value.lower().startswith(("http://", "https://")):
@@ -64,7 +71,11 @@ def normalize_handle(network, value):
 def text_on(color):
     """Color del texto encima de un fondo del color color («#rrggbb»): blanco, como en el resto de la web, salvo en los
     colores claros (contraste con el blanco por debajo de 3:1, el mínimo de WCAG para texto en negrita), que llevan
-    texto casi negro."""
+    texto casi negro.
+
+    Pantallas: Perfil (texto sobre el color del perfil), Seguidores y seguidos, Página de la lista (texto sobre el
+    color de cada nivel de las tier lists), Editar lista (niveles), Nueva tier list (niveles).
+    """
 
     def linear(channel):
         """Canal sRGB (0-255) en luz lineal, como pide la fórmula de luminancia de WCAG."""
@@ -77,7 +88,10 @@ def text_on(color):
 
 
 def profile_upload_to(instance, filename):
-    """Ruta de las imágenes de un perfil: perfiles/<id del usuario>/<nombre aleatorio que pone accounts.images>."""
+    """Ruta de las imágenes de un perfil: perfiles/<id del usuario>/<nombre aleatorio que pone accounts.images>.
+
+    Pantallas: Editar perfil (dónde se guardan la foto, la cabecera y el fondo subidos).
+    """
     return f"perfiles/{instance.user_id}/{filename}"
 
 
@@ -203,16 +217,27 @@ class Profile(models.Model):
     preview_images = {}
 
     def __str__(self):
-        """Texto del perfil en el admin y en la consola: su nombre visible."""
+        """Texto del perfil en el admin y en la consola: su nombre visible.
+
+        Pantallas: Panel de administración.
+        """
         return self.name
 
     @property
     def name(self):
-        """Nombre que se muestra: el nombre visible si lo tiene, si no el nombre de usuario."""
+        """Nombre que se muestra: el nombre visible si lo tiene, si no el nombre de usuario.
+
+        Pantallas: todas (el nombre de cada jugador, también en el menú de la cuenta de la barra de arriba).
+        """
         return self.display_name or self.user.username
 
     def get_absolute_url(self):
-        """URL del perfil público del usuario (/u/<usuario>/)."""
+        """URL del perfil público del usuario (/u/<usuario>/).
+
+        Pantallas: Inicio, Ficha del juego, Perfil, Seguidores y seguidos, Página de la publicación,
+        Página de la reseña, Página de la lista, Editar lista, Página del reto (los enlaces al perfil de cada
+        jugador).
+        """
         return reverse("profile", args=[self.user.username])
 
     def visible_to(self, viewer):
@@ -220,6 +245,9 @@ class Profile(models.Model):
 
         Es la regla de quién ve qué en todo NextPlay (perfil, biblioteca, reseñas, seguidores...); en las
         consultas la aplica visible_filter, que tiene que decir lo mismo.
+
+        Pantallas: Perfil, Seguidores y seguidos, Página de la reseña, Página de la publicación, Página de la lista,
+        Página del reto (los perfiles privados solo los ve su dueño).
         """
         return self.is_public or viewer == self.user
 
@@ -229,6 +257,9 @@ class Profile(models.Model):
 
         path es el camino desde lo que se filtra hasta su usuario: «user» en las reseñas (el de por defecto),
         «follower» en los seguidores...; vacío para filtrar los propios usuarios.
+
+        Pantallas: Inicio (feed y sugerencias), Ficha del juego (reseñas y listas), Escribir reseña, Página del reto
+        (clasificación), Seguidores y seguidos, Listas del juego (lo de perfiles privados solo lo ve su dueño).
         """
         prefix = f"{path}__" if path else ""
         visible = models.Q(**{f"{prefix}profile__is_public": True})
@@ -238,23 +269,37 @@ class Profile(models.Model):
 
     @property
     def steam_accounts(self):
-        """Cuentas de Steam vinculadas, de la primera a la última (aprovecha el prefetch si lo hay)."""
+        """Cuentas de Steam vinculadas, de la primera a la última (aprovecha el prefetch si lo hay).
+
+        Pantallas: Editar perfil (Cuentas vinculadas › Steam), Perfil (cuentas de la cabecera y modal «Vincular
+        cuentas»).
+        """
         return list(self.user.steam_accounts.all())
 
     @property
     def steam_linked(self):
-        """Indica si el usuario tiene al menos una cuenta de Steam vinculada."""
+        """Indica si el usuario tiene al menos una cuenta de Steam vinculada.
+
+        Pantallas: Perfil (modal «Vincular cuentas»), Lista de deseos (aviso de traer la de Steam).
+        """
         return bool(self.steam_accounts)
 
     @property
     def steam_avatar(self):
-        """Avatar de la primera cuenta de Steam vinculada, o cadena vacía si no tiene ninguna."""
+        """Avatar de la primera cuenta de Steam vinculada, o cadena vacía si no tiene ninguna.
+
+        Pantallas: todas (la foto del perfil cuando es la de Steam).
+        """
         accounts = self.steam_accounts
         return accounts[0].avatar if accounts else ""
 
     @property
     def psn(self):
-        """Cuenta de PlayStation vinculada, o None si no tiene."""
+        """Cuenta de PlayStation vinculada, o None si no tiene.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › PlayStation), Perfil (cuentas de la cabecera), todas (la foto
+        del perfil cuando es la de PlayStation).
+        """
         try:
             return self.user.psn_account
         except PSNAccount.DoesNotExist:
@@ -262,12 +307,20 @@ class Profile(models.Model):
 
     @property
     def platforms(self):
-        """Cuentas de otras plataformas (Xbox, Switch, Epic...) que muestra en su perfil."""
+        """Cuentas de otras plataformas (Xbox, Switch, Epic...) que muestra en su perfil.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › Otras plataformas), Perfil (cuentas de la cabecera y modal
+        «Vincular cuentas»).
+        """
         return list(self.user.platform_accounts.all())
 
     @property
     def xbox(self):
-        """Cuenta de Xbox vinculada, o None si no tiene."""
+        """Cuenta de Xbox vinculada, o None si no tiene.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › Xbox), Perfil (cuentas de la cabecera), todas (la foto del
+        perfil cuando es la de Xbox).
+        """
         try:
             return self.user.xbox_account
         except XboxAccount.DoesNotExist:
@@ -279,6 +332,8 @@ class Profile(models.Model):
 
         En automático (o si la elegida ya no existe, p. ej. porque desvinculó la cuenta) prueba por orden
         la subida, la de Steam, la de PlayStation y la de Xbox. Cada una se mira solo si hace falta.
+
+        Pantallas: todas (la foto de cada jugador, también la tuya en la barra de arriba).
         """
         if self.avatar_source == self.AvatarSource.INITIAL:
             return ""
@@ -295,17 +350,27 @@ class Profile(models.Model):
 
     @property
     def accent(self):
-        """Color del perfil en hexadecimal; el violeta de NextPlay si no ha elegido otro."""
+        """Color del perfil en hexadecimal; el violeta de NextPlay si no ha elegido otro.
+
+        Pantallas: Perfil (color del perfil), Seguidores y seguidos, Página de la lista, Editar perfil (Color del
+        perfil).
+        """
         return self.accent_color if HEX_COLOR.match(self.accent_color or "") else DEFAULT_ACCENT
 
     @property
     def accent_rgb(self):
-        """El color del perfil como «r, g, b», para usarlo con transparencia en el CSS: rgba(var(--accent-rgb), .3)."""
+        """El color del perfil como «r, g, b», para usarlo con transparencia en el CSS: rgba(var(--accent-rgb), .3).
+
+        Pantallas: Perfil (color del perfil), Seguidores y seguidos, Página de la lista.
+        """
         return ", ".join(str(int(self.accent[i:i + 2], 16)) for i in (1, 3, 5))
 
     @property
     def accent_text(self):
-        """Color del texto encima del color del perfil (ver text_on)."""
+        """Color del texto encima del color del perfil (ver text_on).
+
+        Pantallas: Perfil (texto sobre el color del perfil), Seguidores y seguidos, Página de la lista.
+        """
         return text_on(self.accent)
 
     @property
@@ -313,6 +378,8 @@ class Profile(models.Model):
         """Imagen de la cabecera según banner_mode, o vacía para el degradado con el color del perfil.
 
         Con un juego usa el arte de IGDB elegido o, si no hay, su portada (que se enseña desenfocada).
+
+        Pantallas: Perfil (cabecera), Editar perfil (Apariencia › Cabecera).
         """
         if self.banner_mode == self.BannerMode.IMAGE and (url := self._uploaded_url("banner")):
             return url
@@ -322,12 +389,18 @@ class Profile(models.Model):
 
     @property
     def banner_blurred(self):
-        """Indica si la cabecera es la portada de un juego: es vertical y se desenfoca para que no se vea pixelada."""
+        """Indica si la cabecera es la portada de un juego: es vertical y se desenfoca para que no se vea pixelada.
+
+        Pantallas: Perfil (cabecera), Editar perfil (Apariencia › Cabecera).
+        """
         return self.banner_mode == self.BannerMode.GAME and bool(self.banner_game_id) and not self.banner_art
 
     @property
     def background_url(self):
-        """Imagen de fondo de la página del perfil según background_mode, o vacía si no tiene."""
+        """Imagen de fondo de la página del perfil según background_mode, o vacía si no tiene.
+
+        Pantallas: Perfil (fondo de la página), Editar perfil (Apariencia › Fondo de la página).
+        """
         if self.background_mode == self.BackgroundMode.BANNER:
             return self.banner_url
         if self.background_mode == self.BackgroundMode.IMAGE:
@@ -338,18 +411,26 @@ class Profile(models.Model):
         """URL de la imagen subida del campo name (avatar, banner o background), o vacía si no hay.
 
         En la vista previa de Editar perfil manda la que se acaba de elegir y aún no se ha subido.
+
+        Pantallas: todas (la foto subida), Perfil (cabecera y fondo subidos), Editar perfil (Apariencia).
         """
         image = getattr(self, name)
         return self.preview_images.get(name) or (image.url if image else "")
 
     @property
     def background_blurred(self):
-        """Indica si el fondo es la portada de un juego (la de la cabecera) y hay que desenfocarlo."""
+        """Indica si el fondo es la portada de un juego (la de la cabecera) y hay que desenfocarlo.
+
+        Pantallas: Perfil (fondo de la página), Editar perfil (Apariencia › Fondo de la página).
+        """
         return self.background_mode == self.BackgroundMode.BANNER and self.banner_blurred
 
     @property
     def background_dim_ratio(self):
-        """Lo que se oscurece el fondo como número entre 0 y 1 con punto decimal, para el CSS."""
+        """Lo que se oscurece el fondo como número entre 0 y 1 con punto decimal, para el CSS.
+
+        Pantallas: Perfil (lo que se oscurece el fondo).
+        """
         return f"{self.background_dim / 100:.2f}"
 
     @property
@@ -358,6 +439,8 @@ class Profile(models.Model):
 
         El encuadre (ver _framing) solo vale para la foto subida: las de Steam, PlayStation y Xbox se
         enseñan tal cual.
+
+        Pantallas: todas (la foto de cada jugador, con su encuadre, también la tuya en la barra de arriba).
         """
         url = self.avatar_url
         if not url:
@@ -368,12 +451,18 @@ class Profile(models.Model):
 
     @property
     def banner_framing(self):
-        """Encuadre de la cabecera como variables de CSS (ver _framing)."""
+        """Encuadre de la cabecera como variables de CSS (ver _framing).
+
+        Pantallas: Perfil (encuadre de la cabecera).
+        """
         return self._framing("banner")
 
     @property
     def background_framing(self):
-        """Encuadre del fondo de la página como variables de CSS (ver _framing)."""
+        """Encuadre del fondo de la página como variables de CSS (ver _framing).
+
+        Pantallas: Perfil (encuadre del fondo).
+        """
         return self._framing("background")
 
     def _framing(self, name):
@@ -381,6 +470,8 @@ class Profile(models.Model):
 
         «--focus-x: 30%; --focus-y: 20%; --zoom: 1.5;», que app.css pasa a object-position y a la escala
         de la imagen. Vacío con el encuadre por defecto: centrada y sin zoom.
+
+        Pantallas: todas (encuadre de la foto de cada jugador), Perfil (encuadre de la cabecera y el fondo).
         """
         x, y, zoom = (getattr(self, f"{name}_{part}") for part in ("x", "y", "zoom"))
         if (x, y, zoom) == (50, 50, 100):
@@ -393,6 +484,8 @@ class Profile(models.Model):
 
         Las que no estén en sections (nuevas o nunca configuradas) van al final y visibles; las claves
         que ya no existen o repetidas se ignoran.
+
+        Pantallas: Editar perfil (Escaparate › Secciones del perfil), Perfil (escaparate).
         """
         names = dict(SECTIONS)
         layout, seen = [], set()
@@ -404,7 +497,10 @@ class Profile(models.Model):
 
     @property
     def visible_sections(self):
-        """Claves de las secciones del escaparate que se enseñan, en su orden."""
+        """Claves de las secciones del escaparate que se enseñan, en su orden.
+
+        Pantallas: Perfil (las secciones del escaparate que se enseñan).
+        """
         return [key for key, _, visible in self.section_layout if visible]
 
     @property
@@ -412,6 +508,8 @@ class Profile(models.Model):
         """Redes del perfil para enseñarlas: [(clave, nombre, usuario o dominio, URL o vacía)].
 
         Van en el orden de SOCIAL_LINKS y la web personal al final, con su dominio como texto.
+
+        Pantallas: Perfil (redes de la cabecera).
         """
         links = self.links or {}
         result = [
@@ -441,7 +539,10 @@ class FavoriteGame(models.Model):
         verbose_name_plural = "juegos favoritos"
 
     def __str__(self):
-        """Texto en el admin: «usuario · juego»."""
+        """Texto en el admin: «usuario · juego».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.user} · {self.game}"
 
 
@@ -466,17 +567,28 @@ class SteamAccount(models.Model):
         verbose_name_plural = "cuentas de Steam"
 
     def __str__(self):
-        """Texto de la cuenta en el admin: su nombre en Steam, o el SteamID si no se conoce."""
+        """Texto de la cuenta en el admin: su nombre en Steam, o el SteamID si no se conoce.
+
+        Pantallas: Panel de administración.
+        """
         return self.persona or self.steam_id
 
     @property
     def name(self):
-        """Nombre que se muestra: el de Steam, o el SteamID si aún no se ha podido leer."""
+        """Nombre que se muestra: el de Steam, o el SteamID si aún no se ha podido leer.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › Steam), Perfil (cuentas de la cabecera y modal «Vincular
+        cuentas»).
+        """
         return self.persona or self.steam_id
 
     @property
     def url(self):
-        """URL del perfil en Steam; la construye con el SteamID si Steam no la ha dado."""
+        """URL del perfil en Steam; la construye con el SteamID si Steam no la ha dado.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › Steam), Perfil (cuentas de la cabecera y modal «Vincular
+        cuentas»).
+        """
         return self.profile_url or f"https://steamcommunity.com/profiles/{self.steam_id}/"
 
 
@@ -499,17 +611,27 @@ class PSNAccount(models.Model):
         verbose_name_plural = "cuentas de PlayStation"
 
     def __str__(self):
-        """Texto de la cuenta en el admin: su PSN ID, o el ID de cuenta si no se conoce."""
+        """Texto de la cuenta en el admin: su PSN ID, o el ID de cuenta si no se conoce.
+
+        Pantallas: Panel de administración.
+        """
         return self.name
 
     @property
     def name(self):
-        """Nombre que se muestra: el PSN ID, o «PlayStation» si Sony no lo ha devuelto."""
+        """Nombre que se muestra: el PSN ID, o «PlayStation» si Sony no lo ha devuelto.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › PlayStation), Perfil (cuentas de la cabecera y modal «Vincular
+        cuentas»).
+        """
         return self.online_id or "PlayStation"
 
     @property
     def url(self):
-        """Perfil público en PSNProfiles (Sony no tiene página pública de perfiles), o vacío sin PSN ID."""
+        """Perfil público en PSNProfiles (Sony no tiene página pública de perfiles), o vacío sin PSN ID.
+
+        Pantallas: Perfil (enlace de la cuenta de PlayStation en la cabecera).
+        """
         return f"https://psnprofiles.com/{self.online_id}" if self.online_id else ""
 
 
@@ -564,17 +686,26 @@ class PlatformAccount(models.Model):
         verbose_name_plural = "cuentas de otras plataformas"
 
     def __str__(self):
-        """Texto de la cuenta en el admin: «Plataforma: nombre»."""
+        """Texto de la cuenta en el admin: «Plataforma: nombre».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.get_platform_display()}: {self.handle}"
 
     @property
     def logo_template(self):
-        """Ruta de la plantilla SVG con el logo de la plataforma."""
+        """Ruta de la plantilla SVG con el logo de la plataforma.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › Otras plataformas), Perfil (cuentas de la cabecera).
+        """
         return self.RULES[self.platform][3]
 
     @property
     def url(self):
-        """Perfil público en la web de la plataforma cuando existe (solo GOG); si no, vacío."""
+        """Perfil público en la web de la plataforma cuando existe (solo GOG); si no, vacío.
+
+        Pantallas: Perfil (enlace de la cuenta de GOG en la cabecera).
+        """
         if self.platform == self.Platform.GOG:
             return f"https://www.gog.com/u/{self.handle}"
         return ""
@@ -582,7 +713,10 @@ class PlatformAccount(models.Model):
     @classmethod
     def normalize(cls, platform, handle):
         """Limpia lo que escribe el usuario: quita espacios de los extremos y pone el código de Switch
-        en formato SW-1234-5678-9012 aunque lo escriba solo con números o con espacios."""
+        en formato SW-1234-5678-9012 aunque lo escriba solo con números o con espacios.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › Otras plataformas), Perfil (modal «Vincular cuentas»).
+        """
         handle = " ".join((handle or "").split())
         if platform == cls.Platform.NINTENDO:
             digits = re.sub(r"\D", "", handle)
@@ -592,7 +726,10 @@ class PlatformAccount(models.Model):
 
     @classmethod
     def is_valid_handle(cls, platform, handle):
-        """Indica si el nombre o código cumple el formato de esa plataforma."""
+        """Indica si el nombre o código cumple el formato de esa plataforma.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › Otras plataformas), Perfil (modal «Vincular cuentas»).
+        """
         return bool(re.match(cls.RULES[platform][2], handle or ""))
 
 
@@ -615,17 +752,27 @@ class XboxAccount(models.Model):
         verbose_name_plural = "cuentas de Xbox"
 
     def __str__(self):
-        """Texto de la cuenta en el admin: su gamertag."""
+        """Texto de la cuenta en el admin: su gamertag.
+
+        Pantallas: Panel de administración.
+        """
         return self.name
 
     @property
     def name(self):
-        """Nombre que se muestra: el gamertag, o «Xbox» si Microsoft no lo ha devuelto."""
+        """Nombre que se muestra: el gamertag, o «Xbox» si Microsoft no lo ha devuelto.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › Xbox), Perfil (cuentas de la cabecera y modal «Vincular
+        cuentas»).
+        """
         return self.gamertag or "Xbox"
 
     @property
     def url(self):
-        """Perfil público del gamertag en xbox.com, o vacío si no se conoce."""
+        """Perfil público del gamertag en xbox.com, o vacío si no se conoce.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › Xbox), Perfil (enlace de la cuenta de Xbox en la cabecera).
+        """
         return f"https://www.xbox.com/es-ES/play/user/{self.gamertag}" if self.gamertag else ""
 
 
@@ -677,7 +824,10 @@ class ExternalTitle(models.Model):
         verbose_name_plural = "títulos importados"
 
     def __str__(self):
-        """Texto del título en el admin: «Plataforma: nombre»."""
+        """Texto del título en el admin: «Plataforma: nombre».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.get_platform_display()}: {self.name}"
 
 
@@ -721,17 +871,27 @@ class ImportedTitle(models.Model):
         verbose_name_plural = "títulos de los usuarios"
 
     def __str__(self):
-        """Texto en el admin: «usuario · título»."""
+        """Texto en el admin: «usuario · título».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.user} · {self.title}"
 
     @property
     def hours(self):
-        """Horas jugadas redondeadas a una décima."""
+        """Horas jugadas redondeadas a una décima.
+
+        Pantallas: Juegos importados (horas de cada título).
+        """
         return round(self.minutes / 60, 1)
 
     def set_achievements(self, unlocked, total, platinum=False, at=None):
         """Apunta los logros leídos de la plataforma (sin guardar): unlocked de total, con o sin platino, leídos en at
-        (ahora, si no se da). Devuelve True si ha cambiado algo de lo que se enseña."""
+        (ahora, si no se da). Devuelve True si ha cambiado algo de lo que se enseña.
+
+        Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; insignias de las
+        portadas, cifras y sección «Logros»), Ficha del juego (tus logros).
+        """
         changed = (self.achievements_unlocked, self.achievements_total, self.platinum) != (unlocked, total, platinum)
         self.achievements_unlocked, self.achievements_total, self.platinum = unlocked, total, platinum
         self.achievements_at = at or timezone.now()
@@ -776,12 +936,18 @@ class Achievement(models.Model):
         verbose_name_plural = "logros"
 
     def __str__(self):
-        """Texto en el admin: «Plataforma: juego · logro»."""
+        """Texto en el admin: «Plataforma: juego · logro».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.title} · {self.name}"
 
     @property
     def rarity(self):
-        """Nombre de su rareza (RARITY_TIERS): «Rarísimo», «Muy raro» o «Raro», o vacío si es común o no se sabe."""
+        """Nombre de su rareza (RARITY_TIERS): «Rarísimo», «Muy raro» o «Raro», o vacío si es común o no se sabe.
+
+        Pantallas: Ficha del juego (tus logros: su rareza), Perfil (sección «Logros»: el más raro).
+        """
         if self.percent is None:
             return ""
         return next((label for limit, label in RARITY_TIERS if self.percent < limit), "")
@@ -810,7 +976,10 @@ class UnlockedAchievement(models.Model):
         verbose_name_plural = "logros conseguidos"
 
     def __str__(self):
-        """Texto en el admin: «usuario · logro»."""
+        """Texto en el admin: «usuario · logro».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.imported.user} · {self.achievement.name}"
 
 
@@ -854,5 +1023,8 @@ class Notification(models.Model):
         verbose_name_plural = "avisos"
 
     def __str__(self):
-        """Texto del aviso en el admin: «usuario · texto»."""
+        """Texto del aviso en el admin: «usuario · texto».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.user} · {self.text}"

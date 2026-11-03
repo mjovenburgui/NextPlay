@@ -21,7 +21,10 @@ PSN_PREFIXES = {"CUSA": "PlayStation 4", "PPSA": "PlayStation 5"}
 
 
 def _platforms(row):
-    """Plataformas (nombres de IGDB) en las que se jugó un título importado: las guardadas o, si no hay, las que se deducen."""
+    """Plataformas (nombres de IGDB) en las que se jugó un título importado: las guardadas o, si no hay, las que se deducen.
+
+    Pantallas: Escribir reseña (la plataforma de la partida, rellenada con lo importado).
+    """
     if row.platforms:
         return row.platforms
     if row.title.platform == ExternalTitle.Platform.STEAM:
@@ -36,6 +39,8 @@ def _played_on(row):
 
     Lo jugado en una Steam Deck se separa de lo del PC. En lo demás no se sabe cómo se reparten las horas
     entre sus plataformas (una consola y su sucesora, por ejemplo) y cada una cuenta con todos los minutos.
+
+    Pantallas: Escribir reseña (la plataforma y las horas de la partida, rellenadas con lo importado).
     """
     names = _platforms(row)
     deck = min(row.deck_minutes, row.minutes)
@@ -46,7 +51,10 @@ def _played_on(row):
 
 
 def _duration(minutes):
-    """Tiempo jugado corto para las notas: «12 h» o «40 min»."""
+    """Tiempo jugado corto para las notas: «12 h» o «40 min».
+
+    Pantallas: Escribir reseña (tiempo jugado de las notas de la partida).
+    """
     return f"{round(minutes / 60)} h" if minutes >= 60 else f"{minutes} min"
 
 
@@ -57,6 +65,8 @@ def play_details(user, game, entry):
     más minutos lleva (la Steam Deck cuenta como una más en los juegos de PC); «Lo empecé el» con su primera
     partida (si alguna importación la da) y, si tiene el juego como Completado, «Lo terminé el» con su última
     partida. Vacíos si el juego no viene de ninguna importación o sus plataformas no son las del juego.
+
+    Pantallas: Escribir reseña (plataforma y fechas de la partida, rellenadas con lo importado).
     """
     initial, notes = {}, {}
     rows = list(ImportedTitle.objects.filter(user=user, title__game=game, hidden=False).select_related("title"))

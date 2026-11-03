@@ -1,3 +1,8 @@
+"""Direcciones de los juegos. Pantallas: Catálogo (juegos/) y Ficha del juego (juegos/<juego>/), con los trozos de la
+ficha que se cargan aparte (precios, historial de precios e imágenes y vídeos); «importar» es el botón del Catálogo
+para traer de IGDB lo que buscas.
+"""
+
 from django.urls import path
 
 from . import views
