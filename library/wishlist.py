@@ -5,9 +5,9 @@ tiendas del usuario si las ha elegido) baja del precio que puso el usuario o cua
 que baje más, o hasta que vuelva a subir y baje otra vez. Los juegos que ya están en la biblioteca
 del usuario no avisan (ya lo tiene).
 
-También están aquí los precios que se piden al momento para los juegos que llegan de la lista de deseos
-de Steam y el resumen que se enseña después: cuántos están hoy en su mínimo histórico y cuántos son más
-baratos fuera de Steam.
+También está aquí el resumen que se enseña después de traer la lista de deseos de Steam (con los precios de los juegos
+nuevos ya pedidos, ver games.prices.fetch_missing): cuántos están hoy en su mínimo histórico y cuántos son más baratos
+fuera de Steam.
 """
 
 import logging
@@ -18,7 +18,6 @@ from django.core.mail import send_mail
 from django.db.models import Exists, OuterRef
 
 from accounts.models import Notification
-from games import prices
 from games.models import STEAM_SHOP_ID, GamePrice, format_price
 
 from .models import LibraryEntry, WishlistItem
@@ -33,21 +32,6 @@ def at_historical_low(game, best):
     """
     low = game.historical_low
     return bool(best and best.cut and low is not None and best.price <= low)
-
-
-def fetch_missing_prices(games):
-    """Pide ya a IsThereAnyDeal los precios de PC de los juegos que aún no los tienen, sin esperar a la noche.
-
-    Sin ITAD_API_KEY, o si falla, no hace nada (los traerá update_prices). Devuelve cuántos tienen ahora precio.
-    """
-    games = [game for game in games if game.prices_updated_at is None]
-    if not games or not prices.is_configured():
-        return 0
-    try:
-        return prices.update_prices(games)
-    except prices.ITADError:
-        logger.exception("No se pudieron pedir los precios de los juegos traídos de la lista de deseos de Steam")
-        return 0
 
 
 def steam_deals(user):

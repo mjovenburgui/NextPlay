@@ -19,7 +19,7 @@ from django.urls import reverse
 from django.utils import timezone
 from PIL import Image
 
-from games import igdb
+from games import igdb, prices
 from games.models import Game, GamePrice, Platform
 from library.models import LibraryEntry, PlaySession, Review, WishlistItem
 from social.models import Activity
@@ -43,7 +43,11 @@ NETWORK_PATCHES = [
     mock.patch.object(steam, "global_percentages", return_value=None),
     mock.patch.object(psn, "trophy_titles", return_value=[]),
     mock.patch.object(psn, "trophies_by_title_id", return_value={}),
+    # Después de importar se piden los precios de los juegos que nunca los han tenido: tampoco, salvo en las pruebas
+    # que lo miran (con REAL_FETCH_MISSING y las tiendas simuladas).
+    mock.patch.object(prices, "fetch_missing", return_value=0),
 ]
+REAL_FETCH_MISSING = prices.fetch_missing
 
 
 def setUpModule():
@@ -530,6 +534,31 @@ class SteamImportTests(TestCase):
             response = self.client.post(reverse("steam_import"), follow=True)
         self.assertContains(response, "Detalles del juego")
 
+    def test_sync_button_asks_prices_of_library_games_never_searched(self):
+        Game.objects.filter(pk=self.hades.pk).update(prices_updated_at=timezone.now())
+        self.client.force_login(self.user)
+        with self.owned({"appid": 620, "playtime_forever": 60}, {"appid": 1145360, "playtime_forever": 60}), \
+                self.wishes(), mock.patch.object(steam, "refresh_account"), \
+                mock.patch.object(prices, "fetch_missing", return_value=1) as fetch:
+            self.client.post(reverse("steam_import"))
+        # Hades ya tenía sus precios buscados: solo se piden los de Portal 2.
+        fetch.assert_called_once()
+        self.assertEqual(list(fetch.call_args.args[0]), [self.portal])
+
+    @override_settings(ITAD_API_KEY="key")
+    def test_import_works_even_if_isthereanydeal_does_not_answer(self):
+        Game.objects.filter(pk=self.portal.pk).update(store_ids={"steam": [620]})
+        self.client.force_login(self.user)
+        with self.owned({"appid": 620, "playtime_forever": 60}), self.wishes(), \
+                mock.patch.object(steam, "refresh_account"), mock.patch.object(prices, "fetch_missing", REAL_FETCH_MISSING), \
+                mock.patch("games.prices.requests.post", side_effect=prices.requests.ConnectionError("caído")), \
+                self.assertLogs("games.prices", "ERROR"):
+            response = self.client.post(reverse("steam_import"), follow=True)
+        self.assertContains(response, "Steam: 1 juego añadido")
+        self.assertTrue(LibraryEntry.objects.filter(user=self.user, game=self.portal).exists())
+        # Sigue sin buscar: se pedirán en la próxima importación, al abrir su ficha o por la noche.
+        self.assertIsNone(Game.objects.get(pk=self.portal.pk).prices_updated_at)
+
 
 class SteamWithoutKeyTests(TestCase):
     @override_settings(STEAM_API_KEY="")
@@ -648,6 +677,12 @@ class PSNImportTests(TestCase):
         self.assertContains(response, "AnaPSN")
         stored = [str(v) for v in PSNAccount.objects.values().get().values()]
         self.assertNotIn(NPSSO, stored)
+
+    def test_sync_view_asks_prices_of_the_new_games(self):
+        self.client.force_login(self.user)
+        with self.fake_psn([psn_title("Hades", "PT3H")]), mock.patch.object(prices, "fetch_missing") as fetch:
+            self.client.post(reverse("psn_sync"), {"npsso": NPSSO})
+        self.assertEqual(list(fetch.call_args.args[0]), [self.hades])
 
     def test_sync_view_rejects_bad_or_expired_codes(self):
         self.client.force_login(self.user)
@@ -849,6 +884,14 @@ class XboxTests(TestCase):
             response = self.client.get(reverse("xbox_callback"), {"code": "c", "state": state})
         self.assertRedirects(response, reverse("profile", args=["ana"]))
         self.assertTrue(XboxAccount.objects.filter(user=self.user).exists())
+
+    def test_callback_asks_prices_of_the_new_games(self):
+        self.client.post(reverse("xbox_link"))
+        state = self.client.session["xbox_oauth_state"]
+        titles = [{"titleId": "1", "name": "Halo Infinite", "type": "Game", "titleHistory": {}}]
+        with self.fake_xbox(titles, {"1": 90}), mock.patch.object(prices, "fetch_missing") as fetch:
+            self.client.get(reverse("xbox_callback"), {"code": "c", "state": state})
+        self.assertEqual(list(fetch.call_args.args[0]), [self.halo])
 
     @override_settings(XBOX_CLIENT_ID="", XBOX_CLIENT_SECRET="")
     def test_link_without_azure_app_explains_what_is_missing(self):
