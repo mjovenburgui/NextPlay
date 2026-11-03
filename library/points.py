@@ -22,7 +22,11 @@ CONSENSUS_MINIMUM = 2
 
 
 def key(point):
-    """Forma de comparar un punto: sin formato, en minúsculas, con los espacios simplificados y sin puntuación en los extremos."""
+    """Forma de comparar un punto: sin formato, en minúsculas, con los espacios simplificados y sin puntuación en los extremos.
+
+    Pantallas: Ficha del juego (lo que más destacan y lo que menos gusta), Escribir reseña (sugerencias de «Lo mejor»
+    y «Lo peor»).
+    """
     return EDGES.sub("", " ".join(markup.plain(point).casefold().split()))
 
 
@@ -30,6 +34,9 @@ def _tally(rows):
     """Cuenta los puntos de rows ([(pros, cons)]): {"pros": [(punto, veces)], "cons": [...]}, de más a menos repetido.
 
     Cada reseña cuenta una vez por punto; de cada punto se enseña cómo lo escribió el primero.
+
+    Pantallas: Ficha del juego (lo que más destacan y lo que menos gusta), Escribir reseña (sugerencias de «Lo mejor»
+    y «Lo peor»).
     """
     counts = {"pros": Counter(), "cons": Counter()}
     shown = {"pros": {}, "cons": {}}
@@ -43,12 +50,19 @@ def _tally(rows):
 
 def _visible(game, viewer):
     """Reseñas publicadas del juego que viewer puede leer (las de perfiles públicos y las suyas), de la más
-    antigua a la más nueva: así cada punto se enseña como lo escribió el primero."""
+    antigua a la más nueva: así cada punto se enseña como lo escribió el primero.
+
+    Pantallas: Ficha del juego (lo que más destacan y lo que menos gusta), Escribir reseña (sugerencias de «Lo mejor»
+    y «Lo peor»).
+    """
     return Review.objects.filter(game=game).published().filter(Profile.visible_filter(viewer)).order_by("published_at", "id")
 
 
 def suggestions(game, viewer):
-    """Puntos que más han escrito otros en las reseñas del juego, para sugerirlos en el editor: {"pros": [...], "cons": [...]}."""
+    """Puntos que más han escrito otros en las reseñas del juego, para sugerirlos en el editor: {"pros": [...], "cons": [...]}.
+
+    Pantallas: Escribir reseña (sugerencias de «Lo mejor» y «Lo peor»).
+    """
     rows = _visible(game, viewer)
     if viewer.is_authenticated:
         rows = rows.exclude(user=viewer)
@@ -60,6 +74,8 @@ def consensus(game, viewer):
     """Lo que más destacan y lo que menos gusta del juego: {"pros": [(punto, reseñas)], "cons": [...]}.
 
     Solo los puntos que dicen al menos CONSENSUS_MINIMUM reseñas, como mucho CONSENSUS_SHOWN de cada lista.
+
+    Pantallas: Ficha del juego (lo que más destacan y lo que menos gusta).
     """
     counted = _tally(_visible(game, viewer).values_list("pros", "cons"))
     return {

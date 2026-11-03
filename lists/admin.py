@@ -1,3 +1,7 @@
+"""Panel de administración de las listas: cada lista con sus juegos, colaboradores, comentarios y denuncias pendientes, y
+los comentarios de las listas.
+"""
+
 from django.contrib import admin
 from django.db.models import Count, Q
 
@@ -42,7 +46,10 @@ class GameListAdmin(admin.ModelAdmin):
     inlines = [ListItemInline, ListCollaboratorInline, ListCommentInline, ReportInline]
 
     def get_queryset(self, request):
-        """Las listas con cuántos juegos tiene cada una y cuántas denuncias suyas quedan por revisar."""
+        """Las listas con cuántos juegos tiene cada una y cuántas denuncias suyas quedan por revisar.
+
+        Pantallas: Panel de administración (listas con cuántos juegos y denuncias pendientes tienen).
+        """
         return super().get_queryset(request).annotate(
             game_count=Count("items", distinct=True),
             pending=Count("reports", filter=Q(reports__resolved_at__isnull=True), distinct=True),
@@ -50,12 +57,18 @@ class GameListAdmin(admin.ModelAdmin):
 
     @admin.display(description="Juegos", ordering="game_count")
     def game_count(self, obj):
-        """Cuántos juegos tiene la lista."""
+        """Cuántos juegos tiene la lista.
+
+        Pantallas: Panel de administración (columna de cuántos juegos tiene cada lista).
+        """
         return obj.game_count
 
     @admin.display(description="denuncias pendientes", ordering="pending")
     def pending_reports(self, obj):
-        """Cuántas denuncias de la lista quedan por revisar."""
+        """Cuántas denuncias de la lista quedan por revisar.
+
+        Pantallas: Panel de administración (columna de denuncias pendientes de las listas).
+        """
         return obj.pending
 
 

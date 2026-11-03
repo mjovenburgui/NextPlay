@@ -14,7 +14,10 @@ from .models import LibraryEntry, Review
 
 
 def latest_reviews(user, games=None):
-    """Última reseña publicada de user de cada juego (de esos juegos, si se dan), como {id del juego: reseña}."""
+    """Última reseña publicada de user de cada juego (de esos juegos, si se dan), como {id del juego: reseña}.
+
+    Pantallas: Página de la reseña (propuesta de actualizarla), Avisos (reseñas que se han quedado atrás).
+    """
     reviews = Review.objects.filter(user=user, is_draft=False).select_related("game").order_by("-published_at", "-id")
     if games is not None:
         reviews = reviews.filter(game__in=games)
@@ -28,6 +31,9 @@ def remind_outdated_reviews(user):
     """Avisa a user en la campana de sus reseñas que se han quedado atrás y devuelve cuántos avisos ha creado.
 
     Un aviso por reseña hasta que la vuelva a guardar: si sigue jugando sin tocarla, no se repite.
+
+    Pantallas: Avisos (reseñas que se han quedado atrás), todas (el número de la campana), Editar perfil (Cuentas
+    vinculadas: se mira al importar horas), Perfil (modal «Vincular cuentas» de su dueño).
     """
     latest = latest_reviews(user)
     entries = LibraryEntry.objects.filter(user=user, game_id__in=list(latest))

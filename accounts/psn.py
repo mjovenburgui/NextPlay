@@ -59,6 +59,9 @@ def clean_npsso(value):
     """Saca el código NPSSO de lo que pegue el usuario: el código suelto o el JSON entero de la página de Sony.
 
     Devuelve el código o None si no tiene el formato esperado (64 letras y números).
+
+    Pantallas: Editar perfil (Cuentas vinculadas: PlayStation: el código NPSSO pegado), Perfil (modal «Vincular
+    cuentas» de su dueño).
     """
     value = (value or "").strip()
     if value.startswith("{"):
@@ -73,6 +76,10 @@ def access_token(npsso):
     """Cambia el código NPSSO por un token de acceso de la API de PlayStation.
 
     Lanza PSNAuthError si Sony no da el código de autorización (NPSSO incorrecto o caducado).
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas;
+    insignias de las portadas, cifras y sección «Logros»), Ficha del juego (tus horas; tus logros), Juegos importados
+    (los que no se encuentran), Inicio (feed: la importación), Retos (progreso), Página del reto (progreso).
     """
     try:
         response = requests.get(
@@ -113,7 +120,12 @@ def access_token(npsso):
 
 def _get(url, token, **params):
     """GET autenticado contra la API de PlayStation; devuelve el JSON. Lanza PSNRejectedError si PlayStation rechaza lo
-    que se le pide (400 o 404) y PSNError con cualquier otro fallo."""
+    que se le pide (400 o 404) y PSNError con cualquier otro fallo.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas;
+    insignias de las portadas, cifras y sección «Logros»), Ficha del juego (tus horas; tus logros), Juegos importados
+    (los que no se encuentran), Inicio (feed: la importación), Retos (progreso), Página del reto (progreso).
+    """
     try:
         response = requests.get(
             url, params=params, headers={"Authorization": f"Bearer {token}"}, timeout=TIMEOUT
@@ -128,7 +140,12 @@ def _get(url, token, **params):
 
 
 def _account_id_from_token(token):
-    """ID de cuenta guardado dentro del token JWT, por si el perfil no lo devuelve; None si no está."""
+    """ID de cuenta guardado dentro del token JWT, por si el perfil no lo devuelve; None si no está.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
+    """
     try:
         payload = token.split(".")[1]
         data = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
@@ -142,6 +159,9 @@ def profile(token):
     """Datos de la cuenta del token: {"account_id", "online_id", "avatar"}.
 
     Si el perfil no responde, intenta sacar al menos el ID de cuenta del propio token.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; cuenta de PlayStation
+    de la cabecera), todas (la foto del perfil cuando es la de PlayStation).
     """
     try:
         data = _get(PROFILE_URL, token, fields="accountId,onlineId,avatarUrls").get("profile") or {}
@@ -159,7 +179,12 @@ def profile(token):
 
 
 def played_games(token):
-    """Juegos de PS4 y PS5 que ha jugado la cuenta, con «name», «playDuration», «lastPlayedDateTime»..."""
+    """Juegos de PS4 y PS5 que ha jugado la cuenta, con «name», «playDuration», «lastPlayedDateTime»...
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
+    """
     titles, offset = [], 0
     while True:
         data = _get(
@@ -174,7 +199,11 @@ def played_games(token):
 def trophy_titles(token):
     """Juegos con trofeos de la cuenta (también de PS3 y PS Vita): cada uno con su nombre («trophyTitleName») y, por
     tipo (bronze, silver, gold y platinum), los trofeos que tiene («definedTrophies») y los conseguidos
-    («earnedTrophies»)."""
+    («earnedTrophies»).
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; insignias de las
+    portadas, cifras y sección «Logros»), Ficha del juego (tus logros).
+    """
     titles, offset = [], 0
     while True:
         data = _get(TROPHIES_URL, token, limit=TROPHIES_PAGE_SIZE, offset=offset)
@@ -192,6 +221,9 @@ def trophies_by_title_id(token, title_ids):
     juego que incluye. Si PlayStation rechaza una petición (un ID que no conoce la tumba entera), sus juegos se piden
     de uno en uno; los que aun así fallan, y los de una petición que falla por otra cosa (la red, el token), se quedan
     fuera y se buscan por nombre (save_trophies).
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; insignias de las
+    portadas, cifras y sección «Logros»), Ficha del juego (tus logros).
     """
     ids = sorted(title_id for title_id in title_ids if TITLE_ID.match(title_id))
 
@@ -212,13 +244,21 @@ def trophies_by_title_id(token, title_ids):
 
 def trophy_key(name):
     """Clave para emparejar un juego con su lista de trofeos por el nombre: sin coletillas de plataforma y sin fijarse en
-    cómo está escrito (name_key), para que «Tom Clancy’s» y «Tom Clancy's» o «Ghostrunner2» y «Ghostrunner 2» sean el mismo."""
+    cómo está escrito (name_key), para que «Tom Clancy’s» y «Tom Clancy's» o «Ghostrunner2» y «Ghostrunner 2» sean el mismo.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; insignias de las
+    portadas, cifras y sección «Logros»), Ficha del juego (tus logros).
+    """
     return name_key(clean_name(name))
 
 
 def trophy_count(lists):
     """(conseguidos, totales, platino) de una o varias listas de trofeos sumadas (las de los juegos de una
-    colección), o None si no tienen ningún trofeo."""
+    colección), o None si no tienen ningún trofeo.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; insignias de las
+    portadas, cifras y sección «Logros»), Ficha del juego (tus logros).
+    """
     defined = sum((item.get("definedTrophies") or {}).get(grade) or 0 for item in lists for grade in TROPHY_GRADES)
     if not defined:
         return None
@@ -234,6 +274,9 @@ def save_trophies(user, trophies, by_title=None):
     de la cuenta (trophies, de trophy_titles): el del título o el del juego del catálogo que tiene y, si con ellos no
     aparece, sin el año o la región del final (YEAR_OR_REGION). Si un juego tiene trofeos aparte en PS4 y en PS5, por
     nombre cuenta la versión que más lleva (primero el platino). Los títulos sin trofeos leídos se quedan como estaban.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; insignias de las
+    portadas, cifras y sección «Logros»), Ficha del juego (tus logros).
     """
     by_title = by_title or {}
     by_name = {}
@@ -261,7 +304,12 @@ def save_trophies(user, trophies, by_title=None):
 
 
 def duration_minutes(value):
-    """Minutos de una duración ISO 8601 de PSN («PT228H56M33S» → 13736); 0 si no se entiende."""
+    """Minutos de una duración ISO 8601 de PSN («PT228H56M33S» → 13736); 0 si no se entiende.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
+    """
     match = DURATION.match(value or "")
     if not match:
         return 0
@@ -287,6 +335,10 @@ def import_library(user, npsso):
     Devuelve un dict con la cuenta («account»), cuántos juegos se han añadido («added»), actualizado
     («updated») y no se han encontrado en el catálogo («unmatched»), y de cuántos se han leído los trofeos
     («trophies»).
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas;
+    insignias de las portadas, cifras y sección «Logros»), Ficha del juego (tus horas; tus logros), Juegos importados
+    (los que no se encuentran), Inicio (feed: la importación), Retos (progreso), Página del reto (progreso).
     """
     token = access_token(npsso)
     info = profile(token)

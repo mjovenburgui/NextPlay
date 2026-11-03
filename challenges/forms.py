@@ -1,3 +1,7 @@
+"""Formularios de los retos: el de Nuevo reto (ChallengeForm, con su tipo, sus juegos o sus filtros y sus fechas) y el de
+Editar reto (ChallengeEditForm: título, descripción y si es público).
+"""
+
 from django import forms
 
 from games.models import Genre, Platform
@@ -29,11 +33,17 @@ class ChallengeEditForm(forms.ModelForm):
         }
 
     def clean_title(self):
-        """Deja un solo espacio entre palabras (el campo ya quita los del principio y el final, y sin título da error)."""
+        """Deja un solo espacio entre palabras (el campo ya quita los del principio y el final, y sin título da error).
+
+        Pantallas: Nuevo reto, Editar reto (el título).
+        """
         return " ".join(self.cleaned_data["title"].split())
 
     def clean_description(self):
-        """Quita los espacios del principio y del final."""
+        """Quita los espacios del principio y del final.
+
+        Pantallas: Nuevo reto, Editar reto (la descripción).
+        """
         return self.cleaned_data["description"].strip()
 
 
@@ -75,7 +85,10 @@ class ChallengeForm(ChallengeEditForm):
 
     def __init__(self, *args, user, game_list=None, **kwargs):
         """Prepara las listas que se pueden elegir (las que puede editar user y, si se da, game_list, desde «Convertir en
-        reto») y los géneros y plataformas del catálogo."""
+        reto») y los géneros y plataformas del catálogo.
+
+        Pantallas: Nuevo reto (las listas, los géneros y las plataformas que se pueden elegir).
+        """
         super().__init__(*args, **kwargs)
         # Sin la opción vacía que Django añade a un campo con opciones y sin valor por defecto.
         self.fields["kind"].choices = Challenge.Kind.choices
@@ -93,7 +106,10 @@ class ChallengeForm(ChallengeEditForm):
         self.fields["platform"].empty_label = "Cualquiera"
 
     def clean(self):
-        """Comprueba lo que pide cada tipo y que las fechas y los años vayan en orden."""
+        """Comprueba lo que pide cada tipo y que las fechas y los años vayan en orden.
+
+        Pantallas: Nuevo reto (lo que pide cada tipo de reto y el orden de las fechas y los años).
+        """
         data = super().clean()
         kind, target, source = data.get("kind"), data.get("target"), data.get("source_list")
         if kind == Challenge.Kind.GAMES:
@@ -122,7 +138,10 @@ class ChallengeForm(ChallengeEditForm):
 
     def save(self, user):
         """Guarda el reto de user. Uno de juegos concretos se queda con los que tiene su lista ahora (aunque la lista
-        cambie después) y sin filtros; los demás, sin lista."""
+        cambie después) y sin filtros; los demás, sin lista.
+
+        Pantallas: Nuevo reto (al crearlo), Retos, Página del reto.
+        """
         challenge = super().save(commit=False)
         challenge.creator = user
         if challenge.kind == Challenge.Kind.GAMES:

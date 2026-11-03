@@ -17,12 +17,20 @@ from .models import Challenge, Participation
 
 
 def _start(day):
-    """El principio del día day en la hora de España, para compararlo con fechas y horas."""
+    """El principio del día day en la hora de España, para compararlo con fechas y horas.
+
+    Pantallas: Retos (cómo vas en cada uno), Página del reto (tu progreso y la clasificación), Ficha del juego (al
+    pasar un juego a «Completado» se mira si consigues un reto).
+    """
     return timezone.make_aware(datetime.combine(day, time.min))
 
 
 def _game_filters(challenge, prefix="game__"):
-    """Condiciones sobre el juego de un reto de número de juegos o de horas: su género, su plataforma y sus años."""
+    """Condiciones sobre el juego de un reto de número de juegos o de horas: su género, su plataforma y sus años.
+
+    Pantallas: Retos (cómo vas en cada uno), Página del reto (tu progreso y la clasificación), Ficha del juego (al
+    pasar un juego a «Completado» se mira si consigues un reto).
+    """
     filters = {}
     if challenge.genre_id:
         filters[f"{prefix}genres"] = challenge.genre_id
@@ -37,7 +45,11 @@ def _game_filters(challenge, prefix="game__"):
 
 def _completed(challenge, users):
     """Juegos de la biblioteca de users que cuentan en un reto de juegos: los completados entre sus fechas que son de
-    los suyos (juegos concretos) o que cumplen sus filtros (número de juegos)."""
+    los suyos (juegos concretos) o que cumplen sus filtros (número de juegos).
+
+    Pantallas: Retos (cómo vas en cada uno), Página del reto (tu progreso y la clasificación), Ficha del juego (al
+    pasar un juego a «Completado» se mira si consigues un reto).
+    """
     entries = LibraryEntry.objects.filter(user__in=users, status=LibraryEntry.Status.COMPLETED)
     if challenge.kind == Challenge.Kind.GAMES:
         entries = entries.filter(game__in=challenge.games.all())
@@ -52,7 +64,11 @@ def _completed(challenge, users):
 
 def done_by(challenge, users):
     """Cuánto lleva cada uno de users en challenge: {id del usuario: juegos terminados o minutos jugados}. Los que no
-    llevan nada no salen."""
+    llevan nada no salen.
+
+    Pantallas: Retos (cómo vas en cada uno), Página del reto (tu progreso y la clasificación), Nuevo reto (al crearlo
+    ya cuenta lo que llevas), Ficha del juego (al pasar un juego a «Completado» se mira si consigues un reto).
+    """
     if challenge.kind == Challenge.Kind.HOURS:
         sessions = PlaySession.objects.filter(user__in=users, **_game_filters(challenge))
         if challenge.starts_on:
@@ -65,7 +81,10 @@ def done_by(challenge, users):
 
 def summary(challenge, done):
     """Cómo va alguien que lleva done (lo de done_by) en challenge, para enseñarlo: lo hecho y el objetivo en juegos o
-    en horas (value y goal_value), el porcentaje (percent, como mucho 100) y si ha llegado (reached)."""
+    en horas (value y goal_value), el porcentaje (percent, como mucho 100) y si ha llegado (reached).
+
+    Pantallas: Retos (cómo vas en cada uno), Página del reto (tu progreso y la clasificación).
+    """
     goal = challenge.goal
     hours = challenge.kind == Challenge.Kind.HOURS
     return {
@@ -78,13 +97,19 @@ def summary(challenge, done):
 
 
 def finished_games(challenge, user):
-    """Ids de los juegos de un reto de juegos concretos que user ha terminado y cuentan."""
+    """Ids de los juegos de un reto de juegos concretos que user ha terminado y cuentan.
+
+    Pantallas: Página del reto (los juegos que llevas de uno de juegos concretos).
+    """
     return set(_completed(challenge, [user]).values_list("game_id", flat=True))
 
 
 def mark_completed(challenge, done):
     """Apunta que lo han conseguido (Participation.completed_at, una sola vez) los participantes de challenge que, según
-    done (lo que da done_by), han llegado al objetivo. Devuelve a cuántos se les ha apuntado ahora."""
+    done (lo que da done_by), han llegado al objetivo. Devuelve a cuántos se les ha apuntado ahora.
+
+    Pantallas: Retos (cómo vas en cada uno: quién lo ha conseguido), Página del reto (tu progreso y la clasificación).
+    """
     goal = challenge.goal
     if not goal:
         return 0
@@ -99,6 +124,10 @@ def check(user):
 
     Lo llaman la biblioteca al pasar un juego a «Completado» y la importación al apuntar sesiones. Devuelve los retos
     conseguidos ahora.
+
+    Pantallas: Ficha del juego (al pasar un juego a «Completado»), Editar perfil (Cuentas vinculadas: al importar
+    horas), Perfil (modal «Vincular cuentas» de su dueño), Retos (cómo vas en cada uno), Página del reto (tu progreso
+    y la clasificación).
     """
     pending = Challenge.objects.filter(
         participations__user=user, participations__completed_at__isnull=True,

@@ -54,12 +54,20 @@ class SteamPrivateError(SteamError):
 
 
 def is_configured():
-    """Indica si está puesta la clave de la Web API de Steam, necesaria para leer la biblioteca."""
+    """Indica si está puesta la clave de la Web API de Steam, necesaria para leer la biblioteca.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: sin clave de Steam no se puede importar), Perfil (modal «Vincular
+    cuentas» de su dueño).
+    """
     return bool(settings.STEAM_API_KEY)
 
 
 def login_url(return_to, realm):
-    """URL de Steam donde el usuario inicia sesión; Steam lo devuelve después a return_to."""
+    """URL de Steam donde el usuario inicia sesión; Steam lo devuelve después a return_to.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: botón para vincular Steam), Perfil (modal «Vincular cuentas» de su
+    dueño).
+    """
     params = {
         "openid.ns": OPENID_NS,
         "openid.mode": "checkid_setup",
@@ -76,6 +84,8 @@ def verify_login(params, return_to):
 
     Rechaza respuestas de otro proveedor, para otra URL de vuelta o que Steam no confirme como suyas
     (así nadie puede inventarse una URL de vuelta con el SteamID de otro).
+
+    Pantallas: Editar perfil (Cuentas vinculadas: vuelta desde Steam), Perfil (modal «Vincular cuentas» de su dueño).
     """
     if params.get("openid.mode") != "id_res" or params.get("openid.op_endpoint") != OPENID_URL:
         return None
@@ -97,7 +107,12 @@ def verify_login(params, return_to):
 
 
 def _api(path, **params):
-    """Llama a un método GET de la Web API de Steam con la clave de settings y devuelve su «response»."""
+    """Llama a un método GET de la Web API de Steam con la clave de settings y devuelve su «response».
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas; botón «Lo quiero»), Juegos importados (los que no se encuentran), Inicio (feed: la
+    importación), Retos (progreso), Página del reto (progreso), Lista de deseos.
+    """
     if not is_configured():
         raise SteamError("Falta STEAM_API_KEY.")
     try:
@@ -111,7 +126,11 @@ def _api(path, **params):
 
 
 def player_summary(steam_id):
-    """Nombre, avatar y URL del perfil de Steam: {"persona", "avatar", "profile_url"}, o {} si no lo encuentra."""
+    """Nombre, avatar y URL del perfil de Steam: {"persona", "avatar", "profile_url"}, o {} si no lo encuentra.
+
+    Pantallas: Editar perfil (Cuentas vinculadas › Steam: nombre y avatar), Perfil (cuentas de la cabecera), todas (la
+    foto del perfil cuando es la de Steam).
+    """
     players = _api("ISteamUser/GetPlayerSummaries/v2/", steamids=steam_id).get("players") or []
     if not players:
         return {}
@@ -127,6 +146,10 @@ def owned_games(steam_id):
     """Juegos de la cuenta de Steam: [{"appid", "name", "playtime_forever", "rtime_last_played"...}].
 
     Lanza SteamPrivateError si el perfil no deja ver sus juegos (Steam responde sin «games»).
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
     """
     data = _api(
         "IPlayerService/GetOwnedGames/v1/",
@@ -146,12 +169,18 @@ def wishlist(steam_id):
 
     No necesita la clave de la API (se manda igual). Steam contesta lo mismo, sin «items», a una lista
     privada que a una vacía, así que las dos dan None.
+
+    Pantallas: Editar perfil (Cuentas vinculadas › Steam), Lista de deseos, Ficha del juego (botón «Lo quiero»).
     """
     return _api("IWishlistService/GetWishlist/v1/", steamid=steam_id).get("items") or None
 
 
 def refresh_account(account):
-    """Actualiza el nombre, el avatar y la URL guardados de una cuenta de Steam (sin fallar si Steam no responde)."""
+    """Actualiza el nombre, el avatar y la URL guardados de una cuenta de Steam (sin fallar si Steam no responde).
+
+    Pantallas: Editar perfil (Cuentas vinculadas › Steam: nombre y avatar), Perfil (cuentas de la cabecera), todas (la
+    foto del perfil cuando es la de Steam).
+    """
     try:
         summary = player_summary(account.steam_id)
     except SteamError:
@@ -167,6 +196,10 @@ def _match_games(app_ids):
 
     Primero mira el catálogo local; los que falten los busca en IGDB y los importa (si IGDB está
     configurado).
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas; botón «Lo quiero»), Juegos importados (los que no se encuentran), Inicio (feed: la
+    importación), Retos (progreso), Página del reto (progreso), Lista de deseos.
     """
     matches = {}
     for game in Game.objects.filter(Q(steam_app_id__in=app_ids) | Q(steam_app_id_override__in=app_ids)):
@@ -186,12 +219,22 @@ def _match_games(app_ids):
 
 
 def _timestamp(value):
-    """Fecha de una marca de tiempo de Steam (segundos desde 1970), o None si no viene o es 0."""
+    """Fecha de una marca de tiempo de Steam (segundos desde 1970), o None si no viene o es 0.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas;
+    insignias de las portadas, cifras y sección «Logros»), Ficha del juego (tus horas; tus logros), Juegos importados
+    (los que no se encuentran), Inicio (feed: la importación), Retos (progreso), Página del reto (progreso).
+    """
     return datetime.fromtimestamp(value, tz=dt_timezone.utc) if value else None
 
 
 def _played_at(data):
-    """Fecha de la última partida de un juego de Steam, o None si nunca se ha jugado."""
+    """Fecha de la última partida de un juego de Steam, o None si nunca se ha jugado.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
+    """
     return _timestamp(data.get("rtime_last_played"))
 
 
@@ -211,6 +254,10 @@ def import_library(user, include_unplayed=False):
     Devuelve un dict con cuántos juegos se han añadido («added»), actualizado («updated») y no se han
     encontrado en el catálogo («unmatched»), los nombres de las cuentas privadas («private») y de cuántos
     juegos se han leído los logros («achievements»).
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas;
+    insignias de las portadas, cifras y sección «Logros»), Ficha del juego (tus horas; tus logros), Juegos importados
+    (los que no se encuentran), Inicio (feed: la importación), Retos (progreso), Página del reto (progreso).
     """
     accounts = list(user.steam_accounts.all())
     owned, private = [], []
@@ -258,6 +305,9 @@ def player_achievements(steam_id, app_id):
 
     A un juego sin logros Steam le contesta con un 400 y «Requested app has no stats», así que no se mira el código
     de la respuesta sino su «playerstats».
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; insignias de las
+    portadas, cifras y sección «Logros»), Ficha del juego (tus logros).
     """
     try:
         response = requests.get(
@@ -277,7 +327,11 @@ def player_achievements(steam_id, app_id):
 
 
 def _icon(url):
-    """Dirección actual de un icono de logro de Steam (ICON_URL en vez de OLD_ICON_PATH), o vacía si no viene."""
+    """Dirección actual de un icono de logro de Steam (ICON_URL en vez de OLD_ICON_PATH), o vacía si no viene.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; insignias de las
+    portadas, cifras y sección «Logros»), Ficha del juego (tus logros).
+    """
     return OLD_ICON_PATH.sub(ICON_URL, url or "")
 
 
@@ -287,6 +341,9 @@ def achievement_schema(app_id):
 
     De los ocultos Steam no da la descripción (tampoco en los logros de cada jugador), así que se queda vacía. Los
     iconos van con su dirección actual (_icon).
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; insignias de las
+    portadas, cifras y sección «Logros»), Ficha del juego (tus logros).
     """
     try:
         response = requests.get(
@@ -313,7 +370,11 @@ def achievement_schema(app_id):
 
 def global_percentages(app_id):
     """Porcentaje de los jugadores de Steam que tiene cada logro de un juego, redondeado a una décima: {clave:
-    porcentaje}, o None si Steam no lo da. No necesita la clave de la API, y el porcentaje llega como texto («63.1»)."""
+    porcentaje}, o None si Steam no lo da. No necesita la clave de la API, y el porcentaje llega como texto («63.1»).
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; insignias de las
+    portadas, cifras y sección «Logros»), Ficha del juego (tus logros).
+    """
     try:
         response = requests.get(PERCENTAGES_URL, params={"gameid": app_id}, timeout=TIMEOUT)
         response.raise_for_status()
@@ -326,7 +387,11 @@ def global_percentages(app_id):
 def achievement_info(app_id):
     """Logros de un juego de Steam con su rareza, para achievements.save_info: (esquema, porcentajes) como los dan
     achievement_schema y global_percentages (los porcentajes, None si no se han podido leer), o None si Steam no da el
-    esquema."""
+    esquema.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; insignias de las
+    portadas, cifras y sección «Logros»), Ficha del juego (tus logros).
+    """
     schema = achievement_schema(app_id)
     if schema is None:
         return None
@@ -336,7 +401,11 @@ def achievement_info(app_id):
 def _needs_info(title, result, known, now):
     """Si hay que (volver a) leer los logros del juego de title: si nunca se han leído, si se leyeron hace más de
     ACHIEVEMENTS_INFO_DAYS días o si el jugador trae alguno que no está. result es lo que da player_achievements y known,
-    las (título, clave) que ya hay."""
+    las (título, clave) que ya hay.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; insignias de las
+    portadas, cifras y sección «Logros»), Ficha del juego (tus logros).
+    """
     if title.achievements_read_at is None or title.achievements_read_at < now - timedelta(days=ACHIEVEMENTS_INFO_DAYS):
         return True
     return any((title.pk, api_name) not in known for api_name, _, _ in result)
@@ -354,6 +423,9 @@ def import_achievements(user, limit=ACHIEVEMENTS_PER_IMPORT):
     ACHIEVEMENTS_WORKERS peticiones a la vez.
 
     Devuelve de cuántos juegos se han leído.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; insignias de las
+    portadas, cifras y sección «Logros»), Ficha del juego (tus logros).
     """
     steam_ids = list(user.steam_accounts.values_list("steam_id", flat=True))
     if not steam_ids or not is_configured():
@@ -407,7 +479,10 @@ def import_achievements(user, limit=ACHIEVEMENTS_PER_IMPORT):
 
 
 def _first(values):
-    """El menor de los valores que no son None (el mejor puesto o la fecha más antigua), o None si no hay ninguno."""
+    """El menor de los valores que no son None (el mejor puesto o la fecha más antigua), o None si no hay ninguno.
+
+    Pantallas: Editar perfil (Cuentas vinculadas › Steam), Lista de deseos, Ficha del juego (botón «Lo quiero»).
+    """
     values = [value for value in values if value is not None]
     return min(values) if values else None
 
@@ -417,6 +492,8 @@ def _wishlist_games(app_ids):
 
     Si alguien corrigió a mano el juego de esa app (ExternalTitle, también para decir que no es un juego),
     manda la corrección; los demás se buscan como los de la biblioteca (_match_games).
+
+    Pantallas: Editar perfil (Cuentas vinculadas › Steam), Lista de deseos, Ficha del juego (botón «Lo quiero»).
     """
     corrected = {
         int(title.external_id): title.game
@@ -442,6 +519,8 @@ def import_wishlist(user):
     cuántos se han quitado («removed»), cuántos no se traen porque ya los tiene («owned») o porque los
     quitó él («skipped»), cuántos no están en el catálogo («unmatched») y los nombres de las cuentas cuya
     lista no se pudo leer, porque es privada o está vacía («unreadable»).
+
+    Pantallas: Editar perfil (Cuentas vinculadas › Steam), Lista de deseos, Ficha del juego (botón «Lo quiero»).
     """
     wanted, unreadable = {}, []  # ID de Steam → (puesto o None, fecha en que se añadió o None)
     for account in user.steam_accounts.all():

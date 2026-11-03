@@ -17,7 +17,7 @@ from . import presets
 from .models import (
     LIST_MAX_GAMES, MAX_COLLABORATORS, NOTE_MAX_LENGTH, GameList, ListCollaborator, ListComment, ListItem, ListLike,
 )
-from .views import BOARD_COVERS, mark_boards
+from .views.tarjetas import BOARD_COVERS, mark_boards
 
 User = get_user_model()
 HTMX = {"HTTP_HX_REQUEST": "true"}

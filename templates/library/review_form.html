@@ -180,10 +180,12 @@
 
   <script>
     // Editor de reseñas: botones de formato (también Ctrl+B y Ctrl+I), contador de caracteres y el nombre de la nota elegida.
+    // Pantallas: Escribir reseña.
     (function () {
       var text = document.getElementById("{{ form.text.id_for_label }}");
       var count = document.querySelector("[data-count]");
 
+      // Escribe cuántos caracteres lleva el texto de los que caben.
       function updateCount() {
         count.textContent = text.value.length + " / " + text.maxLength;
       }
@@ -251,6 +253,7 @@
         return Math.max(0, Number(upload.dataset.free) + removed - official);
       }
 
+      // Enseña el aviso de las imágenes, o lo quita si message va vacío.
       function warn(message) {
         note.textContent = message;
         note.hidden = !message;

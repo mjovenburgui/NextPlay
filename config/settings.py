@@ -1,3 +1,9 @@
+"""Ajustes de Django para NextPlay. Casi todo sale de variables de entorno (.env en local): base de datos, claves de
+IGDB, IsThereAnyDeal, Steam y Xbox, correo y dirección pública de la web. No es de ninguna pantalla en concreto: sin
+estas claves, la Ficha del juego se queda sin precios, el Catálogo sin «Traer de IGDB» y Editar perfil sin importar de
+Steam o de Xbox.
+"""
+
 import os
 from pathlib import Path
 

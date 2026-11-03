@@ -1,3 +1,5 @@
+"""Panel de administración de los retos, con quienes se han unido a cada uno."""
+
 from django.contrib import admin
 
 from .models import Challenge, Participation

@@ -1,0 +1,136 @@
+{
+  "nota": "Catálogo de las pantallas de NextPlay. Cada función del proyecto termina su docstring con «Pantallas: …» usando estos nombres (o «todas» / «ninguna»), y docs/generar_pdf.py lo usa para el mapa de pantallas del PDF de funciones. «urls» son los nombres de las URL (los de {% url %} y reverse()) que pintan la pantalla o un trozo que se carga dentro de ella; de ellos saca el PDF la dirección, la vista y las plantillas de cada pantalla. Las acciones (los botones que guardan algo) no van aquí: las dice la docstring de su vista.",
+  "pantallas": [
+    {
+      "nombre": "Inicio",
+      "urls": ["home", "social:feed"],
+      "que_es": "La portada (/). Con sesión: tu resumen y tu menú a la izquierda, la caja para publicar y el feed (pestañas «Siguiendo» y «Descubrir», con «Cargar más») en el centro y los juegos en tendencia y los géneros a la derecha. Sin sesión: la bienvenida, los juegos populares y lo último de la comunidad."
+    },
+    {
+      "nombre": "Catálogo",
+      "urls": ["games:catalog"],
+      "que_es": "«Juegos» en el menú y el buscador de la barra de arriba: todos los juegos en tarjetas, con filtros por nombre, género, plataforma e idioma, el estado de cada uno en tu biblioteca y, si buscas algo que no está, el botón para traerlo de IGDB."
+    },
+    {
+      "nombre": "Ficha del juego",
+      "urls": ["games:detail", "games:prices", "games:price_history", "games:media", "game_achievements"],
+      "que_es": "La página de cada juego: cabecera con su arte, datos y notas (crítica y comunidad), tu biblioteca (estado, nota, reseña, lista de deseos), favoritos y «Añadir a una lista», tus horas y tus logros, el carrusel de imágenes y vídeos, «Dónde comprarlo» con su historial de precios, las reseñas y las listas en las que sale."
+    },
+    {
+      "nombre": "Listas del juego",
+      "urls": ["lists:game"],
+      "que_es": "Todas las listas en las que está un juego («Ver todas» desde su ficha)."
+    },
+    {
+      "nombre": "Perfil",
+      "urls": ["profile", "social:activity"],
+      "que_es": "La página de cada jugador (/u/<usuario>/): cabecera personalizada (foto, fondo, color, redes, cuentas, seguidores), escaparate (favoritos, jugando ahora, reseña destacada, estadísticas, logros, listas...) y las pestañas Biblioteca, Reseñas, Listas, Tier lists y Actividad. También se ve dentro de Editar perfil, en su vista previa."
+    },
+    {
+      "nombre": "Seguidores y seguidos",
+      "urls": ["social:followers", "social:following"],
+      "que_es": "Las listas de gente que sigue a un jugador y de gente a la que sigue, con el botón de seguir de cada uno."
+    },
+    {
+      "nombre": "Publicar",
+      "urls": ["social:post_new"],
+      "que_es": "La página para escribir una publicación (texto, imágenes y el juego del que hablas). Normalmente se publica desde la caja de Inicio; esta página sale sin JavaScript o si falta algo."
+    },
+    {
+      "nombre": "Página de la publicación",
+      "urls": ["social:post"],
+      "que_es": "Una publicación entera: su autor, el juego, el texto, las imágenes, los «me gusta», los comentarios y los botones de borrar y denunciar."
+    },
+    {
+      "nombre": "Escribir reseña",
+      "urls": ["library:review_new", "library:review_edit", "library:review_preview"],
+      "que_es": "El editor de reseñas: nota, texto con formato y su vista previa, datos de la partida (plataforma, horas, cuándo la acabaste...), lo mejor y lo peor, imágenes, spoilers y borrador."
+    },
+    {
+      "nombre": "Página de la reseña",
+      "urls": ["review_detail"],
+      "que_es": "Una reseña entera: el juego, la nota, los datos de la partida, sus imágenes, los «me gusta», los comentarios y los botones de compartir, editar y denunciar."
+    },
+    {
+      "nombre": "Lista de deseos",
+      "urls": ["library:wishlist"],
+      "que_es": "«Deseos» en el menú: los juegos que quieres, con el mejor precio de hoy, su mínimo histórico, tu precio límite y si están en tu lista de Steam; se ordena y se filtra por idioma."
+    },
+    {
+      "nombre": "Página de la lista",
+      "urls": ["lists:detail"],
+      "que_es": "Una lista o tier list: mosaico, título, autor y colaboradores, descripción, los juegos (en portadas, con comentarios o por niveles), cuánto llevas jugado de ella, «me gusta», comentarios y denuncias."
+    },
+    {
+      "nombre": "Nueva lista",
+      "urls": ["lists:new"],
+      "que_es": "El formulario para crear una lista normal o numerada."
+    },
+    {
+      "nombre": "Nueva tier list",
+      "urls": ["lists:new_tier_list"],
+      "que_es": "La página para crear una tier list: en blanco con sus niveles o desde una plantilla rellena con tu biblioteca."
+    },
+    {
+      "nombre": "Editar lista",
+      "urls": ["lists:edit", "lists:search"],
+      "que_es": "El editor de una lista: sus datos, buscar y añadir juegos, ordenarlos (arrastrando), ponerlos en un nivel, comentarlos y quitarlos, e invitar a quien colabora."
+    },
+    {
+      "nombre": "Retos",
+      "urls": ["challenges:explore"],
+      "que_es": "«Retos» en el menú: tus retos con cómo vas, los de la gente que sigues, los más populares y los últimos creados."
+    },
+    {
+      "nombre": "Página del reto",
+      "urls": ["challenges:detail"],
+      "que_es": "Un reto: qué hay que hacer y hasta cuándo, cómo vas tú y la clasificación de quienes se han unido, con los botones de unirse y dejarlo."
+    },
+    {
+      "nombre": "Nuevo reto",
+      "urls": ["challenges:new"],
+      "que_es": "El formulario para crear un reto (de número de juegos, de horas o de juegos concretos), también desde «Convertir en reto» de una lista."
+    },
+    {
+      "nombre": "Editar reto",
+      "urls": ["challenges:edit"],
+      "que_es": "El formulario para cambiar el título, la descripción o si es público un reto tuyo, y para borrarlo."
+    },
+    {
+      "nombre": "Avisos",
+      "urls": ["notifications"],
+      "que_es": "La campana de la barra de arriba: tus avisos (bajadas de precio, seguidores nuevos, «me gusta», comentarios, invitaciones a listas...)."
+    },
+    {
+      "nombre": "Editar perfil",
+      "urls": ["edit_profile", "profile_preview", "banner_arts"],
+      "que_es": "Tu configuración: datos, apariencia (foto, cabecera, fondo, color, diseño y su encuadre), escaparate, redes, privacidad y avisos, tiendas en las que compras y cuentas vinculadas (Steam, Xbox, PlayStation y otras), con la vista previa del perfil en directo."
+    },
+    {
+      "nombre": "Juegos importados",
+      "urls": ["imported_titles"],
+      "que_es": "Los juegos importados de Steam, PlayStation o Xbox que no se han encontrado en el catálogo (o que se han emparejado con el que no es), para asignarlos a mano u ocultarlos."
+    },
+    {
+      "nombre": "Registro",
+      "urls": ["signup"],
+      "que_es": "«Crear cuenta»: el formulario de registro."
+    },
+    {
+      "nombre": "Iniciar sesión",
+      "urls": ["login"],
+      "que_es": "«Entrar»: el formulario de inicio de sesión. La vista es la de Django (django.contrib.auth); NextPlay solo pone la plantilla, así que ninguna función del proyecto la toca."
+    },
+    {
+      "nombre": "Recuperar contraseña",
+      "urls": ["password_reset", "password_reset_done", "password_reset_confirm", "password_reset_complete"],
+      "que_es": "Los cuatro pasos para cambiar la contraseña olvidada (pedirla, revisar el correo, escribir la nueva y listo) y el correo que se manda. Las vistas son las de Django (django.contrib.auth); NextPlay solo pone las plantillas, así que ninguna función del proyecto las toca."
+    },
+    {
+      "nombre": "Panel de administración",
+      "urls": [],
+      "direccion": "/admin/",
+      "que_es": "El admin de Django, solo para el administrador: juegos, títulos importados, reseñas, listas, retos, denuncias..."
+    }
+  ]
+}

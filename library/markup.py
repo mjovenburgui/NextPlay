@@ -21,7 +21,12 @@ LINK_SLOT = re.compile(r"\x00(\d+)\x00")
 
 
 def _inline(text):
-    """Un párrafo ya escapado con sus marcas cambiadas por HTML."""
+    """Un párrafo ya escapado con sus marcas cambiadas por HTML.
+
+    Pantallas: Escribir reseña (vista previa), Página de la reseña, Ficha del juego, Perfil, Inicio,
+    Página de la publicación, Página de la lista, Página del reto (el texto con formato de reseñas, comentarios,
+    publicaciones, listas y retos).
+    """
     links = []
 
     def keep(match):
@@ -46,14 +51,23 @@ def _inline(text):
 
 
 def render(text):
-    """HTML seguro de un texto con formato: un <p> por párrafo, <br> en cada salto de línea y las marcas cambiadas."""
+    """HTML seguro de un texto con formato: un <p> por párrafo, <br> en cada salto de línea y las marcas cambiadas.
+
+    Pantallas: Escribir reseña (vista previa), Página de la reseña, Ficha del juego, Perfil, Inicio,
+    Página de la publicación, Página de la lista, Página del reto (el texto con formato de reseñas, comentarios,
+    publicaciones, listas y retos).
+    """
     text = (text or "").replace("\x00", "").replace("\r\n", "\n").strip()
     paragraphs = [part.strip() for part in PARAGRAPHS.split(text) if part.strip()]
     return mark_safe("".join(f"<p>{_inline(escape(part)).replace(chr(10), '<br>')}</p>" for part in paragraphs))
 
 
 def render_inline(text):
-    """HTML seguro de un texto corto de una sola línea (un punto de «Lo mejor» o «Lo peor»), sin párrafo alrededor."""
+    """HTML seguro de un texto corto de una sola línea (un punto de «Lo mejor» o «Lo peor»), sin párrafo alrededor.
+
+    Pantallas: Ficha del juego, Perfil, Página de la reseña, Página de la lista («Lo mejor», «Lo peor» y otros textos
+    cortos con formato).
+    """
     text = " ".join((text or "").replace("\x00", "").split())
     return mark_safe(_inline(escape(text)))
 
@@ -62,6 +76,9 @@ def plain(text):
     """El texto sin las marcas de formato y con los spoilers tapados («[spoiler]»), en una sola línea.
 
     Sirve para resúmenes, la portada y la descripción de la página.
+
+    Pantallas: Ficha del juego, Perfil, Inicio, Página de la reseña, Página de la publicación, Página de la lista
+    (resúmenes sin formato y con los spoilers tapados).
     """
     text = (text or "").replace("\x00", "")
     text = SPOILER.sub("[spoiler]", text)

@@ -34,12 +34,20 @@ class NintendoError(Exception):
 
 
 def _country():
-    """País de la tienda, el mismo que ITAD_COUNTRY (p. ej. «ES»); tiene que ser de la tienda europea."""
+    """País de la tienda, el mismo que ITAD_COUNTRY (p. ej. «ES»); tiene que ser de la tienda europea.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: el precio de Nintendo), Lista de deseos (mejor precio de hoy y mínimo
+    histórico), Página de la lista (lo que cuesta lo que te falta).
+    """
     return settings.ITAD_COUNTRY.upper()
 
 
 def _amount(value):
-    """Importe de la API de precios («14.99») como Decimal con dos decimales."""
+    """Importe de la API de precios («14.99») como Decimal con dos decimales.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: el precio de Nintendo), Lista de deseos (mejor precio de hoy y mínimo
+    histórico), Página de la lista (lo que cuesta lo que te falta).
+    """
     return Decimal(str(value)).quantize(Decimal("0.01"))
 
 
@@ -47,6 +55,9 @@ def fetch_prices(nsuids):
     """Devuelve {NSUID: (precio, precio normal, moneda)} de los juegos que se pueden comprar.
 
     Pide los precios de 50 en 50; los que no están a la venta (sin salir o retirados) no aparecen.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: el precio de Nintendo), Lista de deseos (mejor precio de hoy y mínimo
+    histórico), Página de la lista (lo que cuesta lo que te falta).
     """
     found = {}
     for start in range(0, len(nsuids), BATCH_SIZE):
@@ -72,6 +83,9 @@ def _offer(item):
     """(precio, precio normal, moneda) de un juego de la respuesta de precios, o None si no se vende.
 
     El precio es el rebajado si tiene una oferta en marcha.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: el precio de Nintendo), Lista de deseos (mejor precio de hoy y mínimo
+    histórico), Página de la lista (lo que cuesta lo que te falta).
     """
     regular = item.get("regular_price") or {}
     if item.get("sales_status") != "onsale" or regular.get("raw_value") is None:
@@ -84,7 +98,11 @@ def _offer(item):
 
 def _normalize(title):
     """Título para comparar: en minúsculas, sin tildes ni signos (™, dos puntos, guiones...) y con los espacios
-    simplificados, porque la tienda los pone a su manera: «South Park™ : La vara de la verdad™», «ABZÛ»."""
+    simplificados, porque la tienda los pone a su manera: «South Park™ : La vara de la verdad™», «ABZÛ».
+
+    Pantallas: Ficha del juego (Dónde comprarlo: el precio de Nintendo), Lista de deseos (mejor precio de hoy y mínimo
+    histórico), Página de la lista (lo que cuesta lo que te falta).
+    """
     # Fuera ™ ® © antes de separar las tildes, que NFKD convierte ™ en «TM».
     title = unicodedata.normalize("NFKD", re.sub(r"[™®©]", "", title or ""))
     title = "".join(char for char in title if not unicodedata.combining(char))
@@ -97,6 +115,9 @@ def search_game(names, systems):
     Busca con cada nombre hasta encontrarlo y compara con el título de la tienda española, el original en
     inglés y sus traducciones. Si dos juegos de una consola se llaman igual no elige ninguno; si es el
     mismo título en Switch y en Switch 2 se queda con el de Switch, que también funciona en Switch 2.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: el precio de Nintendo), Lista de deseos (mejor precio de hoy y mínimo
+    histórico), Página de la lista (lo que cuesta lo que te falta).
     """
     wanted = {_normalize(name) for name in names} - {""}
     for name in names:
@@ -133,18 +154,29 @@ def search_game(names, systems):
 
 
 def store_url(nsuid):
-    """Enlace al juego en la eShop, que lleva a su página en nintendo.com."""
+    """Enlace al juego en la eShop, que lleva a su página en nintendo.com.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: enlace a la eShop).
+    """
     return f"https://ec.nintendo.com/{_country()}/{settings.LANGUAGE_CODE}/titles/{nsuid}"
 
 
 def _systems(game):
-    """Códigos del buscador de Nintendo de las consolas del juego: «HAC» (Switch) y «BEE» (Switch 2)."""
+    """Códigos del buscador de Nintendo de las consolas del juego: «HAC» (Switch) y «BEE» (Switch 2).
+
+    Pantallas: Ficha del juego (Dónde comprarlo: el precio de Nintendo), Lista de deseos (mejor precio de hoy y mínimo
+    histórico), Página de la lista (lo que cuesta lo que te falta).
+    """
     return {SYSTEMS[platform.name] for platform in game.platforms.all() if platform.name in SYSTEMS}
 
 
 @transaction.atomic
 def _store(game, nsuid, offer):
-    """Sustituye el precio de Nintendo del juego por offer y calcula el % de descuento; sin offer lo deja sin precio."""
+    """Sustituye el precio de Nintendo del juego por offer y calcula el % de descuento; sin offer lo deja sin precio.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: el precio de Nintendo), Lista de deseos (mejor precio de hoy y mínimo
+    histórico), Página de la lista (lo que cuesta lo que te falta).
+    """
     game.prices.filter(source=GamePrice.Source.NINTENDO).delete()
     if offer:
         price, regular, currency = offer
@@ -167,6 +199,9 @@ def update_nintendo_prices(games, sleep=time.sleep):
     Los juegos de Switch o Switch 2 sin NSUID (ni manual ni encontrado antes) lo buscan primero por su
     nombre y su nombre en España, salvo que otro juego del catálogo se llame igual; el que se encuentra se
     guarda para no volver a buscarlo.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: el precio de Nintendo), Lista de deseos (mejor precio de hoy y mínimo
+    histórico), Página de la lista (lo que cuesta lo que te falta).
     """
     games = [game for game in games if game.nintendo_lookup_nsuid or _systems(game)]
     for game in games:

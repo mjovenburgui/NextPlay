@@ -1,3 +1,9 @@
+"""Direcciones de las listas. Pantallas: Página de la lista (u/<usuario>/listas/<id>/), Listas del juego
+(juegos/<juego>/listas/), Nueva lista (listas/nueva/), Nueva tier list (tier-lists/nueva/) y Editar lista
+(listas/<id>/editar/, con su buscador). El resto son acciones de sus botones: borrar, «me gusta», comentar, denunciar,
+añadir, quitar, mover, comentar o poner en un nivel cada juego, invitar a colaborar y aceptar o dejar una invitación.
+"""
+
 from django.urls import path
 
 from . import views

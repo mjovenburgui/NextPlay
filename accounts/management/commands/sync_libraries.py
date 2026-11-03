@@ -1,3 +1,8 @@
+"""Comando «manage.py sync_libraries» (parte de la tarea de cada noche): vuelve a importar la biblioteca, los logros y,
+si se ha pedido, la lista de deseos de Steam de quien tiene activada la sincronización automática en Editar perfil ›
+Cuentas vinculadas.
+"""
+
 import logging
 import time
 from datetime import timedelta
@@ -24,7 +29,10 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser):
-        """Opciones: --pause (segundos entre usuarios), --min-hours (saltar a los recién sincronizados) y --user."""
+        """Opciones: --pause (segundos entre usuarios), --min-hours (saltar a los recién sincronizados) y --user.
+
+        Pantallas: ninguna (opciones del comando sync_libraries).
+        """
         parser.add_argument(
             "--pause", type=float, default=3,
             help="Segundos de espera entre usuarios, para repartir las llamadas a Steam e IGDB (3 por defecto).",
@@ -41,6 +49,10 @@ class Command(BaseCommand):
         Un usuario que falla (perfil privado, Steam o IGDB caídos) no para a los demás: se apunta en el
         log y se sigue. Solo da error al final si no ha podido sincronizar a nadie. Que falle la lista de
         deseos de alguien no cuenta como fallo de su biblioteca.
+
+        Pantallas: Perfil (biblioteca y horas; insignias de las portadas, cifras y sección «Logros»), Ficha del juego
+        (tus horas; tus logros; botón «Lo quiero»), Juegos importados (los que no se encuentran), Inicio (feed: la
+        importación), Retos (progreso), Página del reto (progreso), Lista de deseos.
         """
         if not steam.is_configured():
             raise CommandError("Falta STEAM_API_KEY: no se puede leer la biblioteca de Steam.")
@@ -92,7 +104,10 @@ class Command(BaseCommand):
             raise CommandError("No se ha podido sincronizar ninguna biblioteca.")
 
     def sync_wishlist(self, user):
-        """Trae a «Lo quiero» la lista de deseos de Steam del usuario y lo cuenta; si falla, lo apunta en el log."""
+        """Trae a «Lo quiero» la lista de deseos de Steam del usuario y lo cuenta; si falla, lo apunta en el log.
+
+        Pantallas: Lista de deseos, Ficha del juego (botón «Lo quiero»).
+        """
         try:
             result = steam.import_wishlist(user)
         except (steam.SteamError, igdb.IGDBError):

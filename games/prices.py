@@ -31,7 +31,11 @@ class ITADError(Exception):
 
 
 def is_configured():
-    """Indica si está puesta la clave de IsThereAnyDeal."""
+    """Indica si está puesta la clave de IsThereAnyDeal.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: sin clave de IsThereAnyDeal no hay precios de PC), Lista de deseos
+    (mejor precio de hoy y mínimo histórico), Página de la lista (lo que cuesta lo que te falta).
+    """
     return bool(settings.ITAD_API_KEY)
 
 
@@ -41,6 +45,9 @@ class ITADClient:
 
         retries son las veces que se repite una petición cuando la API pide calma (429). Con 0 no se espera nada, que es
         lo que conviene cuando alguien está esperando la página.
+
+        Pantallas: Ficha del juego (Dónde comprarlo: los de PC; historial de precios), Lista de deseos (mejor precio
+        de hoy y mínimo histórico), Página de la lista (lo que cuesta lo que te falta).
         """
         self.api_key = api_key or settings.ITAD_API_KEY
         self.country = country or settings.ITAD_COUNTRY
@@ -49,11 +56,18 @@ class ITADClient:
             raise ITADError("Falta ITAD_API_KEY.")
 
     def _post(self, path, body, params=None):
-        """POST a la API con la clave y devuelve el JSON."""
+        """POST a la API con la clave y devuelve el JSON.
+
+        Pantallas: Ficha del juego (Dónde comprarlo: los de PC), Lista de deseos (mejor precio de hoy y mínimo
+        histórico), Página de la lista (lo que cuesta lo que te falta).
+        """
         return self._send(requests.post, path, json=body, params=params)
 
     def _get(self, path, params):
-        """GET a la API con la clave y devuelve el JSON."""
+        """GET a la API con la clave y devuelve el JSON.
+
+        Pantallas: Ficha del juego (historial de precios).
+        """
         return self._send(requests.get, path, params=params)
 
     def _send(self, method, path, **kwargs):
@@ -61,6 +75,9 @@ class ITADClient:
 
         Si la API responde 429 (demasiadas peticiones) espera lo que diga Retry-After (máximo 5
         minutos) y reintenta hasta self.retries veces (3, si no se dice otra cosa).
+
+        Pantallas: Ficha del juego (Dónde comprarlo: los de PC; historial de precios), Lista de deseos (mejor precio
+        de hoy y mínimo histórico), Página de la lista (lo que cuesta lo que te falta).
         """
         try:
             for attempt in range(self.retries + 1):
@@ -77,13 +94,21 @@ class ITADClient:
             raise ITADError(f"Error consultando IsThereAnyDeal: {exc}") from exc
 
     def lookup(self, store, store_ids):
-        """Traduce IDs de una tienda (de Steam o de GOG) a los UUID de juego de ITAD (None si no lo conoce)."""
+        """Traduce IDs de una tienda (de Steam o de GOG) a los UUID de juego de ITAD (None si no lo conoce).
+
+        Pantallas: Ficha del juego (Dónde comprarlo: los de PC), Lista de deseos (mejor precio de hoy y mínimo
+        histórico), Página de la lista (lo que cuesta lo que te falta).
+        """
         shop_id, key = LOOKUP_SHOPS[store]
         found = self._post(f"/lookup/id/shop/{shop_id}/v1", [key.format(store_id) for store_id in store_ids])
         return {store_id: found.get(key.format(store_id)) for store_id in store_ids}
 
     def prices(self, itad_ids):
-        """Ofertas actuales y mínimo histórico de cada juego de ITAD en el país configurado."""
+        """Ofertas actuales y mínimo histórico de cada juego de ITAD en el país configurado.
+
+        Pantallas: Ficha del juego (Dónde comprarlo: los de PC), Lista de deseos (mejor precio de hoy y mínimo
+        histórico), Página de la lista (lo que cuesta lo que te falta).
+        """
         return self._post("/games/prices/v3", list(itad_ids), params={"country": self.country})
 
     def history(self, itad_id, since):
@@ -91,24 +116,38 @@ class ITADClient:
 
         Cada cambio es {"timestamp", "shop": {"id", "name"}, "deal": {"price", "regular", "cut"}};
         «deal» es None cuando la tienda deja de venderlo. Vienen del más nuevo al más viejo.
+
+        Pantallas: Ficha del juego (historial de precios).
         """
         params = {"id": itad_id, "country": self.country, "since": since.isoformat(timespec="seconds")}
         return self._get("/games/history/v2", params) or []
 
 
 def _amount(value):
-    """Importe de un precio de ITAD como Decimal con dos decimales."""
+    """Importe de un precio de ITAD como Decimal con dos decimales.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: los de PC), Lista de deseos (mejor precio de hoy y mínimo histórico),
+    Página de la lista (lo que cuesta lo que te falta).
+    """
     return Decimal(str(value["amount"])).quantize(Decimal("0.01"))
 
 
 def _batches(items):
-    """Parte la lista en trozos de BATCH_SIZE, lo máximo que acepta la API por petición."""
+    """Parte la lista en trozos de BATCH_SIZE, lo máximo que acepta la API por petición.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: los de PC), Lista de deseos (mejor precio de hoy y mínimo histórico),
+    Página de la lista (lo que cuesta lo que te falta).
+    """
     for start in range(0, len(items), BATCH_SIZE):
         yield items[start : start + BATCH_SIZE]
 
 
 def _cheapest_per_shop(deals):
-    """Se queda con la oferta más barata de cada tienda."""
+    """Se queda con la oferta más barata de cada tienda.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: los de PC), Lista de deseos (mejor precio de hoy y mínimo histórico),
+    Página de la lista (lo que cuesta lo que te falta).
+    """
     # A shop can list several deals for one game (e.g. keys for different launchers).
     cheapest = {}
     for deal in deals:
@@ -125,6 +164,9 @@ def _store_prices(game, data, edition="", itad_ids=()):
     Con data vacío deja el juego sin precios de PC. edition es el nombre de la edición de la que
     salen los precios (vacío si son del propio juego) e itad_ids, los juegos de ITAD de los que salen;
     si cambian, se borra el historial guardado, que era de otros.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: los de PC), Lista de deseos (mejor precio de hoy y mínimo histórico),
+    Página de la lista (lo que cuesta lo que te falta).
     """
     game.prices.filter(source=GamePrice.Source.ITAD).delete()
     GamePrice.objects.bulk_create(
@@ -156,7 +198,11 @@ def _store_prices(game, data, edition="", itad_ids=()):
 
 
 def _lookup(client, keys):
-    """Traduce un conjunto de (tienda, ID) a UUID de ITAD, tienda por tienda y por lotes."""
+    """Traduce un conjunto de (tienda, ID) a UUID de ITAD, tienda por tienda y por lotes.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: los de PC), Lista de deseos (mejor precio de hoy y mínimo histórico),
+    Página de la lista (lo que cuesta lo que te falta).
+    """
     found = {}
     for store in LOOKUP_SHOPS:
         ids = sorted({store_id for key_store, store_id in keys if key_store == store})
@@ -166,7 +212,11 @@ def _lookup(client, keys):
 
 
 def _fetch_prices(client, itad_ids):
-    """Precios de todos los UUID de ITAD pedidos por lotes: {uuid: datos de precios}."""
+    """Precios de todos los UUID de ITAD pedidos por lotes: {uuid: datos de precios}.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: los de PC), Lista de deseos (mejor precio de hoy y mínimo histórico),
+    Página de la lista (lo que cuesta lo que te falta).
+    """
     data = {}
     for batch in _batches(sorted(itad_ids)):
         data.update((item["id"], item) for item in client.prices(batch))
@@ -177,6 +227,9 @@ def _merge(items):
     """Junta los precios de varios juegos de ITAD que son el mismo producto (p. ej. un relanzamiento).
 
     Suma todas sus ofertas y se queda con el mínimo histórico más bajo. Devuelve None si no hay datos.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: los de PC), Lista de deseos (mejor precio de hoy y mínimo histórico),
+    Página de la lista (lo que cuesta lo que te falta).
     """
     items = [item for item in items if item]
     if not items:
@@ -196,6 +249,9 @@ def update_prices(games, client=None):
 
     Todos quedan con la fecha de la búsqueda (prices_updated_at), también los que no tienen IDs de Steam ni de GOG con
     los que buscarlos en ITAD, que se quedan sin precios de PC: así consta que ya se han mirado.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: los de PC), Lista de deseos (mejor precio de hoy y mínimo histórico),
+    Página de la lista (lo que cuesta lo que te falta).
     """
     client = client or ITADClient()
     games = list(games)
@@ -235,6 +291,10 @@ def fetch_missing(games, consoles=False):
     Si una tienda falla se apunta en el log y se sigue. Si falla IsThereAnyDeal, los juegos siguen sin buscar y se
     volverán a pedir la próxima vez; en una importación tampoco se buscan entonces sus precios de consola. Sin
     ITAD_API_KEY no hace nada.
+
+    Pantallas: Ficha del juego (Dónde comprarlo de un juego cuyos precios nunca se han buscado), Lista de deseos,
+    Página de la lista, Editar perfil (Cuentas vinculadas: al importar), Perfil (modal «Vincular cuentas» de su
+    dueño).
     """
     pending = [game for game in games if game.prices_updated_at is None]
     if not pending or not is_configured():
@@ -263,6 +323,8 @@ def lookup_ids(game, client=None):
     """UUID de ITAD de los IDs de tienda con los que se encontraron los precios actuales del juego.
 
     Sirve para los juegos cuyos precios se guardaron antes de que se apuntaran sus itad_ids.
+
+    Pantallas: Ficha del juego (historial de precios).
     """
     client = client or ITADClient()
     keys = next((keys for keys, edition in game.price_lookups if edition == game.prices_edition), [])

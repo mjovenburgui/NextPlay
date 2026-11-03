@@ -36,7 +36,10 @@ ALL_SHOPS = "todas"
 
 def needs_update(game, now=None):
     """Indica si hay que volver a pedir el historial: nunca se pidió, tiene más de MAX_AGE o es del
-    formato antiguo (solo el más barato, sin separar por tienda)."""
+    formato antiguo (solo el más barato, sin separar por tienda).
+
+    Pantallas: Ficha del juego (historial de precios de Dónde comprarlo).
+    """
     now = now or timezone.now()
     return (
         not isinstance(game.price_history, dict)
@@ -46,12 +49,18 @@ def needs_update(game, now=None):
 
 
 def _amount(value):
-    """Importe de un precio de ITAD como Decimal con dos decimales."""
+    """Importe de un precio de ITAD como Decimal con dos decimales.
+
+    Pantallas: Ficha del juego (historial de precios).
+    """
     return Decimal(str(value["amount"])).quantize(Decimal("0.01"))
 
 
 def _decimal(value):
-    """Precio guardado en el JSON (float) como Decimal con dos decimales."""
+    """Precio guardado en el JSON (float) como Decimal con dos decimales.
+
+    Pantallas: Ficha del juego (historial de precios).
+    """
     return Decimal(str(value)).quantize(Decimal("0.01"))
 
 
@@ -62,6 +71,8 @@ def shop_series(events, seed, start):
     como precio de partida de las tiendas sin cambios en el periodo. Las que sí tienen cambios
     empiezan con el precio normal de su primer cambio (antes de una rebaja se vendía a precio
     normal); si su primer cambio es que dejó de venderlo, no se sabe a cuánto estaba y empiezan ahí.
+
+    Pantallas: Ficha del juego (historial de precios).
     """
     events = sorted(events, key=lambda event: datetime.fromisoformat(event["timestamp"]))
     since = start.isoformat(timespec="seconds")
@@ -81,7 +92,10 @@ def shop_series(events, seed, start):
 
 
 def update_history(game, client=None, now=None):
-    """Pide a ITAD el historial de los dos últimos años del juego y lo guarda. Lanza ITADError si falla."""
+    """Pide a ITAD el historial de los dos últimos años del juego y lo guarda. Lanza ITADError si falla.
+
+    Pantallas: Ficha del juego (historial de precios).
+    """
     client = client or prices.ITADClient()
     now = now or timezone.now()
     itad_ids = game.itad_ids or prices.lookup_ids(game, client)
@@ -103,6 +117,8 @@ def lowest_series(history, shops=None):
 
     Devuelve [(fecha, precio, rebaja, tienda)] de más viejo a más nuevo, con un punto solo cuando
     cambia el más barato; si varias tiendas cambian a la vez, queda el resultado final.
+
+    Pantallas: Ficha del juego (historial de precios: el más barato a lo largo del tiempo).
     """
     changes = []
     for shop_id, data in (history.get("shops") or {}).items():
@@ -130,7 +146,10 @@ def lowest_series(history, shops=None):
 
 def _year(points, now):
     """Puntos (fecha, precio, rebaja, tienda) del último año, empezando con el que estaba vigente hace un
-    año (con esa fecha) si se sabe."""
+    año (con esa fecha) si se sabe.
+
+    Pantallas: Ficha del juego (gráfica y veredicto del historial de precios).
+    """
     start = now - timedelta(days=CHART_DAYS)
     before = [point for point in points if point[0] <= start]
     series = [(start, *before[-1][1:])] if before else []
@@ -143,6 +162,8 @@ def verdict(points, current, low, now, all_shops=True):
     «minimo» si está en su mínimo (low: el histórico con todas las tiendas, o el de los dos años de
     historial con unas tiendas concretas); «bueno» si en el último año no ha estado más barato o
     está cerca de lo más barato del año; «espera» si ha bajado de ese precio varias veces.
+
+    Pantallas: Ficha del juego (veredicto del precio de hoy en el historial).
     """
     year = _year(points, now)
     year_low = min([price for _, price, _, _ in year] + [current])
@@ -175,7 +196,10 @@ def verdict(points, current, low, now, all_shops=True):
 
 
 def last_big_sale(points):
-    """Última vez que estuvo rebajado al menos BIG_SALE_CUT %: {"date", "cut", "price", "shop"}, o None."""
+    """Última vez que estuvo rebajado al menos BIG_SALE_CUT %: {"date", "cut", "price", "shop"}, o None.
+
+    Pantallas: Ficha del juego (última gran rebaja en el historial).
+    """
     sales = [point for point in points if point[2] >= BIG_SALE_CUT]
     if not sales:
         return None
@@ -195,6 +219,8 @@ def chart(points, now, current=None, low_line=None, width=320, height=90, pad=6)
     fuera) y, en JSON («hover»), cada tramo con su fecha, posición, precio, rebaja y tienda para la
     etiqueta que sale al pasar por encima. Las coordenadas van ya en texto con punto decimal: en una
     plantilla en español, floatformat pondría coma y el SVG no sería válido.
+
+    Pantallas: Ficha del juego (gráfica del historial de precios).
     """
     start = now - timedelta(days=CHART_DAYS)
     series = _year(points, now)
@@ -245,6 +271,8 @@ def shop_options(game, user_shops):
 
     «Tus tiendas» (si el usuario las tiene elegidas), «Todas las tiendas» y cada tienda con historial,
     las más conocidas primero.
+
+    Pantallas: Ficha del juego (selector de tienda de la gráfica).
     """
     shops = game.price_history.get("shops") if isinstance(game.price_history, dict) else None
     featured = list(FEATURED_SHOPS)
@@ -263,6 +291,8 @@ def selected_shops(value, user_shops):
     """Tiendas que enseñar según ?tienda= y las del usuario: (ids o None para todas, valor elegido).
 
     Sin valor: las del usuario si las tiene, si no todas. «todas»: todas. Un id: solo esa tienda.
+
+    Pantallas: Ficha del juego (tiendas que enseña la gráfica).
     """
     value = value or ""
     if value.isdigit():
@@ -277,6 +307,8 @@ def summary(game, now=None, shops=None):
 
     {"current": precio más barato de hoy en esas tiendas de PC, "verdict", "chart", "last_big_sale",
     "all_shops"}, o None si no hay historial, el juego es gratis o ninguna de esas tiendas lo vende.
+
+    Pantallas: Ficha del juego (todo el historial de precios).
     """
     now = now or timezone.now()
     if not isinstance(game.price_history, dict) or not game.price_history.get("shops") or game.is_free:

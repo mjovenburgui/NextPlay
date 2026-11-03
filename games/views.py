@@ -1,3 +1,8 @@
+"""Vistas de los juegos: Inicio (la portada), Catálogo y Ficha del juego, con los trozos de la ficha que se cargan con
+HTMX («Dónde comprarlo», el historial de precios y el carrusel de imágenes y vídeos) y el botón del Catálogo para
+traer juegos de IGDB.
+"""
+
 import logging
 from datetime import timedelta
 
@@ -30,6 +35,8 @@ def trending_games(limit=5):
 
     Cada juego trae players (cuántos lo tienen en total) y recent (cuántos lo añadieron en ese tiempo).
     Si no llegan a limit, se completa con los más populares de IGDB.
+
+    Pantallas: Inicio (juegos en tendencia).
     """
     since = timezone.now() - timedelta(days=TRENDING_DAYS)
     games = Game.objects.prefetch_related("genres").annotate(
@@ -51,6 +58,8 @@ def home(request):
     que sigues, con sugerencias de gente a la que seguir si no sigues a nadie, y «descubrir», lo de toda la
     comunidad; ?antes= es el cursor de «Cargar más» para quien no tiene JavaScript. Sin sesión, en el centro
     van los juegos populares y lo último de la comunidad.
+
+    Pantallas: Inicio.
     """
     summary = None
     popular, composer = [], {}
@@ -88,6 +97,8 @@ def catalog(request):
     y pagina de 24 en 24. Si hay sesión, marca en cada tarjeta el estado del juego en la biblioteca del
     usuario (library_status, su nombre, y library_status_key, su valor, que le da el color). Ofrece importar
     de IGDB cuando hay búsqueda, sesión y credenciales de IGDB.
+
+    Pantallas: Catálogo.
     """
     query = request.GET.get("q", "").strip()
     genre = request.GET.get("genero", "")
@@ -148,6 +159,8 @@ def detail(request, slug):
     si no, la ficha carga el carrusel después con HTMX (game_media). «Dónde comprarlo» (_prices_context) se pinta
     ya si los precios del juego se han buscado alguna vez; si no, la ficha lo carga después con HTMX
     (game_prices), que antes los busca. Las reseñas de perfiles privados solo las ve su autor.
+
+    Pantallas: Ficha del juego.
     """
     game = get_object_or_404(Game.objects.prefetch_related("genres", "platforms", "prices"), slug=slug)
     entry = wish = None
@@ -186,6 +199,8 @@ def game_media(request, slug):
     Si nunca se pidieron a IGDB o tienen más de media.MAX_AGE, los pide antes; si IGDB falla, enseña los
     que hubiera. Si con ellos cambia la cabecera (un juego que no está en Steam y ahora tiene arte),
     manda también la nueva para que HTMX la cambie en la página.
+
+    Pantallas: Ficha del juego (carrusel de imágenes y vídeos que se carga con HTMX).
     """
     game = get_object_or_404(Game.objects.prefetch_related("genres", "platforms"), slug=slug)
     before = media.hero(game)
@@ -216,6 +231,8 @@ def import_search(request):
 
     Después vuelve al catálogo con la misma búsqueda y avisa de cuántos juegos se importaron, o
     de que IGDB no respondió.
+
+    Pantallas: Catálogo (botón para traer de IGDB lo que buscas).
     """
     query = request.POST.get("q", "").strip()
     if query:
@@ -229,7 +246,10 @@ def import_search(request):
 
 
 def _user_shops(request):
-    """Tiendas en las que compra el usuario con sesión (conjunto de ids), o vacío si no ha elegido o no hay sesión."""
+    """Tiendas en las que compra el usuario con sesión (conjunto de ids), o vacío si no ha elegido o no hay sesión.
+
+    Pantallas: Ficha del juego (Dónde comprarlo e historial: primero tus tiendas).
+    """
     if not request.user.is_authenticated:
         return set()
     return set(request.user.profile.shops)
@@ -242,6 +262,8 @@ def _prices_context(request, game):
     tiendas de consola sin precio. Si el usuario ha elegido sus tiendas solo se enseñan esas, salvo con
     ?tiendas=todas. El historial de precios de PC va ya pintado si está al día; si hay que pedirlo a ITAD, se carga
     después con HTMX (price_history), y su gráfica elige tienda con ?tienda=.
+
+    Pantallas: Ficha del juego (Dónde comprarlo).
     """
     user_shops = _user_shops(request)
     show_all = request.GET.get("tiendas") == history.ALL_SHOPS or not user_shops
@@ -271,6 +293,8 @@ def game_prices(request, slug):
     Nintendo (prices.fetch_missing con consoles), y la ficha dice que se acaban de buscar (just_searched). Si
     IsThereAnyDeal falla, enseña los que haya y avisa de que no se han podido buscar (prices_failed); se volverá a
     intentar la próxima vez que se abra la ficha.
+
+    Pantallas: Ficha del juego (Dónde comprarlo, cuando se carga con HTMX).
     """
     game = get_object_or_404(Game.objects.prefetch_related("platforms"), slug=slug)
     tried = game.prices_updated_at is None and prices.is_configured()
@@ -296,7 +320,10 @@ def game_prices(request, slug):
 
 def _history_context(request, game, user_shops):
     """Variables de la sección del historial: el resumen de las tiendas elegidas con ?tienda= (por defecto,
-    las del usuario), las opciones del selector y la elegida."""
+    las del usuario), las opciones del selector y la elegida.
+
+    Pantallas: Ficha del juego (historial de precios).
+    """
     shops, selected = history.selected_shops(request.GET.get("tienda", ""), user_shops)
     return {
         "price_history": history.summary(game, shops=shops),
@@ -312,6 +339,8 @@ def price_history(request, slug):
     Si el guardado tiene más de un día, lo pide antes a IsThereAnyDeal; si ITAD falla, enseña el que
     hubiera. La ficha lo carga con HTMX para no esperar a ITAD, y el selector de tienda lo vuelve a
     pedir con ?tienda=.
+
+    Pantallas: Ficha del juego (historial de precios: «¿compro ahora o espero?»).
     """
     game = get_object_or_404(Game.objects.prefetch_related("prices"), slug=slug)
     has_pc_prices = any(price.source == GamePrice.Source.ITAD for price in game.prices.all())

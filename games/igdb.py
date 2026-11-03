@@ -58,20 +58,35 @@ class IGDBError(Exception):
 
 
 def is_configured():
-    """Indica si están puestas las credenciales de Twitch para usar IGDB."""
+    """Indica si están puestas las credenciales de Twitch para usar IGDB.
+
+    Pantallas: Catálogo (botón para traer de IGDB lo que buscas), Juegos importados (buscar en IGDB), Editar perfil
+    (imágenes de un juego para la cabecera; Cuentas vinculadas: juegos importados que aún no están en el catálogo),
+    Ficha del juego (carrusel), Perfil (modal «Vincular cuentas» de su dueño).
+    """
     return bool(settings.IGDB_CLIENT_ID and settings.IGDB_CLIENT_SECRET)
 
 
 class IGDBClient:
     def __init__(self, client_id=None, client_secret=None):
-        """Prepara el cliente con las credenciales dadas o las de settings; falla si no hay ninguna."""
+        """Prepara el cliente con las credenciales dadas o las de settings; falla si no hay ninguna.
+
+        Pantallas: Catálogo (traer de IGDB), Juegos importados (buscar en IGDB), Editar perfil (imágenes de un juego
+        para la cabecera; Cuentas vinculadas: juegos importados que aún no están en el catálogo), Ficha del juego
+        (carrusel), Perfil (modal «Vincular cuentas» de su dueño).
+        """
         self.client_id = client_id or settings.IGDB_CLIENT_ID
         self.client_secret = client_secret or settings.IGDB_CLIENT_SECRET
         if not (self.client_id and self.client_secret):
             raise IGDBError("Faltan IGDB_CLIENT_ID e IGDB_CLIENT_SECRET.")
 
     def _token(self):
-        """Token de acceso de Twitch: lo saca de la caché o pide uno nuevo y lo guarda hasta que caduque."""
+        """Token de acceso de Twitch: lo saca de la caché o pide uno nuevo y lo guarda hasta que caduque.
+
+        Pantallas: Catálogo (traer de IGDB), Juegos importados (buscar en IGDB), Editar perfil (imágenes de un juego
+        para la cabecera; Cuentas vinculadas: juegos importados que aún no están en el catálogo), Ficha del juego
+        (carrusel), Perfil (modal «Vincular cuentas» de su dueño).
+        """
         token = cache.get(TOKEN_CACHE_KEY)
         if token:
             return token
@@ -97,6 +112,10 @@ class IGDBClient:
         """Lanza una consulta en Apicalypse (el lenguaje de IGDB) contra endpoint y devuelve el JSON.
 
         Si IGDB responde 401 borra el token de la caché para que la próxima llamada pida uno nuevo.
+
+        Pantallas: Catálogo (traer de IGDB), Juegos importados (buscar en IGDB), Editar perfil (imágenes de un juego
+        para la cabecera; Cuentas vinculadas: juegos importados que aún no están en el catálogo), Ficha del juego
+        (carrusel), Perfil (modal «Vincular cuentas» de su dueño).
         """
         try:
             response = requests.post(
@@ -117,7 +136,12 @@ class IGDBClient:
             raise IGDBError(f"Error consultando IGDB: {exc}") from exc
 
     def top_games(self, limit=MAX_PAGE_SIZE, offset=0):
-        """Una página de los juegos más valorados por número de votos, sin ediciones sueltas, con sus ediciones."""
+        """Una página de los juegos más valorados por número de votos, sin ediciones sueltas, con sus ediciones.
+
+        Pantallas: Catálogo (los juegos populares que trae el comando import_igdb), Ficha del juego, Inicio, Perfil,
+        Lista de deseos, Página de la lista, Página del reto (los datos de cada juego: nombre, portada, géneros y
+        plataformas).
+        """
         limit = min(limit, MAX_PAGE_SIZE)
         body = (
             f"{GAME_FIELDS} where version_parent = null & total_rating_count > 0; "
@@ -126,7 +150,12 @@ class IGDBClient:
         return self._with_editions(self.query("games", body))
 
     def search(self, term, limit=20):
-        """Busca juegos por texto en IGDB (hasta limit resultados, sin ediciones sueltas), con sus ediciones."""
+        """Busca juegos por texto en IGDB (hasta limit resultados, sin ediciones sueltas), con sus ediciones.
+
+        Pantallas: Catálogo (botón para traer de IGDB lo que buscas), Juegos importados (buscar el juego de un
+        título), Editar perfil (Cuentas vinculadas: títulos de PlayStation y Xbox que no están en el catálogo), Perfil
+        (modal «Vincular cuentas» de su dueño).
+        """
         # Apicalypse string literal: drop the characters that would end or escape it.
         term = term.replace("\\", " ").replace('"', " ").strip()
         if not term:
@@ -138,6 +167,10 @@ class IGDBClient:
         """Juegos de IGDB (con sus ediciones) de una lista de IDs de Steam y un dict {ID de Steam: id de IGDB}.
 
         Los IDs que IGDB no conoce (herramientas, bandas sonoras, servidores...) no aparecen en el dict.
+
+        Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y
+        horas: juegos de Steam que aún no están en el catálogo), Ficha del juego (tus horas), Juegos importados (los
+        que no se encuentran), Inicio (feed: la importación), Retos (progreso), Página del reto (progreso).
         """
         steam_to_igdb = {}
         app_ids = [str(app_id) for app_id in app_ids]
@@ -154,7 +187,12 @@ class IGDBClient:
         return self.games_by_ids(sorted(set(steam_to_igdb.values()))), steam_to_igdb
 
     def games_by_ids(self, igdb_ids):
-        """Juegos de IGDB (con sus ediciones) a partir de sus ids, en lotes de MAX_PAGE_SIZE."""
+        """Juegos de IGDB (con sus ediciones) a partir de sus ids, en lotes de MAX_PAGE_SIZE.
+
+        Pantallas: Catálogo, Ficha del juego, Inicio, Perfil (modal «Vincular cuentas» de su dueño), Lista de deseos,
+        Página de la lista, Página del reto (los datos de cada juego: nombre, portada, géneros y plataformas),
+        Editar perfil (Cuentas vinculadas: juegos de Steam que aún no están en el catálogo).
+        """
         games = []
         for start in range(0, len(igdb_ids), MAX_PAGE_SIZE):
             ids = ",".join(str(game_id) for game_id in igdb_ids[start:start + MAX_PAGE_SIZE])
@@ -167,6 +205,11 @@ class IGDBClient:
 
         Va en lotes para no hacer una petición por juego. Si dos juegos se llaman igual vienen los dos;
         quien llama decide con cuál quedarse (p. ej. el más popular).
+
+        Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y
+        horas: juegos de PlayStation y Xbox que aún no están en el catálogo), Ficha del juego (tus horas),
+        Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos (progreso), Página del reto
+        (progreso).
         """
         names = [name.replace("\\", " ").replace('"', " ").strip() for name in names]
         names = list(dict.fromkeys(name for name in names if name))
@@ -185,6 +228,9 @@ class IGDBClient:
         """Solo los campos de castellano (idiomas, nombres y versiones regionales) de esos juegos de IGDB, en lotes.
 
         Sirve para completar los juegos que se importaron antes de que se pidieran esos campos.
+
+        Pantallas: Ficha del juego (nombre en España e idiomas), Catálogo (filtro de idioma), Perfil (filtro de idioma
+        de la biblioteca), Lista de deseos (filtro de idioma).
         """
         games = []
         for start in range(0, len(igdb_ids), MAX_PAGE_SIZE):
@@ -200,6 +246,8 @@ class IGDBClient:
 
         Son imágenes apaisadas que sirven de cabecera o de fondo del perfil (la portada es vertical). Del
         arte se quitan los logos, iconos, portadas e infografías (NOT_ART_TYPES) y va primero el principal.
+
+        Pantallas: Editar perfil (Apariencia › Cabecera: imágenes del juego elegido).
         """
         found = self.query(
             "artworks", f"fields image_id, artwork_type; where game = {int(igdb_id)}; limit {MAX_PAGE_SIZE};"
@@ -217,12 +265,19 @@ class IGDBClient:
 
         Son las listas tal como las da IGDB (los artes con su tipo y tamaño, los vídeos con su ID de
         YouTube); vacío si IGDB no conoce el juego.
+
+        Pantallas: Ficha del juego (cabecera y carrusel de imágenes y vídeos).
         """
         found = self.query("games", f"{MEDIA_FIELDS} where id = {int(igdb_id)};")
         return found[0] if found else {}
 
     def _with_editions(self, games):
-        """Añade a cada juego sus ediciones (GOTY, Definitive...) en la clave «editions», para tener sus IDs de tienda."""
+        """Añade a cada juego sus ediciones (GOTY, Definitive...) en la clave «editions», para tener sus IDs de tienda.
+
+        Pantallas: Catálogo, Ficha del juego (Dónde comprarlo: los IDs de tienda de sus ediciones), Inicio, Perfil,
+        Lista de deseos (mejor precio de hoy y mínimo histórico), Página de la lista (lo que cuesta lo que te falta),
+        Página del reto (los datos de cada juego: nombre, portada, géneros y plataformas).
+        """
         if not games:
             return games
         ids = ",".join(str(game["id"]) for game in games)
@@ -247,13 +302,19 @@ def sort_arts(artworks):
     """Artes de IGDB que son ilustraciones (sin los tipos de NOT_ART_TYPES), con el arte principal primero.
 
     Los que no traen tipo se quedan: IGDB no los ha clasificado, pero suelen ser ilustraciones.
+
+    Pantallas: Ficha del juego (cabecera y carrusel), Editar perfil (imágenes de un juego para la cabecera).
     """
     arts = [art for art in artworks if art.get("artwork_type") not in NOT_ART_TYPES]
     return sorted(arts, key=lambda art: art.get("artwork_type") not in KEY_ART_TYPES)
 
 
 def _upsert_ref(model, data, **extra):
-    """Busca o crea un Genre o Platform de IGDB, aprovechando uno que no venga de IGDB con el mismo slug."""
+    """Busca o crea un Genre o Platform de IGDB, aprovechando uno que no venga de IGDB con el mismo slug.
+
+    Pantallas: Catálogo (filtros de género y plataforma), Ficha del juego (géneros y plataformas), Nuevo reto (géneros
+    y plataformas).
+    """
     slug = (data.get("slug") or slugify(data["name"]))[:120]
     obj = model.objects.filter(igdb_id=data["id"]).first()
     if obj is None:
@@ -269,7 +330,11 @@ def _upsert_ref(model, data, **extra):
 
 
 def _normalize(name):
-    """Nombre para comparar: sin ™ ® ©, en minúsculas y con los espacios simplificados."""
+    """Nombre para comparar: sin ™ ® ©, en minúsculas y con los espacios simplificados.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: los IDs de tienda con los que se buscan), Lista de deseos (mejor
+    precio de hoy y mínimo histórico), Página de la lista (lo que cuesta lo que te falta).
+    """
     return " ".join(re.sub(r"[™®©]", "", name or "").casefold().split())
 
 
@@ -279,6 +344,9 @@ def _store_ids(data):
     IGDB puede tener varias entradas por tienda: relanzamientos con el mismo nombre que el juego (se
     quedan todos y sus ofertas se juntan) y otras raras como «Mac Portal» (solo se usa la primera,
     y únicamente si ninguna se llama como el juego).
+
+    Pantallas: Ficha del juego (Dónde comprarlo: los IDs de tienda con los que se buscan), Lista de deseos (mejor
+    precio de hoy y mínimo histórico), Página de la lista (lo que cuesta lo que te falta).
     """
     name = _normalize(data["name"])
     ids = {}
@@ -300,6 +368,9 @@ def _store_alternatives(data, own_ids):
 
     Sirven para encontrar precios cuando el juego original ya no se vende o cuando IGDB guarda sus IDs de tienda en
     otra ficha, como la versión de PC de Red Dead Redemption o la edición ampliada de The Witcher 2.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: los IDs de tienda de sus ediciones, ports y remasters),
+    Lista de deseos (mejor precio de hoy y mínimo histórico), Página de la lista (lo que cuesta lo que te falta).
     """
     seen = {(store, uid) for store, uids in own_ids.items() for uid in uids}
     alternatives = []
@@ -316,7 +387,11 @@ def _store_alternatives(data, own_ids):
 
 
 def _xbox_product_ids(data):
-    """IDs de producto de Microsoft Store del juego y después de sus ediciones y remasters, sin repetidos."""
+    """IDs de producto de Microsoft Store del juego y después de sus ediciones y remasters, sin repetidos.
+
+    Pantallas: Ficha del juego (Dónde comprarlo: el precio de Xbox), Lista de deseos (mejor precio de hoy y mínimo
+    histórico), Página de la lista (lo que cuesta lo que te falta).
+    """
     ids = []
     for related in [data] + (data.get("editions") or []) + (data.get("remasters") or []):
         for item in related.get("external_games") or []:
@@ -335,6 +410,11 @@ def upsert_games(payload):
     nombre en España, otros nombres y portada europea, ver games.spanish). Aprovecha juegos de demo o
     creados a mano con el mismo nombre o slug en vez de duplicarlos. Si cambian los IDs de tienda,
     borra los precios de PC, que se buscaron con los IDs viejos. Todo va en una transacción.
+
+    Pantallas: Catálogo (botón para traer de IGDB), Ficha del juego, Inicio, Perfil (modal «Vincular cuentas» de su
+    dueño), Lista de deseos, Página de la lista, Página del reto (los datos de cada juego: nombre, portada, géneros y
+    plataformas), Juegos importados (buscar en IGDB), Editar perfil (Cuentas vinculadas: juegos importados que aún no
+    están en el catálogo).
     """
     genres, platforms, games = {}, {}, []
     for data in payload:

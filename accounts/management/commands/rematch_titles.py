@@ -1,3 +1,7 @@
+"""Comando «manage.py rematch_titles»: vuelve a buscar en el catálogo los títulos de PlayStation y Xbox importados que no
+se encontraron. Lo que empareja deja de salir en Juegos importados y pasa a la biblioteca del Perfil con sus horas.
+"""
+
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.template.defaultfilters import pluralize
@@ -17,11 +21,17 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser):
-        """Opción: --dry-run, que enseña lo que haría sin guardar nada."""
+        """Opción: --dry-run, que enseña lo que haría sin guardar nada.
+
+        Pantallas: ninguna (opciones del comando rematch_titles).
+        """
         parser.add_argument("--dry-run", action="store_true", help="Enseña lo que emparejaría, sin guardar nada.")
 
     def handle(self, *args, **options):
-        """Con --dry-run lo hace todo dentro de una transacción que se deshace, también los juegos que traiga de IGDB."""
+        """Con --dry-run lo hace todo dentro de una transacción que se deshace, también los juegos que traiga de IGDB.
+
+        Pantallas: Juegos importados, Perfil (biblioteca y horas), Ficha del juego (tus horas).
+        """
         if not options["dry_run"]:
             self.rematch()
             return
@@ -34,6 +44,8 @@ class Command(BaseCommand):
         """Busca los títulos pendientes, apunta su juego (para todos, como una importación) y actualiza las bibliotecas.
 
         Las horas pasan como con una corrección del emparejamiento: sin apuntar actividad ni sesiones, porque no son de ahora.
+
+        Pantallas: Juegos importados, Perfil (biblioteca y horas), Ficha del juego (tus horas).
         """
         titles = list(
             ExternalTitle.objects.filter(

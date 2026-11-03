@@ -1,3 +1,8 @@
+"""Modelos del catálogo: cada juego (con lo que trae de IGDB y de las tiendas: portadas, idiomas, IDs de tienda e
+imágenes), sus géneros, sus plataformas y sus precios por tienda. Salen en casi todas las pantallas, sobre todo en el
+Catálogo y en la Ficha del juego.
+"""
+
 from urllib.parse import quote
 
 from django.core.validators import RegexValidator
@@ -34,7 +39,11 @@ GENRE_NAMES_ES = {
 
 
 def spanish_genre_name(name, slug=""):
-    """Nombre en español de un género de IGDB; si no está en GENRE_NAMES_ES, el original."""
+    """Nombre en español de un género de IGDB; si no está en GENRE_NAMES_ES, el original.
+
+    Pantallas: Catálogo (filtro de género), Ficha del juego (géneros), Inicio (géneros), Nuevo reto (géneros), Perfil
+    (géneros favoritos del escaparate).
+    """
     return GENRE_NAMES_ES.get(slug or slugify(name), name)
 
 
@@ -45,6 +54,11 @@ def igdb_image_url(image_id, size="t_cover_big", ext="jpg"):
     """URL de una imagen del CDN de IGDB (portada, arte o captura) en ese tamaño; vacía si no hay imagen.
 
     Con ext «png» conserva la transparencia, que hace falta en los logos.
+
+    Pantallas: Inicio, Catálogo, Ficha del juego (cabecera y carrusel), Listas del juego, Perfil (cabecera con la
+    imagen de un juego), Lista de deseos, Escribir reseña (imágenes de la ficha), Página de la reseña,
+    Página de la publicación, Página de la lista, Editar lista, Nueva tier list, Página del reto, Avisos,
+    Juegos importados, Editar perfil (las portadas de los juegos).
     """
     return IGDB_IMAGE_URL.format(size=size, image_id=image_id, ext=ext) if image_id else ""
 
@@ -84,6 +98,9 @@ def language_filter(key, prefix=""):
 
     prefix va delante de los campos para filtrar desde otro modelo (p. ej. «game__» en la lista de
     deseos). Con voces en castellano también se cuentan los textos: si está doblado, está traducido.
+
+    Pantallas: Catálogo (filtro de idioma), Perfil (filtro de idioma de la biblioteca), Lista de deseos (filtro de
+    idioma).
     """
     audio, text = f"{prefix}spanish_audio", f"{prefix}spanish_text"
     spanish = [Spanish.SPAIN, Spanish.LATAM]
@@ -95,7 +112,11 @@ def language_filter(key, prefix=""):
 
 
 def search_filter(query):
-    """Condición (Q) de la búsqueda de juegos por nombre: el de IGDB, el de España y sus otros nombres (siglas como «tw3»)."""
+    """Condición (Q) de la búsqueda de juegos por nombre: el de IGDB, el de España y sus otros nombres (siglas como «tw3»).
+
+    Pantallas: Catálogo (búsqueda por nombre, también desde la barra de arriba), Editar lista (buscar juegos para
+    añadir).
+    """
     return models.Q(name__icontains=query) | models.Q(name_es__icontains=query) | models.Q(search_names__icontains=query)
 
 
@@ -108,7 +129,10 @@ class Genre(models.Model):
         ordering = ["name"]
 
     def __str__(self):
-        """Nombre del género."""
+        """Nombre del género.
+
+        Pantallas: Panel de administración, Catálogo (filtro de género), Ficha del juego (géneros).
+        """
         return self.name
 
 
@@ -129,12 +153,19 @@ class Platform(models.Model):
         ordering = ["name"]
 
     def __str__(self):
-        """Nombre completo de la plataforma."""
+        """Nombre completo de la plataforma.
+
+        Pantallas: Panel de administración, Catálogo (filtro de plataforma), Nuevo reto (plataformas).
+        """
         return self.name
 
     @property
     def short_name(self):
-        """Nombre corto para las etiquetas (p. ej. «PS5»); el completo si no tiene abreviatura."""
+        """Nombre corto para las etiquetas (p. ej. «PS5»); el completo si no tiene abreviatura.
+
+        Pantallas: Ficha del juego (plataformas de la cabecera), Perfil (plataforma de cada juego),
+        Página de la reseña (plataforma de la partida), Juegos importados.
+        """
         return self.abbreviation or self.name
 
 
@@ -231,15 +262,26 @@ class Game(models.Model):
         ordering = ["-popularity", "name"]
 
     def __str__(self):
-        """Nombre del juego."""
+        """Nombre del juego.
+
+        Pantallas: Panel de administración, Escribir reseña (el juego elegido en los formularios).
+        """
         return self.name
 
     def get_absolute_url(self):
-        """URL de la ficha del juego (/juegos/<slug>/)."""
+        """URL de la ficha del juego (/juegos/<slug>/).
+
+        Pantallas: Inicio, Catálogo, Ficha del juego, Listas del juego, Perfil, Lista de deseos, Escribir reseña,
+        Página de la reseña, Página de la publicación, Página de la lista, Editar lista, Página del reto,
+        Juegos importados (los enlaces a la ficha de cada juego).
+        """
         return reverse("games:detail", args=[self.slug])
 
     def review_platforms(self):
-        """Plataformas que se pueden elegir en una reseña del juego: las suyas y, si sale en PC, la Steam Deck."""
+        """Plataformas que se pueden elegir en una reseña del juego: las suyas y, si sale en PC, la Steam Deck.
+
+        Pantallas: Escribir reseña (plataformas que se pueden elegir).
+        """
         query = models.Q(games=self)
         if any(platform.name in STEAM_DECK_HOSTS for platform in self.platforms.all()):
             query |= models.Q(slug=STEAM_DECK_SLUG)
@@ -247,11 +289,20 @@ class Game(models.Model):
 
     @property
     def cover_url(self):
-        """URL de la portada en el CDN de IGDB (la europea si IGDB la tiene), o cadena vacía si no hay portada."""
+        """URL de la portada en el CDN de IGDB (la europea si IGDB la tiene), o cadena vacía si no hay portada.
+
+        Pantallas: Inicio, Catálogo, Ficha del juego, Listas del juego, Perfil, Lista de deseos, Escribir reseña,
+        Página de la reseña, Página de la publicación, Página de la lista, Editar lista, Nueva tier list,
+        Página del reto, Avisos, Juegos importados, Editar perfil (las portadas de los juegos).
+        """
         return igdb_image_url(self.cover_eu_image_id or self.cover_image_id)
 
     def merged_languages(self):
-        """Idiomas de todas las fuentes juntos: {código: {"audio", "text"}}. Si una fuente dice que tiene voces, las tiene."""
+        """Idiomas de todas las fuentes juntos: {código: {"audio", "text"}}. Si una fuente dice que tiene voces, las tiene.
+
+        Pantallas: Ficha del juego (nombre en España, sinopsis en español e idiomas), Catálogo (búsqueda por nombre en
+        España y filtro de idioma), Perfil (filtro de idioma de la biblioteca), Lista de deseos (filtro de idioma).
+        """
         merged = {}
         for source in (self.languages or {}).values():
             for code, kinds in (source or {}).items():
@@ -264,6 +315,9 @@ class Game(models.Model):
         Castellano si está el español de España, latino si solo está el de México y «sin español» si
         hay idiomas pero ninguno es español; vacío si ninguna fuente da idiomas. Las voces cuentan
         también como textos.
+
+        Pantallas: Ficha del juego (nombre en España, sinopsis en español e idiomas), Catálogo (búsqueda por nombre en
+        España y filtro de idioma), Perfil (filtro de idioma de la biblioteca), Lista de deseos (filtro de idioma).
         """
         merged = self.merged_languages()
 
@@ -280,18 +334,27 @@ class Game(models.Model):
 
     @property
     def spain_name(self):
-        """Nombre con el que se vende en España si es distinto del original («Los Sims 4»); vacío si no."""
+        """Nombre con el que se vende en España si es distinto del original («Los Sims 4»); vacío si no.
+
+        Pantallas: Ficha del juego (nombre en España de la cabecera).
+        """
         return self.name_es if self.name_es and self.name_es.casefold() != self.name.casefold() else ""
 
     @property
     def language_sources(self):
-        """Fuentes que han dado idiomas del juego, para citarlas en la ficha: p. ej. ["IGDB", "Steam"]."""
+        """Fuentes que han dado idiomas del juego, para citarlas en la ficha: p. ej. ["IGDB", "Steam"].
+
+        Pantallas: Ficha del juego (de dónde salen los idiomas).
+        """
         names = {"igdb": "IGDB", "steam": "Steam"}
         return [names.get(source, source) for source, values in (self.languages or {}).items() if values]
 
     @property
     def language_rows(self):
-        """Idiomas para la tabla de la ficha: [(nombre en español, voces, textos)], con los españoles y el inglés primero."""
+        """Idiomas para la tabla de la ficha: [(nombre en español, voces, textos)], con los españoles y el inglés primero.
+
+        Pantallas: Ficha del juego (tabla de idiomas).
+        """
         merged = self.merged_languages()
 
         def order(code):
@@ -306,7 +369,11 @@ class Game(models.Model):
 
     @property
     def release_year(self):
-        """Año de lanzamiento, o None si no se conoce la fecha."""
+        """Año de lanzamiento, o None si no se conoce la fecha.
+
+        Pantallas: Catálogo, Inicio, Ficha del juego, Perfil, Página de la reseña, Página de la lista, Editar lista,
+        Página del reto, Juegos importados (el año de cada juego).
+        """
         return self.first_release_date.year if self.first_release_date else None
 
     @property
@@ -316,6 +383,9 @@ class Game(models.Model):
         Primero los IDs del propio juego y después los de sus ediciones y remasters. Los IDs de un
         mismo grupo son el mismo producto, así que sus ofertas se juntan. Si hay un ID de Steam
         manual, solo se usa ese.
+
+        Pantallas: Ficha del juego (Dónde comprarlo: los IDs de tienda con los que se buscan), Lista de deseos (mejor
+        precio de hoy y mínimo histórico), Página de la lista (lo que cuesta lo que te falta).
         """
         if self.steam_app_id_override:
             return [([("steam", self.steam_app_id_override)], "")]
@@ -329,26 +399,44 @@ class Game(models.Model):
 
     @property
     def xbox_lookup_ids(self):
-        """IDs de producto de Xbox con los que buscar el precio: el manual si lo hay, si no los de IGDB."""
+        """IDs de producto de Xbox con los que buscar el precio: el manual si lo hay, si no los de IGDB.
+
+        Pantallas: Ficha del juego (Dónde comprarlo: el precio de Xbox), Lista de deseos (mejor precio de hoy y mínimo
+        histórico), Página de la lista (lo que cuesta lo que te falta).
+        """
         return [self.xbox_product_id_override] if self.xbox_product_id_override else self.xbox_product_ids
 
     @property
     def on_current_xbox(self):
-        """Indica si el juego está en Xbox One o Xbox Series X|S."""
+        """Indica si el juego está en Xbox One o Xbox Series X|S.
+
+        Pantallas: Ficha del juego (Dónde comprarlo: Xbox).
+        """
         return any(platform.name in CURRENT_XBOX_PLATFORMS for platform in self.platforms.all())
 
     @property
     def nintendo_lookup_nsuid(self):
-        """NSUID con el que pedir el precio de la eShop: el manual si lo hay, si no el encontrado por el nombre."""
+        """NSUID con el que pedir el precio de la eShop: el manual si lo hay, si no el encontrado por el nombre.
+
+        Pantallas: Ficha del juego (Dónde comprarlo: el precio de Nintendo), Lista de deseos (mejor precio de hoy y
+        mínimo histórico), Página de la lista (lo que cuesta lo que te falta).
+        """
         return self.nintendo_nsuid_override or self.nintendo_nsuid
 
     @property
     def best_price(self):
-        """Oferta más barata de todas las tiendas (PC, Xbox y Nintendo), o None si no hay precios."""
+        """Oferta más barata de todas las tiendas (PC, Xbox y Nintendo), o None si no hay precios.
+
+        Pantallas: Lista de deseos (mejor precio de hoy), Página de la lista (lo que cuesta lo que te falta).
+        """
         return self.cheapest()
 
     def cheapest(self, shops=None):
-        """Oferta más barata de esas tiendas (ids; None = todas), o None si ninguna lo vende."""
+        """Oferta más barata de esas tiendas (ids; None = todas), o None si ninguna lo vende.
+
+        Pantallas: Lista de deseos (mejor precio de hoy en tus tiendas), Página de la lista (lo que cuesta lo que te
+        falta), Avisos (bajadas de precio).
+        """
         prices = sorted(
             (price for price in self.prices.all() if shops is None or price.shop_id in shops),
             key=lambda price: price.price,
@@ -357,7 +445,10 @@ class Game(models.Model):
 
     @property
     def is_free(self):
-        """Indica si alguna tienda lo da gratis (precio y precio normal a 0), es decir, si es free-to-play."""
+        """Indica si alguna tienda lo da gratis (precio y precio normal a 0), es decir, si es free-to-play.
+
+        Pantallas: Ficha del juego (Dónde comprarlo: «Gratis»).
+        """
         return any(price.is_free for price in self.prices.all())
 
     def price_groups(self, shops=None):
@@ -367,6 +458,8 @@ class Game(models.Model):
         listados: las demás más baratas, solo si el juego no está en ninguna destacada.
         plegados: el resto por precio, dentro de «Ver N tiendas más».
         mejor: la oferta más barata cuando ha quedado plegada, para poder señalarla igualmente.
+
+        Pantallas: Ficha del juego (Dónde comprarlo: destacadas, el resto y las plegadas).
         """
         prices = [price for price in self.prices.all() if shops is None or price.shop_id in shops]
         featured_ids = list(FEATURED_SHOPS)
@@ -381,6 +474,8 @@ class Game(models.Model):
         """(tienda, plantilla del logo, URL de búsqueda) de las consolas en las que está el juego pero sin precio.
 
         Son PlayStation Store y, si no se encontró su precio, Nintendo eShop y Xbox Store.
+
+        Pantallas: Ficha del juego (Dónde comprarlo: enlaces a buscarlo en las tiendas de consola sin precio).
         """
         platforms = {platform.name for platform in self.platforms.all()}
         priced = {price.shop_id for price in self.prices.all()}
@@ -396,6 +491,8 @@ class Game(models.Model):
         «verified_count»), que no pueden valorarlo sin haberlo jugado.
 
         Las notas se guardan en medias estrellas (de 1 a 10), así que las medias se dividen entre dos.
+
+        Pantallas: Ficha del juego (valoración de la comunidad).
         """
         played = (
             models.Q(steam_playtime_minutes__gt=0) | models.Q(psn_playtime_minutes__gt=0)
@@ -414,12 +511,18 @@ class Game(models.Model):
 
     @property
     def critic_score(self):
-        """Nota de la crítica redondeada (0-100), o None si no tiene."""
+        """Nota de la crítica redondeada (0-100), o None si no tiene.
+
+        Pantallas: Ficha del juego (nota de la crítica).
+        """
         return round(self.critic_rating) if self.critic_rating is not None else None
 
     @property
     def critic_tier(self):
-        """Franja de la nota para colorearla: «high» (75 o más), «mid» (50-74), «low» o vacío sin nota."""
+        """Franja de la nota para colorearla: «high» (75 o más), «mid» (50-74), «low» o vacío sin nota.
+
+        Pantallas: Ficha del juego (color de la nota de la crítica).
+        """
         score = self.critic_score
         if score is None:
             return ""
@@ -427,7 +530,10 @@ class Game(models.Model):
 
     @property
     def historical_low_symbol(self):
-        """Símbolo de la moneda del mínimo histórico (€, $, £...)."""
+        """Símbolo de la moneda del mínimo histórico (€, $, £...).
+
+        Pantallas: Ficha del juego (mínimo histórico), Lista de deseos (mínimo histórico).
+        """
         return currency_symbol(self.historical_low_currency)
 
 
@@ -476,12 +582,18 @@ CURRENCY_SYMBOLS = {"EUR": "€", "USD": "$", "GBP": "£"}
 
 
 def currency_symbol(code):
-    """Símbolo de una moneda a partir de su código ISO («EUR» → «€»); el propio código si no lo conoce."""
+    """Símbolo de una moneda a partir de su código ISO («EUR» → «€»); el propio código si no lo conoce.
+
+    Pantallas: Ficha del juego (Dónde comprarlo), Lista de deseos, Página de la lista (los símbolos de moneda).
+    """
     return CURRENCY_SYMBOLS.get(code, code)
 
 
 def known_shops():
-    """Tiendas con algún precio en el catálogo, [(id, nombre)]: las destacadas primero y después por nombre."""
+    """Tiendas con algún precio en el catálogo, [(id, nombre)]: las destacadas primero y después por nombre.
+
+    Pantallas: Editar perfil (Tiendas en las que compras).
+    """
     names = {}
     for shop_id, name in GamePrice.objects.values_list("shop_id", "shop_name").distinct():
         names.setdefault(shop_id, name)
@@ -493,7 +605,11 @@ def known_shops():
 
 
 def format_price(amount, symbol="€"):
-    """Precio escrito como en España para los textos que se generan fuera de las plantillas: «2,99 €»."""
+    """Precio escrito como en España para los textos que se generan fuera de las plantillas: «2,99 €».
+
+    Pantallas: Ficha del juego (historial de precios), Página de la lista (lo que cuesta lo que te falta), Avisos
+    (bajadas de precio), Editar perfil (mensaje al traer la lista de deseos de Steam).
+    """
     return f"{amount:.2f}".replace(".", ",") + f" {symbol}"
 
 
@@ -523,25 +639,40 @@ class GamePrice(models.Model):
         constraints = [models.UniqueConstraint(fields=["game", "shop_id"], name="unique_price_per_shop")]
 
     def __str__(self):
-        """Texto del precio en el admin: «juego · tienda: precio moneda»."""
+        """Texto del precio en el admin: «juego · tienda: precio moneda».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.game} · {self.shop_name}: {self.price} {self.currency}"
 
     @property
     def symbol(self):
-        """Símbolo de la moneda del precio."""
+        """Símbolo de la moneda del precio.
+
+        Pantallas: Ficha del juego (Dónde comprarlo), Lista de deseos (precios).
+        """
         return currency_symbol(self.currency)
 
     @property
     def is_free(self):
-        """Indica si el juego es gratis en esta tienda (no solo rebajado a 0 por una oferta)."""
+        """Indica si el juego es gratis en esta tienda (no solo rebajado a 0 por una oferta).
+
+        Pantallas: Ficha del juego (Dónde comprarlo: «Gratis»).
+        """
         return self.price == 0 and self.regular_price == 0
 
     @property
     def is_featured(self):
-        """Indica si la tienda es una de las destacadas (Steam, Epic, Microsoft, GOG, Xbox, Nintendo)."""
+        """Indica si la tienda es una de las destacadas (Steam, Epic, Microsoft, GOG, Xbox, Nintendo).
+
+        Pantallas: Ficha del juego (Dónde comprarlo: tiendas destacadas).
+        """
         return self.shop_id in FEATURED_SHOPS
 
     @property
     def logo_template(self):
-        """Ruta de la plantilla SVG con el logo de la tienda; solo para tiendas destacadas."""
+        """Ruta de la plantilla SVG con el logo de la tienda; solo para tiendas destacadas.
+
+        Pantallas: Ficha del juego (Dónde comprarlo: logos de las tiendas).
+        """
         return f"games/shop_icons/{FEATURED_SHOPS[self.shop_id]}.svg"

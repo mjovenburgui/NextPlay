@@ -1,3 +1,7 @@
+"""Direcciones de los retos. Pantallas: Retos (retos/), Nuevo reto (retos/nuevo/), Página del reto (retos/<id>/) y Editar
+reto (retos/<id>/editar/); borrar, unirse y dejarlo son acciones de sus botones.
+"""
+
 from django.urls import path
 
 from . import views

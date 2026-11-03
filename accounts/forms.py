@@ -1,3 +1,8 @@
+"""Formularios de las cuentas: el de Registro (SignupForm), el de Editar perfil (ProfileForm: datos, apariencia,
+escaparate, redes y privacidad, también para su vista previa) y el de la cuenta de otra plataforma
+(PlatformAccountForm), en Cuentas vinculadas de Editar perfil y en el modal «Vincular cuentas» del Perfil.
+"""
+
 import re
 
 from django import forms
@@ -35,7 +40,10 @@ class SignupForm(UserCreationForm):
         fields = ("username", "email")
 
     def clean_email(self):
-        """Pasa el correo a minúsculas y rechaza el registro si ya hay una cuenta con ese correo."""
+        """Pasa el correo a minúsculas y rechaza el registro si ya hay una cuenta con ese correo.
+
+        Pantallas: Registro.
+        """
         email = self.cleaned_data["email"].lower()
         if User.objects.filter(email__iexact=email).exists():
             raise forms.ValidationError("Ya existe una cuenta con este correo.")
@@ -99,6 +107,8 @@ class ProfileForm(forms.ModelForm):
         Los juegos de la cabecera son los de su biblioteca (y el que ya tenga puesto), las reseñas que
         puede destacar son las suyas y las fotos que puede elegir son las de las cuentas que tiene
         vinculadas. Añade un campo por red social con lo que tenga guardado.
+
+        Pantallas: Editar perfil (y su vista previa).
         """
         super().__init__(*args, **kwargs)
         self.user = user
@@ -159,37 +169,58 @@ class ProfileForm(forms.ModelForm):
 
     @property
     def privacy_fields(self):
-        """Los campos de «Privacidad y avisos», que la plantilla pinta como interruptores."""
+        """Los campos de «Privacidad y avisos», que la plantilla pinta como interruptores.
+
+        Pantallas: Editar perfil (Privacidad y avisos).
+        """
         return [self[name] for name in self.PRIVACY]
 
     def _clean_image(self, name):
-        """Pasa la imagen nueva del campo name por accounts.images; sin imagen nueva deja lo que había (False = quitarla)."""
+        """Pasa la imagen nueva del campo name por accounts.images; sin imagen nueva deja lo que había (False = quitarla).
+
+        Pantallas: Editar perfil (Apariencia: foto, cabecera y fondo).
+        """
         value = self.cleaned_data.get(name)
         if isinstance(value, UploadedFile):
             return images.process(value, IMAGE_FIELDS[name])
         return value
 
     def clean_avatar(self):
-        """Foto de perfil nueva, recortada en cuadrado y en WebP."""
+        """Foto de perfil nueva, recortada en cuadrado y en WebP.
+
+        Pantallas: Editar perfil (Apariencia › Foto de perfil).
+        """
         return self._clean_image("avatar")
 
     def clean_banner(self):
-        """Imagen de cabecera nueva, recortada en apaisado (3:1) y en WebP."""
+        """Imagen de cabecera nueva, recortada en apaisado (3:1) y en WebP.
+
+        Pantallas: Editar perfil (Apariencia › Cabecera).
+        """
         return self._clean_image("banner")
 
     def clean_background(self):
-        """Imagen de fondo nueva, reducida a 1920 × 1200 como mucho y en WebP."""
+        """Imagen de fondo nueva, reducida a 1920 × 1200 como mucho y en WebP.
+
+        Pantallas: Editar perfil (Apariencia › Fondo de la página).
+        """
         return self._clean_image("background")
 
     def clean_accent_color(self):
-        """Color en minúsculas; vacío si es el violeta por defecto. Rechaza lo que no sea #rrggbb."""
+        """Color en minúsculas; vacío si es el violeta por defecto. Rechaza lo que no sea #rrggbb.
+
+        Pantallas: Editar perfil (Apariencia › Color del perfil).
+        """
         value = (self.cleaned_data.get("accent_color") or "").strip().lower()
         if value and not HEX_COLOR.match(value):
             raise forms.ValidationError("Elige un color de la paleta o escribe uno como #9d5cff.")
         return "" if value == DEFAULT_ACCENT else value
 
     def clean_banner_art(self):
-        """ID de la imagen de IGDB elegida para la cabecera; solo minúsculas y números, como los de IGDB."""
+        """ID de la imagen de IGDB elegida para la cabecera; solo minúsculas y números, como los de IGDB.
+
+        Pantallas: Editar perfil (Apariencia › Cabecera con una imagen de un juego).
+        """
         value = (self.cleaned_data.get("banner_art") or "").strip()
         if value and not IGDB_IMAGE_ID.match(value):
             raise forms.ValidationError("La imagen del juego no es válida.")
@@ -199,6 +230,8 @@ class ProfileForm(forms.ModelForm):
         """Comprueba las redes sociales y que la cabecera y el fondo elegidos tengan su imagen o su juego.
 
         Deja en cleaned_data["links"] el diccionario que se guardará en Profile.links.
+
+        Pantallas: Editar perfil (Redes sociales y Apariencia).
         """
         data = super().clean()
         links = {}
@@ -236,6 +269,9 @@ class ProfileForm(forms.ModelForm):
 
         Con commit también borra del disco las imágenes sustituidas o quitadas y guarda el orden de los
         favoritos (quitando los marcados).
+
+        Pantallas: Editar perfil (botón «Guardar»), Perfil (todo lo que se personaliza), todas (tu nombre y tu foto en
+        la barra de arriba).
         """
         profile = super().save(commit=False)
         self._apply_extras(profile)
@@ -252,6 +288,8 @@ class ProfileForm(forms.ModelForm):
         nuevas no llegan, porque no se suben hasta guardar; en su lugar vienen en local_avatar,
         local_banner y local_background las direcciones blob: con las que el navegador ya las enseña.
         Devuelve (perfil sin guardar, favoritos en su nuevo orden).
+
+        Pantallas: Editar perfil (vista previa).
         """
         self.is_valid()
         profile = self.instance
@@ -265,6 +303,9 @@ class ProfileForm(forms.ModelForm):
         """Pone en profile lo que no se guarda campo a campo: las redes (en links) y el orden y la visibilidad de las secciones.
 
         Si las secciones enviadas no son válidas, se dejan como estaban.
+
+        Pantallas: Editar perfil (redes y secciones del escaparate, también en la vista previa), Perfil (redes y
+        escaparate).
         """
         profile.links = self.cleaned_data.get("links", {})
         sections, visible = self.cleaned_data.get("secciones"), self.cleaned_data.get("secciones_visibles")
@@ -272,14 +313,21 @@ class ProfileForm(forms.ModelForm):
             profile.sections = [[key, key in visible] for key in dict.fromkeys(sections)]
 
     def _delete_replaced_images(self, profile):
-        """Borra del disco las imágenes que tenía el perfil y ya no usa (sustituidas por otra o quitadas)."""
+        """Borra del disco las imágenes que tenía el perfil y ya no usa (sustituidas por otra o quitadas).
+
+        Pantallas: Editar perfil (al cambiar o quitar la foto, la cabecera o el fondo).
+        """
         for name, old in self._old_images.items():
             image = getattr(profile, name)
             if old and image.name != old:
                 image.storage.delete(old)
 
     def _save_favorites(self):
-        """Quita los favoritos marcados y guarda el orden en que llegaron los demás (los que no llegaron, al final)."""
+        """Quita los favoritos marcados y guarda el orden en que llegaron los demás (los que no llegaron, al final).
+
+        Pantallas: Editar perfil (Escaparate › Juegos favoritos), Perfil (favoritos del escaparate), Ficha del juego
+        (botón de favoritos).
+        """
         if "favoritos" not in self.data and "quitar_favoritos" not in self.data:
             return
         removed, kept = self._favorite_changes()
@@ -292,6 +340,8 @@ class ProfileForm(forms.ModelForm):
         """(ids de los juegos que se quitan, favoritos que quedan) según el envío, sin guardar nada.
 
         Los que quedan van en el orden en que llegaron en favoritos y los que no llegaron, al final.
+
+        Pantallas: Editar perfil (Juegos favoritos y su vista previa).
         """
         removed = set(self.cleaned_data.get("quitar_favoritos", []))
         kept = [favorite for favorite in self.favorites if favorite.game_id not in removed]
@@ -306,7 +356,10 @@ class PlatformAccountForm(forms.Form):
     handle = forms.CharField(label="Nombre o código", max_length=40)
 
     def clean(self):
-        """Normaliza el nombre o código y comprueba que tiene el formato de la plataforma elegida."""
+        """Normaliza el nombre o código y comprueba que tiene el formato de la plataforma elegida.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › Otras plataformas), Perfil (modal «Vincular cuentas»).
+        """
         data = super().clean()
         platform, handle = data.get("platform"), data.get("handle")
         if platform and handle is not None:

@@ -1,3 +1,7 @@
+"""Señales de lo social: al borrar una reseña quitan la actividad que solo era esa reseña, y al borrar una publicación
+borran del disco sus imágenes.
+"""
+
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
 
@@ -8,7 +12,10 @@ from .models import Activity, PostImage
 
 @receiver(post_delete, sender=Review)
 def forget_empty_activity(sender, instance, **kwargs):
-    """Al borrar una reseña, borra la actividad que solo era esa reseña; la que tenía también estado o nota se queda sin ella."""
+    """Al borrar una reseña, borra la actividad que solo era esa reseña; la que tenía también estado o nota se queda sin ella.
+
+    Pantallas: Inicio (feed: al borrar una reseña), Perfil (pestaña Actividad), Escribir reseña (botón «Borrar»).
+    """
     Activity.objects.filter(
         user_id=instance.user_id, kind=Activity.Kind.GAME, game_id=instance.game_id,
         review__isnull=True, status="", rating__isnull=True,
@@ -17,5 +24,8 @@ def forget_empty_activity(sender, instance, **kwargs):
 
 @receiver(post_delete, sender=PostImage)
 def delete_post_image_files(sender, instance, **kwargs):
-    """Borra del disco la imagen subida y su miniatura al borrar la publicación o la cuenta de su autor."""
+    """Borra del disco la imagen subida y su miniatura al borrar la publicación o la cuenta de su autor.
+
+    Pantallas: Página de la publicación (al borrarla), Panel de administración.
+    """
     instance.delete_files()

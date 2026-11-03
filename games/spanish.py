@@ -54,7 +54,11 @@ class StoreError(Exception):
 
 
 def igdb_languages(data):
-    """Idiomas de un juego de IGDB: {código: ["audio", "text"]}, con «text» si tiene interfaz o subtítulos."""
+    """Idiomas de un juego de IGDB: {código: ["audio", "text"]}, con «text» si tiene interfaz o subtítulos.
+
+    Pantallas: Ficha del juego (nombre en España, sinopsis en español e idiomas), Catálogo (búsqueda por nombre en
+    España y filtro de idioma), Perfil (filtro de idioma de la biblioteca), Lista de deseos (filtro de idioma).
+    """
     languages = {}
     for item in data.get("language_supports") or []:
         code = (item.get("language") or {}).get("locale") or ""
@@ -73,6 +77,11 @@ def spanish_names(data):
     El nombre en España es el primer nombre alternativo que IGDB marca como «Spanish title». Para el
     buscador se juntan, en minúsculas y sin repetir, los demás nombres alternativos (siglas, títulos de
     otros países...) y los de las versiones regionales, salvo los de los ejecutables.
+
+    Pantallas: Ficha del juego (nombre en España, sinopsis en español e idiomas), Catálogo (búsqueda por nombre en
+    España y filtro de idioma), Perfil (filtro de idioma de la biblioteca; modal «Vincular cuentas» de su dueño),
+    Lista de deseos (filtro de idioma), Editar perfil (Cuentas vinculadas: nombres con los que se emparejan los juegos
+    importados).
     """
     alternatives = data.get("alternative_names") or []
     name_es = next(
@@ -89,7 +98,12 @@ def spanish_names(data):
 
 
 def europe_cover(data):
-    """ID de imagen de la portada europea de un juego de IGDB (versión regional de Europa), o vacío si no tiene."""
+    """ID de imagen de la portada europea de un juego de IGDB (versión regional de Europa), o vacío si no tiene.
+
+    Pantallas: Inicio (la portada europea), Catálogo, Ficha del juego, Listas del juego, Perfil, Lista de deseos,
+    Escribir reseña, Página de la reseña, Página de la publicación, Página de la lista, Editar lista, Nueva tier list,
+    Página del reto, Avisos, Juegos importados, Editar perfil (las portadas de los juegos).
+    """
     for local in data.get("game_localizations") or []:
         if local.get("region") == EUROPE_REGION and (local.get("cover") or {}).get("image_id"):
             return local["cover"]["image_id"]
@@ -97,7 +111,14 @@ def europe_cover(data):
 
 
 def apply_igdb(game, data):
-    """Copia en game (sin guardarlo) los idiomas, el nombre en España, los otros nombres y la portada europea de IGDB."""
+    """Copia en game (sin guardarlo) los idiomas, el nombre en España, los otros nombres y la portada europea de IGDB.
+
+    Pantallas: Ficha del juego (nombre en España, sinopsis en español e idiomas), Catálogo (búsqueda por nombre en
+    España y filtro de idioma), Perfil (filtro de idioma de la biblioteca), Lista de deseos (filtro de idioma), Inicio
+    (la portada europea), Listas del juego, Escribir reseña, Página de la reseña, Página de la publicación,
+    Página de la lista, Editar lista, Nueva tier list, Página del reto, Avisos, Juegos importados, Editar perfil (las
+    portadas de los juegos).
+    """
     game.languages = {**(game.languages or {}), "igdb": igdb_languages(data)}
     game.name_es, game.search_names = spanish_names(data)
     game.cover_eu_image_id = europe_cover(data)
@@ -109,6 +130,9 @@ def steam_languages(text):
 
     Steam marca con un asterisco los idiomas con voces; lo que va después del primer <br> es la nota
     que explica el asterisco. Los idiomas que no están en STEAM_LANGUAGES se ignoran.
+
+    Pantallas: Ficha del juego (idiomas de Steam), Catálogo (filtro de idioma), Perfil (filtro de idioma),
+    Lista de deseos (filtro de idioma).
     """
     languages = {}
     for token in re.split(r"<br\s*/?>", text or "", maxsplit=1)[0].split(","):
@@ -120,7 +144,10 @@ def steam_languages(text):
 
 
 def clean_text(value):
-    """Texto plano a partir del HTML de una tienda: sin etiquetas, con las entidades traducidas y sin espacios de más."""
+    """Texto plano a partir del HTML de una tienda: sin etiquetas, con las entidades traducidas y sin espacios de más.
+
+    Pantallas: Ficha del juego (sinopsis en español).
+    """
     value = re.sub(r"<br\s*/?>", "\n", value or "", flags=re.IGNORECASE)
     value = html.unescape(re.sub(r"<[^>]+>", "", value))
     return "\n".join(" ".join(line.split()) for line in value.splitlines() if line.strip())
@@ -131,6 +158,8 @@ def steam_details(app_id, sleep=time.sleep):
 
     Los cortes de conexión y los errores de Steam (también el 429 por pedir demasiado) se reintentan
     tras esperar RETRY_WAITS; si sigue fallando, lanza StoreError.
+
+    Pantallas: Ficha del juego (sinopsis en español e idiomas de Steam).
     """
     for attempt, wait in enumerate((0, *RETRY_WAITS)):
         if wait:
@@ -164,6 +193,9 @@ def localize_games(games, pause=STEAM_PAUSE, sleep=time.sleep):
     vuelve a lanzar el error.
 
     Devuelve {"steam": con sinopsis de Steam, "xbox": con sinopsis de Microsoft, "none": sin sinopsis}.
+
+    Pantallas: Ficha del juego (nombre en España, sinopsis en español e idiomas), Catálogo (búsqueda por nombre en
+    España y filtro de idioma), Perfil (filtro de idioma de la biblioteca), Lista de deseos (filtro de idioma).
     """
     found = {"steam": 0, "xbox": 0, "none": 0}
     pending, asked_steam, error = [], False, None

@@ -148,7 +148,9 @@
         "Primer uso: traer tus juegos nada más crear la cuenta",
         "Avisar al salir de Editar perfil con cambios sin guardar",
         "Páginas de error propias: no encontrada, fallo del servidor y formulario caducado",
-        "Rediseño de toda la web con aspecto de red social"
+        "Rediseño de toda la web con aspecto de red social",
+        "Que las pantallas de cada función se comprueben solas",
+        "Partir las vistas más grandes por pantalla"
       ]
     },
     {

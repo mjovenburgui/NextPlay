@@ -39,6 +39,7 @@
 </form>
 <script>
   // Cambia la etiqueta y la ayuda del campo según la plataforma elegida.
+  // Pantallas: Editar perfil (Cuentas vinculadas › Otras plataformas), Perfil (modal «Vincular cuentas»).
   document.getElementById("platform").addEventListener("change", function () {
     var option = this.options[this.selectedIndex];
     document.getElementById("handle-label").textContent = option.dataset.label;

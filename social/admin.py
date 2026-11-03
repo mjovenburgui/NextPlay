@@ -1,3 +1,7 @@
+"""Panel de administración de lo social: quién sigue a quién, las publicaciones (con sus imágenes, comentarios y
+denuncias pendientes), sus comentarios y la actividad de cada jugador.
+"""
+
 from django.contrib import admin
 from django.db.models import Count, Q
 
@@ -39,14 +43,20 @@ class PostAdmin(admin.ModelAdmin):
     inlines = [PostImageInline, PostCommentInline, ReportInline]
 
     def get_queryset(self, request):
-        """Las publicaciones con sus denuncias pendientes contadas."""
+        """Las publicaciones con sus denuncias pendientes contadas.
+
+        Pantallas: Panel de administración (publicaciones con sus denuncias pendientes).
+        """
         return super().get_queryset(request).annotate(
             pending=Count("reports", filter=Q(reports__resolved_at__isnull=True))
         )
 
     @admin.display(description="denuncias pendientes", ordering="pending")
     def pending_reports(self, post):
-        """Cuántas denuncias de la publicación quedan por revisar."""
+        """Cuántas denuncias de la publicación quedan por revisar.
+
+        Pantallas: Panel de administración (columna de denuncias pendientes de las publicaciones).
+        """
         return post.pending
 
 

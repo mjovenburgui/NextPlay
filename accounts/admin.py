@@ -1,3 +1,7 @@
+"""Panel de administración de las cuentas: usuarios, perfiles, favoritos, cuentas vinculadas (Steam, PlayStation, Xbox y
+otras plataformas), títulos importados (donde se corrige a mano el juego de cada uno), logros y avisos.
+"""
+
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
@@ -69,12 +73,19 @@ class ExternalTitleAdmin(admin.ModelAdmin):
 
     @admin.display(description="usuarios")
     def owners(self, obj):
-        """Cuántos usuarios tienen este título importado."""
+        """Cuántos usuarios tienen este título importado.
+
+        Pantallas: Panel de administración (columna «usuarios» de los títulos importados).
+        """
         return obj.imports.count()
 
     def save_model(self, request, obj, form, change):
         """Si cambia el juego, lo marca como corregido por el administrador y recoloca ya las horas de
-        todos los usuarios que tienen el título (las de un usuario normal esperan a su próxima importación)."""
+        todos los usuarios que tienen el título (las de un usuario normal esperan a su próxima importación).
+
+        Pantallas: Panel de administración (al corregir el juego de un título importado), Juegos importados, Perfil
+        (biblioteca y horas), Ficha del juego (tus horas).
+        """
         if "game" in form.changed_data:
             obj.source = ExternalTitle.Source.ADMIN
             obj.assigned_by = request.user
@@ -85,12 +96,18 @@ class ExternalTitleAdmin(admin.ModelAdmin):
 
     @admin.action(description="Bloquear: los usuarios ya no podrán cambiarlos")
     def lock(self, request, queryset):
-        """Bloquea los títulos elegidos."""
+        """Bloquea los títulos elegidos.
+
+        Pantallas: Panel de administración (acción «bloquear» de los títulos importados).
+        """
         queryset.update(locked=True)
 
     @admin.action(description="Desbloquear")
     def unlock(self, request, queryset):
-        """Desbloquea los títulos elegidos."""
+        """Desbloquea los títulos elegidos.
+
+        Pantallas: Panel de administración (acción «desbloquear» de los títulos importados).
+        """
         queryset.update(locked=False)
 
 

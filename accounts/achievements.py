@@ -31,6 +31,9 @@ def progress_by_game(user, game_ids):
     PlayStation («platinum»). Con varias cuentas o versiones del juego en una plataforma (la de PS4 y la de PS5),
     cuenta la que más lleva. «detailed» dice si se conocen también uno a uno (detail), y «imported_id» y «title_id»
     son su título importado y el de la plataforma.
+
+    Pantallas: Perfil (insignias de las portadas y cifras de logros), Ficha del juego (tus logros), Nueva tier list
+    (plantilla de juegos con todos los logros).
     """
     best = {}
     rows = ImportedTitle.objects.filter(
@@ -62,7 +65,10 @@ def progress_by_game(user, game_ids):
 
 def badge(progress):
     """Insignia de la portada de un juego según su progreso (un valor de progress_by_game): «Platino» si tiene el de
-    PlayStation, «100 %» si tiene todos los logros en alguna plataforma y, si no, vacía."""
+    PlayStation, «100 %» si tiene todos los logros en alguna plataforma y, si no, vacía.
+
+    Pantallas: Perfil (insignia «Platino» o «100 %» de las portadas de la biblioteca).
+    """
     if any(item["platinum"] for item in progress):
         return "Platino"
     if any(item["complete"] for item in progress):
@@ -72,7 +78,10 @@ def badge(progress):
 
 def totals(progress):
     """Cifras del perfil a partir de progress_by_game: cuántos platinos tiene («platinums») y en cuántos juegos tiene
-    todos los logros de alguna plataforma («complete»)."""
+    todos los logros de alguna plataforma («complete»).
+
+    Pantallas: Perfil (platinos y juegos al 100 % de las cifras del perfil).
+    """
     games = list(progress.values())
     return {
         "platinums": sum(1 for items in games if any(item["platinum"] for item in items)),
@@ -87,6 +96,9 @@ def save_info(title, items, percentages, at):
     items son sus logros en orden, cada uno con «api_name», «name», «description», «icon», «icon_locked» y «hidden»;
     percentages, el porcentaje de los jugadores que tiene cada uno ({clave: porcentaje}), o None si no se ha podido
     leer: entonces se queda el que había. Los logros que ya no da la plataforma no se borran: alguien puede tenerlos.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; insignias de las
+    portadas, cifras y sección «Logros»), Ficha del juego (tus logros).
     """
     rows = [
         Achievement(
@@ -111,6 +123,9 @@ def save_unlocked(found):
 
     Los que no salían en los logros del juego (save_info) se añaden con su clave por nombre, para no perderlos; de los
     que ya estaban apuntados se borran los que ya no tiene y se corrige la fecha si ha cambiado.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; insignias de las
+    portadas, cifras y sección «Logros»), Ficha del juego (tus logros).
     """
     if not found:
         return
@@ -163,7 +178,10 @@ def save_unlocked(found):
 
 
 def _by_rarity(achievement):
-    """Clave para ordenar del logro más raro al más común; los que no se sabe, al final."""
+    """Clave para ordenar del logro más raro al más común; los que no se sabe, al final.
+
+    Pantallas: Ficha del juego (tus logros, del más raro al más común).
+    """
     return achievement.percent is None, achievement.percent or 0
 
 
@@ -177,6 +195,8 @@ def detail(user, game, order=""):
     órdenes (ORDERS) con el elegido («order»). Con order «raros» los dos grupos van del más raro al más común y con
     «juego», en el orden del juego; si no, los que tiene del más reciente al más antiguo (los que no tienen fecha, al
     final) y los que le faltan del más común al más raro, que suelen ser los más fáciles.
+
+    Pantallas: Ficha del juego («Tus logros», uno a uno).
     """
     item = next((item for item in progress_by_game(user, [game.pk]).get(game.pk, []) if item["detailed"]), None)
     if item is None:
@@ -218,7 +238,10 @@ def detail(user, game, order=""):
 def showcase(user):
     """Sección «Logros» del perfil de user: sus últimos logros conseguidos («latest», SHOWCASE_SHOWN, del más reciente al
     más antiguo y con su juego en achievement.title.game), el más raro («rarest») y cuántos tiene guardados uno a uno
-    («count»); None si no tiene ninguno."""
+    («count»); None si no tiene ninguno.
+
+    Pantallas: Perfil (sección «Logros» del escaparate).
+    """
     unlocks = UnlockedAchievement.objects.filter(imported__user=user).select_related("achievement__title__game")
     count = unlocks.count()
     if not count:

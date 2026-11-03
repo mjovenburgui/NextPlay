@@ -1,3 +1,9 @@
+"""Modelos de la biblioteca: cada juego de la biblioteca de un usuario (estado, nota y horas de cada plataforma), sus
+sesiones de juego (para los retos de horas), las reseñas con sus «me gusta», comentarios e imágenes, las denuncias y
+la lista de deseos. Se ven en la Ficha del juego, el Perfil, la Página de la reseña, la Lista de deseos y, con sus
+portadas y estados, en casi todas las pantallas que enseñan juegos.
+"""
+
 from datetime import timedelta
 from decimal import Decimal
 
@@ -78,7 +84,10 @@ class LibraryEntry(models.Model):
         verbose_name_plural = "library entries"
 
     def __str__(self):
-        """Texto de la entrada en el admin: «usuario · juego · estado»."""
+        """Texto de la entrada en el admin: «usuario · juego · estado».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.user} · {self.game} · {self.get_status_display()}"
 
     @classmethod
@@ -87,6 +96,10 @@ class LibraryEntry(models.Model):
 
         Sin minutos ni partida: «Pendiente». Jugado en los últimos IMPORT_RECENT_DAYS días: «Jugando».
         Si no: «Jugado».
+
+        Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y
+        horas: el estado con el que llega cada juego importado), Ficha del juego (tus horas), Juegos importados (los
+        que no se encuentran), Inicio (feed: la importación), Retos (progreso), Página del reto (progreso).
         """
         if not minutes and not last_played:
             return cls.Status.BACKLOG
@@ -99,6 +112,10 @@ class LibraryEntry(models.Model):
 
         Conserva el estado que puso el usuario, salvo «Pendiente» cuando ya hay horas jugadas: entonces
         lo cambia a «Jugando» o «Jugado». Devuelve True si ha cambiado algo.
+
+        Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y
+        horas), Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la
+        importación), Retos (progreso), Página del reto (progreso).
         """
         fields = []
         if getattr(self, f"{platform}_playtime_minutes") != minutes:
@@ -116,7 +133,11 @@ class LibraryEntry(models.Model):
 
     @property
     def playtime_minutes(self):
-        """Minutos jugados sumando Steam, PlayStation y Xbox, o None si no viene de ninguna."""
+        """Minutos jugados sumando Steam, PlayStation y Xbox, o None si no viene de ninguna.
+
+        Pantallas: Perfil (horas de la biblioteca), Ficha del juego (tus horas), Escribir reseña (horas de la
+        partida), Catálogo, Inicio, Página de la lista, Página del reto (horas en las portadas).
+        """
         values = [self.steam_playtime_minutes, self.psn_playtime_minutes, self.xbox_playtime_minutes]
         if all(value is None for value in values):
             return None
@@ -124,7 +145,11 @@ class LibraryEntry(models.Model):
 
     @property
     def playtime_hours(self):
-        """Horas jugadas (Steam + PlayStation + Xbox) redondeadas a una décima, o None si no hay datos."""
+        """Horas jugadas (Steam + PlayStation + Xbox) redondeadas a una décima, o None si no hay datos.
+
+        Pantallas: Perfil (horas de la biblioteca), Ficha del juego (tus horas), Escribir reseña (horas de la
+        partida), Catálogo, Inicio, Página de la lista, Página del reto (horas en las portadas).
+        """
         minutes = self.playtime_minutes
         return None if minutes is None else round(minutes / 60, 1)
 
@@ -132,7 +157,11 @@ class LibraryEntry(models.Model):
     def hours_by_platform(self):
         """Horas de cada plataforma de la que vienen, de la que tiene más a la que menos: [{"key", "name", "hours",
         "last_played"}]. key es la clave de HOURS_SOURCES («steam», «psn» o «xbox»), que da su logo
-        (library/_platform_mark.html). Solo salen las que llegan a una décima de hora: abrir un juego no es jugarlo."""
+        (library/_platform_mark.html). Solo salen las que llegan a una décima de hora: abrir un juego no es jugarlo.
+
+        Pantallas: Perfil (horas de cada plataforma), Ficha del juego (tus horas en cada plataforma), Catálogo,
+        Inicio, Página de la lista, Página del reto (horas en las portadas).
+        """
         found = []
         for key, name in HOURS_SOURCES.items():
             hours = round((getattr(self, f"{key}_playtime_minutes") or 0) / 60, 1)
@@ -142,18 +171,28 @@ class LibraryEntry(models.Model):
 
     @property
     def playtime_sources(self):
-        """Plataformas de las que vienen las horas jugadas, como claves de HOURS_SOURCES: p. ej. ["steam", "psn"]."""
+        """Plataformas de las que vienen las horas jugadas, como claves de HOURS_SOURCES: p. ej. ["steam", "psn"].
+
+        Pantallas: Escribir reseña (de dónde salen las horas al publicarla), Página de la reseña (sello de horas
+        verificadas).
+        """
         return [key for key in HOURS_SOURCES if getattr(self, f"{key}_playtime_minutes") is not None]
 
     @cached_property
     def achievements(self):
         """Cómo va con los logros de este juego en cada plataforma de la que se han importado (lo que da
-        accounts.achievements.progress_by_game), o una lista vacía si no se conocen."""
+        accounts.achievements.progress_by_game), o una lista vacía si no se conocen.
+
+        Pantallas: Ficha del juego (tus logros en cada plataforma).
+        """
         return progress_by_game(self.user_id, [self.game_id]).get(self.game_id, [])
 
     @property
     def stars(self):
-        """Nota en estrellas (de 0,5 a 5), o None sin nota."""
+        """Nota en estrellas (de 0,5 a 5), o None sin nota.
+
+        Pantallas: Perfil (nota media de las cifras de la cabecera).
+        """
         return self.rating / 2 if self.rating else None
 
 
@@ -189,12 +228,20 @@ class PlaySession(models.Model):
         verbose_name_plural = "sesiones de juego"
 
     def __str__(self):
-        """Texto en el admin: «usuario · juego · día · minutos»."""
+        """Texto en el admin: «usuario · juego · día · minutos».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.user} · {self.game} · {self.day} · {self.minutes} min"
 
     @classmethod
     def add(cls, user, game_id, platform, day, minutes):
-        """Suma minutes a lo que user ha jugado a game_id en platform el día day (la crea si es la primera de ese día)."""
+        """Suma minutes a lo que user ha jugado a game_id en platform el día day (la crea si es la primera de ese día).
+
+        Pantallas: Editar perfil (Cuentas vinculadas: al importar horas), Perfil (modal «Vincular cuentas» de su
+        dueño), Retos (progreso de los de horas), Página del reto (progreso), Nueva tier list (plantillas por horas
+        jugadas).
+        """
         if not cls.objects.filter(user=user, game_id=game_id, platform=platform, day=day).update(
             minutes=models.F("minutes") + minutes,
         ):
@@ -212,7 +259,11 @@ STATUS_NOTES = {
 
 class ReviewQuerySet(models.QuerySet):
     def published(self):
-        """Reseñas publicadas, sin los borradores."""
+        """Reseñas publicadas, sin los borradores.
+
+        Pantallas: Ficha del juego (reseñas: sin los borradores), Perfil (pestaña Reseñas y reseña destacada),
+        Página de la reseña, Inicio (feed).
+        """
         return self.filter(is_draft=False)
 
     def visible_to(self, viewer):
@@ -220,6 +271,9 @@ class ReviewQuerySet(models.QuerySet):
         (like_count) y comentarios (comment_count) contados y sus imágenes ya cargadas.
 
         Las de perfiles privados solo las ve su autor, igual que su biblioteca (Profile.visible_filter).
+
+        Pantallas: Ficha del juego (reseñas: solo las que puede leer quien mira), Perfil (pestaña Reseñas y reseña
+        destacada), Página de la reseña, Inicio (feed).
         """
         return (
             self.published()
@@ -281,37 +335,59 @@ class Review(models.Model):
         verbose_name_plural = "reseñas"
 
     def __str__(self):
-        """Texto en el admin: «usuario · juego»."""
+        """Texto en el admin: «usuario · juego».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.user} · {self.game}"
 
     def get_absolute_url(self):
-        """URL de la página de la reseña: /u/<usuario>/resenas/<id>/."""
+        """URL de la página de la reseña: /u/<usuario>/resenas/<id>/.
+
+        Pantallas: Ficha del juego (reseñas), Perfil (pestaña Reseñas y reseña destacada), Página de la reseña, Inicio
+        (feed), Avisos (los enlaces a cada reseña).
+        """
         return reverse("review_detail", args=[self.user.username, self.pk])
 
     @property
     def stars(self):
-        """Nota en estrellas (de 0,5 a 5), o None sin nota."""
+        """Nota en estrellas (de 0,5 a 5), o None sin nota.
+
+        Pantallas: ninguna (ahora no la usa nadie: las estrellas se pintan desde rating con library/_stars.html).
+        """
         return self.rating / 2 if self.rating else None
 
     @property
     def finished(self):
-        """Indica si el autor lo tenía como «Completado» al publicarla."""
+        """Indica si el autor lo tenía como «Completado» al publicarla.
+
+        Pantallas: Ficha del juego, Perfil, Página de la reseña, Página del reto (si lo terminó al publicarla).
+        """
         return self.status == LibraryEntry.Status.COMPLETED
 
     @property
     def status_note(self):
-        """Cómo iba el autor con el juego al publicarla, para la reseña: «Lo terminó», «Aún jugándolo»...; vacía si no se sabe."""
+        """Cómo iba el autor con el juego al publicarla, para la reseña: «Lo terminó», «Aún jugándolo»...; vacía si no se sabe.
+
+        Pantallas: Ficha del juego, Perfil, Página de la reseña (cómo iba el autor con el juego al publicarla).
+        """
         return STATUS_NOTES.get(self.status, "")
 
     @property
     def hours_source_names(self):
-        """Nombres de las plataformas de las que salen las horas: «Steam» o «Steam y PlayStation»."""
+        """Nombres de las plataformas de las que salen las horas: «Steam» o «Steam y PlayStation».
+
+        Pantallas: Ficha del juego, Perfil, Página de la reseña (de dónde salen las horas).
+        """
         names = [HOURS_SOURCES[key] for key in self.hours_sources.split(",") if key in HOURS_SOURCES]
         return " y ".join([", ".join(names[:-1]), names[-1]]) if len(names) > 1 else "".join(names)
 
     @property
     def hours_source_logos(self):
-        """Plataformas de las que salen las horas como [(nombre, plantilla de su logo)], para el sello de horas verificadas."""
+        """Plataformas de las que salen las horas como [(nombre, plantilla de su logo)], para el sello de horas verificadas.
+
+        Pantallas: Ficha del juego, Perfil, Página de la reseña (sello de horas verificadas).
+        """
         return [(HOURS_SOURCES[key], HOURS_LOGOS[key]) for key in self.hours_sources.split(",") if key in HOURS_SOURCES]
 
     def hours_since(self, entry):
@@ -320,6 +396,8 @@ class Review(models.Model):
         entry es su entrada de biblioteca del juego. Son bastantes si lleva al menos el doble que al escribirla
         y como mínimo UPDATE_MIN_EXTRA_HOURS más («Llevas 40 h más: ¿la actualizas?»). Los borradores y las
         reseñas escritas sin horas importadas no cuentan.
+
+        Pantallas: Página de la reseña (propuesta de actualizarla), Avisos (reseñas que se han quedado atrás).
         """
         if self.is_draft or self.hours is None or entry is None or entry.playtime_hours is None:
             return None
@@ -328,7 +406,11 @@ class Review(models.Model):
         return round(extra) if extra >= max(UPDATE_MIN_EXTRA_HOURS, written) else None
 
     def snapshot(self, entry):
-        """Apunta el estado y las horas que tiene ahora la entrada de biblioteca entry (o nada si no hay)."""
+        """Apunta el estado y las horas que tiene ahora la entrada de biblioteca entry (o nada si no hay).
+
+        Pantallas: Escribir reseña (al publicar se guardan el estado y las horas), Página de la reseña,
+        Ficha del juego, Perfil (datos de la partida).
+        """
         self.status = entry.status if entry else ""
         hours = entry.playtime_hours if entry else None
         self.hours = None if hours is None else Decimal(str(hours))
@@ -348,7 +430,10 @@ class ReviewLike(models.Model):
         verbose_name_plural = "me gusta"
 
     def __str__(self):
-        """Texto en el admin: «usuario → reseña»."""
+        """Texto en el admin: «usuario → reseña».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.user} → {self.review}"
 
 
@@ -368,20 +453,32 @@ class ReviewComment(models.Model):
         verbose_name_plural = "comentarios"
 
     def __str__(self):
-        """Texto en el admin: «usuario en reseña: comienzo del comentario»."""
+        """Texto en el admin: «usuario en reseña: comienzo del comentario».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.user} en {self.review}: {self.text[:40]}"
 
     def get_absolute_url(self):
-        """URL del comentario dentro de la página de su reseña."""
+        """URL del comentario dentro de la página de su reseña.
+
+        Pantallas: Avisos (enlace a un comentario de una reseña), Inicio (feed).
+        """
         return f"{self.review.get_absolute_url()}#comentario-{self.pk}"
 
     def can_delete(self, user):
-        """Indica si user puede borrar el comentario: es suyo o es el autor de la reseña."""
+        """Indica si user puede borrar el comentario: es suyo o es el autor de la reseña.
+
+        Pantallas: Página de la reseña (botón «Borrar» de los comentarios).
+        """
         return user.is_authenticated and user.pk in (self.user_id, self.review.user_id)
 
 
 def attached_image_upload_to(instance, filename):
-    """Ruta de una imagen adjunta: la carpeta la decide cada modelo (upload_folder) y el nombre aleatorio, accounts.images."""
+    """Ruta de una imagen adjunta: la carpeta la decide cada modelo (upload_folder) y el nombre aleatorio, accounts.images.
+
+    Pantallas: Escribir reseña, Publicar, Inicio (dónde se guardan las imágenes subidas a reseñas y publicaciones).
+    """
     return f"{instance.upload_folder()}/{filename}"
 
 
@@ -405,28 +502,47 @@ class AttachedImage(models.Model):
         ordering = ["position", "id"]
 
     def upload_folder(self):
-        """Carpeta de MEDIA_ROOT en la que se guardan las imágenes subidas; la pone cada modelo."""
+        """Carpeta de MEDIA_ROOT en la que se guardan las imágenes subidas; la pone cada modelo.
+
+        Pantallas: Escribir reseña, Publicar, Inicio (carpeta de las imágenes subidas).
+        """
         raise NotImplementedError
 
     @property
     def is_official(self):
-        """Indica si es una imagen oficial del juego (de IGDB) y no una subida por el usuario."""
+        """Indica si es una imagen oficial del juego (de IGDB) y no una subida por el usuario.
+
+        Pantallas: Escribir reseña, Página de la reseña, Ficha del juego, Perfil, Inicio, Página de la publicación
+        (imágenes de la ficha frente a las subidas).
+        """
         return bool(self.igdb_image_id)
 
     @property
     def url(self):
-        """URL de la imagen grande, para el visor a pantalla completa."""
+        """URL de la imagen grande, para el visor a pantalla completa.
+
+        Pantallas: Página de la reseña, Página de la publicación, Ficha del juego, Perfil, Inicio (el visor a pantalla
+        completa de las imágenes).
+        """
         return igdb_image_url(self.igdb_image_id, "t_1080p") if self.is_official else self.image.url
 
     @property
     def thumb_url(self):
-        """URL de la miniatura: la de IGDB o la reducida al subirla (la grande si no la hay)."""
+        """URL de la miniatura: la de IGDB o la reducida al subirla (la grande si no la hay).
+
+        Pantallas: Escribir reseña, Página de la reseña, Ficha del juego, Perfil, Inicio, Página de la publicación
+        (miniaturas de las imágenes).
+        """
         if self.is_official:
             return igdb_image_url(self.igdb_image_id, "t_screenshot_big")
         return (self.thumb or self.image).url
 
     def delete_files(self):
-        """Borra del disco la imagen subida y su miniatura (las oficiales no tienen archivo)."""
+        """Borra del disco la imagen subida y su miniatura (las oficiales no tienen archivo).
+
+        Pantallas: Escribir reseña, Página de la publicación (al quitar una imagen o borrar lo que la lleva),
+        Panel de administración.
+        """
         for file in (self.image, self.thumb):
             if file:
                 file.delete(save=False)
@@ -442,11 +558,17 @@ class ReviewImage(AttachedImage):
         verbose_name_plural = "imágenes de las reseñas"
 
     def __str__(self):
-        """Texto en el admin: «reseña · imagen n»."""
+        """Texto en el admin: «reseña · imagen n».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.review} · imagen {self.position + 1}"
 
     def upload_folder(self):
-        """Las imágenes de las reseñas van en resenas/<id del autor>."""
+        """Las imágenes de las reseñas van en resenas/<id del autor>.
+
+        Pantallas: Escribir reseña (carpeta de las imágenes de las reseñas).
+        """
         return f"resenas/{self.review.user_id}"
 
 
@@ -485,12 +607,18 @@ class Report(models.Model):
         verbose_name_plural = "denuncias"
 
     def __str__(self):
-        """Texto en el admin: «denunciante → lo denunciado: motivo»."""
+        """Texto en el admin: «denunciante → lo denunciado: motivo».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.reporter} → {self.target or '(borrado)'}: {self.get_reason_display()}"
 
     @property
     def target_kind(self):
-        """Qué se ha denunciado, en palabras: «reseña» o «comentario» (el nombre del modelo de lo denunciado)."""
+        """Qué se ha denunciado, en palabras: «reseña» o «comentario» (el nombre del modelo de lo denunciado).
+
+        Pantallas: Panel de administración (columna de qué se ha denunciado).
+        """
         return self.content_type.name
 
 
@@ -525,10 +653,16 @@ class WishlistItem(models.Model):
         verbose_name_plural = "listas de deseos"
 
     def __str__(self):
-        """Texto en el admin: «usuario · juego»."""
+        """Texto en el admin: «usuario · juego».
+
+        Pantallas: Panel de administración.
+        """
         return f"{self.user} · {self.game}"
 
     @property
     def on_steam(self):
-        """Indica si el juego está también en la lista de deseos de Steam del usuario (según la última importación)."""
+        """Indica si el juego está también en la lista de deseos de Steam del usuario (según la última importación).
+
+        Pantallas: Lista de deseos (sello de la lista de Steam).
+        """
         return self.steam_added_at is not None

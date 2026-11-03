@@ -1,3 +1,7 @@
+"""Comando «manage.py seed_demo»: crea 12 juegos de prueba con sus géneros y plataformas para usar la web sin
+credenciales de IGDB. Solo para desarrollo.
+"""
+
 from datetime import date
 
 from django.core.management.base import BaseCommand
@@ -35,7 +39,11 @@ class Command(BaseCommand):
     help = "Crea un catálogo mínimo de demostración para probar la app sin credenciales de IGDB."
 
     def handle(self, *args, **options):
-        """Crea los 12 juegos de GAMES con sus géneros y plataformas; se salta los que ya existen."""
+        """Crea los 12 juegos de GAMES con sus géneros y plataformas; se salta los que ya existen.
+
+        Pantallas: Catálogo (los 12 juegos de prueba), Ficha del juego, Inicio, Perfil, Lista de deseos,
+        Página de la lista, Página del reto (los datos de cada juego: nombre, portada, géneros y plataformas).
+        """
         created = 0
         for position, (name, released, genre_names, platform_keys) in enumerate(GAMES):
             game, was_created = Game.objects.get_or_create(

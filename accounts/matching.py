@@ -47,27 +47,47 @@ PLATFORM_SUFFIX = re.compile(
 
 
 def clean_name(name):
-    """Nombre de un juego sin ™ ® © ni coletillas de plataforma, para buscarlo en el catálogo."""
+    """Nombre de un juego sin ™ ® © ni coletillas de plataforma, para buscarlo en el catálogo.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
+    """
     name = re.sub(r"[™®©]", "", name or "")
     name = PLATFORM_SUFFIX.sub("", name)
     return " ".join(name.split())
 
 
 def normalize(name):
-    """Nombre para comparar: sin ™ ® ©, en minúsculas y con los espacios simplificados."""
+    """Nombre para comparar: sin ™ ® ©, en minúsculas y con los espacios simplificados.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
+    """
     return igdb._normalize(name)
 
 
 def name_key(name):
     """Nombre para comparar sin fijarse en cómo está escrito: sin ™ ® ©, signos, espacios, tildes ni mayúsculas, para que
-    «WATCH_DOGS 2» y «Watch Dogs 2», «Tom Clancy’s» y «Tom Clancy's» o «Ghostrunner2» y «Ghostrunner 2» sean el mismo."""
+    «WATCH_DOGS 2» y «Watch Dogs 2», «Tom Clancy’s» y «Tom Clancy's» o «Ghostrunner2» y «Ghostrunner 2» sean el mismo.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
+    """
     # Fuera ™ ® © antes de separar las tildes, que NFKD convierte ™ en «TM».
     name = unicodedata.normalize("NFKD", re.sub(r"[™®©]", "", name or ""))
     return re.sub(r"[\W_]+", "", "".join(char for char in name if not unicodedata.combining(char)).casefold())
 
 
 def _name_keys(name, name_es, search_names):
-    """Claves (name_key) de todos los nombres de un juego: el suyo, el de España y los otros que guarda para el buscador."""
+    """Claves (name_key) de todos los nombres de un juego: el suyo, el de España y los otros que guarda para el buscador.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
+    """
     return {name_key(other) for other in (name, name_es, *search_names.split(" | "))} - {""}
 
 
@@ -76,6 +96,10 @@ def _catalog_games(keys):
 
     La comparación no cabe en una consulta, así que recorre los nombres de todo el catálogo. Solo se hace cuando hay
     títulos que buscar, no en cada visita: si un día el catálogo tiene cientos de miles de juegos, habrá que guardar las claves.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
     """
     rows = Game.objects.values_list("pk", "name", "name_es", "search_names").iterator()
     ids = [pk for pk, *names in rows if keys & _name_keys(*names)]
@@ -83,7 +107,12 @@ def _catalog_games(keys):
 
 
 def _title_parts(name):
-    """Lo que se busca de un título: (clave de su nombre, clave sin el año o la región del final, nombre sin ellos, año o None)."""
+    """Lo que se busca de un título: (clave de su nombre, clave sin el año o la región del final, nombre sin ellos, año o None).
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
+    """
     stem = YEAR_OR_REGION.sub("", name)
     suffix = YEAR_OR_REGION.search(name)
     return name_key(name), name_key(stem), stem, int(suffix[1]) if suffix and suffix[1].isdigit() else None
@@ -96,6 +125,10 @@ def add_title(titles, external_id, name, minutes=0, last_played=None, platforms=
     suma los minutos (y los jugados en una Steam Deck), se queda con la última partida más reciente y con
     la primera más antigua, y junta las plataformas, que son nombres de plataforma de IGDB («PlayStation 5»,
     «Xbox One»...): sirven para desempatar al buscar por nombre y para rellenar la plataforma de las reseñas.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
     """
     title = titles.setdefault(
         str(external_id),
@@ -111,7 +144,12 @@ def add_title(titles, external_id, name, minutes=0, last_played=None, platforms=
 
 
 def _platform_names(game):
-    """Nombres de las plataformas del juego (de IGDB), aprovechando el prefetch si lo hay."""
+    """Nombres de las plataformas del juego (de IGDB), aprovechando el prefetch si lo hay.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
+    """
     return {platform.name for platform in game.platforms.all()}
 
 
@@ -119,18 +157,32 @@ def _fits(game, platforms):
     """Indica si el juego puede ser uno jugado en esas plataformas.
 
     Sin plataformas conocidas (del título o del juego) cualquiera vale.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
     """
     return _share_platform(_platform_names(game), platforms)
 
 
 def _share_platform(names, platforms):
-    """Indica si un juego que sale en las plataformas names puede ser uno jugado en platforms (ver _fits)."""
+    """Indica si un juego que sale en las plataformas names puede ser uno jugado en platforms (ver _fits).
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
+    """
     return not platforms or not names or bool(set(names) & set(platforms))
 
 
 def _seen_games(keys):
     """Juegos de los títulos ya emparejados, de cualquier plataforma, que se llaman como alguna de las claves keys, como
-    {clave: [Game]}: Steam los empareja por su ID de app y los demás pueden estar corregidos a mano, así que son una pista fiable."""
+    {clave: [Game]}: Steam los empareja por su ID de app y los demás pueden estar corregidos a mano, así que son una pista fiable.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
+    """
     ids = defaultdict(set)
     for name, game_id in ExternalTitle.objects.filter(game__isnull=False).values_list("name", "game_id").iterator():
         key = name_key(clean_name(name))
@@ -146,7 +198,12 @@ def _seen_games(keys):
 def _score(game, group, platforms, year):
     """Lo bueno que es game para un título, para quedarse con el mayor: primero que sea del año que dice el título, después
     que salga en sus plataformas, después cómo se ha encontrado (group: cuanto más alto, más se parece el nombre), después
-    el año más cercano y, por último, el más popular."""
+    el año más cercano y, por último, el más popular.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
+    """
     released = game.release_year
     return (
         year is not None and released == year,
@@ -168,6 +225,10 @@ def match_by_name(titles):
     plataformas y, para los que sigan sin ningún candidato, hace hasta MAX_SEARCHES búsquedas sueltas quedándose solo con
     los resultados que tienen ese nombre entre los suyos y salen en sus plataformas. Los lanzadores (LAUNCHERS) no se
     buscan. Si varios juegos encajan (remakes como God of War o Resident Evil 4), decide _score.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
     """
     wanted = {
         key: _title_parts(name) for key, (name, _) in titles.items()
@@ -236,6 +297,10 @@ def save_titles(user, platform, titles, auto_match):
     titles es el dict que llena add_title. Los títulos que ya tienen juego, o que alguien dejó sin
     juego a mano, se respetan; los demás se buscan con auto_match(ids), que devuelve {ID: Game}. Los
     minutos, las partidas y las plataformas del usuario se sobrescriben con los de esta importación.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso).
     """
     ids = list(titles)
     known = {t.external_id: t for t in ExternalTitle.objects.filter(platform=platform, external_id__in=ids)}
@@ -297,6 +362,10 @@ def update_library(user, platform, opened_only=False, record_activity=False):
     (social.activity.games_imported) y lo que ha subido el tiempo de los que ya tenían horas de esta plataforma se
     apunta como sesiones de juego (library.models.PlaySession), con las que se mira si ha conseguido algún reto de
     horas (challenges.progress.check). Devuelve (juegos añadidos, juegos actualizados).
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
+    Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
+    (progreso), Página del reto (progreso), Panel de administración (al corregir un título importado).
     """
     rows = list(ImportedTitle.objects.filter(user=user, title__platform=platform).select_related("title"))
     totals = {}
@@ -364,6 +433,8 @@ def reassign(imported, game, by):
 
     Devuelve un dict con los juegos añadidos («added») y actualizados («updated») en su biblioteca y
     si se ha quitado el juego anterior («removed»).
+
+    Pantallas: Juegos importados, Perfil (biblioteca y horas), Ficha del juego (tus horas).
     """
     title = imported.title
     if title.locked and not by.is_staff:

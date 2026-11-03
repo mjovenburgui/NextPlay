@@ -59,6 +59,7 @@
   <script>
     // Carrusel de la ficha: filtros, flechas, visor a pantalla completa (con teclado y deslizando el dedo) y
     // «Poner de cabecera». Vale tanto si la ficha lo pinta directamente como si llega después por HTMX (que ejecuta este script).
+    // Pantallas: Ficha del juego (carrusel de imágenes y vídeos).
     (function () {
       document.querySelectorAll("[data-media]:not([data-ready])").forEach(function (section) {
         section.dataset.ready = "1";

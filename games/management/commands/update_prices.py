@@ -1,3 +1,8 @@
+"""Comando «manage.py update_prices» (parte de la tarea de cada noche): actualiza los precios de PC, Xbox y Nintendo de
+«Dónde comprarlo» de la Ficha del juego, la Lista de deseos y la Página de la lista, y crea los avisos de bajada de
+precio.
+"""
+
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
 
@@ -13,13 +18,20 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser):
-        """Opciones del comando: --limit (solo los N más populares) y --game (un solo juego por slug)."""
+        """Opciones del comando: --limit (solo los N más populares) y --game (un solo juego por slug).
+
+        Pantallas: ninguna (opciones del comando update_prices).
+        """
         parser.add_argument("--limit", type=int, help="Solo los N juegos más populares.")
         parser.add_argument("--game", help="Solo el juego con este slug.")
 
     def handle(self, *args, **options):
         """Actualiza los precios de PC (si hay ITAD_API_KEY), los de Xbox y los de Nintendo de los juegos
-        elegidos, y después crea los avisos de la lista de deseos."""
+        elegidos, y después crea los avisos de la lista de deseos.
+
+        Pantallas: Ficha del juego (Dónde comprarlo), Lista de deseos (mejor precio de hoy y mínimo histórico),
+        Página de la lista (lo que cuesta lo que te falta), Avisos (bajadas de precio de tu lista de deseos).
+        """
         games = Game.objects.prefetch_related("platforms", "prices")
         if options["game"]:
             games = games.filter(slug=options["game"])

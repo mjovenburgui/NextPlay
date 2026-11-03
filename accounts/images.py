@@ -48,6 +48,9 @@ def process(upload, kind):
     kind es una clave de KINDS. Lanza ValidationError con un mensaje para el usuario si no es una
     imagen, es de otro formato, pesa más de lo permitido o tiene demasiados píxeles. De los GIF
     animados se queda con el primer fotograma.
+
+    Pantallas: Editar perfil (Apariencia: foto, cabecera y fondo), Escribir reseña (imágenes), Publicar (imágenes),
+    Inicio (imágenes de la caja para publicar).
     """
     width, height, max_mb = KINDS[kind]
     if upload.size > max_mb * 1024 * 1024:
