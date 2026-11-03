@@ -364,6 +364,40 @@
     }
   },
   {
+    "titulo": "Logros uno a uno: cuáles tienes, cuándo los conseguiste y lo raros que son",
+    "fecha": "2026-10-29",
+    "estado": "en curso",
+    "prioridad": "alta",
+    "tipo": "Funcionalidad",
+    "resumen": "Guardar cada logro de Steam (y después los trofeos de PlayStation y los logros de Xbox) con su nombre, descripción, icono, la fecha en que se consiguió y el porcentaje mundial de jugadores que lo tienen, en vez de solo «32 de 50».",
+    "motivo": "Hoy de cada juego solo se apunta cuántos logros hay y cuántos se tienen (ImportedTitle). GetPlayerAchievements, que ya se pide juego a juego, devuelve la lista entera (qué logro, si se tiene y cuándo), pero steam.player_achievements la cuenta y la tira; con l=spanish trae además el nombre y la descripción sin ninguna petición más. Con la lista se puede enseñar en la ficha qué falta, en el perfil los últimos logros y el más raro, y la fecha de verdad en que se terminó un juego, que es lo que necesita «¿Cuánta gente lo termina?» para proponer marcarlo como Completado.",
+    "pasos": [
+      "Modelos: Achievement por título externo (clave de la API, nombre, descripción, icono, si es oculto y porcentaje mundial), compartido por todos los usuarios, y UserAchievement (título importado, logro y fecha en que se consiguió). Los contadores de ImportedTitle se quedan como resumen para las portadas y el perfil.",
+      "Steam: pedir GetPlayerAchievements con l=spanish y guardar la lista en vez de contarla; los iconos y si es oculto, de GetSchemaForGame una vez por juego y no por usuario; el porcentaje mundial, de GetGlobalAchievementPercentagesForApp en la tarea nocturna (la misma lectura que «¿Cuánta gente lo termina?»).",
+      "Ficha: desplegar «Tus logros» con la lista: los conseguidos con su fecha y los que faltan en gris, ordenables por rareza; los ocultos sin desvelar hasta tenerlos.",
+      "Perfil: los últimos logros conseguidos y el más raro de cada usuario; el «Diario de partidas que se escribe solo» podría contar los logros de cada sesión.",
+      "PlayStation y Xbox, después: una petición por juego para su lista (trofeos y logros con fecha y rareza), solo de los juegos que han cambiado desde la última lectura."
+    ],
+    "notas": "Son unas decenas de filas por juego y usuario: nada para la base de datos. La petición de cada usuario y juego es la misma que ya se hace; GetSchemaForGame y los porcentajes son una por juego y valen para todos los usuarios. Ojo con los logros ocultos para no destripar nada. 02/11/2026: fase 1 (Steam) hecha en la rama logros-uno-a-uno, sin commit. Modelos accounts.Achievement (los de cada juego, compartidos: nombre y descripción en castellano, iconos, si es oculto, rareza y orden) y UnlockedAchievement (los que tiene cada uno, con su fecha), y ExternalTitle.achievements_read_at. steam.player_achievements devuelve ya la lista con la fecha de cada logro, sin l=spanish: los textos salen del esquema, una vez por juego. steam.achievement_schema y steam.global_percentages leen los del juego la primera vez que alguien lo importa y los vuelven a leer, cuando se juega, si tienen más de 30 días (ACHIEVEMENTS_INFO_DAYS) o si un jugador trae uno nuevo; si Steam no da el esquema, los de ese jugador esperan a la lectura siguiente. Lo que guarda va en accounts.achievements (save_info y save_unlocked), para que lo usen después PlayStation y Xbox. La migración vuelve a marcar para leer los de Steam que ya se habían contado. Ficha: los logros salen del widget de la biblioteca y pasan a su propia tarjeta, «Tus logros», en la columna de la carátula debajo de la valoración de la comunidad (idea del usuario, 02/11/2026: «en un desplegable como la tarjeta de las valoraciones»); en el móvil baja al final de la ficha. Lleva lo que llevas en cada plataforma y, con «Ver tus logros de Steam», despliega con HTMX los que tienes (con su fecha) y los que te faltan, por fecha, por rareza o en el orden del juego, 12 a la vista y el resto plegado; los ocultos que te faltan van sin icono y con el nombre tapado. Perfil: sección «Logros» del escaparate con el más raro y los 6 últimos, con los ocultos tapados para los demás. Comprobado con Steam: la descripción de los ocultos no la da ninguna llamada; los iconos en la dirección que da el esquema (steamcommunity/public/images) dan 404 en los logros nuevos, así que se piden a shared.akamai.steamstatic.com/community_assets, que los tiene todos y responde en unos 50 ms; el porcentaje llega como texto. Con tester_steam, ya con su segunda cuenta de Steam: 144 juegos, 9583 logros (2229 ocultos) y 2612 conseguidos, solo 1 sin fecha, con logros en 7, 35, 48, 41 y 48 juegos de 2022 a 2026; 13 logros de 4 juegos no salen en el esquema de su juego y se quedan con su clave por nombre. Leerlo todo tarda 54 s (128 juegos con una cuenta) y una sincronización a mano de 40 juegos, 9,8 s con dos cuentas, lo mismo que antes, o 16,1 s si nadie había importado esos juegos. Logros de ejemplo uno a uno en la cuenta tester (seed_test_profile) y 9 tests nuevos (469 en total).",
+    "revision": {
+      "fecha": "2026-11-02",
+      "hoy": "Fase 1 hecha en la rama logros-uno-a-uno, solo de Steam: cada logro se guarda con su fecha, sus textos en castellano y su rareza, y se ve en la ficha («Ver tus logros de Steam») y en la sección «Logros» del perfil. Falta usar las fechas en lo que ya existe, la actividad y PlayStation y Xbox.",
+      "plan": [
+        "Usar las fechas en lo que ya existe: «Jugados en 2025» y los años pasados en las tier lists, diciendo «según tus logros»; los días con logro en el calendario del diario; y el 100 % o el último logro de la historia como pista para proponer Completado con su fecha.",
+        "Actividad: «Ha conseguido 5 logros en Hades», agrupada por juego y día, y en el feed solo los raros y el 100 %, para no llenarlo.",
+        "PlayStation: guardar el npCommunicationId al sincronizar y pedir los trofeos de cada lista que haya cambiado, con su fecha y su rareza, guardados con save_info y save_unlocked.",
+        "Xbox: los logros de cada juego (achievements.xboxlive.com) cuando la importación se pueda probar con una cuenta real.",
+        "Los 13 logros que no salen en el esquema de su juego: probar si GetPlayerAchievements con l=spanish les da nombre y, si es así, pedirlo solo para esos juegos."
+      ],
+      "profundizar": [
+        "Historia retroactiva: de los logros salen la primera partida aproximada de Steam (que Steam no da) y los días en que seguro se jugó. Comprobado: 36 juegos con logros en 2025, de los que 14 se perderían con la última partida.",
+        "La prueba de que lo has terminado: el logro final, con su fecha, propone Completado con el completed_at correcto. Con 1 Completado de 348 juegos en tester_steam, es lo que llena esa columna y da sentido a retos y estadísticas.",
+        "Caza de logros: juegos en los que te falta poco, con lo raros que son. En tester_steam hay 15 títulos al 80 % o más sin llegar al 100, como Bloodborne con 38 de 40. Es otro pendiente, más corto y muy agradecido.",
+        "Rareza como puntuación: puntos según el porcentaje mundial y comparar con la gente que sigues. En tester_steam, de 2612 logros de Steam, 163 son de menos del 5 % y 5 de menos del 1 %; el más raro, del 0,3 %."
+      ]
+    }
+  },
+  {
     "titulo": "Revisar los juegos que no se emparejaron al importar",
     "fecha": "2026-10-17",
     "estado": "hecha",
@@ -663,6 +697,35 @@
         "Tendencia real desde el primer día: popularity_primitives da datos de Steam (pico de jugadores, más vendidos, más deseados) y de Twitch (horas vistas), comprobado. Sirve hasta que haya comunidad.",
         "Temas y perspectivas como filtros: themes está en 2180 juegos y player_perspectives en 2178. «Terror en primera persona» dice más que los géneros de IGDB.",
         "La misma vista para decidir qué jugar: «de tu pendiente, menos de 10 h, en castellano y jugable en Deck». Es la pregunta que da nombre a NextPlay."
+      ]
+    }
+  },
+  {
+    "titulo": "Que ningún juego se quede sin precio: pedirlo al importar o al abrir la ficha, y el de Steam a Steam",
+    "fecha": "2026-11-02",
+    "estado": "en curso",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Que los juegos nuevos tengan precio sin esperar a la tarea de cada noche, que la ficha distinga «aún no se han buscado» de «no lo vende nadie» y que el precio de Steam salga de la propia Steam, para que no falte cuando IsThereAnyDeal lo apunta en otra edición ni cuando el juego se ha vuelto gratis.",
+    "motivo": "Pregunta del usuario (02/11/2026): «¿por qué no todos los juegos de Steam tienen precio?». Medido con tester_steam: de sus 284 juegos de Steam, 146 tienen precio de Steam (10 de ellos, gratis) y 138 no. 123 de esos no tienen ningún precio porque nunca se han pedido: los precios solo llegan con update_prices, que va en la tarea de cada noche y no ha pasado por todo el catálogo desde el 16/10, y nada los pide al importar salvo la lista de deseos (wishlist.fetch_missing_prices). En todo el catálogo son 912 de 2235, y su ficha dice «No se han encontrado precios en las tiendas», cuando no se han buscado. Los otros 15, comprobados en la tienda de Steam (appdetails con cc=es): 8 Steam sí los vende, pero IsThereAnyDeal apunta su precio en la edición que vende Steam y no en el juego que buscamos por su app (Resident Evil 5 Gold Edition a 4,99 €, Resident Evil 6 Complete, Rise of the Tomb Raider: 20 Year Celebration, Dying Light Essentials Edition, BioShock Remastered, BioShock 2 Remastered, ARK: Survival Evolved y Call of Duty: Black Ops III); 4 se han vuelto gratis y no se ve (Command & Conquer 3, Generals, Zero Hour y Red Alert 3); y 3 ya no se venden así (Yakuza 0, sustituido por el Director's Cut; GTA V Legacy, que solo va con Enhanced; y Black Desert, cuya app ya no existe).",
+    "pasos": [
+      "Ya, sin tocar código: lanzar update_prices a mano para los 912 juegos que nunca han tenido precios, y de paso poner al día los del 16/10.",
+      "Precios que faltan sin esperar a la noche: después de cada importación (Steam, PlayStation y Xbox), wishlist.fetch_missing_prices con los juegos nuevos; y en la ficha, si el juego nunca los ha tenido, pedirlos con HTMX al abrirla, como las imágenes, con «Buscando precios…».",
+      "Que la ficha distinga «aún no hemos buscado sus precios» de «no lo vende ninguna tienda».",
+      "El precio de Steam, de Steam: appdetails con filters=price_overview y cc=es acepta muchas apps en una petición y da el precio, el normal y la rebaja de cada una tal como la vende Steam, aunque sea con otra edición. Se guarda como la tienda Steam en lugar del de IsThereAnyDeal, que se queda para las demás tiendas y el mínimo histórico.",
+      "Gratis y retirados: si Steam lo da gratis, «Gratis en Steam»; si la app ya no se vende, «Steam ya no lo vende» con el enlace a su página, en vez de no decir nada."
+    ],
+    "notas": "appdetails ya se usa en games/spanish.py (localize_games), con pausas entre peticiones: no está documentada como la Web API y Steam la corta si se le piden demasiadas seguidas, así que por lotes y de noche. Relacionada con «¿Qué edición compro? Precios de cada edición y remaster», con «Ediciones agrupadas bajo su juego (GOTY, Complete, Definitive…)» y con «Sincronización automática de la biblioteca», que es la que tendría los precios al día cada noche. 02/11/2026: paso 1 hecho, con el visto bueno del usuario: update_prices a mano sobre todo el catálogo, en 816 s. 1481 juegos con los precios pedidos de nuevo y 1452 con algún precio (1347 de PC, 896 de Xbox y 402 de Nintendo); los 754 que siguen sin pedir no tienen ID de Steam ni de GOG con que buscarlos en IsThereAnyDeal (update_prices se salta los que no tienen price_lookups). De los 284 juegos de Steam de tester_steam, 256 tienen ya precio de Steam (11 gratis) y quedan 28: los de otra edición de arriba, más ediciones que Steam solo vende en un paquete (la trilogía Definitive de GTA, Resident Evil Re:Verse y Resistance, los Deathmatch de Half-Life), los Command & Conquer, que ahora son gratis, y algunos retirados. Salieron 6 avisos de la lista de deseos de tester_steam, con su correo solo en la consola. Los pasos 2 y 3 van en una sesión aparte, en su propia rama. 02/11/2026: hecho lo de los IDs de tienda guardados en otra ficha (ver «profundizar»), en la rama ids-de-ediciones-y-ports (PR #31, fusionado el 03/11/2026): igdb.GAME_FIELDS pide también los IDs de los ports y de las ediciones ampliadas (RELATED_STORES) y _store_alternatives los usa después de las ediciones y antes que los remasters; igdb.IGDBClient.games_by_ids; e import_igdb --sin-ids-de-tienda vuelve a pedir a IGDB los juegos del catálogo que no tienen con qué buscar sus precios. Lanzado sobre la base de datos local: de los 754, 41 tienen ya con qué buscarlos y 35 tienen precio de PC, como Red Dead Redemption (24,99 € en Steam), The Witcher 2 con su Enhanced Edition (2,99 € en GOG), Ghost of Tsushima Director's Cut, Persona 5 Royal o Final Fantasy XV Windows Edition; la ficha dice la edición que se vende. Los 6 que siguen sin precio (Metal Gear Solid 2, Golden Axe, Unreal Tournament 2003, Altered Beast, Heretic y Jazz Jackrabbit 2) no se venden sueltos. 3 tests nuevos. 03/11/2026: pasos 2 y 3 hechos en la rama precios-al-importar-y-en-la-ficha (PR #29, fusionado el 03/11/2026). Al importar de Steam, PlayStation o Xbox, y al traer la lista de deseos de Steam, se piden al momento los precios de los juegos de la biblioteca que nunca se han buscado, con games.prices.fetch_missing, que sustituye a wishlist.fetch_missing_prices: los de PC de todos a la vez, y los de Xbox y Nintendo solo de los que se quedan sin ningún precio, porque esas tiendas se buscan por el nombre juego a juego y alargarían mucho una importación grande (tester_steam tiene 292 juegos en Xbox y 138 en Switch). Si IsThereAnyDeal no responde, la importación vale igual y se vuelven a pedir en la siguiente, al abrir la ficha o por la noche; ni la importación ni la ficha esperan si pide calma (ITADClient con retries=0). sync_libraries no los pide, porque en la tarea de cada noche va update_prices justo detrás. En la ficha, si nunca se han buscado, «Dónde comprarlo» llega por HTMX con «Buscando precios…» y trae también los de Xbox y Nintendo de ese juego. La ficha distingue «Aún no hemos buscado sus precios», «Ninguna tienda de PC, Xbox ni Nintendo lo vende ahora» (con cuándo se buscaron; la PlayStation Store sigue siendo un enlace para buscarlo) y «No se han podido buscar sus precios». update_prices marca ya como buscados los juegos sin ID de Steam ni de GOG, porque no tener forma de buscarlos en PC no es lo mismo que no haberlos buscado: antes se quedaban sin fecha para siempre y la ficha los habría pedido cada vez que se abriera. Probado en una copia de la base de datos local: la importación real de Steam de tester_steam tardó 22 s, 5 de ellos en los precios de los 35 juegos de su biblioteca sin buscar (3 de PC a los que se quitaron los precios para hacerlos pasar por nuevos, que volvieron con los suyos, y 32 de consola); y la ficha de Hollow Knight, sin precios, los trajo al abrirla de PC, Xbox y Nintendo.",
+    "revision": {
+      "fecha": "2026-11-03",
+      "hoy": "Pasos 1, 2 y 3 hechos: el 1 a mano y el 2 y el 3 en el #29, fusionado el 03/11/2026. Los IDs de tienda que IGDB guarda en otra ficha, en el #31, también fusionado el 03/11/2026. Los pasos 4 y 5, el precio de Steam de la propia Steam y los gratis y retirados, sin empezar.",
+      "profundizar": [
+        "Antes de cambiar de fuente: comprobar con unas pocas apps a la vez que filters=price_overview devuelve el precio de cada una y cuántas peticiones seguidas aguanta Steam.",
+        "De los que se venden en otra edición, guardar el nombre del paquete que vende Steam («Resident Evil 5 Gold Edition») y enseñarlo junto al precio, como ya hace prices_edition.",
+        "Que los avisos de la lista de deseos usen ese precio de Steam, y no el de una edición que no es la que se compra.",
+        "IDs de tienda que IGDB guarda en otra ficha. De los 754 juegos sin ID de Steam ni de GOG, 231 salen en PC (comprobado el 02/11/2026). Unos se venden fuera de Steam y de GOG (Battle.net, Riot, Epic, el launcher de Minecraft), pero otros están en Steam o en GOG en otra ficha de IGDB: The Witcher 2 solo como «Enhanced Edition» (tipo Expanded Game) y Red Dead Redemption con su versión de PC aparte (tipo Port). Tomar también los IDs de las ediciones ampliadas y de los ports al importar, y en la pasada a IGDB del catálogo, les daría precio. Hecho el 02/11/2026 (ver las notas). Los recopilatorios (74 de los 754) y los remakes (15) también tienen IDs de tienda, pero no son el mismo juego: si algún día se usan, que se vea bien qué se compra («Se vende dentro de Mega Man Legacy Collection»).",
+        "Por consolas, los 754 (un juego cuenta en todas las suyas): Nintendo 352 (253 solo de Nintendo), PlayStation 347 (136), PC 231 (63), Xbox 190 (12), móvil 55. De los 523 que no salen en PC, 430 solo están en consolas antiguas, sin tienda digital de la que sacar precio. De la generación actual hay 43 exclusivos de PlayStation (The Last of Us, Uncharted 4, Bloodborne…) que no tendrán precio hasta leer la PlayStation Store («Precios de Nintendo eShop y PlayStation Store»).",
+        "Precios de consola al importar de Xbox: ahora en una importación solo se buscan los de Xbox y Nintendo de los juegos que se quedan sin ningún precio. Los de Xbox con ID de IGDB se pueden pedir de 20 en 20 sin buscar por el nombre (xbox.fetch_products): pedir esos al importar de Xbox y dejar las búsquedas por nombre para la ficha y la noche."
       ]
     }
   },
@@ -1115,41 +1178,6 @@
         "Usar los trofeos para emparejar: quedan 7 títulos de PlayStation sin juego tras «Emparejar los juegos por nombre sin contar signos: recuperar horas perdidas», y el nombre de su lista de trofeos es otra pista, a veces más limpia que la de la tienda.",
         "PS3 y Vita: trophy_titles también trae esos juegos, que la lista de juegos no da porque solo pide PS4 y PS5. Importarlos como títulos sin horas pero con trofeos y fechas rescata historia que hoy se pierde.",
         "Guardar los grados (bronce, plata, oro, platino): dan una puntuación tipo PSN para el perfil y distinguen un 100 % de un platino."
-      ]
-    }
-  },
-  {
-    "titulo": "Logros uno a uno: cuáles tienes, cuándo los conseguiste y lo raros que son",
-    "fecha": "2026-10-29",
-    "estado": "pendiente",
-    "prioridad": "media",
-    "tipo": "Funcionalidad",
-    "resumen": "Guardar cada logro de Steam (y después los trofeos de PlayStation y los logros de Xbox) con su nombre, descripción, icono, la fecha en que se consiguió y el porcentaje mundial de jugadores que lo tienen, en vez de solo «32 de 50».",
-    "motivo": "Hoy de cada juego solo se apunta cuántos logros hay y cuántos se tienen (ImportedTitle). GetPlayerAchievements, que ya se pide juego a juego, devuelve la lista entera (qué logro, si se tiene y cuándo), pero steam.player_achievements la cuenta y la tira; con l=spanish trae además el nombre y la descripción sin ninguna petición más. Con la lista se puede enseñar en la ficha qué falta, en el perfil los últimos logros y el más raro, y la fecha de verdad en que se terminó un juego, que es lo que necesita «¿Cuánta gente lo termina?» para proponer marcarlo como Completado.",
-    "pasos": [
-      "Modelos: Achievement por título externo (clave de la API, nombre, descripción, icono, si es oculto y porcentaje mundial), compartido por todos los usuarios, y UserAchievement (título importado, logro y fecha en que se consiguió). Los contadores de ImportedTitle se quedan como resumen para las portadas y el perfil.",
-      "Steam: pedir GetPlayerAchievements con l=spanish y guardar la lista en vez de contarla; los iconos y si es oculto, de GetSchemaForGame una vez por juego y no por usuario; el porcentaje mundial, de GetGlobalAchievementPercentagesForApp en la tarea nocturna (la misma lectura que «¿Cuánta gente lo termina?»).",
-      "Ficha: desplegar «Tus logros» con la lista: los conseguidos con su fecha y los que faltan en gris, ordenables por rareza; los ocultos sin desvelar hasta tenerlos.",
-      "Perfil: los últimos logros conseguidos y el más raro de cada usuario; el «Diario de partidas que se escribe solo» podría contar los logros de cada sesión.",
-      "PlayStation y Xbox, después: una petición por juego para su lista (trofeos y logros con fecha y rareza), solo de los juegos que han cambiado desde la última lectura."
-    ],
-    "notas": "Son unas decenas de filas por juego y usuario: nada para la base de datos. La petición de cada usuario y juego es la misma que ya se hace; GetSchemaForGame y los porcentajes son una por juego y valen para todos los usuarios. Ojo con los logros ocultos para no destripar nada.",
-    "revision": {
-      "fecha": "2026-11-01",
-      "hoy": "Sin empezar, y la revisión la sube en mi orden: steam.player_achievements cuenta la lista y la tira. Comprobado con tester_steam: de 128 juegos con logros, 118 traen fecha, con actividad en cada año desde 2022. Es la única fuente retroactiva de cuándo se ha jugado: sirve para el diario, las tier lists por año, el resumen anual y la fecha en que se terminó un juego.",
-      "plan": [
-        "Modelos en accounts: Achievement (ExternalTitle, api_name, nombre, descripción, iconos, oculto y porcentaje mundial; único por título y api_name), compartido por todos, y UnlockedAchievement (ImportedTitle, Achievement y fecha), solo de los conseguidos. Son unos pocos miles de filas por usuario: nada para la base de datos.",
-        "steam.player_achievements pasa a devolver la lista con unlocktime y l=spanish; los contadores de ImportedTitle salen de ella y se quedan como resumen.",
-        "steam.achievement_schema(app_id): GetSchemaForGame con l=spanish (comprobado: displayName, description, hidden, icon e icongray), una vez por juego y no por usuario. Los porcentajes, en nightly, con GetGlobalAchievementPercentagesForApp, que no necesita clave (comprobado).",
-        "Ficha: «Tus logros» se despliega con HTMX; los conseguidos con su fecha, los que faltan en gris, ordenables por rareza. Los ocultos, tapados hasta tenerlos.",
-        "Perfil: los últimos logros y el más raro. Actividad agrupada por juego y día, solo platinos y raros, para no llenar el feed.",
-        "PlayStation y Xbox en otra fase, con el token de cada sincronización y solo los juegos que han cambiado: los trofeos por npCommunicationId y los logros de achievements.xboxlive.com traen fecha y rareza."
-      ],
-      "profundizar": [
-        "Historia retroactiva: de los logros salen la primera partida aproximada de Steam (que Steam no da) y los días en que seguro se jugó. Comprobado: 36 juegos con logros en 2025, de los que 14 se perderían con la última partida.",
-        "La prueba de que lo has terminado: el logro final, con su fecha, propone Completado con el completed_at correcto. Con 1 Completado de 348 juegos en tester_steam, es lo que llena esa columna y da sentido a retos y estadísticas.",
-        "Caza de logros: juegos en los que te falta poco, con lo raros que son. En tester_steam hay 15 títulos al 80 % o más sin llegar al 100, como Bloodborne con 38 de 40. Es otro pendiente, más corto y muy agradecido.",
-        "Rareza como puntuación: puntos según el porcentaje mundial y comparar con la gente que sigues. En tester_steam, de 2409 logros de Steam, 156 son de menos del 5 % y 4 de menos del 1 %; el más raro, del 0,8 %."
       ]
     }
   },

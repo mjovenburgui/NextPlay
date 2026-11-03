@@ -207,6 +207,33 @@
             {% endif %}
           </section>
         {% endif %}
+      {% elif key == "logros" %}
+        {# Sus últimos logros y el más raro, de los guardados uno a uno (accounts.achievements.showcase); a su dueño, aunque no tenga, para que sepa de dónde salen. Los ocultos van tapados para los demás. #}
+        {% if achievement_showcase or is_owner %}
+          <section class="card-box showcase">
+            <header class="box-head">
+              <h2>{% include "_icon.html" with name="trophy" %} Logros</h2>
+              {% if achievement_showcase %}<span class="muted small">{{ achievement_showcase.count }} conseguido{{ achievement_showcase.count|pluralize }}</span>{% endif %}
+            </header>
+            {% if achievement_showcase %}
+              {% with rarest=achievement_showcase.rarest %}{% if rarest %}
+                <h3 class="achievement-heading">El más raro</h3>
+                <div class="rarest-achievement">
+                  {% include "accounts/_unlock.html" with unlock=rarest %}
+                  <span class="achievement-rarity is-rare" title="Lo tiene el {{ rarest.achievement.percent|floatformat:'-1' }} % de los jugadores de {{ rarest.achievement.title.get_platform_display }}">{{ rarest.achievement.percent|floatformat:"-1" }} %{% if rarest.achievement.rarity %} · {{ rarest.achievement.rarity }}{% endif %}</span>
+                </div>
+              {% endif %}{% endwith %}
+              {% if achievement_showcase.latest %}
+                <h3 class="achievement-heading">Los últimos</h3>
+                <ul class="unlock-list">
+                  {% for unlock in achievement_showcase.latest %}<li>{% include "accounts/_unlock.html" %}</li>{% endfor %}
+                </ul>
+              {% endif %}
+            {% else %}
+              <p class="muted small box-empty">Aquí saldrán tus últimos logros y el más raro. Se leen de Steam al sincronizarlo, con cuándo conseguiste cada uno.</p>
+            {% endif %}
+          </section>
+        {% endif %}
       {% endif %}
     {% endfor %}{% endif %}
 

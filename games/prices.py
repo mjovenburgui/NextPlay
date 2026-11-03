@@ -1,5 +1,10 @@
-"""Cliente de IsThereAnyDeal y la sincronización que guarda los precios actuales de PC de cada juego."""
+"""Cliente de IsThereAnyDeal y la sincronización que guarda los precios actuales de PC de cada juego.
 
+También está aquí la búsqueda al momento, en todas las tiendas, de los precios de los juegos que nunca se han buscado
+(fetch_missing), para no esperar a la tarea de cada noche.
+"""
+
+import logging
 import time
 from decimal import Decimal
 
@@ -8,7 +13,10 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
+from . import nintendo, xbox
 from .models import GamePrice
+
+logger = logging.getLogger(__name__)
 
 API_URL = "https://api.isthereanydeal.com"
 # IsThereAnyDeal shop IDs and the format of their product IDs in /lookup/id/shop.
@@ -28,10 +36,15 @@ def is_configured():
 
 
 class ITADClient:
-    def __init__(self, api_key=None, country=None):
-        """Prepara el cliente con la clave y el país dados o los de settings; falla si no hay clave."""
+    def __init__(self, api_key=None, country=None, retries=MAX_RETRIES):
+        """Prepara el cliente con la clave y el país dados o los de settings; falla si no hay clave.
+
+        retries son las veces que se repite una petición cuando la API pide calma (429). Con 0 no se espera nada, que es
+        lo que conviene cuando alguien está esperando la página.
+        """
         self.api_key = api_key or settings.ITAD_API_KEY
         self.country = country or settings.ITAD_COUNTRY
+        self.retries = retries
         if not self.api_key:
             raise ITADError("Falta ITAD_API_KEY.")
 
@@ -47,14 +60,14 @@ class ITADClient:
         """Llama a la API con method (requests.get o requests.post) y la clave, y devuelve el JSON.
 
         Si la API responde 429 (demasiadas peticiones) espera lo que diga Retry-After (máximo 5
-        minutos) y reintenta hasta 3 veces.
+        minutos) y reintenta hasta self.retries veces (3, si no se dice otra cosa).
         """
         try:
-            for attempt in range(MAX_RETRIES + 1):
+            for attempt in range(self.retries + 1):
                 response = method(
                     f"{API_URL}{path}", headers={"ITAD-API-Key": self.api_key}, timeout=TIMEOUT, **kwargs
                 )
-                if response.status_code != 429 or attempt == MAX_RETRIES:
+                if response.status_code != 429 or attempt == self.retries:
                     break
                 # Rate limited: the window resets after Retry-After seconds.
                 time.sleep(min(int(response.headers.get("Retry-After") or 30), 300))
@@ -180,11 +193,14 @@ def update_prices(games, client=None):
 
     Va por rondas: en la primera busca con los IDs del propio juego; los juegos que se quedan sin
     ofertas pasan a la siguiente ronda con su primera edición o remaster, y así sucesivamente.
+
+    Todos quedan con la fecha de la búsqueda (prices_updated_at), también los que no tienen IDs de Steam ni de GOG con
+    los que buscarlos en ITAD, que se quedan sin precios de PC: así consta que ya se han mirado.
     """
     client = client or ITADClient()
-    games = [game for game in games if game.price_lookups]
+    games = list(games)
     found = {}  # game.pk -> (merged prices item, edition name, ITAD ids with data)
-    pending, rank = games, 0
+    pending, rank = [game for game in games if game.price_lookups], 0
     while pending:
         round_ = [(game, game.price_lookups[rank]) for game in pending if len(game.price_lookups) > rank]
         if not round_:
@@ -205,6 +221,42 @@ def update_prices(games, client=None):
         item, edition, ids = found.get(game.pk, (None, "", []))
         _store_prices(game, item, edition, ids)
     return len(found)
+
+
+def fetch_missing(games, consoles=False):
+    """Busca ya, sin esperar a la tarea de cada noche, los precios de los juegos que nunca se han buscado
+    (prices_updated_at vacío) y devuelve cuántos han quedado buscados.
+
+    Los de PC se piden a IsThereAnyDeal de todos a la vez y sin esperas si la API pide calma, y con eso quedan como
+    buscados. Después van los de Xbox y Nintendo: con consoles (la ficha de un juego), de todos; si no (una
+    importación), solo de los que se han quedado sin ningún precio, porque esas tiendas se buscan por el nombre juego a
+    juego y con muchos la importación tardaría demasiado; a los demás se los trae update_prices por la noche.
+
+    Si una tienda falla se apunta en el log y se sigue. Si falla IsThereAnyDeal, los juegos siguen sin buscar y se
+    volverán a pedir la próxima vez; en una importación tampoco se buscan entonces sus precios de consola. Sin
+    ITAD_API_KEY no hace nada.
+    """
+    pending = [game for game in games if game.prices_updated_at is None]
+    if not pending or not is_configured():
+        return 0
+    try:
+        update_prices(pending, ITADClient(retries=0))
+        searched = pending
+    except ITADError:
+        logger.exception("No se pudieron pedir a IsThereAnyDeal los precios de %d juegos", len(pending))
+        searched = []
+    if not consoles:
+        priced = set(GamePrice.objects.filter(game__in=searched).values_list("game_id", flat=True))
+        pending = [game for game in searched if game.pk not in priced]
+    if not pending:
+        return len(searched)
+    stores = ((xbox.update_xbox_prices, xbox.XboxError), (nintendo.update_nintendo_prices, nintendo.NintendoError))
+    for update, error in stores:
+        try:
+            update(pending)
+        except error:
+            logger.exception("No se pudieron pedir los precios de consola de %d juegos", len(pending))
+    return len(searched)
 
 
 def lookup_ids(game, client=None):

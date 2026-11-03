@@ -1,0 +1,25 @@
+{# Un logro de «Tus logros» (got: si lo tienes): icono, nombre, descripción, cuándo lo conseguiste y su rareza. Los ocultos que te faltan van sin icono y con el nombre tapado hasta pulsarlo. #}
+<li class="achievement-row{% if not got %} is-locked{% endif %}">
+  {% if achievement.hidden and not got or not achievement.icon %}
+    <span class="achievement-icon is-blank" aria-hidden="true">{% include "_icon.html" with name="trophy" %}</span>
+  {% else %}
+    <img class="achievement-icon" src="{% if got %}{{ achievement.icon }}{% else %}{{ achievement.icon_locked|default:achievement.icon }}{% endif %}" alt="" width="48" height="48" loading="lazy">
+  {% endif %}
+  <span class="achievement-text">
+    {% if achievement.hidden and not got %}
+      <strong>Logro oculto</strong>
+      <span class="small"><span class="spoiler-inline" tabindex="0" role="button" aria-expanded="false" title="Logro oculto: pulsa para ver su nombre">{{ achievement.name }}</span></span>
+    {% else %}
+      <strong>{{ achievement.name }}</strong>
+      {% if achievement.description %}<span class="muted small">{{ achievement.description }}</span>{% elif achievement.hidden %}<span class="muted small">Logro oculto: {{ label }} no da su descripción.</span>{% endif %}
+    {% endif %}
+  </span>
+  <span class="achievement-meta">
+    {% if got %}
+      {% if achievement.unlocked_at %}<time datetime="{{ achievement.unlocked_at|date:'c' }}">{{ achievement.unlocked_at|date:"j M Y" }}</time>{% else %}<span class="muted">Sin fecha</span>{% endif %}
+    {% endif %}
+    {% if achievement.percent is not None %}
+      <span class="achievement-rarity{% if achievement.rarity %} is-rare{% endif %}">{{ achievement.percent|floatformat:"-1" }} %{% if achievement.rarity %} · {{ achievement.rarity }}{% endif %}</span>
+    {% endif %}
+  </span>
+</li>

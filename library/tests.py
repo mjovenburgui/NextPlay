@@ -17,7 +17,6 @@ from django.utils import timezone
 from PIL import Image
 
 from accounts.models import ExternalTitle, ImportedTitle, Notification
-from games import prices
 from games.models import STEAM_DECK_SLUG, Game, GamePrice, Platform
 
 from . import markup, reminders, wishlist
@@ -722,7 +721,10 @@ class WishlistTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = User.objects.create_user("ana", "ana@example.com", "x")
-        cls.game = Game.objects.create(name="Hades", slug="hades", historical_low=Decimal("6.24"))
+        # Con los precios ya buscados alguna vez, para que la ficha los pinte sin pedirlos con HTMX.
+        cls.game = Game.objects.create(
+            name="Hades", slug="hades", historical_low=Decimal("6.24"), prices_updated_at=timezone.now()
+        )
         cls.other_game = Game.objects.create(name="Celeste", slug="celeste")
 
     def setUp(self):
@@ -830,19 +832,6 @@ class WishlistTests(TestCase):
         # Sin nada de Steam no se ofrece ese orden.
         WishlistItem.objects.filter(steam_added_at__isnull=False).delete()
         self.assertNotContains(self.client.get(reverse("library:wishlist")), "Como en tu lista de Steam")
-
-    def test_prices_of_games_from_steam_are_fetched_at_once(self):
-        Game.objects.filter(pk=self.game.pk).update(prices_updated_at=timezone.now())
-        self.game.refresh_from_db()
-        with override_settings(ITAD_API_KEY="key"), mock.patch("games.prices.update_prices", return_value=1) as update:
-            self.assertEqual(wishlist.fetch_missing_prices([self.game, self.other_game]), 1)
-        update.assert_called_once_with([self.other_game])  # el que ya tiene precios no se vuelve a pedir
-        with override_settings(ITAD_API_KEY="key"), mock.patch("games.prices.update_prices", side_effect=prices.ITADError("caído")), \
-                self.assertLogs("library.wishlist", "ERROR"):
-            self.assertEqual(wishlist.fetch_missing_prices([self.other_game]), 0)
-        with override_settings(ITAD_API_KEY=""), mock.patch("games.prices.update_prices") as update:
-            wishlist.fetch_missing_prices([self.other_game])
-        update.assert_not_called()
 
     def test_bell_counts_unread_and_the_page_marks_them_read(self):
         Notification.objects.create(user=self.user, kind="price", text="Hades ha bajado", url="/juegos/hades/")

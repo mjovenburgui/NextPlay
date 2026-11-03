@@ -12,7 +12,7 @@ from lists.models import GameList, ListCollaborator, ListComment, ListItem, List
 from social.activity import IMPORT_COVERS
 from social.models import Activity, Follow
 
-from ...models import ExternalTitle, ImportedTitle, PSNAccount, XboxAccount
+from ...models import Achievement, ExternalTitle, ImportedTitle, PSNAccount, UnlockedAchievement, XboxAccount
 
 User = get_user_model()
 
@@ -103,6 +103,21 @@ ACHIEVEMENTS = [
     (1, "psn", 52, 52, True),
     (2, "xbox", 40, 50, False),
     (6, "psn", 41, 47, False),
+]
+# Nombres y descripciones de los logros de ejemplo de Steam, que van uno a uno (numerados si un juego tiene más).
+DEMO_ACHIEVEMENTS = [
+    ("Primeros pasos", "Completa el tutorial."),
+    ("Sin un rasguño", "Supera una zona sin recibir daño."),
+    ("Coleccionista", "Encuentra todos los objetos ocultos de una zona."),
+    ("A la primera", "Derrota a un jefe sin morir ni una vez."),
+    ("Trotamundos", "Visita todas las regiones del mapa."),
+    ("Maratón", "Juega durante tres horas seguidas."),
+    ("Artesano", "Mejora un arma al máximo."),
+    ("El final", "Termina la historia."),
+    ("Perfeccionista", "Completa todas las misiones secundarias."),
+    ("Contra el reloj", "Supera una prueba contrarreloj con la mejor marca."),
+    ("Leyenda", "Termina el juego en la dificultad más alta."),
+    ("Amigo de todos", "Ayuda a todos los personajes que te lo piden."),
 ]
 # «Me gusta» en las listas de ejemplo, con un comentario si no está vacío: (usuario, título de la lista, comentario).
 LIST_REACTIONS = [
@@ -213,7 +228,9 @@ class Command(BaseCommand):
         ))
 
     def achievements(self, user, games):
-        """Rehace los títulos importados de prueba del usuario con sus logros (ACHIEVEMENTS), sin tocar los de verdad."""
+        """Rehace los títulos importados de prueba del usuario con sus logros (ACHIEVEMENTS), sin tocar los de verdad.
+        Los de Steam van también uno a uno (demo_achievements), para ver «Tus logros» desplegados en la ficha y la
+        sección «Logros» del perfil."""
         ImportedTitle.objects.filter(user=user, title__external_id__startswith="demo-").delete()
         now = timezone.now()
         for index, platform, unlocked, total, platinum in ACHIEVEMENTS:
@@ -226,6 +243,32 @@ class Command(BaseCommand):
             imported = ImportedTitle(user=user, title=title, game=game)
             imported.set_achievements(unlocked, total, platinum, at=now)
             imported.save()
+            if platform == ExternalTitle.Platform.STEAM:
+                self.demo_achievements(imported, unlocked, total, now)
+
+    def demo_achievements(self, imported, unlocked, total, now):
+        """Rehace los logros de ejemplo del título de Steam de imported: total, con los nombres de DEMO_ACHIEVEMENTS,
+        uno de cada ocho oculto y del más común al más raro, y los unlocked primeros conseguidos a lo largo de los dos
+        últimos años, del más antiguo al más reciente."""
+        title = imported.title
+        title.achievements.all().delete()
+        rows = []
+        for position in range(total):
+            name, description = DEMO_ACHIEVEMENTS[position % len(DEMO_ACHIEVEMENTS)]
+            if position >= len(DEMO_ACHIEVEMENTS):
+                name = f"{name} {position // len(DEMO_ACHIEVEMENTS) + 1}"
+            hidden = position % 8 == 7
+            rows.append(Achievement(
+                title=title, api_name=f"DEMO_{position}", name=name, description="" if hidden else description,
+                hidden=hidden, percent=round(85 * (1 - position / total) ** 2 + 0.4, 1), position=position,
+            ))
+        Achievement.objects.bulk_create(rows)
+        days = 730 / max(unlocked, 1)
+        UnlockedAchievement.objects.bulk_create([
+            UnlockedAchievement(imported=imported, achievement=achievement, unlocked_at=now - timedelta(days=730 - position * days))
+            for position, achievement in enumerate(title.achievements.order_by("position")[:unlocked])
+        ])
+        ExternalTitle.objects.filter(pk=title.pk).update(achievements_read_at=now)
 
     def review(self, user, entry, text, spoilers, when):
         """Publica una reseña de user sobre el juego de entry con fecha when, con su nota, horas y estado."""

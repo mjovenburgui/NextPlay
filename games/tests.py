@@ -570,6 +570,23 @@ class PricesTests(TestCase):
         self.assertEqual(post.call_count, 2)
         sleep.assert_called_once_with(1)
 
+    def test_client_without_retries_does_not_wait(self):
+        limited = mock.Mock(status_code=429, headers={"Retry-After": "300"})
+        limited.raise_for_status.side_effect = prices.requests.HTTPError("429")
+        with mock.patch("games.prices.requests.post", return_value=limited) as post, \
+                mock.patch("games.prices.time.sleep") as sleep, self.assertRaises(prices.ITADError):
+            prices.ITADClient(retries=0).lookup("steam", [1])
+        post.assert_called_once()
+        sleep.assert_not_called()
+
+    def test_games_without_store_ids_are_also_marked_as_searched(self):
+        console_only = Game.objects.create(name="Halo 5: Guardians", slug="halo-5-guardians")
+        prices.update_prices([self.hades, console_only], self.client_mock)
+        self.client_mock.lookup.assert_called_once_with("steam", [1145360])  # sin IDs de Steam ni de GOG no se busca
+        console_only.refresh_from_db()
+        self.assertIsNotNone(console_only.prices_updated_at)
+        self.assertFalse(console_only.prices.exists())
+
     def test_client_sends_key_country_and_store_ids(self):
         response = mock.Mock(**{"json.return_value": {"app/1145360": "uuid-hades", "1478349159": "uuid-gog"}})
         with mock.patch("games.prices.requests.post", return_value=response) as post:
@@ -635,18 +652,20 @@ class PricesTests(TestCase):
         self.assertEqual((len(featured), len(listed), len(folded), best), (0, 5, 2, None))
 
     def test_detail_says_when_no_prices_were_found(self):
+        prices.update_prices([self.unknown], self.client_mock)  # buscado, pero ITAD no lo conoce
         response = self.client.get(self.unknown.get_absolute_url())
         self.assertNotContains(response, "Nota de la crítica")
         self.assertNotContains(response, 'class="shop-tile"')
-        self.assertContains(response, "No se han encontrado precios en las tiendas.")
+        self.assertContains(response, "Ninguna tienda de PC, Xbox ni Nintendo lo vende ahora.")
+        self.assertContains(response, "Precios buscados hace")
 
         GamePrice.objects.create(
             game=self.unknown, source=GamePrice.Source.XBOX, shop_id=GamePrice.XBOX_SHOP_ID, shop_name="Xbox",
             price=20, regular_price=20, currency="EUR", url="https://x.test",
         )
         response = self.client.get(self.unknown.get_absolute_url())
-        self.assertContains(response, "No se han encontrado precios en tiendas de PC.")
-        self.assertNotContains(response, "No se han encontrado precios en las tiendas.")
+        self.assertContains(response, "Ninguna tienda de PC lo vende ahora.")
+        self.assertNotContains(response, "Ninguna tienda de PC, Xbox ni Nintendo")
 
 
 def xbox_product(product_id, *offers):
@@ -667,8 +686,9 @@ def xbox_product(product_id, *offers):
 @override_settings(ITAD_COUNTRY="ES")
 class XboxTests(TestCase):
     def setUp(self):
+        # Con los precios ya buscados alguna vez, para que la ficha los pinte sin pedirlos con HTMX.
         self.game = Game.objects.create(
-            name="Hades", slug="hades", xbox_product_ids=["9NOTFORXBOX0", "9P8DL6W0JBXP"]
+            name="Hades", slug="hades", xbox_product_ids=["9NOTFORXBOX0", "9P8DL6W0JBXP"], prices_updated_at=timezone.now()
         )
 
     def catalog(self, *products):
@@ -812,7 +832,8 @@ class NintendoTests(TestCase):
     def setUp(self):
         self.switch = Platform.objects.create(name="Nintendo Switch", slug="switch")
         self.switch_2 = Platform.objects.create(name="Nintendo Switch 2", slug="switch-2")
-        self.game = Game.objects.create(name="Hollow Knight", slug="hollow-knight")
+        # Con los precios ya buscados alguna vez, para que la ficha los pinte sin pedirlos con HTMX.
+        self.game = Game.objects.create(name="Hollow Knight", slug="hollow-knight", prices_updated_at=timezone.now())
         self.game.platforms.add(self.switch)
 
     def eshop(self, games=(), offers=()):
@@ -997,7 +1018,7 @@ class PriceHistoryTests(TestCase):
         self.now = timezone.now()
         self.game = Game.objects.create(
             name="Hades", slug="hades", store_ids={"steam": [1145360]}, itad_ids=["uuid-hades"],
-            historical_low=Decimal("6.24"), historical_low_currency="EUR",
+            historical_low=Decimal("6.24"), historical_low_currency="EUR", prices_updated_at=self.now,
         )
         self.steam = GamePrice.objects.create(
             game=self.game, shop_id=61, shop_name="Steam", price=Decimal("24.99"), regular_price=Decimal("24.99"),
@@ -1162,11 +1183,148 @@ class PriceHistoryTests(TestCase):
         self.assertContains(response, "Esa tienda no lo vende ahora")
 
 
+@override_settings(ITAD_API_KEY="key", ITAD_COUNTRY="ES")
+class MissingPricesTests(TestCase):
+    """Precios que se piden al momento para los juegos que nunca los han buscado: al importar y al abrir su ficha."""
+
+    def setUp(self):
+        self.xbox_series = Platform.objects.create(name="Xbox Series X|S", slug="series-x-s")
+        self.switch = Platform.objects.create(name="Nintendo Switch", slug="switch")
+        self.hades = Game.objects.create(name="Hades", slug="hades", store_ids={"steam": [1145360]})
+        # Solo de consola: sin IDs de Steam ni de GOG, IsThereAnyDeal no lo puede buscar.
+        self.halo = Game.objects.create(name="Halo 5: Guardians", slug="halo-5-guardians")
+        self.halo.platforms.add(self.xbox_series)
+        self.client_mock = mock.Mock(spec=prices.ITADClient)
+        self.client_mock.lookup.side_effect = lambda store, ids: {i: "uuid-hades" if i == 1145360 else None for i in ids}
+        self.client_mock.prices.return_value = [ITAD_HADES]
+
+    def itad(self):
+        """Simula IsThereAnyDeal con self.client_mock; lo que devuelve es la clase simulada, para ver cómo se creó."""
+        return mock.patch("games.prices.ITADClient", return_value=self.client_mock)
+
+    def consoles(self):
+        """Simula las búsquedas de Xbox y Nintendo; devuelve los dos simulacros, para ver con qué juegos se llamaron."""
+        return mock.patch("games.xbox.update_xbox_prices", return_value=0), \
+            mock.patch("games.nintendo.update_nintendo_prices", return_value=0)
+
+    def test_import_asks_pc_prices_and_consoles_only_for_games_left_without_any(self):
+        searched = Game.objects.create(
+            name="Celeste", slug="celeste", store_ids={"steam": [504230]}, prices_updated_at=timezone.now()
+        )
+        xbox_patch, nintendo_patch = self.consoles()
+        with self.itad() as client_class, xbox_patch as update_xbox, nintendo_patch as update_nintendo:
+            self.assertEqual(prices.fetch_missing([self.hades, self.halo, searched]), 2)
+        client_class.assert_called_once_with(retries=0)  # sin esperas: hay alguien esperando la página
+        self.client_mock.lookup.assert_called_once_with("steam", [1145360])  # el ya buscado no se vuelve a pedir
+        self.hades.refresh_from_db()
+        self.halo.refresh_from_db()
+        self.assertEqual(self.hades.prices.count(), 2)
+        self.assertIsNotNone(self.halo.prices_updated_at)
+        # Las consolas se buscan juego a juego: en una importación, solo para el que se ha quedado sin ningún precio.
+        update_xbox.assert_called_once_with([self.halo])
+        update_nintendo.assert_called_once_with([self.halo])
+
+    def test_game_page_also_asks_the_consoles_of_games_with_pc_prices(self):
+        xbox_patch, nintendo_patch = self.consoles()
+        with self.itad(), xbox_patch as update_xbox, nintendo_patch as update_nintendo:
+            prices.fetch_missing([self.hades], consoles=True)
+        update_xbox.assert_called_once_with([self.hades])
+        update_nintendo.assert_called_once_with([self.hades])
+
+    def test_itad_failure_leaves_games_unsearched_without_failing(self):
+        self.client_mock.lookup.side_effect = prices.ITADError("caído")
+        xbox_patch, nintendo_patch = self.consoles()
+        with self.itad(), xbox_patch as update_xbox, nintendo_patch, self.assertLogs("games.prices", "ERROR"):
+            self.assertEqual(prices.fetch_missing([self.hades, self.halo]), 0)
+        update_xbox.assert_not_called()  # en una importación, tampoco las consolas: se buscará todo otra vez
+        self.hades.refresh_from_db()
+        self.assertIsNone(self.hades.prices_updated_at)
+
+    def test_a_console_store_failure_does_not_stop_the_other(self):
+        _, nintendo_patch = self.consoles()
+        with self.itad(), mock.patch("games.xbox.update_xbox_prices", side_effect=xbox.XboxError("caída")), \
+                nintendo_patch as update_nintendo, self.assertLogs("games.prices", "ERROR"):
+            self.assertEqual(prices.fetch_missing([self.halo]), 1)
+        update_nintendo.assert_called_once_with([self.halo])
+
+    @override_settings(ITAD_API_KEY="")
+    def test_without_api_key_nothing_is_asked(self):
+        with mock.patch("games.prices.update_prices") as update:
+            self.assertEqual(prices.fetch_missing([self.hades]), 0)
+        update.assert_not_called()
+
+    def test_game_page_loads_prices_never_searched_with_htmx(self):
+        response = self.client.get(self.hades.get_absolute_url(), {"tiendas": "todas"})
+        self.assertContains(response, "Buscando precios…")
+        # Con la misma ?tiendas= de la ficha.
+        self.assertContains(response, 'hx-get="/juegos/hades/precios/?tiendas=todas"')
+        self.assertNotContains(response, "Aún no hemos buscado")
+
+    def test_prices_fragment_asks_every_store_only_once(self):
+        self.hades.xbox_product_ids = ["9P8DL6W0JBXP"]
+        self.hades.save()
+        self.hades.platforms.add(self.xbox_series, self.switch)
+
+        def get(url, params, timeout):
+            """Simula la tienda de Xbox y la eShop de Nintendo (su buscador y sus precios)."""
+            if url == xbox.CATALOG_URL:
+                data = {"Products": [xbox_product("9P8DL6W0JBXP", (19.99, 24.99, "Windows.Xbox"))]}
+            elif url == nintendo.PRICE_URL:
+                data = {"prices": [eshop_price("70010000033132", "24.99", "7.49")]}
+            else:
+                data = {"response": {"docs": [eshop_game("Hades", ["70010000033132"])]}}
+            return mock.Mock(**{"json.return_value": data})
+
+        url = reverse("games:prices", args=["hades"])
+        with self.itad(), mock.patch("games.xbox.requests.get", side_effect=get) as requests_get:
+            response = self.client.get(url)
+            self.client.get(url)
+        # PC (Steam y GOG), Xbox y Nintendo, y ninguna búsqueda de consola sin precio.
+        self.assertContains(response, 'class="shop-tile"', count=4)
+        self.assertContains(response, "19,99 €")
+        self.assertContains(response, "7,49 €")
+        self.assertNotContains(response, "shop-tile-search")
+        self.assertContains(response, 'id="prices"')
+        self.assertContains(response, "Recién buscados")
+        # La segunda vez ya estaban buscados: ni IsThereAnyDeal ni las consolas.
+        self.client_mock.prices.assert_called_once()
+        self.assertEqual(requests_get.call_count, 3)
+        self.hades.refresh_from_db()
+        self.assertIsNotNone(self.hades.prices_updated_at)
+        page = self.client.get(self.hades.get_absolute_url())
+        self.assertNotContains(page, "Buscando precios…")
+        self.assertContains(page, "Nintendo eShop")
+
+    def test_prices_fragment_says_when_they_could_not_be_searched(self):
+        self.client_mock.lookup.side_effect = prices.ITADError("caído")
+        xbox_patch, nintendo_patch = self.consoles()
+        with self.itad(), xbox_patch as update_xbox, nintendo_patch, self.assertLogs("games.prices", "ERROR"):
+            response = self.client.get(reverse("games:prices", args=["hades"]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "No se han podido buscar sus precios")
+        update_xbox.assert_called_once()  # las de consola sí se buscan
+        # Sigue sin buscar: la próxima vez que se abra la ficha se vuelven a pedir.
+        self.assertContains(self.client.get(self.hades.get_absolute_url()), "Buscando precios…")
+
+    def test_game_page_tells_never_searched_from_sold_nowhere(self):
+        with override_settings(ITAD_API_KEY=""):
+            response = self.client.get(self.halo.get_absolute_url())
+        self.assertContains(response, "Aún no hemos buscado sus precios.")
+        self.assertNotContains(response, "Buscando precios…")
+        Game.objects.filter(pk=self.halo.pk).update(prices_updated_at=timezone.now())
+        response = self.client.get(self.halo.get_absolute_url())
+        self.assertContains(response, "Ninguna tienda de PC, Xbox ni Nintendo lo vende ahora.")
+        self.assertContains(response, "Precios buscados hace")
+        self.assertContains(response, "https://www.xbox.com/es-ES/search/results/games?q=")  # y se puede buscar a mano
+        self.assertNotContains(response, "Aún no hemos buscado")
+
+
 class PreferredShopsTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = User.objects.create_user("ana", "ana@example.com", "x")
-        cls.game = Game.objects.create(name="Hades", slug="hades")
+        # Con los precios ya buscados alguna vez, para que la ficha los pinte sin pedirlos con HTMX.
+        cls.game = Game.objects.create(name="Hades", slug="hades", prices_updated_at=timezone.now())
         for shop_id, name, price in ((61, "Steam", "24.99"), (35, "GOG", "19.99"), (0, "Xbox", "29.99")):
             GamePrice.objects.create(
                 game=cls.game, shop_id=shop_id, shop_name=name, price=Decimal(price), regular_price=Decimal(price),

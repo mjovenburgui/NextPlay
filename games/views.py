@@ -145,23 +145,17 @@ def detail(request, slug):
     está (lists.views.game_page_context), carrusel de imágenes y vídeos, precios y reseñas.
 
     La cabecera y el carrusel salen de games.media: si sus imágenes de IGDB están al día se pintan ya;
-    si no, la ficha carga el carrusel después con HTMX (game_media). Los precios llegan ya repartidos por
-    Game.price_groups(); store_searches() da los enlaces de búsqueda a las tiendas de consola sin
-    precio. Si el usuario ha elegido sus tiendas solo se enseñan esas, salvo con ?tiendas=todas; la
-    gráfica de precios elige tienda con ?tienda=. Las reseñas de perfiles privados solo las ve su autor.
+    si no, la ficha carga el carrusel después con HTMX (game_media). «Dónde comprarlo» (_prices_context) se pinta
+    ya si los precios del juego se han buscado alguna vez; si no, la ficha lo carga después con HTMX
+    (game_prices), que antes los busca. Las reseñas de perfiles privados solo las ve su autor.
     """
     game = get_object_or_404(Game.objects.prefetch_related("genres", "platforms", "prices"), slug=slug)
     entry = wish = None
     if request.user.is_authenticated:
         entry = LibraryEntry.objects.filter(user=request.user, game=game).first()
         wish = WishlistItem.objects.filter(user=request.user, game=game).first()
-    user_shops = _user_shops(request)
-    show_all = request.GET.get("tiendas") == history.ALL_SHOPS or not user_shops
-    featured_prices, listed_prices, folded_prices, best_price = game.price_groups(None if show_all else user_shops)
-    hidden_prices = 0 if show_all else sum(1 for price in game.prices.all() if price.shop_id not in user_shops)
-    has_pc_prices = any(price.source == GamePrice.Source.ITAD for price in game.prices.all())
-    # Con el historial reciente se pinta ya; si hay que pedirlo a ITAD, la ficha lo carga después con HTMX.
-    fresh = not history.needs_update(game)
+    # Sin precios buscados nunca, «Dónde comprarlo» llega después: la ficha los pide con HTMX y no espera a las tiendas.
+    load_prices = game.prices_updated_at is None and prices.is_configured()
     # Lo mismo con las imágenes y vídeos de IGDB del carrusel.
     media_fresh = not media.needs_update(game)
     return render(
@@ -175,17 +169,9 @@ def detail(request, slug):
             "can_set_banner": entry is not None,
             "entry": entry,
             "statuses": LibraryEntry.Status.choices,
-            "featured_prices": featured_prices,
-            "listed_prices": listed_prices,
-            "folded_prices": folded_prices,
-            "best_price": best_price,
-            "has_pc_prices": has_pc_prices,
-            "hidden_prices": hidden_prices,
-            "user_shops": user_shops,
-            "load_price_history": not fresh and has_pc_prices and not game.is_free and prices.is_configured(),
-            **(_history_context(request, game, user_shops) if fresh and has_pc_prices else {}),
+            "load_prices": load_prices,
+            **({} if load_prices else _prices_context(request, game)),
             "wish": wish,
-            "store_searches": game.store_searches(),
             "community": game.community_rating(),
             **review_context(request, game, entry),
             **(favorite_context(request.user, game) if request.user.is_authenticated else {}),
@@ -247,6 +233,65 @@ def _user_shops(request):
     if not request.user.is_authenticated:
         return set()
     return set(request.user.profile.shops)
+
+
+def _prices_context(request, game):
+    """Variables de «Dónde comprarlo» (games/_prices.html).
+
+    Los precios llegan ya repartidos por Game.price_groups(); store_searches() da los enlaces de búsqueda a las
+    tiendas de consola sin precio. Si el usuario ha elegido sus tiendas solo se enseñan esas, salvo con
+    ?tiendas=todas. El historial de precios de PC va ya pintado si está al día; si hay que pedirlo a ITAD, se carga
+    después con HTMX (price_history), y su gráfica elige tienda con ?tienda=.
+    """
+    user_shops = _user_shops(request)
+    show_all = request.GET.get("tiendas") == history.ALL_SHOPS or not user_shops
+    featured_prices, listed_prices, folded_prices, best_price = game.price_groups(None if show_all else user_shops)
+    has_pc_prices = any(price.source == GamePrice.Source.ITAD for price in game.prices.all())
+    # Con el historial reciente se pinta ya; si hay que pedirlo a ITAD, la ficha lo carga después con HTMX.
+    fresh = not history.needs_update(game)
+    return {
+        "featured_prices": featured_prices,
+        "listed_prices": listed_prices,
+        "folded_prices": folded_prices,
+        "best_price": best_price,
+        "has_pc_prices": has_pc_prices,
+        "hidden_prices": 0 if show_all else sum(1 for price in game.prices.all() if price.shop_id not in user_shops),
+        "user_shops": user_shops,
+        "load_price_history": not fresh and has_pc_prices and not game.is_free and prices.is_configured(),
+        **(_history_context(request, game, user_shops) if fresh and has_pc_prices else {}),
+        "store_searches": game.store_searches(),
+    }
+
+
+def game_prices(request, slug):
+    """«Dónde comprarlo» de la ficha (fragmento HTML que la ficha carga con HTMX si los precios del juego nunca se
+    han buscado).
+
+    Si siguen sin buscarse, antes los pide a todas las tiendas: las de PC a IsThereAnyDeal y también Xbox y
+    Nintendo (prices.fetch_missing con consoles), y la ficha dice que se acaban de buscar (just_searched). Si
+    IsThereAnyDeal falla, enseña los que haya y avisa de que no se han podido buscar (prices_failed); se volverá a
+    intentar la próxima vez que se abra la ficha.
+    """
+    game = get_object_or_404(Game.objects.prefetch_related("platforms"), slug=slug)
+    tried = game.prices_updated_at is None and prices.is_configured()
+    if tried:
+        prices.fetch_missing([game], consoles=True)
+    # Otra vez de la base de datos, con los precios que se acaban de guardar.
+    game = Game.objects.prefetch_related("platforms", "prices").get(pk=game.pk)
+    wish = None
+    if request.user.is_authenticated:
+        wish = WishlistItem.objects.filter(user=request.user, game=game).first()
+    return render(
+        request,
+        "games/_prices.html",
+        {
+            "game": game,
+            "wish": wish,
+            "just_searched": tried and game.prices_updated_at is not None,
+            "prices_failed": tried and game.prices_updated_at is None,
+            **_prices_context(request, game),
+        },
+    )
 
 
 def _history_context(request, game, user_shops):
