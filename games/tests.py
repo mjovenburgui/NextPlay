@@ -129,12 +129,29 @@ class UpsertGamesTests(TestCase):
                 {"id": 4, "name": "Hades (same app)", **steam(72850, "Hades")},
                 {"id": 5, "name": "Hades Console"},
             ],
+            # Los ports y las ediciones ampliadas son el mismo juego en otra ficha: van antes que los remasters.
+            "expanded_games": [{"id": 6, "name": "Hades: Enhanced Edition", **steam(600, "Hades: Enhanced Edition")}],
+            "ports": [{"id": 7, "name": "Hades (PC)", **steam(700, "Hades")}],
         }])
         self.assertEqual(Game.objects.get().price_lookups, [
             ([("steam", 72850)], ""),
             ([("steam", 200)], "Hades GOTY"),
+            ([("steam", 700)], "Hades (PC)"),
+            ([("steam", 600)], "Hades: Enhanced Edition"),
             ([("steam", 300)], "Hades Remastered"),
         ])
+
+    def test_a_game_without_store_ids_finds_its_prices_through_its_port(self):
+        # Red Dead Redemption: la ficha del juego no tiene IDs de tienda y su versión de PC es otra ficha (un port).
+        igdb.upsert_games([{
+            **IGDB_HADES,
+            "ports": [{"id": 7, "name": "Hades", "external_games": [
+                {"id": 1, "uid": "2668510", "name": "Hades", "external_game_source": igdb.STEAM_SOURCE_ID},
+            ]}],
+        }])
+        game = Game.objects.get()
+        self.assertEqual((game.steam_app_id, game.store_ids), (None, {}))
+        self.assertEqual(game.price_lookups, [([("steam", 2668510)], "Hades")])
 
     def test_skips_payloads_without_name_or_slug(self):
         self.assertEqual(igdb.upsert_games([{"id": 1}, {"id": 2, "name": "Sin slug"}]), [])
@@ -157,6 +174,32 @@ class IGDBClientTests(TestCase):
             games = client.top_games(limit=2)
         self.assertIn("where version_parent = (113112,5)", query.call_args.args[1])
         self.assertEqual([game["editions"] for game in games], [[goty], []])
+
+    def test_games_ask_for_the_store_ids_of_ports_and_expanded_games(self):
+        for related in ("ports", "expanded_games", "remasters"):
+            self.assertIn(f"{related}.name, {related}.external_games.uid", igdb.GAME_FIELDS)
+
+    def test_refreshes_the_catalog_games_without_store_ids(self):
+        Game.objects.create(igdb_id=1, name="Con Steam", slug="con-steam", store_ids={"steam": [10]})
+        Game.objects.create(igdb_id=434, name="Red Dead Redemption", slug="red-dead-redemption")
+        Game.objects.create(igdb_id=5, name="Solo consola", slug="solo-consola")
+        payload = [
+            {"id": 434, "name": "Red Dead Redemption", "slug": "red-dead-redemption", "editions": [], "ports": [
+                {"id": 260735, "name": "Red Dead Redemption", "external_games": [
+                    {"id": 1, "uid": "2668510", "name": "Red Dead Redemption", "external_game_source": 1},
+                ]},
+            ]},
+            {"id": 5, "name": "Solo consola", "slug": "solo-consola", "editions": []},
+        ]
+        out = io.StringIO()
+        with mock.patch.object(igdb.IGDBClient, "games_by_ids", return_value=payload) as games_by_ids:
+            call_command("import_igdb", "--sin-ids-de-tienda", stdout=out)
+        # Solo se piden los que no tienen con qué buscar sus precios.
+        self.assertEqual(sorted(games_by_ids.call_args.args[0]), [5, 434])
+        self.assertIn("2 juegos sin IDs de tienda vueltos a pedir: 1 tienen ya con qué buscar sus precios", out.getvalue())
+        self.assertEqual(
+            Game.objects.get(igdb_id=434).price_lookups, [([("steam", 2668510)], "Red Dead Redemption")],
+        )
 
     def test_blank_search_makes_no_request(self):
         client = igdb.IGDBClient()
