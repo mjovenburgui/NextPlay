@@ -26,7 +26,8 @@
 {# Los niveles solo se ven con «Por niveles» elegido (lo hace el CSS con :has; si el navegador no lo entiende, se ven siempre). #}
 <fieldset class="field list-tiers">
   <legend>Niveles, de mejor a peor</legend>
-  <p class="help">Cambia sus nombres y colores. Los que dejes sin nombre se quitan y sus juegos quedan sin clasificar.</p>
+  {# Con versiones hechas, o en una versión, los niveles quedan fijos (GameListForm.tiers_lock). #}
+  <p class="help">{% if form.tiers_lock %}{{ form.tiers_lock }}{% else %}Cambia sus nombres y colores. Los que dejes sin nombre se quitan y sus juegos quedan sin clasificar.{% endif %}</p>
   <ol class="tier-fields">
     {% for label, color in form.tier_fields %}
       <li class="tier-field{% if label.errors or color.errors %} has-error{% endif %}">
@@ -38,8 +39,9 @@
   </ol>
 </fieldset>
 {% endif %}
+{# «Abierta a la comunidad» solo se ve con «Por niveles» elegido, como los niveles (data-field, en el CSS). #}
 {% for field in form.switches %}
-  <label class="switch-row" for="{{ field.id_for_label }}">
+  <label class="switch-row" for="{{ field.id_for_label }}" data-field="{{ field.name }}">
     <span>
       <strong>{{ field.label }}</strong>
       {% if field.help_text %}<span class="help">{{ field.help_text }}</span>{% endif %}

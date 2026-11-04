@@ -60,6 +60,37 @@
       </div>
     </header>
 
+    {% if community %}
+      {# Tier list abierta a la comunidad (lists.community): cuánta gente la ha hecho y el botón para hacer la tuya, o ir a ella. #}
+      <section class="card-box list-open" aria-labelledby="list-open-title">
+        <div class="list-open-info">
+          <h2 id="list-open-title">{% include "_icon.html" with name="tiers" %} Abierta a la comunidad</h2>
+          <p class="muted">
+            {% if community.voters %}La ha{{ community.voters|pluralize:"n" }} hecho {{ community.voters }} persona{{ community.voters|pluralize }}.{% else %}Aún no la ha hecho nadie.{% endif %}
+            {% if community.missing %}La de la comunidad sale cuando la hayan hecho {{ min_voters }}: falta{{ community.missing|pluralize:"n" }} {{ community.missing }}.{% else %}En la de la comunidad, cada juego va en el nivel del medio de lo que ha votado la gente.{% endif %}
+          </p>
+        </div>
+        {% if is_owner %}
+          <p class="muted small list-open-note">Tu tablero cuenta como una versión más en cuanto colocas algún juego.</p>
+        {% elif my_version %}
+          <a class="btn" href="{{ my_version.get_absolute_url }}">{% include "_icon.html" with name="arrow" %} Ver tu versión</a>
+        {% elif user.is_authenticated %}
+          <form method="post" action="{% url 'lists:make_version' game_list.pk %}">
+            {% csrf_token %}
+            <button class="btn btn-primary" type="submit">{% include "_icon.html" with name="plus" %} Haz tu versión</button>
+          </form>
+        {% else %}
+          <a class="btn btn-primary" href="{% url 'login' %}?next={{ request.path|urlencode }}">Entra para hacer tu versión</a>
+        {% endif %}
+      </section>
+    {% elif source_list %}
+      {# Una versión de una tier list abierta: de cuál es (GameList.public_parent) y el enlace a la de la comunidad. #}
+      <section class="card-box list-open">
+        <p class="list-open-info">{% if is_owner %}Es tu versión de{% else %}Es la versión de {{ profile.name }} de{% endif %} <a href="{{ source_list.get_absolute_url }}">{{ source_list.title }}</a>, la tier list de {{ source_list.user.profile.name }}.</p>
+        {% if source_list.accepts_versions %}<a class="btn" href="{{ source_list.get_absolute_url }}?vista=comunidad">{% include "_icon.html" with name="tiers" %} Ver la de la comunidad</a>{% endif %}
+      </section>
+    {% endif %}
+
     {% if progress.total %}
       {# Cuánto ha jugado quien mira de la lista y, de lo que no tiene, lo que cuesta (lists.views.list_progress). #}
       <section class="card-box list-progress" aria-labelledby="list-progress-title">
@@ -108,6 +139,14 @@
         <p class="muted box-empty">
           {% if can_edit %}Aún no tiene juegos. <a href="{% url 'lists:edit' game_list.pk %}#juegos">Búscalos en el editor</a> o usa «Añadir a una lista» en la ficha de cualquier juego.{% else %}Esta lista aún no tiene juegos.{% endif %}
         </p>
+      {% elif view == "comunidad" %}
+        {# La tier list de la comunidad (lists.community.community_board): no se arrastra, y la barra de cada portada dice dónde la ha puesto la gente. #}
+        {% if community.missing %}
+          <p class="muted box-empty">Sale cuando la hayan hecho {{ min_voters }} personas: falta{{ community.missing|pluralize:"n" }} {{ community.missing }}. Mientras, mira «{% if is_owner %}La tuya{% else %}La de {{ profile.name }}{% endif %}».</p>
+        {% else %}
+          <p class="tier-hint muted small">Cada juego va en el nivel del medio de lo que ha votado la gente. La barra de debajo dice cuántos lo han puesto en cada nivel.</p>
+          {% include "lists/_tier_board.html" with tier_rows=community.rows community=True editable=False %}
+        {% endif %}
       {% elif view == "niveles" %}
         {# Tier list por niveles; quien puede editarla arrastra aquí mismo las portadas de un nivel a otro. #}
         {% if can_edit %}<p class="tier-hint muted small">{% include "_icon.html" with name="grip" %} Arrastra las portadas para cambiarlas de nivel o de sitio: se guarda al soltarlas.</p>{% endif %}

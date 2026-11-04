@@ -1,5 +1,6 @@
 """Lo que enseñan de las listas otras pantallas: las del Perfil (pestañas Listas y Tier lists y escaparate, con el tablero
-en miniatura de las tier lists) y las del feed de Inicio (cuánto has jugado de cada una y tus «me gusta»).
+en miniatura de las tier lists), las de la pestaña Tier lists y las del feed de Inicio (cuánto has jugado de cada una y
+tus «me gusta»).
 """
 
 from django.db.models import Count, Exists, F, OuterRef, Q, Window
@@ -25,7 +26,8 @@ def mark_progress(lists, viewer):
 
     Jugado es cualquier estado de la biblioteca menos Pendiente (PLAYED_STATUSES). Devuelve la misma lista.
 
-    Pantallas: Perfil (pestaña Listas), Listas del juego, Inicio (feed: cuántos juegos de cada lista has jugado).
+    Pantallas: Perfil (pestaña Listas), Tier lists, Listas del juego, Inicio (feed: cuántos juegos de cada lista has
+    jugado).
     """
     counts = {}
     if viewer.is_authenticated and lists:
@@ -60,7 +62,7 @@ def profile_lists(owner, viewer, public_only=False):
 
     Con public_only salen solo las públicas, como las vería cualquiera (la vista previa de Editar perfil).
 
-    Pantallas: Perfil (pestañas Listas y Tier lists y escaparate).
+    Pantallas: Perfil (pestañas Listas y Tier lists y escaparate), Tier lists (las tuyas).
     """
     joined = ListCollaborator.objects.filter(game_list=OuterRef("pk"), user=owner, accepted_at__isnull=False)
     lists = GameList.objects.filter(Q(user=owner) | Q(Exists(joined)))
@@ -81,7 +83,7 @@ def mark_boards(lists):
 
     Son dos consultas para todas: los primeros juegos de cada nivel y cuántos tiene cada uno. Devuelve la misma lista.
 
-    Pantallas: Perfil (tablero en miniatura de cada tier list).
+    Pantallas: Perfil (tablero en miniatura de cada tier list), Tier lists (el de cada tarjeta).
     """
     tiered = [game_list for game_list in lists if game_list.is_tiered]
     if not tiered:

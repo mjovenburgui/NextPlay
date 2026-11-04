@@ -14,6 +14,7 @@ from library.models import LibraryEntry, Report, Review, WishlistItem
 from social.models import Activity, Follow
 
 from . import presets
+from .community import community_board, middle_tier
 from .models import (
     LIST_MAX_GAMES, MAX_COLLABORATORS, NOTE_MAX_LENGTH, GameList, ListCollaborator, ListComment, ListItem, ListLike,
 )
@@ -1187,3 +1188,215 @@ class LibraryPresetTests(TestCase):
         self.assertRedirects(
             self.create("jugados"), f"{reverse('login')}?next={reverse('lists:from_library')}", fetch_redirect_response=False,
         )
+
+
+class OpenTierListTests(TestCase):
+    """Tier lists abiertas a la comunidad: «Haz tu versión», la tier list de la comunidad (lists.community), los niveles
+    fijos en cuanto hay versiones y la pestaña Tier lists."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana, cls.luis, cls.eva, cls.leo = [
+            User.objects.create_user(name, f"{name}@example.com", "x") for name in ("ana", "luis", "eva", "leo")
+        ]
+        cls.hades, cls.celeste, cls.tunic = make_games("Hades", "Celeste", "Tunic")
+
+    def setUp(self):
+        self.open = GameList.objects.create(user=self.ana, title="Indies", mode=GameList.Mode.TIERS, is_open=True)
+        for game in (self.hades, self.celeste, self.tunic):
+            self.open.add(game, self.ana)
+
+    def version(self, user, **tiers):
+        """La versión de user de la abierta, con los juegos de tiers (su nombre en minúsculas → id del nivel) colocados."""
+        version, _ = self.open.make_version(user)
+        for name, tier in tiers.items():
+            version.items.filter(game__name__iexact=name).update(tier=tier)
+        return version
+
+    def board(self):
+        """La de la comunidad como {nombre del nivel (None, los que nadie ha colocado): [juegos]} y lo que devuelve
+        community_board."""
+        result = community_board(self.open)
+        rows = {(level["label"] if level else None): [item.game.name for item in games] for level, games in result["rows"]}
+        return rows, result
+
+    def test_a_version_starts_with_the_same_games_and_tiers_unplaced(self):
+        self.open.items.filter(game=self.hades).update(tier=0)
+        self.client.force_login(self.luis)
+        response = self.client.post(reverse("lists:make_version", args=[self.open.pk]))
+        version = GameList.objects.get(user=self.luis)
+        self.assertRedirects(response, version.get_absolute_url(), fetch_redirect_response=False)
+        self.assertEqual(
+            (version.parent, version.title, version.tiers, version.is_public, version.is_tiered, version.is_open),
+            (self.open, "Indies", self.open.tiers, True, True, False),
+        )
+        self.assertEqual(
+            list(version.items.values_list("game__name", "tier")), [("Hades", None), ("Celeste", None), ("Tunic", None)],
+        )
+        activity = Activity.objects.get(user=self.luis)
+        self.assertEqual((activity.game_list, activity.list_created), (version, True))
+
+    def test_one_version_each_and_none_of_your_own(self):
+        url = reverse("lists:make_version", args=[self.open.pk])
+        self.client.force_login(self.luis)
+        first, second = self.client.post(url), self.client.post(url)
+        self.assertEqual(GameList.objects.filter(user=self.luis).count(), 1)
+        self.assertEqual(first["Location"], second["Location"])
+        self.client.force_login(self.ana)
+        self.assertEqual(self.client.post(url).status_code, 400)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            GameList.objects.create(user=self.luis, title="Otra", mode=GameList.Mode.TIERS, parent=self.open)
+
+    def test_only_open_public_tier_lists_take_versions(self):
+        url = reverse("lists:make_version", args=[self.open.pk])
+        self.client.force_login(self.luis)
+        for changes in ({"is_open": False}, {"is_public": False}, {"mode": GameList.Mode.LIST}):
+            values = {"is_open": True, "is_public": True, "mode": GameList.Mode.TIERS, **changes}
+            GameList.objects.filter(pk=self.open.pk).update(**values)
+            self.assertEqual(self.client.post(url).status_code, 404)
+        self.assertFalse(GameList.objects.filter(user=self.luis).exists())
+        self.client.logout()
+        self.assertRedirects(self.client.post(url), f"{reverse('login')}?next={url}", fetch_redirect_response=False)
+
+    def test_the_community_board_waits_for_enough_people(self):
+        self.version(self.luis, hades=0)
+        _, result = self.board()
+        self.assertEqual((result["voters"], result["missing"]), (1, 2))
+        page = self.client.get(self.open.get_absolute_url())
+        self.assertEqual(page.context["view"], "niveles")
+        self.assertContains(page, "falta")
+        # Su autora coloca uno, y con la de eva ya son tres: la de la comunidad sale la primera.
+        self.open.items.filter(game=self.hades).update(tier=1)
+        self.version(self.eva, hades=2)
+        _, result = self.board()
+        self.assertEqual((result["voters"], result["missing"]), (3, 0))
+        page = self.client.get(self.open.get_absolute_url())
+        self.assertEqual(page.context["view"], "comunidad")
+        self.assertContains(page, "La han hecho 3 personas")
+        self.assertContains(page, "is-community")
+
+    def test_each_game_goes_to_the_middle_of_its_votes(self):
+        self.open.items.filter(game=self.hades).update(tier=0)
+        self.version(self.luis, hades=0, celeste=2)
+        self.version(self.eva, hades=1, celeste=0, tunic=5)
+        rows, _ = self.board()
+        self.assertEqual(rows, {"S": ["Hades"], "A": ["Celeste"], "B": [], "C": [], "D": [], "F": ["Tunic"]})
+
+    def test_middle_tier_with_an_even_number_of_votes(self):
+        self.assertEqual(middle_tier([3]), 3)
+        self.assertEqual(middle_tier([5, 0, 0]), 0)
+        # Entre S y B queda A; entre S y A, igual de cerca de la media, la mejor; entre A y B, la más cercana a la media.
+        self.assertEqual(middle_tier([0, 2]), 1)
+        self.assertEqual(middle_tier([0, 1]), 0)
+        self.assertEqual(middle_tier([0, 1, 2, 5]), 2)
+
+    def test_votes_spread_and_order_inside_a_tier(self):
+        self.version(self.luis, hades=0, celeste=0)
+        self.version(self.eva, hades=0, celeste=1)
+        self.version(self.leo, celeste=0)
+        rows = {(level["label"] if level else None): games for level, games in community_board(self.open)["rows"]}
+        self.assertEqual([item.game.name for item in rows["S"]], ["Hades", "Celeste"])
+        celeste = rows["S"][1]
+        self.assertEqual(celeste.votes, 3)
+        self.assertEqual([(level["label"], count) for level, count in celeste.spread], [("S", 2), ("A", 1)])
+        self.assertEqual([item.game.name for item in rows[None]], ["Tunic"])
+
+    def test_private_versions_and_their_own_tiers_do_not_count(self):
+        private = self.version(self.luis, hades=0)
+        private.is_public = False
+        private.save()
+        self.version(self.eva, hades=0)
+        self.eva.profile.is_public = False
+        self.eva.profile.save()
+        extra = self.version(self.leo)
+        extra.tiers = [*extra.tiers, {"id": 6, "label": "Mío", "color": "#22e0f0"}]
+        extra.save()
+        extra.items.filter(game=self.hades).update(tier=6)
+        self.assertEqual(self.board()[1]["voters"], 0)
+
+    def test_games_added_later_reach_the_versions(self):
+        version = self.version(self.luis, hades=0)
+        portal, = make_games("Portal")
+        self.open.add(portal, self.ana)
+        self.assertIsNone(version.items.get(game=portal).tier)
+        # Quitarlo de la abierta no lo quita de las versiones: solo deja de contar en la de la comunidad.
+        self.open.remove(portal)
+        self.assertTrue(version.items.filter(game=portal).exists())
+
+    def test_tiers_are_fixed_once_there_are_versions(self):
+        self.version(self.luis)
+        self.client.force_login(self.ana)
+        url = reverse("lists:edit", args=[self.open.pk])
+        self.assertContains(self.client.get(url), "Ya hay versiones de esta tier list")
+        response = self.client.post(url, tier_form(title="Indies", is_open="on", nivel_5=""))
+        self.assertContains(response, "Este nivel no se puede quitar")
+        # Renombrar sí; añadir un nivel o dejar de ser tier list, no (esos campos no cuentan).
+        self.client.post(url, tier_form(title="Indies", is_open="on", mode="list", nivel_0="Obras maestras", nivel_6="Nuevo", color_6="#22e0f0"))
+        self.open.refresh_from_db()
+        self.assertEqual([tier["label"] for tier in self.open.tiers], ["Obras maestras", "A", "B", "C", "D", "F"])
+        self.assertTrue(self.open.is_tiered and self.open.is_open)
+
+    def test_a_version_keeps_its_tiers_and_cannot_be_opened(self):
+        version = self.version(self.luis)
+        self.client.force_login(self.luis)
+        url = reverse("lists:edit", args=[version.pk])
+        response = self.client.get(url)
+        self.assertNotIn("is_open", response.context["form"].fields)
+        self.assertContains(response, "Es una versión de otra tier list")
+        self.client.post(url, tier_form(title="Mis indies", is_open="on"))
+        version.refresh_from_db()
+        self.assertEqual((version.title, version.is_open, len(version.tiers)), ("Mis indies", False, 6))
+
+    def test_opening_needs_a_public_tier_list(self):
+        self.client.force_login(self.luis)
+        response = self.client.post(reverse("lists:new_tier_list"), tier_form(is_open="on", is_public=""))
+        self.assertContains(response, "Para abrirla a la comunidad tiene que ser visible para los demás.")
+        self.assertFalse(GameList.objects.filter(title="Roguelikes").exists())
+        self.client.post(reverse("lists:new_tier_list"), tier_form(is_open="on"))
+        self.assertTrue(GameList.objects.get(title="Roguelikes").is_open)
+        # «Nueva lista» no hace tier lists, así que no la ofrece.
+        self.assertNotIn("is_open", self.client.get(reverse("lists:new")).context["form"].fields)
+
+    def test_the_list_page_offers_your_version(self):
+        self.client.force_login(self.luis)
+        page = self.client.get(self.open.get_absolute_url())
+        self.assertContains(page, "Haz tu versión")
+        self.assertContains(page, "Aún no la ha hecho nadie")
+        version = self.version(self.luis, hades=0)
+        page = self.client.get(self.open.get_absolute_url())
+        self.assertContains(page, "Ver tu versión")
+        self.assertNotContains(page, "Haz tu versión")
+        self.assertContains(page, "La ha hecho 1 persona.")
+        mine = self.client.get(version.get_absolute_url())
+        self.assertContains(mine, "Es tu versión de")
+        self.assertContains(mine, f"{self.open.get_absolute_url()}?vista=comunidad")
+        # Si la abierta deja de ser pública, la versión ya no dice cuál era.
+        GameList.objects.filter(pk=self.open.pk).update(is_public=False)
+        self.assertNotContains(self.client.get(version.get_absolute_url()), "Es tu versión de")
+
+    def test_the_tier_lists_tab(self):
+        GameList.objects.create(user=self.luis, title="Mi privada", mode=GameList.Mode.TIERS, is_public=False, is_open=True)
+        self.version(self.eva, hades=0)
+        response = self.client.get(reverse("lists:tier_lists"))
+        self.assertEqual([game_list.title for game_list in response.context["popular"]], ["Indies"])
+        self.assertEqual(response.context["popular"][0].version_count, 1)
+        self.assertContains(response, "Abierta · 1 versión")
+        self.assertNotContains(response, "Mi privada")
+        self.assertContains(response, f'href="{reverse("lists:tier_lists")}"')
+        # Con sesión, las tuyas van arriba y no se repiten abajo; las de la gente que sigues, aparte.
+        Follow.objects.create(follower=self.ana, followed=self.eva)
+        self.client.force_login(self.ana)
+        response = self.client.get(reverse("lists:tier_lists"))
+        self.assertEqual([game_list.title for game_list in response.context["mine"]], ["Indies"])
+        self.assertEqual(response.context["recent"], [])
+        self.assertEqual([game_list.user for game_list in response.context["followed"]], [self.eva])
+        self.assertContains(response, "Versión de la de ana")
+
+    def test_the_feed_says_whose_version_it_is(self):
+        Follow.objects.create(follower=self.ana, followed=self.luis)
+        self.client.force_login(self.luis)
+        self.client.post(reverse("lists:make_version", args=[self.open.pk]))
+        self.client.force_login(self.ana)
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, "hizo su versión de")
+        self.assertContains(response, f'href="{self.ana.profile.get_absolute_url()}">{self.ana.profile.name}</a>')

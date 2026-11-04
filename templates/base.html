@@ -22,6 +22,7 @@
       <a class="{% if section == 'home' %}is-active{% endif %}" href="{% url 'home' %}">{% include "_icon.html" with name="home" %} Inicio</a>
       <a class="{% if request.resolver_match.namespace == 'games' %}is-active{% endif %}" href="{% url 'games:catalog' %}">{% include "_icon.html" with name="games" %} Juegos</a>
       <a class="{% if request.resolver_match.namespace == 'challenges' %}is-active{% endif %}" href="{% url 'challenges:explore' %}">{% include "_icon.html" with name="trophy" %} Retos</a>
+      <a class="{% if section == 'tier_lists' or section == 'new_tier_list' %}is-active{% endif %}" href="{% url 'lists:tier_lists' %}">{% include "_icon.html" with name="tiers" %} Tier lists</a>
       {% if user.is_authenticated %}
         <a class="{% if section == 'wishlist' %}is-active{% endif %}" href="{% url 'library:wishlist' %}">{% include "_icon.html" with name="heart" %} Deseos</a>
       {% endif %}
@@ -48,6 +49,8 @@
             <a href="{% url 'profile' user.username %}?vista=listas">{% include "_icon.html" with name="list" %} Mis listas</a>
             <a href="{% url 'profile' user.username %}?vista=tier-lists">{% include "_icon.html" with name="tiers" %} Mis tier lists</a>
             <a href="{% url 'challenges:explore' %}">{% include "_icon.html" with name="trophy" %} Retos</a>
+            {# En el móvil, el menú de arriba no se ve y la barra de abajo ya tiene cinco botones: la pestaña Tier lists va aquí. #}
+            <a href="{% url 'lists:tier_lists' %}">{% include "_icon.html" with name="tiers" %} Tier lists</a>
             <a href="{% url 'library:wishlist' %}">{% include "_icon.html" with name="heart" %} Lista de deseos</a>
             <a href="{% url 'edit_profile' %}">{% include "_icon.html" with name="settings" %} Editar perfil</a>
             <form action="{% url 'logout' %}" method="post">

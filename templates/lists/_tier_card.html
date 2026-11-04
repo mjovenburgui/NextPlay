@@ -1,6 +1,7 @@
 {# Tarjeta de una tier list: su tablero en miniatura (los primeros juegos de cada nivel y, si tiene más, cuántos), el título, #}
 {# cuántos juegos tiene y cuántos quedan sin clasificar y, con sesión, cuántos ha jugado quien mira. Necesita game_list (con #}
-{# with_preview, lists.views.mark_boards y mark_progress); si es de otro (from_other), también dice de quién es. #}
+{# with_preview, lists.views.mark_boards y mark_progress); si es de otro (from_other), también dice de quién es. Las abiertas a la #}
+{# comunidad llevan su marca (con cuántas versiones tienen, si viene version_count) y las versiones, de quién es la que han hecho. #}
 <a class="list-card tier-card" href="{{ game_list.get_absolute_url }}">
   <span class="tier-mini" aria-hidden="true">
     {% for level, tier_items, more in game_list.board %}
@@ -10,7 +11,8 @@
   </span>
   <span class="list-card-title">{{ game_list.title }}</span>
   <span class="list-card-meta muted small">
-    {% if game_list.from_other %}De {{ game_list.user.profile.name }} · {% endif %}{{ game_list.game_count }} juego{{ game_list.game_count|pluralize }}{% if game_list.loose_count %} · {{ game_list.loose_count }} sin clasificar{% endif %}
+    {% if game_list.from_other %}De {{ game_list.user.profile.name }} · {% endif %}{% with source=game_list.public_parent %}{% if source %}Versión de la de {{ source.user.profile.name }} · {% endif %}{% endwith %}{{ game_list.game_count }} juego{{ game_list.game_count|pluralize }}{% if game_list.loose_count %} · {{ game_list.loose_count }} sin clasificar{% endif %}
+    {% if game_list.accepts_versions %}<span class="pill pill-open">Abierta{% if game_list.version_count %} · {{ game_list.version_count }} versi{{ game_list.version_count|pluralize:"ón,ones" }}{% endif %}</span>{% endif %}
     {% if game_list.like_count %}<span class="list-card-likes" title="Me gusta">{% include "_icon.html" with name="heart" %} {{ game_list.like_count }}<span class="visually-hidden"> me gusta</span></span>{% endif %}
     {% if not game_list.is_public %}<span class="pill">Privada</span>{% endif %}
   </span>

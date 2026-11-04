@@ -3,16 +3,22 @@
 {# arrastran a otro nivel o a otro sitio del suyo y cada cambio se guarda al soltarlas (lists.views.tier con orden=; el script #}
 {# está en lists/_drag.html). where dice desde dónde: «editor» cambia todos los juegos del editor y «tablero», en la página de #}
 {# la lista, solo el tablero. #}
-<div class="tier-board{% if editable %} is-editable{% endif %}" id="tier-board"{% if editable %} data-tier-board data-desde="{{ where }}" data-target="{% if where == 'editor' %}#list-items{% else %}#tier-board{% endif %}"{% endif %}>
+{# Con community (la tier list de la comunidad, lists.community.community_board) no se arrastra: cada portada lleva debajo una #}
+{# barra con los colores de los niveles en los que la ha puesto la gente (spread) y la fila del final es la de los que nadie ha colocado. #}
+<div class="tier-board{% if editable %} is-editable{% endif %}{% if community %} is-community{% endif %}" id="tier-board"{% if editable %} data-tier-board data-desde="{{ where }}" data-target="{% if where == 'editor' %}#list-items{% else %}#tier-board{% endif %}"{% endif %}>
   {% for level, tier_items in tier_rows %}
     <div class="tier-row{% if not level %} is-loose{% endif %}">
-      <p class="tier-label"{% if level %} style="--tier: {{ level.color }}; --tier-text: {{ level.text }};"{% endif %}>{% if level %}{{ level.label }}{% else %}Sin clasificar{% endif %}</p>
+      <p class="tier-label"{% if level %} style="--tier: {{ level.color }}; --tier-text: {{ level.text }};"{% endif %}>{% if level %}{{ level.label }}{% elif community %}Sin votos{% else %}Sin clasificar{% endif %}</p>
       <ol class="tier-games"{% if editable %} data-tier="{% if level %}{{ level.id }}{% endif %}"{% endif %}>
         {% for item in tier_items %}
           <li{% if editable %} data-game="{{ item.game_id }}" data-url="{% url 'lists:tier' game_list.pk item.game_id %}"{% endif %}>
-            <a class="tier-game" href="{{ item.game.get_absolute_url }}" title="{{ item.game.name }}{% if item.viewer_status %} · {{ item.viewer_status }}{% endif %}"{% if editable %} draggable="false"{% endif %}>
+            <a class="tier-game" href="{{ item.game.get_absolute_url }}" title="{{ item.game.name }}{% if item.viewer_status %} · {{ item.viewer_status }}{% endif %}{% if community and item.votes %} · {% for spot, count in item.spread %}{{ spot.label }}: {{ count }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}"{% if editable %} draggable="false"{% endif %}>
               {% if item.game.cover_url %}<img src="{{ item.game.cover_url }}" alt="{{ item.game.name }}" loading="lazy"{% if editable %} draggable="false"{% endif %}>{% else %}<span class="cover-fallback">{{ item.game.name }}</span>{% endif %}
+              {% if community and item.votes %}<span class="visually-hidden">: {% for spot, count in item.spread %}{{ count }} en {{ spot.label }}{% if not forloop.last %}, {% endif %}{% endfor %}</span>{% endif %}
             </a>
+            {% if community and item.votes %}
+              <span class="tier-votes" aria-hidden="true">{% for spot, count in item.spread %}<span style="flex-grow: {{ count }}; --tier: {{ spot.color }};"></span>{% endfor %}</span>
+            {% endif %}
           </li>
         {% endfor %}
       </ol>

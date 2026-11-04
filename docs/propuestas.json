@@ -251,12 +251,47 @@
         "Los años pasados, con las fechas de los logros en cuanto «Logros uno a uno» las guarde (ver abajo)."
       ],
       "profundizar": [
-        "Una entrada «Tier lists» en el menú de arriba, como la de «Retos», cuando haya algo que explorar además de las tuyas: la tier list de la comunidad por plantilla y las de la gente que sigues.",
+        "Una entrada «Tier lists» en el menú de arriba, como la de «Retos», cuando haya algo que explorar además de las tuyas: la tier list de la comunidad por plantilla y las de la gente que sigues. Ahora va en «Tier lists de la comunidad, con su propia pestaña como Retos».",
         "Años pasados con los logros: comprobado con tester_steam, 118 de sus 128 juegos con logros traen fechas, 36 tienen logros de 2025 y 14 de esos se perderían mirando solo la última partida, porque se volvieron a jugar en 2026. Con «Logros uno a uno», «Jugados en 2025» se puede ofrecer ya, diciendo «según tus logros».",
-        "«Haz tu versión»: en la tier list de otra persona, un botón copia sus juegos a una tuya sin clasificar y, al terminar, enseña en qué discrepáis («S para ti, C para Ana»). Da conversación y se comparte sola.",
-        "Tier list de la comunidad por plantilla: la mediana del nivel de cada juego entre todos los que han hecho «Jugados en 2026», como resumen del año sin pedir nada nuevo a nadie.",
+        "«Haz tu versión»: en la tier list de otra persona, un botón copia sus juegos a una tuya sin clasificar y, al terminar, enseña en qué discrepáis («S para ti, C para Ana»). Da conversación y se comparte sola. Ahora va en «Tier lists de la comunidad, con su propia pestaña como Retos».",
+        "Tier list de la comunidad por plantilla: la mediana del nivel de cada juego entre todos los que han hecho «Jugados en 2026», como resumen del año sin pedir nada nuevo a nadie. Ahora va en «Tier lists de la comunidad, con su propia pestaña como Retos».",
         "Que decida algo: la fila «Ya mismo» de la plantilla del pendiente alimenta el bloque «Elige de tu pendiente» de las recomendaciones, o se convierte en reto con el «Convertir en reto» que ya existe.",
         "Listas inteligentes: además de las plantillas, una lista definida por una regla («mis RPG de más de 50 h», «pendiente en castellano de menos de 10 h») que se rellena sola cada vez que se abre, con los mismos filtros de los retos (_game_filters) y del catálogo."
+      ]
+    }
+  },
+  {
+    "titulo": "Tier lists de la comunidad, con su propia pestaña como Retos",
+    "fecha": "2026-11-03",
+    "estado": "en curso",
+    "prioridad": "alta",
+    "tipo": "Funcionalidad",
+    "resumen": "Una pestaña «Tier lists» en el menú de arriba, como la de Retos, y tier lists que se dejan abiertas para que las haga la comunidad. Quien la abre pone los juegos y los niveles, y puede no colocar ninguno. Cada uno hace su versión, y la página enseña la tier list de la comunidad, que junta todas, y en qué te apartas tú de ella.",
+    "motivo": "Idea del usuario (03/11/2026): apartar todavía más las tier lists, con una pestaña propia como la de los retos, y poder dejarlas para que las haga la comunidad. Ya estaba apuntado como forma de profundizar en la propuesta de las tier lists que se rellenan solas con tu biblioteca: la entrada del menú, «Haz tu versión» y la tier list de la comunidad. La pestaña sola aporta poco, porque hoy hay 3 tier lists de 2 personas y ya salen en los perfiles y en el feed. Lo que la justifica es tener algo que explorar y en lo que participar, como pasa con los retos.",
+    "pasos": [
+      "Pestaña «Tier lists» (tier-lists/), como la de Retos: las tuyas, las de la gente que sigues, las abiertas con más versiones y las últimas que se han abierto, con un botón «Crear una tier list» que lleva a la página que ya existe. En el ordenador va en el menú de arriba, entre Retos y Deseos. En el móvil ese menú no se ve y la barra de abajo ya tiene cinco botones, así que va en el menú de la cuenta, junto a «Mis tier lists» y Retos.",
+      "Abrir una tier list a la comunidad: una casilla en «Nueva tier list» y en su editor, solo si es pública. Quien la abre elige los juegos y los niveles, y puede dejarlos todos en «Sin clasificar»: así la deja para que la haga la comunidad.",
+      "«Haz tu versión»: un botón en la página de una tier list abierta crea una tuya con los mismos juegos y niveles en «Sin clasificar» y abre el tablero, como hacen las plantillas de la biblioteca. Es una tier list normal y tuya, con sus «me gusta» y comentarios, y sale en tu perfil y en el feed («hizo su versión de…»).",
+      "La tier list de la comunidad: en la página de la abierta, un tablero que junta todas las versiones y pone cada juego en el nivel mediano de quienes lo han colocado. Al tocar un juego se ve el reparto («S 40 %, A 35 %…») y cuánta gente lo ha colocado. Hasta que haya tres versiones, sale «Faltan 2 versiones para ver la de la comunidad».",
+      "En qué te apartas: al terminar la tuya, los juegos en los que más te alejas de la comunidad («S para ti, C para la comunidad») y los más polémicos, en los que nadie se pone de acuerdo.",
+      "Aviso a quien la abrió cuando alguien hace su versión, agrupados («Ana y 3 más han hecho su versión de…»)."
+    ],
+    "notas": "La comunidad no arrastra juegos en un mismo tablero: cada uno hace su versión y la de la comunidad se calcula. Así nadie puede estropearla, no hay peleas por dónde va un juego y tu versión sigue siendo tuya. Para editar un mismo tablero entre unos pocos ya están las listas colaborativas. Por dentro siguen siendo listas (GameList en modo tiers): se aparta la navegación, no el modelo, para no repetir los «me gusta», los comentarios, los colaboradores, las denuncias y el feed. Recoge también, para las tier lists abiertas, la «Lista por votos» de la propuesta de las listas colaborativas. 03/11/2026: hecha la fase 1 (pasos 1 a 4) en la rama tierlists-comunidad: GameList.is_open y GameList.parent, con su migración (0004); «Haz tu versión» (lists.views.make_version, una por persona); la tier list de la comunidad en la página de la abierta (lists/community.py: el nivel del medio de los votos, desde 3 personas, solo con las versiones públicas); los niveles fijos en cuanto hay versiones; los juegos que se añaden después, también en las versiones; «hizo su versión de…» en el feed, y la pestaña «Tier lists» (lists/views/tier_lists.py) en el menú. Faltan «En qué te apartas», los polémicos y el aviso a quien la abrió (pasos 5 y 6).",
+    "revision": {
+      "fecha": "2026-11-03",
+      "hoy": "Fase 1 hecha en la rama tierlists-comunidad, a falta de revisarla en el servidor. Con la semilla de prueba, «Mis juegos, por niveles» de tester está abierta y tiene las versiones de demo1 y demo2, así que la de la comunidad ya sale con tres personas. Cada juego lleva debajo una barra con los colores de los niveles en los que lo ha puesto la gente; la mediana se calcula en Python con una sola consulta por página.",
+      "plan": [
+        "«En qué te apartas»: en la página de tu versión, los juegos en los que tu nivel queda más lejos del de la comunidad, con «S para ti, C para la comunidad». community_board ya da el nivel de cada juego; falta compararlo con el tuyo.",
+        "Polémicos: los juegos con los votos más repartidos (dos niveles o más de distancia entre el primer y el último cuarto de los votos), con su marca en la de la comunidad y una sección propia debajo.",
+        "Aviso a quien la abrió cuando alguien hace su versión: un Notification.Kind nuevo, con su migración de choices, agrupado mientras no lo lea («Ana y 3 más han hecho su versión de…»).",
+        "Tests de las tres cosas, y que la semilla deje un juego polémico para verlo."
+      ],
+      "profundizar": [
+        "Tier list de la comunidad por plantilla: juntar todas las «Jugados en 2026» de la gente, aunque cada una tenga juegos distintos, como resumen del año de NextPlay.",
+        "Colocar por duelos en el móvil («¿cuál te gustó más?»), como en «Ranking personal por duelos»: con 30 juegos sin clasificar, es más cómodo que arrastrar.",
+        "Una imagen para compartir «Mi versión contra la de la comunidad», con la pieza común de imágenes con Pillow.",
+        "Tier lists abiertas con fecha de cierre, como los retos («Los Resident Evil, de mejor a peor: hasta el 30 de noviembre»). Al cerrarse, la de la comunidad queda fija y sale en el feed.",
+        "Convertir la de la comunidad en reto («Juega los de la fila S») con el «Convertir en reto» que ya existe."
       ]
     }
   },
@@ -1028,7 +1063,7 @@
       ],
       "profundizar": [
         "Invitar por enlace: un enlace con token para un amigo que aún no te sigue, en vez de abrir la invitación a cualquiera.",
-        "Lista por votos: cada colaborador ordena por su cuenta y la lista enseña la media («la tier list del grupo») y dónde discrepáis. Encaja con grupos de amigos y con «¿A qué jugamos?».",
+        "Lista por votos: cada colaborador ordena por su cuenta y la lista enseña la media («la tier list del grupo») y dónde discrepáis. Encaja con grupos de amigos y con «¿A qué jugamos?». Para las tier lists abiertas, va en «Tier lists de la comunidad, con su propia pestaña como Retos».",
         "Historial de cambios: quién añadió, movió o quitó cada juego; added_by ya es la mitad.",
         "Permisos por persona: puede añadir o también ordenar y quitar, para listas grandes en las que no todos deben reordenar."
       ]

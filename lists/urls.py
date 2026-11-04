@@ -1,7 +1,8 @@
 """Direcciones de las listas. Pantallas: Página de la lista (u/<usuario>/listas/<id>/), Listas del juego
-(juegos/<juego>/listas/), Nueva lista (listas/nueva/), Nueva tier list (tier-lists/nueva/) y Editar lista
-(listas/<id>/editar/, con su buscador). El resto son acciones de sus botones: borrar, «me gusta», comentar, denunciar,
-añadir, quitar, mover, comentar o poner en un nivel cada juego, invitar a colaborar y aceptar o dejar una invitación.
+(juegos/<juego>/listas/), Tier lists (tier-lists/), Nueva lista (listas/nueva/), Nueva tier list (tier-lists/nueva/) y
+Editar lista (listas/<id>/editar/, con su buscador). El resto son acciones de sus botones: borrar, «me gusta», comentar,
+denunciar, añadir, quitar, mover, comentar o poner en un nivel cada juego, invitar a colaborar, aceptar o dejar una
+invitación y hacer tu versión de una tier list abierta a la comunidad.
 """
 
 from django.urls import path
@@ -14,6 +15,8 @@ urlpatterns = [
     # La página de cada lista cuelga del perfil de su autor, como las de las reseñas y las publicaciones.
     path("u/<str:username>/listas/<int:list_id>/", views.detail, name="detail"),
     path("juegos/<slug:slug>/listas/", views.game_lists, name="game"),
+    # La pestaña Tier lists del menú, como la de Retos.
+    path("tier-lists/", views.explore, name="tier_lists"),
     path("listas/nueva/", views.new, name="new"),
     # Las tier lists se crean en su propia página, en blanco o desde una plantilla de la biblioteca.
     path("tier-lists/nueva/", views.new_tier_list, name="new_tier_list"),
@@ -36,4 +39,5 @@ urlpatterns = [
     path("listas/<int:list_id>/colaboradores/<int:user_id>/quitar/", views.collaborator_remove, name="collaborator_remove"),
     path("listas/<int:list_id>/aceptar/", views.accept, name="accept"),
     path("listas/<int:list_id>/dejar/", views.leave, name="leave"),
+    path("listas/<int:list_id>/mi-version/", views.make_version, name="make_version"),
 ]

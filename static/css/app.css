@@ -97,6 +97,12 @@ h1 { font-size: 1.6rem; margin: 0 0 .25rem; line-height: 1.2; }
 .mainnav a:hover { color: var(--text); text-decoration: none; }
 .mainnav a.is-active { color: var(--text); border-bottom-color: var(--violet); }
 .mainnav a.is-active .icon { color: var(--violet); }
+/* Con la pestaña Tier lists, la barra de arriba va justa entre 901 y 1180 px: los enlaces y el botón no se parten en
+   dos líneas, van más juntos y, por debajo de 1100 px, el logo va sin su nombre (como en el móvil) para dejarle sitio
+   al buscador. */
+.mainnav a, .nav .btn { white-space: nowrap; }
+@media (max-width: 1180px) { .mainnav a { padding: 0 .6rem; } }
+@media (max-width: 1100px) { .brand-name { display: none; } }
 .search { position: relative; flex: 1 1 14rem; max-width: 30rem; margin-left: auto; }
 .search .icon { position: absolute; left: .8rem; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
 .topbar .search input { padding-left: 2.5rem; border-radius: 999px; background: var(--surface-2); }
@@ -1954,8 +1960,10 @@ button.tier-chip:hover { border-color: var(--tier); color: var(--text); }
 .is-floating { list-style: none; }
 .is-floating .tier-game { box-shadow: 0 12px 28px rgba(0, 0, 0, .55); }
 .tier-games > li.htmx-request, .list-editor-items > li.htmx-request { opacity: .55; transition: opacity .15s .12s; }
-/* En el formulario, los niveles solo con «Por niveles» elegido; si el navegador no entiende :has, se ven siempre. */
-form:has(input[name="mode"]:checked:not([value="tiers"])) .list-tiers { display: none; }
+/* En el formulario, los niveles y «Abierta a la comunidad» solo con «Por niveles» elegido; si el navegador no entiende
+   :has, se ven siempre. */
+form:has(input[name="mode"]:checked:not([value="tiers"])) .list-tiers,
+form:has(input[name="mode"]:checked:not([value="tiers"])) .switch-row[data-field="is_open"] { display: none; }
 .tier-fields { display: grid; gap: .4rem; margin: .6rem 0 0; padding: 0; list-style: none; counter-reset: nivel; }
 .tier-field { display: flex; align-items: center; gap: .5rem; }
 .tier-field input[type=color] { flex: none; }
@@ -1974,6 +1982,29 @@ form:has(input[name="mode"]:checked:not([value="tiers"])) .list-tiers { display:
 .tier-mini-game { flex: none; width: 24px; height: 32px; overflow: hidden; border-radius: 3px; background: linear-gradient(145deg, #1b1440, #0b2740); }
 .tier-mini-game img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .tier-mini-more { flex: none; padding: 0 .3rem; color: var(--muted); font-size: .72rem; font-weight: 700; }
+.pill-open { border-color: rgba(157, 92, 255, .6); color: var(--violet-text); }
+
+/* Tier lists abiertas a la comunidad. En su página, cuánta gente la ha hecho y «Haz tu versión» (en una versión, de
+   cuál es); en el tablero de la de la comunidad, debajo de cada portada, una barra con los colores de los niveles en
+   los que la ha puesto la gente, cada uno tan ancho como sus votos. */
+.list-open { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem 1.25rem; border-color: rgba(var(--accent-rgb, 157, 92, 255), .55); }
+.list-open-info { flex: 1; min-width: min(100%, 18rem); margin: 0; }
+.list-open h2 { display: flex; align-items: center; gap: .45rem; margin: 0 0 .2rem; font-size: 1.05rem; }
+.list-open h2 .icon { width: 1.1rem; height: 1.1rem; color: var(--violet); }
+.list-open p, .list-open form { margin: 0; }
+.list-open .btn { display: inline-flex; align-items: center; gap: .4rem; }
+.list-open-note { max-width: 18rem; }
+.tier-board.is-community .tier-games > li { display: flex; flex-direction: column; gap: 3px; }
+.tier-votes { display: flex; width: 60px; height: 5px; overflow: hidden; border-radius: 3px; background: var(--surface-3); }
+.tier-votes span { min-width: 3px; background: var(--tier); }
+
+/* Pestaña Tier lists (lists/explore.html): las secciones una debajo de otra, como en la de retos. */
+.tier-lists-page { display: flex; flex-direction: column; gap: 1.25rem; }
+.tier-lists-page .page-head { margin-bottom: 0; }
+.tier-lists-page .page-head p { margin: .2rem 0 0; }
+.tier-lists-page h1 { display: flex; align-items: center; gap: .55rem; }
+.tier-lists-page h1 .icon { width: 1.5rem; height: 1.5rem; color: var(--violet); }
+.tier-lists-page .page-head .btn { display: inline-flex; align-items: center; gap: .4rem; }
 
 /* Listas colaborativas: la invitación en la página de la lista, quién colabora y el formulario para invitar. */
 .list-invitation { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem 1.25rem; border-color: var(--violet); background: linear-gradient(120deg, rgba(var(--accent-rgb, 157, 92, 255), .2), rgba(14, 18, 34, .88) 60%); }

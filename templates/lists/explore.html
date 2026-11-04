@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Tier lists · NextPlay{% endblock %}
+{% block description %}Tier lists de jugadores de NextPlay: haz tu versión de las que están abiertas a la comunidad y mira en qué nivel pone la gente cada juego.{% endblock %}
+
+{% block content %}
+  {# Pestaña Tier lists (lists.views.explore): las tuyas, las de la gente que sigues y las abiertas a la comunidad, de las que #}
+  {# tienen más versiones a las últimas. Cada tarjeta lleva su tablero en miniatura (lists/_tier_card.html). #}
+  <div class="tier-lists-page">
+    <header class="page-head">
+      <div>
+        <h1>{% include "_icon.html" with name="tiers" %} Tier lists</h1>
+        <p class="muted">Haz tu versión de las que están abiertas a la comunidad y mira en qué nivel pone la gente cada juego.</p>
+      </div>
+      {% if user.is_authenticated %}
+        <a class="btn btn-primary" href="{% url 'lists:new_tier_list' %}">{% include "_icon.html" with name="plus" %} Crear una tier list</a>
+      {% else %}
+        <a class="btn btn-primary" href="{% url 'login' %}?next={{ request.path|urlencode }}">Entra para crear una</a>
+      {% endif %}
+    </header>
+
+    {% if user.is_authenticated %}
+      <section class="card-box">
+        <header class="box-head">
+          <h2>Tus tier lists</h2>
+          {% if mine_total > mine|length %}<a href="{% url 'profile' user.username %}?vista=tier-lists">Ver las {{ mine_total }} {% include "_icon.html" with name="arrow" %}</a>{% endif %}
+        </header>
+        {% if mine %}
+          <div class="tier-lists-grid">{% for game_list in mine %}{% include "lists/_tier_card.html" %}{% endfor %}</div>
+        {% else %}
+          <p class="muted small box-empty">Aún no tienes ninguna. Créala desde tu biblioteca, con lo que has jugado este año o tu pendiente, o haz tu versión de una de las de abajo.</p>
+        {% endif %}
+      </section>
+      {% if followed %}
+        <section class="card-box">
+          <header class="box-head"><h2>De la gente que sigues</h2></header>
+          <div class="tier-lists-grid">{% for game_list in followed %}{% include "lists/_tier_card.html" %}{% endfor %}</div>
+        </section>
+      {% endif %}
+    {% endif %}
+
+    {% if popular %}
+      <section class="card-box">
+        <header class="box-head"><h2>{% include "_icon.html" with name="flame" %} Las que más gente ha hecho</h2></header>
+        <div class="tier-lists-grid">{% for game_list in popular %}{% include "lists/_tier_card.html" %}{% endfor %}</div>
+      </section>
+    {% endif %}
+
+    <section class="card-box">
+      <header class="box-head"><h2>Abiertas a la comunidad</h2></header>
+      {% if recent %}
+        <div class="tier-lists-grid">{% for game_list in recent %}{% include "lists/_tier_card.html" %}{% endfor %}</div>
+      {% else %}
+        <p class="muted small box-empty">Aún no hay ninguna{% if user.is_authenticated %} de otra persona{% endif %}. Abre una tuya en su editor, con «Abierta a la comunidad»: puedes dejar los juegos sin colocar para que la haga la gente.</p>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}
