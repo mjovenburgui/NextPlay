@@ -21,7 +21,7 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from accounts import images
+from accounts import images, notices
 from accounts.models import Notification, Profile
 from games.models import Game
 from library.models import LibraryEntry, Report, Review
@@ -509,19 +509,14 @@ def post_comment(request, post_id):
 
 
 def _notify_post_comment(post, actor):
-    """Avisa al autor de post de que actor la ha comentado, salvo si ya tiene un aviso igual sin leer.
+    """Avisa al autor de post de que actor la ha comentado, salvo si ya tiene otro suyo sin leer (accounts.notices).
 
     Pantallas: Avisos (comentarios en tus publicaciones), todas (el número de la campana).
     """
-    url = f"{post.get_absolute_url()}#comentarios"
-    notices = Notification.objects.filter(
-        user=post.user, kind=Notification.Kind.POST_COMMENT, actor=actor, url=url, read_at=None
+    notices.notify(
+        post.user, Notification.Kind.POST_COMMENT, f"{actor.profile.name} ha comentado tu publicación.",
+        f"{post.get_absolute_url()}#comentarios", game=post.game, actor=actor,
     )
-    if not notices.exists():
-        Notification.objects.create(
-            user=post.user, kind=Notification.Kind.POST_COMMENT, actor=actor, url=url, game=post.game,
-            text=f"{actor.profile.name} ha comentado tu publicación."[:300],
-        )
 
 
 @require_POST
@@ -593,17 +588,15 @@ def post_like(request, post_id):
 
 
 def _notify_post_like(post, actor):
-    """Avisa al autor de post de que a actor le ha gustado, solo la primera vez aunque lo quite y lo vuelva a dar.
+    """Avisa al autor de post de que a actor le ha gustado, solo la primera vez aunque lo quite y lo vuelva a dar
+    (accounts.notices).
 
     Pantallas: Avisos (a quien le gusta tu publicación), todas (el número de la campana).
     """
-    url = post.get_absolute_url()
-    notices = Notification.objects.filter(user=post.user, kind=Notification.Kind.POST_LIKE, actor=actor, url=url)
-    if not notices.exists():
-        Notification.objects.create(
-            user=post.user, kind=Notification.Kind.POST_LIKE, actor=actor, url=url, game=post.game,
-            text=f"A {actor.profile.name} le ha gustado tu publicación."[:300],
-        )
+    notices.notify(
+        post.user, Notification.Kind.POST_LIKE, f"A {actor.profile.name} le ha gustado tu publicación.",
+        post.get_absolute_url(), game=post.game, actor=actor,
+    )
 
 
 @require_POST

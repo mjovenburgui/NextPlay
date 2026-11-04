@@ -8,6 +8,7 @@ otras partidas y se quedan como estaban.
 
 from django.urls import reverse
 
+from accounts import notices
 from accounts.models import Notification
 
 from .models import LibraryEntry, Review
@@ -30,7 +31,8 @@ def latest_reviews(user, games=None):
 def remind_outdated_reviews(user):
     """Avisa a user en la campana de sus reseñas que se han quedado atrás y devuelve cuántos avisos ha creado.
 
-    Un aviso por reseña hasta que la vuelva a guardar: si sigue jugando sin tocarla, no se repite.
+    Un aviso por reseña hasta que la vuelva a guardar: si sigue jugando sin tocarla, no se repite. Si ha apagado
+    estos avisos en Editar perfil, no se crea ninguno (accounts.notices).
 
     Pantallas: Avisos (reseñas que se han quedado atrás), todas (el número de la campana), Editar perfil (Cuentas
     vinculadas: se mira al importar horas), Perfil (modal «Vincular cuentas» de su dueño).
@@ -43,15 +45,8 @@ def remind_outdated_reviews(user):
         extra = review.hours_since(entry)
         if extra is None:
             continue
+        text = f"Llevas {extra} h más en {review.game.name} que cuando escribiste tu reseña: ¿la actualizas?"
         url = reverse("library:review_edit", args=[review.pk])
-        notices = Notification.objects.filter(
-            user=user, kind=Notification.Kind.REVIEW_UPDATE, url=url, created_at__gte=review.updated_at
-        )
-        if notices.exists():
-            continue
-        Notification.objects.create(
-            user=user, kind=Notification.Kind.REVIEW_UPDATE, url=url, game=review.game,
-            text=f"Llevas {extra} h más en {review.game.name} que cuando escribiste tu reseña: ¿la actualizas?"[:300],
-        )
-        created += 1
+        if notices.notify(user, Notification.Kind.REVIEW_UPDATE, text, url, game=review.game, since=review.updated_at):
+            created += 1
     return created

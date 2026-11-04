@@ -16,7 +16,9 @@ from collections import defaultdict
 from django.conf import settings
 from django.core.mail import send_mail
 from django.db.models import Exists, OuterRef
+from django.urls import reverse
 
+from accounts import notices
 from accounts.models import Notification
 from games.models import STEAM_SHOP_ID, GamePrice, format_price
 
@@ -93,8 +95,12 @@ def alert_text(item, best, reason):
 
 
 def check_alerts(games=None):
-    """Crea los avisos de bajada de precio de las listas de deseos (de esos juegos, o de todos) y manda
-    un correo por usuario con los suyos si lo tiene activado. Devuelve cuántos avisos ha creado.
+    """Avisa de las bajadas de precio de las listas de deseos (de esos juegos, o de todos): en la campana y, a quien
+    también las quiere por correo, en un solo correo con todas las suyas. Devuelve de cuántas bajadas ha avisado.
+
+    Lo que recibe cada uno lo eligió en Editar perfil (ver accounts.notices). Si alguien las tiene apagadas en la
+    campana y en el correo, la bajada no cuenta como avisada: si las vuelve a encender, se le avisa del precio de
+    entonces.
 
     Pantallas: Avisos (bajadas de precio de tu lista de deseos, también por correo), todas (el número de la campana).
     """
@@ -107,7 +113,8 @@ def check_alerts(games=None):
     if games is not None:
         items = items.filter(game__in=games)
 
-    created = defaultdict(list)  # usuario -> [aviso]
+    mails = defaultdict(list)  # usuario -> [(texto, enlace)] de su correo
+    alerted = 0
     for item in items:
         best = item.game.cheapest(set(item.user.profile.shops) or None)
         reason = alert_reason(item, best)
@@ -118,34 +125,35 @@ def check_alerts(games=None):
             continue
         if item.alerted_price is not None and best.price >= item.alerted_price:
             continue
-        created[item.user].append(Notification.objects.create(
-            user=item.user, kind=Notification.Kind.PRICE, game=item.game,
-            text=alert_text(item, best, reason), url=item.game.get_absolute_url(),
-        ))
+        by_mail = bool(item.user.email) and notices.wants(item.user, Notification.Kind.PRICE, notices.EMAIL)
+        if not by_mail and not notices.wants(item.user, Notification.Kind.PRICE):
+            continue
+        text, url = alert_text(item, best, reason), item.game.get_absolute_url()
+        notices.notify(item.user, Notification.Kind.PRICE, text, url, game=item.game)
+        if by_mail:
+            mails[item.user].append((text, url))
+        alerted += 1
         item.alerted_price = best.price
         item.save(update_fields=["alerted_price"])
 
-    for user, notifications in created.items():
-        if user.email and user.profile.price_alert_emails:
-            _send_email(user, notifications)
-    return sum(len(notifications) for notifications in created.values())
+    for user, alerts in mails.items():
+        _send_email(user, alerts)
+    return alerted
 
 
-def _send_email(user, notifications):
-    """Manda al usuario un correo con sus avisos de precio; si falla, lo apunta en el log y sigue.
+def _send_email(user, alerts):
+    """Manda al usuario un correo con sus avisos de precio (pares de texto y enlace); si falla, lo apunta en el log
+    y sigue.
 
-    Pantallas: ninguna (manda por correo los avisos de precio a quien lo tiene activado en Privacidad y avisos).
+    Pantallas: ninguna (manda por correo los avisos de precio a quien los tiene encendidos en Editar perfil › Avisos).
     """
-    lines = [f"- {n.text}\n  {settings.SITE_URL}{n.url}" for n in notifications]
+    lines = [f"- {text}\n  {settings.SITE_URL}{url}" for text, url in alerts]
     body = (
         f"Hola, {user.profile.name}:\n\nHan bajado de precio juegos de tu lista de deseos en NextPlay:\n\n"
         + "\n".join(lines)
-        + f"\n\nPuedes dejar de recibir estos correos en {settings.SITE_URL}/cuenta/perfil/\n"
+        + f"\n\nPuedes dejar de recibir estos correos en {settings.SITE_URL}{reverse('edit_profile')}#avisos\n"
     )
-    subject = (
-        notifications[0].text if len(notifications) == 1
-        else f"{len(notifications)} juegos de tu lista de deseos han bajado de precio"
-    )
+    subject = alerts[0][0] if len(alerts) == 1 else f"{len(alerts)} juegos de tu lista de deseos han bajado de precio"
     try:
         send_mail(subject[:150], body, None, [user.email])
     except Exception:  # un servidor de correo caído no debe parar la actualización de precios

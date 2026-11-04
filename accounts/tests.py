@@ -24,7 +24,7 @@ from games.models import Game, GamePrice, Platform
 from library.models import LibraryEntry, PlaySession, Review, WishlistItem
 from social.models import Activity
 
-from . import images, matching, psn, steam, xbox
+from . import images, matching, notices, psn, steam, xbox
 from .views import perfil
 from .models import (
     Achievement, ExternalTitle, FavoriteGame, ImportedTitle, Notification, PlatformAccount, Profile, PSNAccount,
@@ -1679,9 +1679,12 @@ class ProfileCustomizationTests(TestCase):
         response = self.client.get(reverse("edit_profile"))
         for name in ("avatar", "banner", "background"):
             self.assertContains(response, f'data-framer="{name}"')
-        # Las casillas de «Entera» no se cuelan entre los interruptores de privacidad.
-        privacy = response.content.decode().split('id="privacidad"')[1].split("</section>")[0]
-        self.assertEqual(privacy.count('class="switch-row"'), 2)
+        # Las casillas de «Entera» no se cuelan entre los interruptores de privacidad ni entre los de los avisos.
+        page = response.content.decode()
+        privacy = page.split('id="privacidad"')[1].split("</section>")[0]
+        self.assertEqual(privacy.count('class="switch-row"'), 1)
+        notice_section = page.split('id="avisos"')[1].split("</section>")[0]
+        self.assertEqual(notice_section.count('class="switch-row'), len(notices.GROUPS) + 1)  # y el del correo
 
     @override_settings(IGDB_CLIENT_ID="", IGDB_CLIENT_SECRET="")
     def test_banner_arts_without_igdb(self):
@@ -2313,3 +2316,127 @@ class AchievementsTests(TestCase):
         # Sin la sección en el escaparate no se pide nada.
         Profile.objects.filter(user=self.user).update(sections=[["logros", False]])
         self.assertIsNone(self.client.get(url).context["achievement_showcase"])
+
+
+class NoticesTests(TestCase):
+    """accounts.notices: que nadie reciba avisos de lo que hace él mismo, las reglas para no repetirlos y que solo
+    llegue lo que cada uno deja encendido."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.luis = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.eva = User.objects.create_user("eva", "eva@example.com", "x")
+
+    def notify(self, kind, url="/algo/", actor=None, **kwargs):
+        """Avisa a ana de algo de tipo kind; devuelve el aviso o None si no se ha creado."""
+        return notices.notify(self.ana, kind, "Ha pasado algo.", url, actor=actor, **kwargs)
+
+    def test_every_kind_has_its_rule_and_all_but_reports_their_group(self):
+        self.assertEqual(set(notices.REPEAT), set(Notification.Kind))
+        grouped = [kind for group in notices.GROUPS.values() for kind in group.kinds]
+        self.assertEqual(len(grouped), len(set(grouped)))  # cada tipo, en un solo grupo
+        self.assertEqual(set(grouped), set(Notification.Kind) - {Notification.Kind.REPORT})
+
+    def test_nobody_is_notified_of_what_they_do(self):
+        self.assertIsNone(self.notify(Notification.Kind.FOLLOW, actor=self.ana))
+        self.assertIsNotNone(self.notify(Notification.Kind.FOLLOW, actor=self.luis))
+
+    def test_likes_once_per_person_and_thing_even_after_reading_them(self):
+        kind = Notification.Kind.LIST_LIKE
+        self.assertIsNotNone(self.notify(kind, actor=self.luis))
+        Notification.objects.update(read_at=timezone.now())
+        self.assertIsNone(self.notify(kind, actor=self.luis))
+        self.assertIsNotNone(self.notify(kind, actor=self.eva))
+        self.assertIsNotNone(self.notify(kind, url="/otra/", actor=self.luis))
+
+    def test_comments_again_once_the_previous_one_is_read(self):
+        kind = Notification.Kind.POST_COMMENT
+        self.assertIsNotNone(self.notify(kind, actor=self.luis))
+        self.assertIsNone(self.notify(kind, actor=self.luis))
+        self.assertIsNotNone(self.notify(kind, actor=self.eva))
+        Notification.objects.update(read_at=timezone.now())
+        self.assertIsNotNone(self.notify(kind, actor=self.luis))
+
+    def test_follows_once_per_person_whatever_the_link(self):
+        self.assertIsNotNone(self.notify(Notification.Kind.FOLLOW, url="/u/luis/", actor=self.luis))
+        self.assertIsNone(self.notify(Notification.Kind.FOLLOW, url="/u/ana/seguidores/", actor=self.luis))
+
+    def test_outdated_reviews_once_until_the_review_is_saved_again(self):
+        kind, saved = Notification.Kind.REVIEW_UPDATE, timezone.now()
+        self.assertIsNotNone(self.notify(kind, since=saved))
+        self.assertIsNone(self.notify(kind, since=saved))
+        self.assertIsNotNone(self.notify(kind, since=timezone.now()))  # la ha vuelto a guardar
+
+    def test_prices_and_invitations_always_arrive(self):
+        for kind in (Notification.Kind.PRICE, Notification.Kind.LIST_INVITE):
+            self.assertIsNotNone(self.notify(kind, actor=self.luis))
+            self.assertIsNotNone(self.notify(kind, actor=self.luis))
+
+    def test_what_is_turned_off_does_not_arrive(self):
+        self.ana.profile.notification_prefs = {"me_gusta": {"campana": False}}
+        self.ana.profile.save()
+        for kind in (Notification.Kind.LIKE, Notification.Kind.POST_LIKE, Notification.Kind.LIST_LIKE):
+            self.assertIsNone(self.notify(kind, actor=self.luis))
+        self.assertIsNotNone(self.notify(Notification.Kind.COMMENT, actor=self.luis))
+        # Las denuncias no se pueden apagar, y por correo solo pueden llegar las bajadas de precio.
+        self.ana.profile.notification_prefs = {key: {"campana": False} for key in notices.GROUPS}
+        self.ana.profile.save()
+        self.assertIsNotNone(self.notify(Notification.Kind.REPORT))
+        self.assertTrue(notices.wants(self.ana, Notification.Kind.PRICE, notices.EMAIL))
+        self.assertFalse(notices.wants(self.ana, Notification.Kind.FOLLOW, notices.EMAIL))
+        self.assertFalse(notices.wants(self.ana, Notification.Kind.REPORT, notices.EMAIL))
+
+    def test_the_text_is_cut_to_what_fits(self):
+        notice = notices.notify(self.ana, Notification.Kind.PRICE, "x" * 400, "/juegos/hades/")
+        self.assertEqual(len(notice.text), 300)
+
+    def test_following_someone_who_turned_it_off_does_not_notify(self):
+        self.luis.profile.notification_prefs = {"seguidores": {"campana": False}}
+        self.luis.profile.save()
+        self.client.force_login(self.ana)
+        self.client.post(reverse("social:follow", args=["luis"]))
+        self.assertTrue(self.ana.following.filter(followed=self.luis).exists())
+        self.assertFalse(Notification.objects.filter(user=self.luis).exists())
+
+
+class NoticePrefsTests(TestCase):
+    """La sección «Avisos» de Editar perfil."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("ana", "ana@example.com", "x")
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def prefs(self):
+        """Lo que tiene guardado ana en notification_prefs."""
+        return Profile.objects.get(user=self.user).notification_prefs
+
+    def test_everything_starts_on(self):
+        response = self.client.get(reverse("edit_profile"))
+        self.assertContains(response, '<a href="#avisos">Avisos</a>')
+        self.assertContains(response, "Nuevos seguidores")
+        self.assertContains(response, "A ana@example.com.")
+        rows = response.context["form"].notice_rows
+        self.assertEqual(len(rows), len(notices.GROUPS))
+        self.assertTrue(all(field.value() for row in rows for field in row if field is not None))
+
+    def test_saves_what_is_turned_off_and_shows_it(self):
+        data = {"is_public": "on", "avisos": "1", **{f"aviso_{key}": "on" for key in notices.GROUPS}}
+        del data["aviso_me_gusta"]
+        self.client.post(reverse("edit_profile"), data)  # sin correo_precios: el correo, apagado
+        prefs = self.prefs()
+        self.assertEqual(prefs["me_gusta"], {"campana": False})
+        self.assertEqual(prefs["precios"], {"campana": True, "correo": False})
+        self.assertEqual(prefs["comentarios"], {"campana": True})
+        form = self.client.get(reverse("edit_profile")).context["form"]
+        self.assertFalse(form["aviso_me_gusta"].value())
+        self.assertFalse(form["correo_precios"].value())
+        self.assertTrue(form["aviso_seguidores"].value())
+
+    def test_a_form_without_the_section_turns_nothing_off(self):
+        self.client.post(reverse("edit_profile"), {"display_name": "Ana", "is_public": "on"})
+        self.assertEqual(self.prefs(), {})
+        self.assertEqual(Profile.objects.get(user=self.user).display_name, "Ana")

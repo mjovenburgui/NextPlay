@@ -791,7 +791,7 @@
   {
     "titulo": "Un solo sitio para crear los avisos, con preferencias por tipo",
     "fecha": "2026-11-01",
-    "estado": "pendiente",
+    "estado": "hecha",
     "prioridad": "media",
     "tipo": "Infraestructura",
     "resumen": "Que todos los avisos de la campana pasen por una sola función, que decida si se crean: no repetir, respetar los bloqueos y silencios cuando existan y lo que cada usuario haya elegido recibir, en la campana o por correo.",
@@ -803,10 +803,10 @@
       "Profile.notification_prefs (JSON con campana y correo por tipo) y una sección «Avisos» en Editar perfil. Lo que no se ha tocado sigue encendido, y price_alert_emails se migra.",
       "Punto de entrada para bloqueos y silencios: cuando exista el bloqueo, solo se toca aquí."
     ],
-    "notas": "Sale de la revisión del 01/11/2026. Va antes de la fase 2 de «Retos: crea los tuyos y únete a los de otros» y de «Bloquear, silenciar y quitar seguidores».",
+    "notas": "Sale de la revisión del 01/11/2026. Va antes de la fase 2 de «Retos: crea los tuyos y únete a los de otros» y de «Bloquear, silenciar y quitar seguidores». 04/11/2026: hecha en la rama avisos-en-un-solo-sitio. accounts/notices.py con notify(user, kind, text, url, game=, actor=, since=): nadie recibe avisos de lo que hace él mismo, cada tipo tiene en la tabla REPEAT su regla para no repetirse (siempre: las bajadas de precio y las invitaciones; una vez por persona y cosa: los «me gusta» y los seguidores; mientras no se lea el anterior: los comentarios y las denuncias; una por reseña hasta que se vuelve a guardar: las reseñas que se han quedado atrás) y solo llega lo que cada uno deja encendido. Las 10 llamadas pasan por ahí y se portan igual, salvo un detalle: los avisos de «me gusta» y comentarios de las reseñas guardan ya quién los ha provocado, como los demás, y dejan de distinguirse por el texto (antes, si alguien cambiaba su nombre visible, su «me gusta» volvía a avisar). Profile.notification_prefs (un JSON por grupos) sustituye a price_alert_emails, con una migración que deja el correo apagado a quien lo tenía apagado. Sección «Avisos» en Editar perfil, separada de «Privacidad», con seis interruptores: bajadas de precio (con el correo aparte), nuevos seguidores, «me gusta», comentarios, invitaciones a editar listas y reseñas que se han quedado atrás. Tocarlos no pide la vista previa, y un envío del formulario sin la sección no apaga nada. Las denuncias no se pueden apagar y, por correo, de momento solo pueden llegar las bajadas de precio. Si alguien apaga las bajadas de precio en la campana y en el correo, la bajada no cuenta como avisada: al volver a encenderlas, se avisa del precio de entonces. La lista de deseos dice por dónde te avisamos (o cómo encender los avisos si están apagados), y la página de Avisos y el correo de precios enlazan a la sección. Un tipo de aviso nuevo necesita su regla y su grupo, y un test lo comprueba. 14 tests nuevos (515 en total).",
     "revision": {
-      "fecha": "2026-11-01",
-      "hoy": "Propuesta nueva. Comprobado en el código: 10 llamadas directas, cada una con su forma de no repetirse.",
+      "fecha": "2026-11-04",
+      "hoy": "Hecha en la rama avisos-en-un-solo-sitio: los avisos solo se crean en accounts.notices.notify y la sección «Avisos» de Editar perfil decide cuáles llegan. Lo siguiente que se apoya en ella: la fase 2 de los retos, el aviso a quien abre una tier list a la comunidad, «La gente que sigues» y los bloqueos. Para cada tipo nuevo basta con su Notification.Kind, su regla en REPEAT y su grupo en GROUPS (o uno nuevo). Por correo solo van las bajadas de precio: para los demás tipos haría falta un resumen agrupado, para no mandar un correo por cada «me gusta».",
       "profundizar": [
         "Agrupar en la campana: «A Ana y 3 más les ha gustado tu reseña», en vez de cuatro avisos seguidos. Con actor ya en el modelo, solo falta juntarlos al enseñarlos.",
         "Resumen semanal por correo, opcional: rebajas de tu lista, lanzamientos y lo que ha hecho tu gente, con baja en un clic (cabecera List-Unsubscribe). Hace volver sin ser pesado.",
@@ -1330,7 +1330,7 @@
       "Denunciar un perfil con el modelo Report, que ya es genérico.",
       "Lista de usuarios bloqueados y silenciados en Editar perfil, para deshacerlo."
     ],
-    "notas": "Depende de «Seguir a otros jugadores y feed de actividad». Puede ir junto a su fase 1 si se quiere abrir pronto.",
+    "notas": "Depende de «Seguir a otros jugadores y feed de actividad». Puede ir junto a su fase 1 si se quiere abrir pronto. 04/11/2026: todos los avisos pasan ya por accounts.notices.notify (ver «Un solo sitio para crear los avisos, con preferencias por tipo»), así que el bloqueo y el silencio solo tienen que mirarse allí para que no lleguen avisos de quien está bloqueado o silenciado.",
     "revision": {
       "fecha": "2026-11-01",
       "hoy": "Sin empezar. Report ya es genérico y las reglas de visibilidad están casi centralizadas en Profile.visible_to y visible_filter, salvo lists/models.py y lists/views.py, que repiten user__profile__is_public: hay que llevarlos a la misma regla antes.",

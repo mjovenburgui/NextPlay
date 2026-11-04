@@ -8,6 +8,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
+from accounts import notices
 from accounts.models import Notification
 
 from ..forms import ReportForm
@@ -96,6 +97,4 @@ def _notify_staff(report, what, game):
     text = f"Han denunciado {what}{where}: {report.get_reason_display()}."
     staff = get_user_model().objects.filter(is_staff=True, is_active=True).exclude(pk=report.reporter_id)
     for admin_user in staff:
-        notices = Notification.objects.filter(user=admin_user, kind=Notification.Kind.REPORT, url=url, read_at=None)
-        if not notices.exists():
-            Notification.objects.create(user=admin_user, kind=Notification.Kind.REPORT, text=text[:300], url=url, game=game)
+        notices.notify(admin_user, Notification.Kind.REPORT, text, url, game=game)
