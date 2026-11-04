@@ -42,7 +42,17 @@ Las ramas van una encima de otra, en este orden. Ninguna está subida a GitHub: 
   - **Las reseñas y los comentarios** traen ya la cuenta de Xbox de cada autor, en vez de una consulta por autor.
   - **Fuera 6 clases de CSS sin usar.** La séptima, `shop-logo`, sí se usa: la llevan los iconos de las tiendas.
   - 3 tests nuevos.
-- [ ] 2. **Páginas de error propias:** no encontrada, fallo del servidor y formulario caducado.
+- [x] 2. **Páginas de error propias**, hecho en la rama `remates-rapidos`:
+  - `404.html`, con la cabecera de siempre y un buscador;
+  - `500.html`, que va sola, sin la base de datos, por si es eso lo que falla;
+  - formulario caducado (`config.views.csrf_failure`), con tu sesión y un botón para volver atrás sin perder lo escrito.
+
+  Está en `docs/pantallas.json` como «Páginas de error». Tiene 3 tests nuevos (`config/tests.py`), que pasan. Sin probar todavía en el navegador.
+
+**Pendiente:**
+- Los remates 3 a 7, sin empezar.
+- La batería completa de tests de esta rama.
+- Regenerar los dos PDF.
 - [ ] 3. **Aviso a quien abre una tier list a la comunidad** cuando alguien hace su versión.
 - [ ] 4. **Listas colaborativas:**
   - solo se puede invitar a quien te sigue;

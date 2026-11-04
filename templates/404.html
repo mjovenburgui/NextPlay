@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Página no encontrada · NextPlay{% endblock %}
+
+{% block content %}
+  {# Página no encontrada: la de Django (page_not_found) con esta plantilla. También sale para lo privado de otros, sin decir que existe. #}
+  <section class="panel error-page">
+    <p class="error-code" aria-hidden="true">404</p>
+    <h1>No encontramos esta página</h1>
+    <p class="muted">Puede que la dirección esté mal escrita, que se haya borrado o que sea de un perfil privado.</p>
+    <form class="search error-search" action="{% url 'games:catalog' %}" method="get" role="search">
+      <label class="visually-hidden" for="error-q">Buscar juegos</label>
+      <input id="error-q" type="search" name="q" placeholder="Busca un juego…">
+      <button class="btn btn-primary" type="submit">Buscar</button>
+    </form>
+    <p class="error-links"><a class="btn" href="{% url 'home' %}">{% include "_icon.html" with name="home" %} Volver al inicio</a></p>
+  </section>
+{% endblock %}

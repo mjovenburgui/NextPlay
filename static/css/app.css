@@ -2081,6 +2081,14 @@ form:has(input[name="mode"]:checked:not([value="tiers"])) .switch-row[data-field
 .activity-trophy .icon { width: 1.5rem; height: 1.5rem; }
 .activity-trophy.is-won { color: var(--gold); border-color: rgba(255, 200, 74, .5); }
 .activity-challenge .muted { margin: .2rem 0 0; }
+/* Páginas de error (404.html, 500.html y 403_csrf.html): centradas, con el código grande y por dónde seguir */
+.error-page { max-width: 640px; margin: 2.5rem auto; text-align: center; }
+.error-code { margin: 0; font-size: 4rem; font-weight: 800; line-height: 1; color: var(--violet); }
+.error-page h1 { margin: .5rem 0; }
+.error-search { display: flex; gap: .5rem; max-width: 420px; margin: 1.25rem auto 0; }
+.error-search input { flex: 1; min-width: 0; }
+.error-links { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; margin: 1.25rem 0 0; }
+.error-links .btn { display: inline-flex; align-items: center; gap: .35rem; }
 /* Repasar la biblioteca: el aviso del perfil y la tarjeta de cada juego, con sus botones grandes */
 .tidy-callout { display: flex; align-items: center; gap: .9rem; margin: 0 0 1rem; padding: .85rem 1rem; background: linear-gradient(120deg, rgba(157, 92, 255, .14), var(--surface-2)); border: 1px solid rgba(157, 92, 255, .45); border-radius: 12px; }
 .tidy-callout > .icon { flex: none; width: 1.5rem; height: 1.5rem; color: var(--violet); }

@@ -2077,7 +2077,7 @@
   {
     "titulo": "Páginas de error propias: no encontrada, fallo del servidor y formulario caducado",
     "fecha": "2026-10-28",
-    "estado": "pendiente",
+    "estado": "hecha",
     "prioridad": "baja",
     "tipo": "Diseño",
     "resumen": "No hay plantillas 404.html, 500.html ni 403_csrf.html, así que con DEBUG apagado Django enseña sus páginas por defecto, en inglés y sin estilo. Hacerlas con el aspecto de NextPlay: «No encontramos esta página» con el buscador y enlaces al inicio y al catálogo, un 500 que no dependa de la base de datos y la del formulario caducado con «Vuelve atrás, recarga la página y envíalo otra vez».",
