@@ -59,7 +59,7 @@
     {
       "nombre": "Página de la lista",
       "urls": ["lists:detail"],
-      "que_es": "Una lista o tier list: mosaico, título, autor y colaboradores, descripción, los juegos (en portadas, con comentarios o por niveles), cuánto llevas jugado de ella, «me gusta», comentarios y denuncias."
+      "que_es": "Una lista o tier list: mosaico, título, autor y colaboradores, descripción, los juegos (en portadas, con comentarios o por niveles), cuánto llevas jugado de ella, «me gusta», comentarios y denuncias. En las tier lists abiertas a la comunidad, cuánta gente la ha hecho, «Haz tu versión» y la tier list de la comunidad; en las versiones, de cuál son."
     },
     {
       "nombre": "Nueva lista",
@@ -69,12 +69,17 @@
     {
       "nombre": "Nueva tier list",
       "urls": ["lists:new_tier_list"],
-      "que_es": "La página para crear una tier list: en blanco con sus niveles o desde una plantilla rellena con tu biblioteca."
+      "que_es": "La página para crear una tier list: en blanco con sus niveles (y, si quieres, abierta a la comunidad) o desde una plantilla rellena con tu biblioteca."
     },
     {
       "nombre": "Editar lista",
       "urls": ["lists:edit", "lists:search"],
-      "que_es": "El editor de una lista: sus datos, buscar y añadir juegos, ordenarlos (arrastrando), ponerlos en un nivel, comentarlos y quitarlos, e invitar a quien colabora."
+      "que_es": "El editor de una lista: sus datos (en las tier lists, también si está abierta a la comunidad), buscar y añadir juegos, ordenarlos (arrastrando), ponerlos en un nivel, comentarlos y quitarlos, e invitar a quien colabora."
+    },
+    {
+      "nombre": "Tier lists",
+      "urls": ["lists:tier_lists"],
+      "que_es": "«Tier lists» en el menú: las tuyas, las de la gente que sigues y las abiertas a la comunidad (las que más gente ha hecho y las últimas), cada una con su tablero en miniatura."
     },
     {
       "nombre": "Retos",

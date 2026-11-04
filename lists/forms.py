@@ -30,25 +30,32 @@ class GameListForm(forms.ModelForm):
     Para las tier lists lleva también sus niveles: MAX_TIERS filas con nombre (nivel_<n>) y color (color_<n>), de
     mejor a peor. La fila n es el nivel con id n, así que renombrar uno no cambia los juegos que tiene; los que se dejan
     sin nombre se quitan y sus juegos quedan sin clasificar.
+
+    Y si está abierta a la comunidad (is_open, solo si es pública; una versión no se puede abrir). Si ya tiene
+    versiones, o es una, sus niveles quedan fijos (tiers_lock): se pueden renombrar y cambiar de color, pero no quitar
+    ni añadir, y no puede dejar de ser tier list.
     """
 
     # Campos que la plantilla pinta como interruptores.
-    SWITCHES = ("is_public",)
+    SWITCHES = ("is_public", "is_open")
     # Si «Por niveles» está entre los tipos que se eligen (en «Nueva lista» no: ver NewListForm).
     offers_tiers = True
 
     class Meta:
         model = GameList
-        fields = ("title", "description", "is_public", "mode")
+        fields = ("title", "description", "is_public", "is_open", "mode")
         labels = {
             "title": "Título",
             "description": "Descripción",
             "is_public": "Visible para los demás",
+            "is_open": "Abierta a la comunidad",
             "mode": "Tipo de lista",
         }
         help_texts = {
             "is_public": "Si la quitas, solo la ves tú y la gente a la que invites a editarla. Si tu perfil es privado, "
                          "tus listas también lo son.",
+            "is_open": "Cualquiera puede hacer su versión con estos juegos y niveles, y su página enseña la tier list "
+                       "que sale de juntarlas todas. Puedes dejar los juegos sin colocar para que la haga la comunidad.",
         }
         error_messages = {"title": {"required": "Ponle un título a la lista."}}
         widgets = {
@@ -64,35 +71,61 @@ class GameListForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         """Añade las filas de los niveles, rellenas con los de la lista (o los de una tier list nueva).
 
-        Sin tipo en lo enviado, la lista se queda con el que tenía (una nueva, lista sin más).
+        Sin tipo en lo enviado, la lista se queda con el que tenía (una nueva, lista sin más). Con los niveles fijos
+        (tiers_lock), los que tiene no se pueden dejar sin nombre, las filas sin usar no se pueden rellenar y el tipo no
+        se puede cambiar. «Abierta a la comunidad» solo sale donde se hacen tier lists, y no en las versiones.
 
         Pantallas: Nueva lista (con los niveles de las tier lists), Nueva tier list, Editar lista (los datos de la
         lista).
         """
         super().__init__(*args, **kwargs)
         self.fields["mode"].required = False
+        self.tiers_lock = self._tiers_lock()
+        if not self.offers_tiers or self.instance.parent_id:
+            del self.fields["is_open"]
+        if self.tiers_lock:
+            self.fields["mode"].disabled = True
         tiers = {tier["id"]: tier for tier in (self.instance.tiers or default_tiers())}
         colors = [color for _, color in DEFAULT_TIERS] + EXTRA_TIER_COLORS
         for n in range(MAX_TIERS):
             tier = tiers.get(n, {})
+            # Con los niveles fijos, los que hay no se quitan y en las filas sin usar no se escribe.
+            unused = bool(self.tiers_lock) and n not in tiers
             self.fields[f"nivel_{n}"] = forms.CharField(
-                label=f"Nombre del nivel {n + 1}", max_length=TIER_LABEL_MAX_LENGTH, required=False,
-                initial=tier.get("label", ""),
+                label=f"Nombre del nivel {n + 1}", max_length=TIER_LABEL_MAX_LENGTH,
+                required=bool(self.tiers_lock) and n in tiers, disabled=unused, initial=tier.get("label", ""),
+                error_messages={"required": "Este nivel no se puede quitar: déjale un nombre."},
                 widget=forms.TextInput(attrs={"maxlength": TIER_LABEL_MAX_LENGTH, "placeholder": "Sin usar"}),
             )
             self.fields[f"color_{n}"] = forms.CharField(
-                label=f"Color del nivel {n + 1}", required=False, initial=tier.get("color", colors[n]),
+                label=f"Color del nivel {n + 1}", required=False, initial=tier.get("color", colors[n]), disabled=unused,
                 widget=forms.TextInput(attrs={"type": "color"}),
             )
 
+    def _tiers_lock(self):
+        """Por qué no se le pueden quitar ni añadir niveles («» si se puede): es una versión de otra tier list, o ya hay
+        versiones de esta. Así lo que ha colocado cada uno sigue contando igual en la de la comunidad.
+
+        Pantallas: Editar lista (los niveles de una tier list abierta con versiones y los de una versión).
+        """
+        if self.instance.parent_id:
+            return "Es una versión de otra tier list: sus niveles son los de esa. Puedes cambiarles el nombre y el color."
+        if self.instance.pk and self.instance.versions.exists():
+            return (
+                "Ya hay versiones de esta tier list: puedes cambiar el nombre y el color de sus niveles, pero no quitar "
+                "ni añadir ninguno."
+            )
+        return ""
+
     @property
     def switches(self):
-        """Los campos de sí o no (visible para los demás), que la plantilla pinta como interruptores.
+        """Los campos de sí o no (visible para los demás y, donde se hacen tier lists, abierta a la comunidad), que la
+        plantilla pinta como interruptores.
 
         Pantallas: Nueva lista (interruptor de si la ven los demás), Nueva tier list, Editar lista (los datos de la
         lista).
         """
-        return [self[name] for name in self.SWITCHES]
+        return [self[name] for name in self.SWITCHES if name in self.fields]
 
     @property
     def tier_fields(self):
@@ -119,10 +152,16 @@ class GameListForm(forms.ModelForm):
     def clean(self):
         """Arma los niveles con las filas que tienen nombre (cleaned_data["tiers"]); un color que no sea «#rrggbb»
         da error. Una tier list necesita al menos un nivel; las demás guardan los niveles por si vuelven a serlo.
+        Abrirla a la comunidad pide que sea visible para los demás, y la que deja de ser tier list deja de estar abierta.
 
         Pantallas: Nueva lista (los niveles y sus colores), Nueva tier list, Editar lista (los datos de la lista).
         """
         data = super().clean()
+        mode = data.get("mode") or self.instance.mode
+        if data.get("is_open") and mode != GameList.Mode.TIERS:
+            data["is_open"] = False
+        elif data.get("is_open") and not data.get("is_public"):
+            self.add_error("is_open", "Para abrirla a la comunidad tiene que ser visible para los demás.")
         tiers = []
         for n in range(MAX_TIERS):
             label = " ".join(data.get(f"nivel_{n}", "").split())

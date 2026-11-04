@@ -18,6 +18,7 @@ from accounts import matching
 from accounts.models import ExternalTitle, ImportedTitle, Notification
 from games.models import Game
 from library.models import LibraryEntry, Report, Review
+from lists.models import GameList
 
 from . import activity
 from .models import Activity, Follow, Post, PostComment, PostLike
@@ -757,4 +758,10 @@ class SeedTests(TestCase):
         self.assertEqual(tester.activities.exclude(review=None).count(), 4)
         self.assertEqual((tester.followers.count(), tester.following.count()), (3, 2))
         self.assertEqual(Notification.objects.filter(user=tester, kind="follow").count(), 3)
-        self.assertEqual(Activity.objects.filter(user__username="demo2").count(), 1)
+        # demo2 reseña un juego y hace su versión de la tier list abierta del usuario de prueba, una sola vez aunque la
+        # semilla se pase dos veces.
+        self.assertEqual(Activity.objects.filter(user__username="demo2").count(), 2)
+        self.assertEqual(Activity.objects.filter(user__username="demo2", kind="list").count(), 1)
+        tiers = GameList.objects.get(user=tester, title="Mis juegos, por niveles")
+        self.assertTrue(tiers.is_open)
+        self.assertEqual(sorted(tiers.versions.values_list("user__username", flat=True)), ["demo1", "demo2"])

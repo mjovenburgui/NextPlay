@@ -299,6 +299,19 @@ todas). Los textos y los avisos las llaman «tier list». Por dentro siguen sien
 los mismos «me gusta», comentarios, colaboradores y actividad, y una lista puede cambiar de tipo en su editor
 conservando sus niveles.
 
+Una tier list pública se puede abrir a la comunidad («Abierta a la comunidad», en «Nueva tier list» o en su editor),
+con sus juegos colocados o sin colocar. Los demás pulsan «Haz tu versión» (`/listas/<id>/mi-version/`) y les sale una
+tier list suya y pública, con los mismos niveles y los mismos juegos sin clasificar (`GameList.make_version`, que
+apunta de cuál es en `GameList.parent`; una por persona), y en el feed sale «hizo su versión de…». La página de la
+abierta dice cuánta gente la ha hecho y, a partir de tres (`lists.community.MIN_VOTERS`), enseña primero la tier list
+de la comunidad: cada juego en el nivel del medio de lo que ha votado la gente, con una barra debajo de cada portada
+con los colores de los niveles en los que la han puesto (`lists/community.py`). Solo cuentan las versiones públicas de
+perfiles públicos, y el tablero del autor cuenta como una más. En cuanto hay alguna versión, los niveles de la abierta
+quedan fijos, igual que los de las versiones: se pueden renombrar y cambiar de color, pero no quitar ni añadir, y la
+lista no puede dejar de ser tier list. Los juegos que se le añaden después les salen sin clasificar a todas las
+versiones. La pestaña «Tier lists» del menú (`/tier-lists/`) junta las tuyas, las de la gente que sigues, las abiertas
+que más gente ha hecho y las últimas.
+
 En «Nueva tier list», el bloque de arriba crea de un clic una tier list con juegos de la biblioteca ya dentro, para
 solo arrastrarlos (`lists/presets.py` y `/tier-lists/desde-tu-biblioteca/`), y debajo está el formulario para
 empezarla en blanco. Las plantillas: jugados este año (última partida de Steam, PlayStation o Xbox, partidas apuntadas,
@@ -403,6 +416,7 @@ botones (muchos con HTMX, que cambia solo un trozo de la página). Estas son las
 | Nueva lista | `/listas/nueva/` | `new` en `lists/views/nueva_lista.py` | `lists/form.html` |
 | Nueva tier list | `/tier-lists/nueva/` | `new_tier_list` en `lists/views/nueva_lista.py` | `lists/tier_form.html` |
 | Editar lista | `/listas/<id>/editar/` | `edit` en `lists/views/editar_lista.py` | `lists/edit.html` |
+| Tier lists | `/tier-lists/` | `explore` en `lists/views/tier_lists.py` | `lists/explore.html` |
 | Retos | `/retos/` | `challenges.views.explore` | `challenges/explore.html` |
 | Página del reto | `/retos/<id>/` | `challenges.views.detail` | `challenges/detail.html` |
 | Nuevo reto | `/retos/nuevo/` | `challenges.views.new` | `challenges/form.html` |

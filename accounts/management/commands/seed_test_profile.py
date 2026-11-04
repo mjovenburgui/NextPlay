@@ -90,6 +90,14 @@ LISTS = [
 # Gente que colabora en las listas de ejemplo: (título de la lista, usuario, posiciones en la lista de los juegos que
 # añadió él). El usuario de prueba ayuda a demo1 con la suya.
 LIST_COLLABORATORS = [("Para jugar con amigos", USERNAME, [3, 4])]
+# Tier lists de ejemplo abiertas a la comunidad y las versiones que han hecho de ellas los usuarios demo: (título de la
+# tier list, usuario, [(posición del juego en la tier list, nivel)]); los que no salen quedan sin clasificar. Con la del
+# usuario de prueba son tres, lo justo para ver la de la comunidad (lists.community.MIN_VOTERS).
+OPEN_TIER_LISTS = ["Mis juegos, por niveles"]
+TIER_LIST_VERSIONS = [
+    ("Mis juegos, por niveles", "demo1", [(0, 0), (1, 1), (2, 0), (3, 2), (4, 2), (5, 3), (6, 4)]),
+    ("Mis juegos, por niveles", "demo2", [(0, 1), (1, 0), (2, 1), (3, 1), (4, 3), (5, 5), (6, 5), (7, 2)]),
+]
 # Retos de ejemplo: (creador, título, tipo, objetivo, slug del género o None, días hasta que empieza y hasta que termina
 # (desde hoy; None, sin fecha), quién más se une). El de juegos concretos sale de la lista «Mis imprescindibles».
 CHALLENGES = [
@@ -301,14 +309,16 @@ class Command(BaseCommand):
         """Rehace las listas de ejemplo (LISTS) del usuario de prueba y de los usuarios demo que existan, con sus juegos
         (catalog: los de su biblioteca y los extra, en orden), sus comentarios y sus niveles, cada una con su actividad
         (creada hace unas horas, con sus juegos), con los «me gusta» y comentarios de LIST_REACTIONS y con quien colabora
-        en ellas (LIST_COLLABORATORS).
+        en ellas (LIST_COLLABORATORS). Las de OPEN_TIER_LISTS quedan abiertas a la comunidad, con las versiones de
+        TIER_LIST_VERSIONS y su actividad.
 
-        Pantallas: Perfil (pestañas Listas y Tier lists), Página de la lista, Ficha del juego (listas en las que
-        sale), Listas del juego.
+        Pantallas: Perfil (pestañas Listas y Tier lists), Página de la lista, Tier lists, Ficha del juego (listas en las
+        que sale), Listas del juego.
         """
         GameList.objects.filter(user=user).delete()
         names = {owner for owner, *_ in LISTS} | {username for username, *_ in LIST_REACTIONS}
         names |= {username for _, username, _ in LIST_COLLABORATORS}
+        names |= {username for _, username, _ in TIER_LIST_VERSIONS}
         people = {u.username: u for u in User.objects.filter(username__in=names)}
         lists = {}
         for hours, (owner, title, description, public, mode, entries) in enumerate(LISTS, start=1):
@@ -340,6 +350,25 @@ class Command(BaseCommand):
             if username in people and title in lists:
                 ListCollaborator.objects.create(game_list=lists[title], user=people[username], accepted_at=timezone.now())
                 lists[title].items.filter(position__in=positions).update(added_by=people[username])
+        for title in OPEN_TIER_LISTS:
+            if title in lists:
+                lists[title].is_open = True
+                lists[title].save(update_fields=["is_open"])
+        for title, username, placed in TIER_LIST_VERSIONS:
+            if username not in people or title not in lists:
+                continue
+            # La de antes se quedó sin la tier list de la que salía (se ha rehecho): se rehace también.
+            GameList.objects.filter(user=people[username], title=title).delete()
+            version, _ = lists[title].make_version(people[username])
+            games = list(lists[title].items.order_by("position", "id").values_list("game_id", flat=True))
+            for position, tier in placed:
+                if position < len(games):
+                    version.items.filter(game_id=games[position]).update(tier=tier)
+            when = timezone.now() - timedelta(minutes=30)
+            Activity.objects.create(
+                user=people[username], kind=Activity.Kind.LIST, game_list=version, data={"created": True},
+                created_at=when, updated_at=when,
+            )
 
     def challenges(self, user, games):
         """Rehace los retos de ejemplo (CHALLENGES) con quienes se unen a ellos, y las sesiones de juego del usuario de

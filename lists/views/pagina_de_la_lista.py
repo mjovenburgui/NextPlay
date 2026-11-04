@@ -1,5 +1,6 @@
 """Vistas de la Página de la lista (u/<usuario>/listas/<id>/): la lista con sus juegos, cuánto llevas jugado y lo que
-cuesta lo que te falta, y sus botones: «me gusta», comentarios, denuncias y «Lo quiero» de lo que te falta.
+cuesta lo que te falta, en las tier lists abiertas la de la comunidad, y sus botones: «me gusta», comentarios,
+denuncias, «Lo quiero» de lo que te falta y «Haz tu versión».
 """
 
 from decimal import Decimal
@@ -16,7 +17,9 @@ from accounts.models import Notification
 from games.models import Game, format_price
 from library.models import LibraryEntry, WishlistItem
 from library.views import _report, comment_thread
+from social import activity
 
+from ..community import MIN_VOTERS, community_board
 from ..forms import ListCommentForm
 from ..models import GameList, ListComment, ListLike
 from .tarjetas import PLAYED_STATUSES, mark_liked_lists
@@ -32,6 +35,10 @@ def detail(request, username, list_id):
     portadas (en las tier lists, por niveles) o con el comentario de cada uno (?vista=; sin ella, con los comentarios
     si alguno tiene), y debajo sus comentarios. En el tablero de una tier list, quien puede editarla arrastra las
     portadas de un nivel a otro (lists/_tier_board.html y tier).
+
+    En las tier lists abiertas a la comunidad enseña también cuánta gente la ha hecho, el botón «Haz tu versión»
+    (make_version) o la tuya si ya la tienes, y la tier list de la comunidad (lists.community, ?vista=comunidad), que es
+    la que sale primero en cuanto la ha hecho bastante gente. En las versiones dice de cuál son.
 
     La ve quien puede verla (GameList.visible_to); si no, 404. A quien está invitado a editarla le pregunta si acepta.
     Con sesión, enseña cuánto ha jugado quien mira de la lista, el estado de cada juego en su biblioteca y, de lo que
@@ -52,11 +59,22 @@ def detail(request, username, list_id):
         item.viewer_status = progress["statuses"].get(item.game_id, "") if progress else ""
         item.viewer_status_key = progress["status_keys"].get(item.game_id, "") if progress else ""
         item.tier_info = tiers.get(item.tier)
+    is_owner = viewer == game_list.user
+    community = community_board(game_list, items) if game_list.accepts_versions else None
     views = TIER_VIEWS if game_list.is_tiered else VIEWS
+    if community:
+        # En las abiertas, la de la comunidad va primero y el tablero de su autor es uno más.
+        views = {
+            "comunidad": "La de la comunidad",
+            "niveles": "La tuya" if is_owner else f"La de {game_list.user.profile.name}",
+            "detalle": TIER_VIEWS["detalle"],
+        }
     view = request.GET.get("vista", "")
     if view not in views:
-        view = "detalle" if any(item.note for item in items) else next(iter(views))
-    is_owner = viewer == game_list.user
+        if community:
+            view = "niveles" if community["missing"] else "comunidad"
+        else:
+            view = "detalle" if any(item.note for item in items) else next(iter(views))
     collaborators = list(game_list.collaborators.select_related("user__profile", "user__psn_account", "user__xbox_account"))
     mine = next((collaborator for collaborator in collaborators if collaborator.user_id == viewer.pk), None)
     can_edit = is_owner or bool(mine and mine.accepted_at)
@@ -75,6 +93,14 @@ def detail(request, username, list_id):
         "views": views.items(),
         # Quien puede editarla arrastra las portadas del tablero: necesita la fila «Sin clasificar» aunque esté vacía.
         "tier_rows": game_list.tier_rows(items, keep_loose=can_edit) if game_list.is_tiered else [],
+        "community": community,
+        "min_voters": MIN_VOTERS,
+        # De las abiertas, la versión de quien mira si ya la ha hecho; de las versiones, de cuál son (no «parent»: ese
+        # nombre ya lo usan los comentarios).
+        "my_version": (
+            game_list.versions.filter(user=viewer).first() if community and viewer.is_authenticated and not is_owner else None
+        ),
+        "source_list": game_list.public_parent,
         "reported": viewer.is_authenticated and not is_owner and game_list.reports.filter(reporter=viewer).exists(),
         "open_report": "denunciar" in request.GET,
         **_list_comments(game_list, viewer),
@@ -91,6 +117,30 @@ def _readable_list(request, list_id):
     if not game_list.visible_to(request.user):
         raise Http404
     return game_list
+
+
+@require_POST
+@login_required
+def make_version(request, list_id):
+    """«Haz tu versión» de una tier list abierta a la comunidad: crea la del usuario (GameList.make_version), la apunta
+    en su actividad y lleva a su página, para colocar los juegos en su tablero; si ya la tiene, lleva a ella. Las que no
+    están abiertas dan 404, y la propia 400: su tablero ya cuenta en la de la comunidad.
+
+    Pantallas: Página de la lista (botón «Haz tu versión»), Perfil (pestaña Tier lists), Tier lists, Inicio (feed:
+    «hizo su versión de…»).
+    """
+    game_list = _readable_list(request, list_id)
+    if not game_list.accepts_versions:
+        raise Http404
+    if game_list.user_id == request.user.pk:
+        return HttpResponseBadRequest("Tu tablero ya cuenta en la tier list de la comunidad.")
+    version, created = game_list.make_version(request.user)
+    if created:
+        activity.list_created(version)
+        messages.success(
+            request, "Ya tienes tu versión: arrastra los juegos a su nivel. Cuenta en la de la comunidad en cuanto colocas alguno.",
+        )
+    return redirect(version)
 
 
 @require_POST

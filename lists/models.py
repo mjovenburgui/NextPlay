@@ -1,11 +1,12 @@
-"""Modelos de las listas: cada lista o tier list (con sus niveles), sus juegos en orden, quién colabora en ella, sus «me
-gusta» y sus comentarios. Se ven en la Página de la lista, en Editar lista, en las pestañas Listas y Tier lists del
-Perfil, en la Ficha del juego y en Listas del juego.
+"""Modelos de las listas: cada lista o tier list (con sus niveles y, si está abierta a la comunidad, las versiones que
+hace la gente), sus juegos en orden, quién colabora en ella, sus «me gusta» y sus comentarios. Se ven en la Página de la
+lista, en Editar lista, en las pestañas Listas y Tier lists del Perfil, en la pestaña Tier lists, en la Ficha del juego
+y en Listas del juego.
 """
 
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericRelation
-from django.db import models
+from django.db import IntegrityError, models, transaction
 from django.urls import reverse
 
 from accounts.models import text_on
@@ -64,17 +65,17 @@ class GameListQuerySet(models.QuerySet):
 
     def with_preview(self):
         """Listas con lo que enseñan sus tarjetas ya cargado: su autor (con su foto), cuántos juegos tienen
-        (game_count), sus «me gusta» (like_count) y comentarios (comment_count) y los MOSAIC_COVERS primeros juegos
-        para el mosaico (preview_items).
+        (game_count), sus «me gusta» (like_count) y comentarios (comment_count), los MOSAIC_COVERS primeros juegos
+        para el mosaico (preview_items) y, en las versiones, la tier list de la que salen con su autor (parent).
 
         Van de la más reciente a la más antigua: con los recuentos, Django ya no aplica el orden de Meta.
 
-        Pantallas: Perfil (pestañas Listas y Tier lists y escaparate: lo que enseña cada tarjeta), Ficha del juego
-        (listas en las que sale), Listas del juego, Inicio (feed).
+        Pantallas: Perfil (pestañas Listas y Tier lists y escaparate: lo que enseña cada tarjeta), Tier lists, Ficha
+        del juego (listas en las que sale), Listas del juego, Inicio (feed).
         """
         first = ListItem.objects.select_related("game").order_by("position", "id")[:MOSAIC_COVERS]
         return (
-            self.select_related("user__profile", "user__psn_account", "user__xbox_account")
+            self.select_related("user__profile", "user__psn_account", "user__xbox_account", "parent__user__profile")
             .prefetch_related("user__steam_accounts", models.Prefetch("items", queryset=first, to_attr="preview_items"))
             .annotate(
                 game_count=models.Count("items", distinct=True),
@@ -94,6 +95,8 @@ class GameList(models.Model):
     pestaña del perfil), pero son listas como las demás: una puede cambiar de tipo en su editor y conserva sus niveles.
     Su dueño puede invitar a otros a editar sus juegos (ListCollaborator). La ven los demás si es pública y su perfil
     también (visible_to); las privadas solo las ven su dueño y los invitados.
+    Una tier list pública se puede abrir a la comunidad (is_open): los demás hacen su versión (make_version, que
+    apunta de cuál es en parent) y su página enseña la tier list que sale de juntarlas todas (lists.community).
     Los demás pueden darle «me gusta», comentarla y denunciarla, y sale en la actividad de su dueño
     (social.activity.list_created).
     """
@@ -112,6 +115,13 @@ class GameList(models.Model):
     # Niveles de una tier list, de mejor a peor: [{"id", "label", "color"}]. Cada juego dice en cuál está con
     # ListItem.tier, que guarda su id: no cambia aunque se renombren o se quiten los demás.
     tiers = models.JSONField("niveles", default=default_tiers, blank=True)
+    # Abierta a la comunidad: cualquiera puede hacer su versión y su página enseña la que sale de juntarlas todas
+    # (lists.community). Solo vale en las tier lists públicas (accepts_versions).
+    is_open = models.BooleanField("abierta a la comunidad", default=False)
+    # La tier list abierta de la que es versión (make_version): empezó con sus juegos y tiene sus niveles.
+    parent = models.ForeignKey(
+        "self", on_delete=models.SET_NULL, null=True, blank=True, related_name="versions", verbose_name="versión de",
+    )
     created_at = models.DateTimeField("creada", auto_now_add=True)
     # Cambia también al añadir, quitar, mover o comentar sus juegos (touch).
     updated_at = models.DateTimeField("actualizada", auto_now=True)
@@ -123,6 +133,12 @@ class GameList(models.Model):
     class Meta:
         ordering = ["-updated_at", "-id"]
         indexes = [models.Index(fields=["user", "-updated_at"], name="gamelist_user_recent")]
+        constraints = [
+            # Cada uno hace una sola versión de cada tier list abierta.
+            models.UniqueConstraint(
+                fields=["user", "parent"], condition=models.Q(parent__isnull=False), name="one_version_per_user",
+            ),
+        ]
         verbose_name = "lista"
         verbose_name_plural = "listas"
 
@@ -207,6 +223,53 @@ class GameList(models.Model):
         return "tier-lists" if self.is_tiered else "listas"
 
     @property
+    def accepts_versions(self):
+        """Indica si los demás pueden hacer su versión: es una tier list pública y abierta a la comunidad.
+
+        Pantallas: Página de la lista (botón «Haz tu versión» y la tier list de la comunidad), Tier lists (las
+        abiertas), Perfil (pestaña Tier lists: la marca «Abierta»).
+        """
+        return self.is_open and self.is_tiered and self.is_public
+
+    @property
+    def public_parent(self):
+        """La tier list de la que es versión, si la puede ver cualquiera (pública y de un perfil público); si no, None,
+        para no enseñar el título de una que ya no lo es.
+
+        Pantallas: Página de la lista (de cuál es versión), Perfil (pestaña Tier lists), Tier lists, Inicio (feed:
+        «hizo su versión de…»).
+        """
+        parent = self.parent
+        if parent is None or not (parent.is_public and parent.user.profile.is_public):
+            return None
+        return parent
+
+    def make_version(self, user):
+        """La versión de user de esta tier list abierta: la que ya tiene o, si no, una nueva, suya y pública, con el
+        mismo título, los mismos niveles y los mismos juegos en el mismo orden, todos sin clasificar. Devuelve (versión,
+        si es nueva). No mira si se puede: eso lo hace quien la llama (accepts_versions, y que no sea de user).
+
+        Pantallas: Página de la lista (botón «Haz tu versión»), Perfil (pestaña Tier lists), Tier lists, Inicio (feed).
+        """
+        existing = self.versions.filter(user=user).first()
+        if existing:
+            return existing, False
+        games = self.items.order_by("position", "id").values_list("game_id", flat=True)
+        try:
+            with transaction.atomic():
+                version = GameList.objects.create(
+                    user=user, title=self.title, mode=self.Mode.TIERS, tiers=self.tiers, parent=self,
+                )
+                ListItem.objects.bulk_create([
+                    ListItem(game_list=version, game_id=game_id, position=position, added_by=user)
+                    for position, game_id in enumerate(games)
+                ])
+        except IntegrityError:
+            # Dos peticiones a la vez: la otra ya la ha creado.
+            return self.versions.get(user=user), False
+        return version, True
+
+    @property
     def tier_list(self):
         """Sus niveles, de mejor a peor, cada uno con el color de su texto (text, ver accounts.models.text_on).
 
@@ -247,12 +310,13 @@ class GameList(models.Model):
         self.save(update_fields=["updated_at"])
 
     def add(self, game, user=None):
-        """Añade game al final de la lista, apuntando quién lo añade (user); devuelve True si no estaba ya.
+        """Añade game al final de la lista, apuntando quién lo añade (user); devuelve True si no estaba ya. En una tier
+        list abierta, también se lo añade sin clasificar a las versiones que ya ha hecho la gente.
 
         No mira LIST_MAX_GAMES ni si user puede editarla: eso lo hace quien la llama.
 
         Pantallas: Editar lista (los juegos: añadir un juego), Ficha del juego (desplegable «Añadir a una lista»),
-        Página de la lista (tablero de las tier lists).
+        Página de la lista (tablero de las tier lists y las versiones de las abiertas).
         """
         last = self.items.aggregate(last=models.Max("position"))["last"]
         _, created = ListItem.objects.get_or_create(
@@ -260,6 +324,9 @@ class GameList(models.Model):
         )
         if created:
             self.touch()
+            if self.is_open:
+                for version in self.versions.all():
+                    version.add(game, user)
         return created
 
     def remove(self, game):
