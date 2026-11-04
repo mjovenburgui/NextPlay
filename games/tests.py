@@ -634,13 +634,27 @@ class PricesTests(TestCase):
             for shop_id, name, amount in shops
         ]}]
         prices.update_prices([self.hades], self.client_mock)
-        featured, listed, folded, best = self.hades.price_groups()
+        featured, listed, folded = self.hades.price_groups()
         self.assertEqual([p.shop_name for p in featured], ["Steam", "GOG"])
         self.assertEqual((listed, [p.shop_name for p in folded]), ([], ["Fanatical", "GreenManGaming"]))
-        self.assertEqual(best.shop_name, "Fanatical")
         response = self.client.get(self.hades.get_absolute_url())
         self.assertContains(response, 'class="shop-tile"', count=2)
         self.assertContains(response, "Ver 2 tiendas más")
+        # La más barata está plegada: se señala igualmente arriba.
+        self.assertContains(response, "Mejor precio ahora: <strong>5,00 €</strong>", html=False)
+        self.assertEqual(response.context["best_price"].shop_name, "Fanatical")
+
+    def test_best_price_also_when_the_cheapest_store_is_in_sight(self):
+        deal = ITAD_HADES["deals"][0]
+        shops = [(35, "GOG", 20), (61, "Steam", 9)]
+        self.client_mock.prices.return_value = [{**ITAD_HADES, "deals": [
+            {**deal, "shop": {"id": shop_id, "name": name}, "price": {"amount": amount, "currency": "EUR"}}
+            for shop_id, name, amount in shops
+        ]}]
+        prices.update_prices([self.hades], self.client_mock)
+        response = self.client.get(self.hades.get_absolute_url())
+        self.assertEqual(response.context["best_price"].shop_name, "Steam")
+        self.assertContains(response, "Mejor precio ahora")
 
     def test_lists_cheapest_stores_when_none_is_featured(self):
         deal = ITAD_HADES["deals"][0]
@@ -648,8 +662,8 @@ class PricesTests(TestCase):
             {**deal, "shop": {"id": shop_id, "name": f"Tienda {shop_id}"}} for shop_id in range(1, 8)
         ]}]
         prices.update_prices([self.hades], self.client_mock)
-        featured, listed, folded, best = self.hades.price_groups()
-        self.assertEqual((len(featured), len(listed), len(folded), best), (0, 5, 2, None))
+        featured, listed, folded = self.hades.price_groups()
+        self.assertEqual((len(featured), len(listed), len(folded)), (0, 5, 2))
 
     def test_detail_says_when_no_prices_were_found(self):
         prices.update_prices([self.unknown], self.client_mock)  # buscado, pero ITAD no lo conoce

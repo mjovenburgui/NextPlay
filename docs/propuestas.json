@@ -760,7 +760,7 @@
   {
     "titulo": "Arreglos pequeños que han salido al medir: mejor precio, redirección y consultas de más",
     "fecha": "2026-11-01",
-    "estado": "pendiente",
+    "estado": "hecha",
     "prioridad": "media",
     "tipo": "Funcionalidad",
     "resumen": "Cuatro retoques de una tarde: que la ficha diga siempre cuál es el mejor precio, que la vuelta de «Lo quiero» use la misma comprobación de seguridad que las demás, evitar una consulta de más por cada autor de reseña o comentario y quitar lo que ya nadie usa.",
@@ -771,7 +771,7 @@
       "Añadir user__xbox_account a ReviewQuerySet.visible_to y a comment_thread, con un test de assertNumQueries.",
       "Quitar fact-source, rate-star, rate-stars, review-form, review-stars, settings-form y shop-logo de app.css (steam_hours ya está quitada)."
     ],
-    "notas": "La misma medición salió bien en casi todo lo demás: en local, ninguna página pasa de 300 ms (salvo la primera visita tras arrancar, 359 ms) ni de 37 consultas; no hay más funciones ni plantillas sin usar; todas las imágenes llevan alt y casi todas, carga diferida; el formato de las reseñas es seguro; las migraciones están al día y los 422 tests pasan en 33 s. 02/11/2026: steam_hours ya no está: la sustituye LibraryEntry.hours_by_platform (ver «Horas de cada plataforma, a la vista»).",
+    "notas": "La misma medición salió bien en casi todo lo demás: en local, ninguna página pasa de 300 ms (salvo la primera visita tras arrancar, 359 ms) ni de 37 consultas; no hay más funciones ni plantillas sin usar; todas las imágenes llevan alt y casi todas, carga diferida; el formato de las reseñas es seguro; las migraciones están al día y los 422 tests pasan en 33 s. 02/11/2026: steam_hours ya no está: la sustituye LibraryEntry.hours_by_platform (ver «Horas de cada plataforma, a la vista»). 04/11/2026: hecha en la rama remates-rapidos, sin subir. La ficha saca ya «Mejor precio ahora» de Game.cheapest con las tiendas que se enseñan, esté esa tienda a la vista o plegada, y Game.price_groups devuelve solo (destacadas, listadas, plegadas); el mínimo histórico va siempre junto al mejor precio. _wish_response usa url_has_allowed_host_and_scheme, como accounts.views.comun._back. ReviewQuerySet.visible_to y comment_thread traen ya user__xbox_account, con un test que comprueba que no hace falta ninguna consulta más por autor. De app.css salen fact-source, rate-star, rate-stars, review-form, review-stars y settings-form; shop-logo se queda, porque la llevan los iconos SVG de las tiendas (la medición del 01/11 no miraba los .svg). 3 tests nuevos.",
     "revision": {
       "fecha": "2026-11-01",
       "hoy": "Propuesta nueva. Comprobado en el código y con la web funcionando.",

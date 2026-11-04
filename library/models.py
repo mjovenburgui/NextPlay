@@ -281,7 +281,7 @@ class ReviewQuerySet(models.QuerySet):
         return (
             self.published()
             .filter(Profile.visible_filter(viewer))
-            .select_related("user__profile", "user__psn_account", "game", "platform")
+            .select_related("user__profile", "user__psn_account", "user__xbox_account", "game", "platform")
             .prefetch_related("user__steam_accounts", "images")
             .annotate(
                 like_count=models.Count("likes", distinct=True),

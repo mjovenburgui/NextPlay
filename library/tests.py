@@ -23,6 +23,7 @@ from social.models import Activity
 
 from . import backlog, markup, reminders, wishlist
 from .models import LibraryEntry, Report, Review, ReviewComment, ReviewImage, ReviewLike, WishlistItem
+from .views import comment_thread
 
 User = get_user_model()
 
@@ -864,6 +865,33 @@ class WishlistTests(TestCase):
         self.client.logout()
         for url in (reverse("library:wishlist"), reverse("notifications")):
             self.assertEqual(self.client.get(url).status_code, 302)
+
+    def test_wish_buttons_only_go_back_to_pages_of_this_site(self):
+        url = reverse("library:wish_toggle", args=[self.game.id])
+        # Los navegadores leen «/\otra.web» como otra web: vuelve a la ficha.
+        response = self.client.post(url, {"next": "/\\evil.com"})
+        self.assertRedirects(response, self.game.get_absolute_url(), fetch_redirect_response=False)
+        response = self.client.post(url, {"next": reverse("library:wishlist")})
+        self.assertRedirects(response, reverse("library:wishlist"), fetch_redirect_response=False)
+
+
+class AuthorQueriesTests(TestCase):
+    """Las reseñas y los comentarios traen ya la cuenta de Xbox de cada autor (para su foto): sin una consulta por cada uno."""
+
+    def test_reviews_and_comments_come_with_their_authors_xbox_account(self):
+        author = User.objects.create_user("ana", "ana@example.com", "x")
+        reader = User.objects.create_user("luis", "luis@example.com", "x")
+        game = Game.objects.create(name="Hades", slug="hades")
+        review = Review.objects.create(user=author, game=game, text="Muy bueno.", published_at=timezone.now())
+        ReviewComment.objects.create(review=review, user=reader, text="¡Totalmente!")
+        reviews = list(Review.objects.visible_to(reader))
+        thread = comment_thread(
+            review, review.comments.select_related("review"), reader, comment_url="/",
+            delete_url_name="library:comment_delete", report_url_name="library:comment_report", count_id="cuenta",
+        )
+        with self.assertNumQueries(0):
+            for item in [*reviews, *thread["comments"]]:
+                getattr(item.user, "xbox_account", None)
 
 
 class TidyTests(TestCase):

@@ -29,6 +29,31 @@ Las ramas van una encima de otra, en este orden. Ninguna está subida a GitHub: 
 
 ---
 
+## 04/11/2026 · Siete remates rápidos (en curso)
+
+**Rama:** `remates-rapidos`, encima de `repaso-de-la-biblioteca`. Lleva un commit por cada remate, para que se puedan revisar por separado.
+
+**Por qué:** me preguntaste qué se podía hacer rápido y elegiste las siete. Todas son propuestas que ya estaban abiertas y no dependen de nada tuyo.
+
+**Plan:**
+- [x] 1. **Arreglos pequeños que salieron al medir:**
+  - **«Mejor precio ahora»** sale ya en todas las fichas con precios, también cuando la tienda más barata está a la vista; antes solo salía si estaba plegada. El mínimo histórico va siempre a su lado.
+  - **La vuelta de «Lo quiero»** comprueba que la página es de esta web, como las demás: `/\otra.web` ya no cuela.
+  - **Las reseñas y los comentarios** traen ya la cuenta de Xbox de cada autor, en vez de una consulta por autor.
+  - **Fuera 6 clases de CSS sin usar.** La séptima, `shop-logo`, sí se usa: la llevan los iconos de las tiendas.
+  - 3 tests nuevos.
+- [ ] 2. **Páginas de error propias:** no encontrada, fallo del servidor y formulario caducado.
+- [ ] 3. **Aviso a quien abre una tier list a la comunidad** cuando alguien hace su versión.
+- [ ] 4. **Listas colaborativas:**
+  - solo se puede invitar a quien te sigue;
+  - aviso al dueño cuando alguien acepta;
+  - un color raro en una tier list no la rompe.
+- [ ] 5. **Editar perfil avisa al salir con cambios sin guardar**, con «Cambios sin guardar» y «Descartar».
+- [ ] 6. **Inicio en el móvil:** la actividad antes que la tarjeta de resumen y la caja de publicar.
+- [ ] 7. **Un test que obliga a que cada función diga sus pantallas** con nombres del catálogo.
+
+---
+
 ## 04/11/2026 · Repaso de la biblioteca y valor del pendiente (hecho, sin subir)
 
 **Rama:** `repaso-de-la-biblioteca`, encima de `retos-fase-2`.

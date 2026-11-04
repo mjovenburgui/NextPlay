@@ -7,6 +7,7 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from accounts import notices
@@ -19,7 +20,8 @@ from ..wishlist import at_historical_low
 
 def _wish_response(request, game, wish, error=""):
     """Respuesta de las acciones de la lista de deseos: el botón «Lo quiero» actualizado si es HTMX; si no,
-    vuelve a la página de la que vino (la ficha por defecto) avisando del error si lo hay.
+    vuelve a la página de la que vino (campo «next», solo si es de esta web; si no, la ficha) avisando del error si
+    lo hay.
 
     Pantallas: Ficha del juego (botón «Lo quiero»), Lista de deseos.
     """
@@ -28,7 +30,8 @@ def _wish_response(request, game, wish, error=""):
     if error:
         messages.error(request, error)
     target = request.POST.get("next", "")
-    if target.startswith("/") and not target.startswith("//"):
+    # La misma comprobación que accounts.views.comun._back: «/\otra.web» también sería otra web.
+    if target and url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}):
         return redirect(target)
     return redirect(game)
 

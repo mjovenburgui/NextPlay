@@ -472,9 +472,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .reviews { margin-top: 2rem; }
 .reviews h2 { font-size: 1.3rem; margin: 0 0 .75rem; }
 .reviews h2 .muted { font-size: 1rem; font-weight: 400; }
-.review-form summary { cursor: pointer; margin: 0; }
-.review-form[open] summary { margin-bottom: .75rem; }
-.review-form .btn + .help { display: inline; margin-left: .75rem; }
 .review { margin: 0 0 .75rem; padding: 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 .review.is-own { border-color: rgba(157, 92, 255, .6); }
 .review-head { display: flex; align-items: center; gap: .75rem; }
@@ -484,9 +481,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .own-tag { margin-left: .4rem; padding: .05rem .45rem; border-radius: 6px; background: var(--violet); color: #fff; font-size: .72rem; font-weight: 600; }
 .review-thumb { flex: none; width: 44px; aspect-ratio: 3 / 4; overflow: hidden; border: 1px solid var(--border); border-radius: 6px; background: linear-gradient(145deg, #1b1440, #0b2740); }
 .review-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.review-stars { letter-spacing: .05em; color: var(--star-off); }
-.review-stars { display: inline-flex; flex-direction: row-reverse; }
-.review-stars .on { color: var(--gold); }
 .review-text { margin: .75rem 0 0; max-width: 75ch; overflow-wrap: anywhere; }
 .spoiler { margin-top: .75rem; }
 .spoiler summary { color: var(--pink); cursor: pointer; font-size: .9rem; }
@@ -643,12 +637,6 @@ button.chip-link { background: none; font-family: inherit; cursor: pointer; }
 .hours-when { grid-column: 1 / -1; color: var(--muted); font-size: .8rem; }
 .hours-total { margin: 0; color: var(--muted); font-size: .85rem; }
 .hours-total strong { color: var(--text); font-variant-numeric: tabular-nums; }
-.rate-stars { display: inline-flex; flex-direction: row-reverse; }
-.rate-star { padding: 0 .1rem; background: none; border: 0; font-size: 1.5rem; line-height: 1; color: var(--star-off); cursor: pointer; }
-.rate-star.is-on { color: var(--gold); }
-.rate-stars:hover .rate-star { color: var(--star-off); }
-.rate-stars .rate-star:hover, .rate-stars .rate-star:hover ~ .rate-star { color: var(--gold); }
-.rate-star:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; border-radius: 4px; }
 
 /* Juegos importados sin emparejar */
 .panel-wide { max-width: 760px; }
@@ -767,8 +755,6 @@ button.chip-link { background: none; font-family: inherit; cursor: pointer; }
 .settings-card { scroll-margin-top: 5rem; padding: 1.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 .settings-card h2 { margin: 0 0 .35rem; font-size: 1.2rem; }
 .settings-card > .help { margin: 0; font-size: .9rem; }
-.settings-form h2 + .field { margin-top: 1rem; }
-.settings-form h2:not(:first-of-type) { margin-top: 1.75rem; }
 .field-foot { display: flex; justify-content: space-between; gap: 1rem; }
 .field-foot span:last-child { flex: none; font-variant-numeric: tabular-nums; }
 .settings-actions { display: flex; justify-content: flex-end; gap: .5rem; flex-wrap: wrap; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); }
@@ -1418,7 +1404,6 @@ html:has(> body.is-preview) { scrollbar-width: none; }
 .fact .icon { width: .95rem; height: .95rem; }
 .fact-done { border-color: rgba(34, 224, 240, .55); color: var(--cyan-text); }
 .fact-hours { border-color: rgba(157, 92, 255, .5); }
-.fact-source { color: var(--muted); font-weight: 500; }
 div.review-text { margin: .35rem 0 0; }
 .review-text p { margin: .6rem 0 0; }
 .review-more { display: inline-block; margin-top: .4rem; font-size: .9rem; font-weight: 600; }

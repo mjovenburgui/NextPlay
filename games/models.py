@@ -434,8 +434,9 @@ class Game(models.Model):
     def cheapest(self, shops=None):
         """Oferta más barata de esas tiendas (ids; None = todas), o None si ninguna lo vende.
 
-        Pantallas: Lista de deseos (mejor precio de hoy en tus tiendas), Página de la lista (lo que cuesta lo que te
-        falta), Avisos (bajadas de precio).
+        Pantallas: Ficha del juego (Dónde comprarlo: «Mejor precio ahora»), Lista de deseos (mejor precio de hoy en tus
+        tiendas), Página de la lista (lo que cuesta lo que te falta), Avisos (bajadas de precio), Perfil (lo que cuesta
+        el pendiente).
         """
         prices = sorted(
             (price for price in self.prices.all() if shops is None or price.shop_id in shops),
@@ -452,12 +453,12 @@ class Game(models.Model):
         return any(price.is_free for price in self.prices.all())
 
     def price_groups(self, shops=None):
-        """Reparte los precios de esas tiendas (ids; None = todas) para la ficha en (destacados, listados, plegados, mejor).
+        """Reparte los precios de esas tiendas (ids; None = todas) para la ficha en (destacados, listados, plegados).
 
         destacados: las tiendas más conocidas (Steam, Epic, Microsoft, GOG, Xbox, Nintendo) en un orden fijo.
         listados: las demás más baratas, solo si el juego no está en ninguna destacada.
         plegados: el resto por precio, dentro de «Ver N tiendas más».
-        mejor: la oferta más barata cuando ha quedado plegada, para poder señalarla igualmente.
+        La más barata, se vea o esté plegada, la da cheapest con las mismas tiendas.
 
         Pantallas: Ficha del juego (Dónde comprarlo: destacadas, el resto y las plegadas).
         """
@@ -467,8 +468,7 @@ class Game(models.Model):
         others = [p for p in prices if not p.is_featured]
         listed = [] if featured else others[:FALLBACK_SHOWN]
         folded = others[len(listed):]
-        best = prices[0] if prices and prices[0] in folded else None
-        return featured, listed, folded, best
+        return featured, listed, folded
 
     def store_searches(self):
         """(tienda, plantilla del logo, URL de búsqueda) de las consolas en las que está el juego pero sin precio.
