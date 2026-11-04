@@ -4,16 +4,29 @@ En los de juegos (concretos o un número) cuentan los que ha pasado a «Completa
 (LibraryEntry.completed_at); sin fecha de inicio cuentan también los de antes, aunque no se sepa cuándo los terminó.
 En los de horas se suma lo jugado entre las fechas (library.models.PlaySession), que se apunta desde que existen las
 sesiones. done_by lo cuenta de golpe para muchos jugadores, para la clasificación de la página del reto.
+
+Quien llega al objetivo queda apuntado (mark_completed) y se le cuenta: un aviso en la campana y «consiguió el reto»
+en su actividad. Aquí está también lo que enseña de los retos de cada uno la sección «Retos» de su perfil (showcase).
 """
 
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 
 from django.db.models import Count, Sum
 from django.utils import timezone
 
+from accounts import notices
+from accounts.models import Notification
 from library.models import LibraryEntry, PlaySession
+from social import activity
 
 from .models import Challenge, Participation
+
+# Días después de su fecha de fin en los que un reto aún cuenta lo que llega: las sincronizaciones de PlayStation y
+# Xbox son a mano y pueden llegar tarde. Pasados, el repaso de cada noche lo cierra (challenges.closing).
+GRACE_DAYS = 7
+# Insignias (retos conseguidos) y retos en marcha que enseña la sección «Retos» del escaparate del perfil.
+SHOWCASE_WON = 8
+SHOWCASE_ACTIVE = 3
 
 
 def _start(day):
@@ -106,30 +119,82 @@ def finished_games(challenge, user):
 
 def mark_completed(challenge, done):
     """Apunta que lo han conseguido (Participation.completed_at, una sola vez) los participantes de challenge que, según
-    done (lo que da done_by), han llegado al objetivo. Devuelve a cuántos se les ha apuntado ahora.
+    done (lo que da done_by), han llegado al objetivo, y se lo cuenta a cada uno (_award). Devuelve los ids de los
+    usuarios a los que se les ha apuntado ahora.
 
-    Pantallas: Retos (cómo vas en cada uno: quién lo ha conseguido), Página del reto (tu progreso y la clasificación).
+    Cada uno se apunta solo si aún no lo estaba en ese momento, para que dos repasos a la vez no lo cuenten dos veces.
+
+    Pantallas: Retos (cómo vas en cada uno: quién lo ha conseguido), Página del reto (tu progreso y la clasificación),
+    Perfil (insignias de la sección «Retos»), Avisos (reto conseguido), Inicio (feed: «consiguió el reto»).
     """
     goal = challenge.goal
     if not goal:
-        return 0
+        return []
     reached = [user_id for user_id, value in done.items() if value >= goal]
-    return Participation.objects.filter(
-        challenge=challenge, user_id__in=reached, completed_at__isnull=True,
-    ).update(completed_at=timezone.now())
+    pending = Participation.objects.filter(challenge=challenge, user_id__in=reached, completed_at__isnull=True)
+    won = []
+    for participation in pending.select_related("user__profile"):
+        marked = Participation.objects.filter(pk=participation.pk, completed_at__isnull=True).update(
+            completed_at=timezone.now(),
+        )
+        if marked:
+            _award(challenge, participation.user)
+            won.append(participation.user_id)
+    return won
+
+
+def _award(challenge, user):
+    """Le cuenta a user que ha conseguido challenge: un aviso en la campana y «consiguió el reto» en su actividad.
+
+    Pantallas: Avisos (reto conseguido), todas (el número de la campana), Inicio (feed), Perfil (pestaña Actividad).
+    """
+    notices.notify(
+        user, Notification.Kind.CHALLENGE_WON, f"¡Has conseguido el reto «{challenge.title}»!",
+        challenge.get_absolute_url(),
+    )
+    activity.challenge_won(user, challenge)
 
 
 def check(user):
-    """Mira si user ha conseguido alguno de los retos en los que está y que aún no tenía (de los que no han terminado).
+    """Mira si user ha conseguido alguno de los retos en los que está y que aún no tenía: los que siguen en marcha y los
+    que terminaron hace menos de GRACE_DAYS días, porque una sincronización a mano puede llegar tarde. Los cerrados ya
+    no se miran.
 
     Lo llaman la biblioteca al pasar un juego a «Completado» y la importación al apuntar sesiones. Devuelve los retos
     conseguidos ahora.
 
     Pantallas: Ficha del juego (al pasar un juego a «Completado»), Editar perfil (Cuentas vinculadas: al importar
-    horas), Perfil (modal «Vincular cuentas» de su dueño), Retos (cómo vas en cada uno), Página del reto (tu progreso
-    y la clasificación).
+    horas), Perfil (modal «Vincular cuentas» de su dueño; insignias de la sección «Retos»), Retos (cómo vas en cada
+    uno), Página del reto (tu progreso y la clasificación), Avisos (reto conseguido).
     """
+    since = timezone.localdate() - timedelta(days=GRACE_DAYS)
     pending = Challenge.objects.filter(
-        participations__user=user, participations__completed_at__isnull=True,
-    ).exclude(ends_on__lt=timezone.localdate())
+        participations__user=user, participations__completed_at__isnull=True, closed_at__isnull=True,
+    ).exclude(ends_on__lt=since)
     return [challenge for challenge in pending if mark_completed(challenge, done_by(challenge, [user]))]
+
+
+def showcase(owner, viewer):
+    """Lo que enseña a viewer la sección «Retos» del escaparate de owner, solo con los retos que viewer puede ver (los
+    privados, solo su creador): sus insignias (won, los que ha conseguido, del último al primero, cada uno con won_at)
+    y los que lleva en marcha (active, los que no han terminado, primero los que antes acaban, cada uno con cómo va en
+    mine), y cuántos hay de cada (won_count y active_count). None si no hay nada que enseñar.
+
+    Pantallas: Perfil (sección «Retos» del escaparate), Editar perfil (vista previa).
+    """
+    joined = Participation.objects.filter(user=owner)
+    won_at = dict(joined.filter(completed_at__isnull=False).values_list("challenge_id", "completed_at"))
+    # Con una subconsulta: filtrar por la participación antes de contar haría que solo se contara la suya.
+    challenges = list(Challenge.objects.visible_to(viewer).filter(pk__in=joined.values("challenge_id")).with_counts())
+    won = sorted((challenge for challenge in challenges if challenge.pk in won_at), key=lambda c: won_at[c.pk], reverse=True)
+    for challenge in won:
+        challenge.won_at = won_at[challenge.pk]
+    active = [challenge for challenge in challenges if challenge.pk not in won_at and not challenge.is_over]
+    if not won and not active:
+        return None
+    active.sort(key=lambda challenge: (challenge.ends_on is None, challenge.ends_on or date.max, -challenge.pk))
+    shown = active[:SHOWCASE_ACTIVE]
+    for challenge in shown:
+        challenge.mine = summary(challenge, done_by(challenge, [owner]).get(owner.pk, 0))
+        challenge.won = False
+    return {"won": won[:SHOWCASE_WON], "won_count": len(won), "active": shown, "active_count": len(active)}

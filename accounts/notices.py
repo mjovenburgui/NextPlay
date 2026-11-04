@@ -53,6 +53,12 @@ REPEAT = {
     Kind.LIST_LIKE: ONCE_PER_PERSON,
     Kind.LIST_COMMENT: UNTIL_READ,
     Kind.LIST_INVITE: ALWAYS,
+    # De los retos, uno de cada por reto: conseguirlo, que le quedan pocos días y cómo ha terminado.
+    Kind.CHALLENGE_WON: Repeat(("url",)),
+    Kind.CHALLENGE_ENDING: Repeat(("url",)),
+    Kind.CHALLENGE_RESULT: Repeat(("url",)),
+    # A quien lo creó, una vez por cada persona que se une, aunque lo deje y vuelva.
+    Kind.CHALLENGE_JOINED: ONCE_PER_PERSON,
     # Una por denuncia mientras el administrador no haya leído la anterior.
     Kind.REPORT: Repeat(("url",), unread=True),
 }
@@ -94,6 +100,12 @@ GROUPS = {
         "Reseñas que se han quedado atrás",
         "Cuando llevas muchas más horas en un juego que al escribir su reseña, por si quieres actualizarla.",
         (Kind.REVIEW_UPDATE,),
+    ),
+    "retos": Group(
+        "Retos",
+        "Cuando consigues un reto, cuando a uno en el que estás le quedan pocos días, cuando termina y cuando alguien "
+        "se une a uno tuyo.",
+        (Kind.CHALLENGE_WON, Kind.CHALLENGE_ENDING, Kind.CHALLENGE_RESULT, Kind.CHALLENGE_JOINED),
     ),
 }
 # El grupo de cada tipo de aviso.

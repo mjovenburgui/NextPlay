@@ -10,8 +10,10 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from accounts.models import Profile
+from accounts import notices
+from accounts.models import Notification, Profile
 from lists.models import GameList
+from social import activity
 
 from . import progress
 from .forms import ChallengeEditForm, ChallengeForm
@@ -84,8 +86,10 @@ def detail(request, challenge_id):
     """Página de un reto: qué hay que hacer y cuándo, quién lo ha creado, cómo vas tú (en los de juegos concretos, cuáles
     llevas) y la clasificación de quienes se han unido, de quien más lleva a quien menos.
 
-    En la clasificación solo salen quienes tienen el perfil visible para quien mira; los que han llegado al objetivo
-    quedan apuntados como que lo han conseguido (challenges.progress.mark_completed).
+    En la clasificación solo salen quienes tienen el perfil visible para quien mira. Quien ha llegado al objetivo sale
+    como que lo ha conseguido aunque aún no esté apuntado: lo apuntan al momento la biblioteca y las importaciones
+    (challenges.progress.check) y, si algo se escapa, el repaso de cada noche (challenges.closing). La página no guarda
+    nada.
 
     Pantallas: Página del reto.
     """
@@ -97,9 +101,6 @@ def detail(request, challenge_id):
         .prefetch_related("user__steam_accounts")
     )
     done = progress.done_by(challenge, [participation.user_id for participation in participations])
-    if progress.mark_completed(challenge, done):
-        for participation in participations:
-            participation.refresh_from_db(fields=["completed_at"])
     for participation in participations:
         participation.progress = progress.summary(challenge, done.get(participation.user_id, 0))
     participations.sort(key=lambda participation: (-done.get(participation.user_id, 0), participation.joined_at))
@@ -129,12 +130,13 @@ def detail(request, challenge_id):
 
 @login_required
 def new(request):
-    """Crea un reto (POST) o enseña el formulario (GET). Quien lo crea queda unido a él.
+    """Crea un reto (POST) o enseña el formulario (GET). Quien lo crea queda unido a él, y sale en su actividad que lo
+    ha creado.
 
     Con lista= (desde «Convertir en reto» de una lista que puede ver) empieza como uno de juegos concretos con los de esa
     lista; si no, como uno de número de juegos.
 
-    Pantallas: Nuevo reto.
+    Pantallas: Nuevo reto, Inicio (feed: «creó el reto»), Perfil (pestaña Actividad).
     """
     raw = request.POST.get("lista") or request.GET.get("lista", "")
     game_list = None
@@ -149,6 +151,7 @@ def new(request):
     if request.method == "POST" and form.is_valid():
         challenge = form.save(request.user)
         Participation.objects.create(challenge=challenge, user=request.user)
+        activity.challenge_joined(request.user, challenge, created=True)
         progress.mark_completed(challenge, progress.done_by(challenge, [request.user]))
         messages.success(request, "Reto creado: ya estás dentro. Comparte el enlace para que se una más gente.")
         return redirect(challenge)
@@ -187,15 +190,23 @@ def delete(request, challenge_id):
 @login_required
 def join(request, challenge_id):
     """Une al usuario a un reto que puede ver (si ya estaba, no hace nada) y mira si ya lo ha conseguido con lo que
-    lleva. A uno que ya ha terminado no se puede unir nadie (400).
+    lleva. Lo apunta en su actividad y se lo cuenta a quien lo creó, una vez por persona (accounts.notices). A uno que
+    ya ha terminado no se puede unir nadie (400).
 
-    Pantallas: Página del reto (botón para unirse), Retos.
+    Pantallas: Página del reto (botón para unirse), Retos, Avisos (a quien lo creó), Inicio (feed: «se unió al reto»),
+    Perfil (pestaña Actividad).
     """
     challenge = _visible(request, challenge_id)
     if challenge.is_over:
         return HttpResponseBadRequest("Este reto ya ha terminado.")
     _, created = Participation.objects.get_or_create(challenge=challenge, user=request.user)
     if created:
+        activity.challenge_joined(request.user, challenge)
+        notices.notify(
+            challenge.creator, Notification.Kind.CHALLENGE_JOINED,
+            f"{request.user.profile.name} se ha unido a tu reto «{challenge.title}».", challenge.get_absolute_url(),
+            actor=request.user,
+        )
         progress.mark_completed(challenge, progress.done_by(challenge, [request.user]))
         messages.success(request, "¡Te has unido! Tu progreso se cuenta solo con tu biblioteca.")
     return redirect(challenge)
@@ -204,12 +215,14 @@ def join(request, challenge_id):
 @require_POST
 @login_required
 def leave(request, challenge_id):
-    """Saca al usuario de un reto en el que estaba (si no estaba, no hace nada) y vuelve a él si aún puede verlo.
+    """Saca al usuario de un reto en el que estaba (si no estaba, no hace nada), olvida lo que hizo con él en su
+    actividad y vuelve a él si aún puede verlo.
 
-    Pantallas: Página del reto (botón para dejarlo), Retos.
+    Pantallas: Página del reto (botón para dejarlo), Retos, Inicio (feed), Perfil (pestaña Actividad).
     """
     challenge = get_object_or_404(Challenge, pk=challenge_id)
-    challenge.participations.filter(user=request.user).delete()
+    if challenge.participations.filter(user=request.user).delete()[0]:
+        activity.challenge_left(request.user, challenge)
     messages.success(request, "Has dejado el reto.")
     if challenge.visible_to(request.user):
         return redirect(challenge)

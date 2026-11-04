@@ -1,5 +1,6 @@
 {# Tarjeta de un reto: su tipo, el título, qué hay que hacer, cuándo y cuánta gente está y, si estás dentro, cómo vas. #}
 {# Necesita challenge (con with_counts); con mine (challenges.views._with_progress) también enseña tu progreso. #}
+{# Con third_person, ese progreso es el de otro (el dueño de un perfil): «Lleva…» en vez de «Llevas…». #}
 <a class="challenge-card" href="{{ challenge.get_absolute_url }}">
   <span class="challenge-kicker">{% include "_icon.html" with name="trophy" %}<span>{{ challenge.get_kind_display }}{% if not challenge.is_public %} <span class="pill">Solo tú</span>{% endif %}</span></span>
   <strong class="challenge-card-title">{{ challenge.title }}</strong>
@@ -11,7 +12,7 @@
   {% if challenge.mine %}
     <span class="progress-bar" aria-hidden="true"><span style="width: {{ challenge.mine.percent }}%"></span></span>
     <span class="challenge-card-progress small">
-      {% if challenge.won %}{% include "_icon.html" with name="check" %} ¡Conseguido!{% else %}Llevas {{ challenge.mine.value|floatformat:"-1" }} de {{ challenge.mine.goal_value }}{% if challenge.mine.hours %} h{% endif %}{% endif %}
+      {% if challenge.won or challenge.mine.reached %}{% include "_icon.html" with name="check" %} ¡Conseguido!{% else %}{% if third_person %}Lleva{% else %}Llevas{% endif %} {{ challenge.mine.value|floatformat:"-1" }} de {{ challenge.mine.goal_value }}{% if challenge.mine.hours %} h{% endif %}{% endif %}
     </span>
   {% endif %}
 </a>

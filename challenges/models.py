@@ -52,6 +52,10 @@ class Challenge(models.Model):
     entre las fechas (LibraryEntry.completed_at) o lo que juega en ellas (library.models.PlaySession). Sus reglas no
     cambian después de crearlo, para que sea justo con quien ya se ha unido. Los públicos los ve cualquiera; los
     privados, solo quien los crea (un objetivo propio, como «20 juegos en 2027»).
+
+    Cuando termina, aún cuenta lo que llegue en los días de margen (challenges.progress.GRACE_DAYS): las
+    sincronizaciones de PlayStation y Xbox son a mano y pueden llegar tarde. Pasado el margen, el repaso de cada noche
+    (challenges.closing) avisa a cada uno de cómo ha quedado y apunta que está cerrado (closed_at).
     """
 
     class Kind(models.TextChoices):
@@ -88,6 +92,8 @@ class Challenge(models.Model):
     ends_on = models.DateField("termina", null=True, blank=True)
     is_public = models.BooleanField("público", default=True)
     created_at = models.DateTimeField("creado", auto_now_add=True)
+    # Cuándo se cerró: pasado el margen tras su fecha de fin, con cada uno avisado de su puesto final.
+    closed_at = models.DateTimeField("cerrado", null=True, blank=True)
 
     objects = ChallengeQuerySet.as_manager()
 

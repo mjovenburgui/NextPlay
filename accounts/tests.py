@@ -1542,7 +1542,9 @@ class ProfileCustomizationTests(TestCase):
     def test_sections_order_and_visibility(self):
         FavoriteGame.objects.create(user=self.user, game=self.games[0])
         self.post_profile(
-            secciones=["estadisticas", "favoritos", "jugando", "resena", "generos", "listas", "tier-lists", "logros"],
+            secciones=[
+                "estadisticas", "favoritos", "jugando", "resena", "generos", "listas", "tier-lists", "logros", "retos",
+            ],
             secciones_visibles=["estadisticas", "jugando"],
         )
         profile = self.profile()
@@ -1558,7 +1560,7 @@ class ProfileCustomizationTests(TestCase):
         self.assertEqual(layout[0], ("jugando", "Jugando ahora", False))
         self.assertEqual(
             [key for key, _, _ in layout[1:]],
-            ["favoritos", "resena", "estadisticas", "generos", "listas", "tier-lists", "logros"],
+            ["favoritos", "resena", "estadisticas", "generos", "listas", "tier-lists", "logros", "retos"],
         )
 
     def test_showcase_is_only_on_the_main_view(self):

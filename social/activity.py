@@ -1,4 +1,5 @@
-"""La actividad de cada jugador: lo que hace con los juegos de su biblioteca, lo que importa, lo que publica y sus listas.
+"""La actividad de cada jugador: lo que hace con los juegos de su biblioteca, lo que importa, lo que publica, sus listas
+y sus retos.
 
 Se apunta desde lo que hace el jugador (cambiar el estado de un juego, valorarlo, publicar una reseña, quitarlo
 de la biblioteca, crear una lista o añadirle juegos) y desde las importaciones de Steam, PlayStation y Xbox, nunca
@@ -204,3 +205,45 @@ def list_game_removed(game_list, user):
         activity.save(update_fields=["data"])
     else:
         activity.delete()
+
+
+def _challenge_activity(user, challenge, flags):
+    """Junta flags (en data) con lo último que hizo user si fue con challenge hace poco (MERGE_WINDOW); si no, crea otra
+    actividad del reto. La devuelve.
+
+    Pantallas: Inicio (feed: lo que haces con un reto), Perfil (pestaña Actividad).
+    """
+    now = timezone.now()
+    activity = _recent(user)
+    if activity is None or activity.kind != Activity.Kind.CHALLENGE or activity.challenge_id != challenge.pk:
+        activity = Activity(user=user, kind=Activity.Kind.CHALLENGE, challenge=challenge, data={}, created_at=now)
+    activity.data = {**activity.data, **flags}
+    activity.updated_at = now
+    activity.save()
+    return activity
+
+
+def challenge_joined(user, challenge, created=False):
+    """Apunta que user se ha unido a challenge o, con created, que lo ha creado (quien crea un reto queda dentro).
+
+    Si el reto es privado, solo la ve quien lo creó (social.views._batch).
+
+    Pantallas: Página del reto (botón para unirse), Nuevo reto (al crearlo), Inicio (feed), Perfil (pestaña Actividad).
+    """
+    return _challenge_activity(user, challenge, {"created": True} if created else {})
+
+
+def challenge_won(user, challenge):
+    """Apunta que user ha conseguido challenge; si se unió a él o lo creó hace poco, va en la misma actividad.
+
+    Pantallas: Inicio (feed: «consiguió el reto»), Perfil (pestaña Actividad).
+    """
+    return _challenge_activity(user, challenge, {"won": True})
+
+
+def challenge_left(user, challenge):
+    """user ha dejado challenge: se olvida lo que hizo con él (unirse, crearlo o conseguirlo).
+
+    Pantallas: Página del reto (botón para dejarlo), Inicio (feed), Perfil (pestaña Actividad).
+    """
+    Activity.objects.filter(user=user, kind=Activity.Kind.CHALLENGE, challenge=challenge).delete()
