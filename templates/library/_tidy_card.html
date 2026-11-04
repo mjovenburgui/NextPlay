@@ -1,0 +1,44 @@
+{# Una tarjeta del repaso: el juego que toca, lo que sabemos de él y los botones; o el resumen si ya no queda ninguno. #}
+{# Necesita entry (o None), hint, remaining y summary (library.views.repasar_la_biblioteca._card_context). Al contestar, HTMX la cambia por la siguiente. #}
+<div id="tidy-card" class="tidy-card-wrap">
+  {% if entry %}
+    <p class="muted small tidy-remaining">Quedan {{ remaining }} juego{{ remaining|pluralize }} por repasar{% if summary.total %} · hoy llevas {{ summary.total }}{% endif %}</p>
+    <article class="card-box tidy-card">
+      <a class="review-thumb tidy-cover" href="{{ entry.game.get_absolute_url }}" tabindex="-1" aria-hidden="true">{% if entry.game.cover_url %}<img src="{{ entry.game.cover_url }}" alt="" loading="lazy">{% endif %}</a>
+      <div class="tidy-main">
+        <p class="tidy-status status-dot st-{{ entry.status }}">Ahora en «{{ entry.get_status_display }}»</p>
+        <h2><a href="{{ entry.game.get_absolute_url }}">{{ entry.game.name }}</a></h2>
+        {% if hint.lines %}
+          <ul class="tidy-hints">{% for line in hint.lines %}<li>{{ line }}</li>{% endfor %}</ul>
+        {% endif %}
+        <form class="tidy-answers" method="post" action="{% url 'library:tidy_answer' entry.pk %}"
+              hx-post="{% url 'library:tidy_answer' entry.pk %}" hx-target="#tidy-card" hx-swap="outerHTML">
+          {% csrf_token %}
+          {# El que propone la pista (todos los logros o el platino) va destacado. #}
+          <button class="btn{% if hint.suggest == 'terminado' %} btn-primary{% endif %}" type="submit" name="respuesta" value="terminado">{% include "_icon.html" with name="check" %} Lo terminé</button>
+          <button class="btn" type="submit" name="respuesta" value="dejado">Lo dejé</button>
+          <button class="btn" type="submit" name="respuesta" value="jugando">Sigo jugando</button>
+          <button class="btn" type="submit" name="respuesta" value="pendiente">Al pendiente</button>
+          <button class="btn tidy-skip" type="submit" name="respuesta" value="saltar">Saltar</button>
+        </form>
+        <p class="help">Si lo marcas como terminado, apuntaremos {% if hint.finished_on %}que fue el {{ hint.finished_on|date:"j \d\e F \d\e Y" }} ({{ hint.finished_from }}){% else %}la fecha de hoy{% endif %}: así no cuenta en un reto que no le toca. «Saltar» lo deja como está y no lo vuelve a preguntar.</p>
+      </div>
+    </article>
+  {% else %}
+    <div class="card-box tidy-done">
+      <h2>{% include "_icon.html" with name="check" %} No te queda nada por repasar</h2>
+      {% if summary.total %}
+        <p>Hoy has repasado {{ summary.total }} juego{{ summary.total|pluralize }}:
+          {% if summary.completed %}{{ summary.completed }} terminado{{ summary.completed|pluralize }}{% endif %}{% if summary.completed and summary.dropped %}, {% endif %}{% if summary.dropped %}{{ summary.dropped }} abandonado{{ summary.dropped|pluralize }}{% endif %}{% if summary.playing %}{% if summary.completed or summary.dropped %}, {% endif %}{{ summary.playing }} que sigues jugando{% endif %}{% if summary.backlog %}{% if summary.completed or summary.dropped or summary.playing %}, {% endif %}{{ summary.backlog }} al pendiente{% endif %}{% if summary.played %}{% if summary.completed or summary.dropped or summary.playing or summary.backlog %} y {% endif %}{{ summary.played }} sin cambios{% endif %}.
+        </p>
+      {% else %}
+        <p>Todo lo que has importado tiene ya su estado. Cuando entren juegos nuevos de Steam, PlayStation o Xbox, o alguno lleve meses en «Jugando» sin moverse, volverá a salir aquí.</p>
+      {% endif %}
+      <p class="tidy-done-links">
+        <a class="btn btn-primary" href="{% url 'profile' user.username %}?estado=completed">Ver tus completados</a>
+        {# El reto del año: el formulario de retos con las fechas de este año ya puestas (challenges.views.new, anual=). #}
+        <a class="btn" href="{% url 'challenges:new' %}?anual=1">{% include "_icon.html" with name="trophy" %} Ponte un reto para este año</a>
+      </p>
+    </div>
+  {% endif %}
+</div>

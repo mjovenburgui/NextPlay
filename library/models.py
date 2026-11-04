@@ -71,8 +71,11 @@ class LibraryEntry(models.Model):
     xbox_playtime_minutes = models.PositiveIntegerField("minutos jugados en Xbox", null=True, blank=True)
     xbox_last_played = models.DateTimeField(null=True, blank=True)
     # Cuándo lo pasó a «Completado» (lo pone library.views.set_status y se vacía si cambia de estado). Las
-    # importaciones nunca lo completan, así que siempre es una fecha que puso el jugador. Lo miden los retos.
+    # importaciones nunca lo completan, así que siempre es una fecha que puso el jugador; desde el repaso de la
+    # biblioteca puede ser aproximada: la de su último logro o su última partida (library.backlog). Lo miden los retos.
     completed_at = models.DateTimeField("terminado", null=True, blank=True)
+    # Cuándo se contestó en el repaso de la biblioteca (library.backlog), para no volver a preguntarlo.
+    reviewed_at = models.DateTimeField("repasado", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

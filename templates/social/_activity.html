@@ -1,5 +1,5 @@
 {% load reviews %}
-{# Una actividad: lo que hizo un jugador con un juego (estado, nota y reseña juntos), lo que importó, lo que publicó, una lista que creó o a la que añadió juegos o un reto que creó, al que se unió o que consiguió. #}
+{# Una actividad: lo que hizo un jugador con un juego (estado, nota y reseña juntos), lo que importó, lo que ordenó al repasar su biblioteca, lo que publicó, una lista que creó o a la que añadió juegos o un reto que creó, al que se unió o que consiguió. #}
 {# Necesita activity; con show_user también se ve quién fue (para el feed). #}
 <li class="activity">
   {% if show_user %}{% include "accounts/_avatar.html" with profile=activity.user.profile size="sm" %}{% endif %}
@@ -23,10 +23,25 @@
         {% if show_user %}<a class="activity-author" href="{{ activity.user.profile.get_absolute_url }}">{{ activity.user.profile.name }}</a> importó{% else %}Importó{% endif %}
         <strong>{{ activity.import_count }} juego{{ activity.import_count|pluralize }}</strong> de {{ activity.platform_name }}
       </p>
-      {% if activity.import_games %}
+      {% if activity.cover_games %}
         {# Las portadas de los más jugados. #}
         <ul class="activity-covers">
-          {% for game in activity.import_games %}
+          {% for game in activity.cover_games %}
+            <li><a class="review-thumb" href="{{ game.get_absolute_url }}" title="{{ game.name }}">{% if game.cover_url %}<img src="{{ game.cover_url }}" alt="{{ game.name }}" loading="lazy">{% endif %}</a></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% elif activity.kind == "tidy" %}
+      {# Un repaso de la biblioteca, todo junto: cuántos marcó como terminados y como abandonados, con las portadas de los primeros terminados. #}
+      {% with done=activity.data.completed|default:0 dropped=activity.data.dropped|default:0 %}
+        <p class="activity-line">
+          {% if show_user %}<a class="activity-author" href="{{ activity.user.profile.get_absolute_url }}">{{ activity.user.profile.name }}</a> ordenó su biblioteca:{% else %}Ordenó su biblioteca:{% endif %}
+          {% if done %}<strong>{{ done }} terminado{{ done|pluralize }}</strong>{% endif %}{% if done and dropped %} y {% endif %}{% if dropped %}<strong>{{ dropped }} abandonado{{ dropped|pluralize }}</strong>{% endif %}
+        </p>
+      {% endwith %}
+      {% if activity.cover_games %}
+        <ul class="activity-covers">
+          {% for game in activity.cover_games %}
             <li><a class="review-thumb" href="{{ game.get_absolute_url }}" title="{{ game.name }}">{% if game.cover_url %}<img src="{{ game.cover_url }}" alt="{{ game.name }}" loading="lazy">{% endif %}</a></li>
           {% endfor %}
         </ul>

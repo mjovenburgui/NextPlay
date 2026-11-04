@@ -15,6 +15,8 @@ from datetime import timedelta
 
 from django.utils import timezone
 
+from library.models import LibraryEntry
+
 from .models import Activity
 
 # Lo que se hace con un mismo juego, o dos importaciones seguidas, se junta si es lo último que hizo y no hace más de esto.
@@ -239,6 +241,28 @@ def challenge_won(user, challenge):
     Pantallas: Inicio (feed: «consiguió el reto»), Perfil (pestaña Actividad).
     """
     return _challenge_activity(user, challenge, {"won": True})
+
+
+def library_tidied(user, game, status):
+    """Apunta en una sola actividad lo que user va terminando o dejando al repasar su biblioteca (status es el estado al
+    que ha pasado game: «Completado» o «Abandonado»): cuántos de cada y las portadas de los primeros terminados. Se
+    junta con lo último que hizo si fue otro repaso hace poco (MERGE_WINDOW), para no llenar el feed con un juego tras
+    otro.
+
+    Pantallas: Repasar la biblioteca (al contestar), Inicio (feed: «ordenó su biblioteca»), Perfil (pestaña Actividad).
+    """
+    now = timezone.now()
+    activity = _recent(user)
+    if activity is None or activity.kind != Activity.Kind.TIDY:
+        activity = Activity(user=user, kind=Activity.Kind.TIDY, data={}, created_at=now)
+    key = "completed" if status == LibraryEntry.Status.COMPLETED else "dropped"
+    data = {**activity.data, key: activity.data.get(key, 0) + 1}
+    if key == "completed":
+        data["games"] = (activity.data.get("games", []) + [game.pk])[:IMPORT_COVERS]
+    activity.data = data
+    activity.updated_at = now
+    activity.save()
+    return activity
 
 
 def challenge_left(user, challenge):

@@ -226,6 +226,9 @@ class Activity(models.Model):
     - CHALLENGE: un reto (challenge): que se ha unido a él, que lo ha creado («created» en data) o que lo ha
       conseguido («won»), juntos si van seguidos (MERGE_WINDOW). Se borra con el reto o si lo deja; si es privado,
       solo la ve su creador.
+    - TIDY: lo que ha ordenado al repasar su biblioteca (library.backlog): cuántos juegos ha marcado como terminados
+      («completed» en data) y como abandonados («dropped») y los ids de los primeros terminados («games»), para sus
+      portadas; todo junto si va seguido (MERGE_WINDOW), y no una entrada por juego.
 
     updated_at es la hora de lo último que se ha juntado: la que se enseña y por la que se ordena.
     """
@@ -236,6 +239,7 @@ class Activity(models.Model):
         POST = "post", "Publicación"
         LIST = "list", "Lista"
         CHALLENGE = "challenge", "Reto"
+        TIDY = "tidy", "Repaso de la biblioteca"
 
     # Estado al que pasa el juego → lo que dice la actividad, en minúscula y partido en lo que va antes del
     # nombre del juego y lo que va después: «terminó Hades», «añadió Hades a Pendiente».
@@ -312,6 +316,8 @@ class Activity(models.Model):
             return self.post is not None
         if self.kind == self.Kind.CHALLENGE:
             return self.challenge is not None
+        if self.kind == self.Kind.TIDY:
+            return bool(self.data.get("completed") or self.data.get("dropped"))
         if self.kind == self.Kind.LIST:
             game_list = self.game_list
             if game_list is None:
@@ -404,5 +410,10 @@ class Activity(models.Model):
             return f"creó la lista {title}" if self.list_created else f"añadió {self.list_added} juegos a la lista {title}"
         if self.kind == self.Kind.CHALLENGE:
             return f"{self.challenge_verb} {self.challenge.title if self.challenge else '(borrado)'}"
+        if self.kind == self.Kind.TIDY:
+            return (
+                f"ordenó su biblioteca: {self.data.get('completed', 0)} terminados y "
+                f"{self.data.get('dropped', 0)} abandonados"
+            )
         before, after = self.verb
         return " ".join(part for part in (before, str(self.game), after) if part)

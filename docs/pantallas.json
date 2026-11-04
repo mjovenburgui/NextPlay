@@ -57,6 +57,11 @@
       "que_es": "«Deseos» en el menú: los juegos que quieres, con el mejor precio de hoy, su mínimo histórico, tu precio límite y si están en tu lista de Steam; se ordena y se filtra por idioma."
     },
     {
+      "nombre": "Repasar la biblioteca",
+      "urls": ["library:tidy"],
+      "que_es": "Desde el aviso de tu perfil: los juegos que las importaciones no saben si terminaste (los de «Jugado» que nunca has repasado y los de «Jugando» que llevan meses sin tocarse), de uno en uno, con tus horas, tu última partida y tus logros, para contestar con un botón: lo terminé, lo dejé, sigo jugando, al pendiente o saltar. Al acabar, lo que has repasado hoy."
+    },
+    {
       "nombre": "Página de la lista",
       "urls": ["lists:detail"],
       "que_es": "Una lista o tier list: mosaico, título, autor y colaboradores, descripción, los juegos (en portadas, con comentarios o por niveles), cuánto llevas jugado de ella, «me gusta», comentarios y denuncias. En las tier lists abiertas a la comunidad, cuánta gente la ha hecho, «Haz tu versión» y la tier list de la comunidad; en las versiones, de cuál son."

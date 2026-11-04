@@ -16,10 +16,12 @@ from django.urls import reverse
 from django.utils import timezone
 from PIL import Image
 
-from accounts.models import ExternalTitle, ImportedTitle, Notification
+from accounts.models import Achievement, ExternalTitle, ImportedTitle, Notification, UnlockedAchievement
+from challenges.models import Challenge, Participation
 from games.models import STEAM_DECK_SLUG, Game, GamePrice, Platform
+from social.models import Activity
 
-from . import markup, reminders, wishlist
+from . import backlog, markup, reminders, wishlist
 from .models import LibraryEntry, Report, Review, ReviewComment, ReviewImage, ReviewLike, WishlistItem
 
 User = get_user_model()
@@ -862,3 +864,130 @@ class WishlistTests(TestCase):
         self.client.logout()
         for url in (reverse("library:wishlist"), reverse("notifications")):
             self.assertEqual(self.client.get(url).status_code, 302)
+
+
+class TidyTests(TestCase):
+    """Repasar la biblioteca (library.backlog): qué pregunta, en qué orden, con qué pistas y qué apunta cada respuesta."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.other = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.hades = Game.objects.create(name="Hades", slug="hades")
+        cls.celeste = Game.objects.create(name="Celeste", slug="celeste")
+        cls.portal = Game.objects.create(name="Portal", slug="portal")
+        cls.doom = Game.objects.create(name="Doom", slug="doom")
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def entry(self, game, status, hours=None, played=None):
+        """Pone game en la biblioteca de ana con status, hours horas de Steam y su última partida played."""
+        return LibraryEntry.objects.create(
+            user=self.user, game=game, status=status,
+            steam_playtime_minutes=hours * 60 if hours else None, steam_last_played=played,
+        )
+
+    def all_achievements(self, game, last_unlock):
+        """Da a ana los dos logros de game en Steam, el último conseguido en last_unlock."""
+        title = ExternalTitle.objects.create(
+            platform="steam", external_id=str(game.pk), name=game.name, game=game, achievements_read_at=timezone.now(),
+        )
+        imported = ImportedTitle.objects.create(
+            user=self.user, title=title, game=game, minutes=600, achievements_unlocked=2, achievements_total=2,
+            achievements_at=timezone.now(),
+        )
+        for index, when in enumerate((last_unlock - timedelta(days=30), last_unlock)):
+            achievement = Achievement.objects.create(title=title, api_name=f"A{index}", name=f"Logro {index}")
+            UnlockedAchievement.objects.create(imported=imported, achievement=achievement, unlocked_at=when)
+
+    def answer(self, entry, choice):
+        """Contesta entry en el repaso con choice, como lo hace la página (con HTMX)."""
+        return self.client.post(
+            reverse("library:tidy_answer", args=[entry.pk]), {"respuesta": choice}, headers={"HX-Request": "true"},
+        )
+
+    def test_what_it_asks_and_in_what_order(self):
+        old = timezone.now() - timedelta(days=400)
+        stale = self.entry(self.doom, LibraryEntry.Status.PLAYING, hours=3, played=old)
+        LibraryEntry.objects.filter(pk=stale.pk).update(updated_at=old)
+        self.entry(self.portal, LibraryEntry.Status.PLAYING, hours=1, played=timezone.now())  # se juega: no se pregunta
+        few = self.entry(self.celeste, LibraryEntry.Status.PLAYED, hours=5, played=old)
+        many = self.entry(self.hades, LibraryEntry.Status.PLAYED, hours=40, played=old)
+        self.assertEqual(backlog.queue(self.user), [stale, many, few])
+        # Con todos sus logros, Celeste pasa delante de Hades, aunque tenga menos horas.
+        self.all_achievements(self.celeste, timezone.now() - timedelta(days=200))
+        self.assertEqual(backlog.queue(self.user), [stale, few, many])
+        # Lo repasado no vuelve a salir.
+        LibraryEntry.objects.filter(pk=many.pk).update(reviewed_at=timezone.now())
+        self.assertEqual(backlog.queue(self.user), [stale, few])
+
+    def test_finished_takes_the_date_of_the_last_achievement_and_counts_only_where_it_should(self):
+        when = timezone.now() - timedelta(days=200)
+        entry = self.entry(self.hades, LibraryEntry.Status.PLAYED, hours=40, played=timezone.now() - timedelta(days=100))
+        self.all_achievements(self.hades, when)
+        hint = backlog.hint(entry)
+        self.assertEqual((hint["suggest"], hint["finished_on"]), ("terminado", when))
+        dated = Challenge.objects.create(
+            creator=self.user, title="Este mes", kind=Challenge.Kind.COUNT, target=1,
+            starts_on=timezone.localdate() - timedelta(days=10),
+        )
+        undated = Challenge.objects.create(creator=self.user, title="Siempre", kind=Challenge.Kind.COUNT, target=1)
+        for challenge in (dated, undated):
+            Participation.objects.create(challenge=challenge, user=self.user)
+        response = self.answer(entry, "terminado")
+        self.assertContains(response, "No te queda nada por repasar")
+        self.assertContains(response, "Hoy has repasado 1 juego")
+        entry.refresh_from_db()
+        self.assertEqual((entry.status, entry.completed_at), (LibraryEntry.Status.COMPLETED, when))
+        self.assertIsNotNone(entry.reviewed_at)
+        # Terminado hace 200 días: cuenta en el reto sin fechas, pero no en el que empezó hace 10.
+        self.assertIsNotNone(Participation.objects.get(challenge=undated).completed_at)
+        self.assertIsNone(Participation.objects.get(challenge=dated).completed_at)
+
+    def test_one_activity_for_the_whole_review_and_skipping_keeps_the_status(self):
+        played = timezone.now() - timedelta(days=300)
+        first = self.entry(self.hades, LibraryEntry.Status.PLAYED, hours=40, played=played)
+        second = self.entry(self.celeste, LibraryEntry.Status.PLAYED, hours=20, played=played)
+        third = self.entry(self.portal, LibraryEntry.Status.PLAYED, hours=10, played=played)
+        response = self.client.get(reverse("library:tidy"))
+        self.assertContains(response, "Hades")
+        self.assertContains(response, "la de tu última partida")
+        self.answer(first, "terminado")
+        self.answer(second, "dejado")
+        response = self.answer(third, "saltar")
+        first.refresh_from_db()
+        self.assertEqual(first.completed_at, played)
+        self.assertEqual(LibraryEntry.objects.get(pk=third.pk).status, LibraryEntry.Status.PLAYED)
+        self.assertEqual(backlog.queue(self.user), [])
+        tidy = Activity.objects.get(kind=Activity.Kind.TIDY)
+        self.assertEqual((tidy.data["completed"], tidy.data["dropped"], tidy.data["games"]), (1, 1, [self.hades.pk]))
+        self.assertFalse(Activity.objects.filter(kind=Activity.Kind.GAME).exists())
+        self.assertContains(response, "Hoy has repasado 3 juegos")
+        self.assertContains(response, "1 terminado, 1 abandonado y 1 sin cambios.")
+        self.assertContains(self.client.get(reverse("profile", args=["ana"]), {"vista": "actividad"}), "Ordenó su biblioteca")
+
+    def test_profile_notice_and_what_the_backlog_costs(self):
+        self.entry(self.hades, LibraryEntry.Status.PLAYED, hours=4, played=timezone.now() - timedelta(days=90))
+        url = reverse("profile", args=["ana"])
+        self.assertContains(self.client.get(url), "1 en «Jugado» sin saber si los terminaste")
+        LibraryEntry.objects.create(user=self.user, game=self.celeste, status=LibraryEntry.Status.BACKLOG)
+        LibraryEntry.objects.create(user=self.user, game=self.portal, status=LibraryEntry.Status.BACKLOG)
+        GamePrice.objects.create(
+            game=self.celeste, shop_id=61, shop_name="Steam", price=Decimal("19.99"), regular_price=Decimal("19.99"),
+            currency="EUR", url="https://itad.link/steam",
+        )
+        self.client.force_login(self.other)
+        response = self.client.get(url, {"estado": "backlog"})
+        self.assertNotContains(response, "Tienes juegos por repasar")
+        self.assertContains(
+            response, "Al precio de hoy, 1 de los 2 juegos del pendiente suman <strong>19,99 €</strong>; el resto no tiene precio hoy.",
+        )
+
+    def test_only_your_own_games_and_valid_answers(self):
+        entry = self.entry(self.hades, LibraryEntry.Status.PLAYED, hours=4)
+        self.assertEqual(self.answer(entry, "quizá").status_code, 400)
+        self.client.force_login(self.other)
+        self.assertEqual(self.answer(entry, "terminado").status_code, 404)
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse("library:tidy")).status_code, 302)

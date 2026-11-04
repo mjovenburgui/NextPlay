@@ -179,8 +179,8 @@ def _batch(activities, viewer, cursor):
     viewer puede leerla (si su autor la volvió a dejar en borrador, no), con sus imágenes y sus «me gusta» y
     comentarios contados; su lista, solo si viewer puede verla, con su mosaico, sus «me gusta» y cuánto ha jugado
     de ella viewer; su reto, solo si viewer puede verlo (los privados, solo quien los crea), con cuánta gente está; y
-    las importaciones traen sus juegos (import_games). Las que se quedan sin nada que enseñar no salen. No mira de
-    quién son: eso lo decide quien la llama.
+    las importaciones y los repasos de la biblioteca traen los juegos de sus portadas (cover_games). Las que se quedan
+    sin nada que enseñar no salen. No mira de quién son: eso lo decide quien la llama.
 
     Pantallas: Inicio (feed: cada tanda, también la de «Cargar más»), Perfil (pestaña Actividad).
     """
@@ -203,10 +203,10 @@ def _batch(activities, viewer, cursor):
     mark_liked_posts([activity.post for activity in activities if activity.post], viewer)
     lists = list({activity.game_list.pk: activity.game_list for activity in activities if activity.game_list}.values())
     mark_progress(mark_liked_lists(lists, viewer), viewer)
-    imported = [activity for activity in activities if activity.kind == Activity.Kind.IMPORT]
-    games = Game.objects.in_bulk({pk for activity in imported for pk in activity.data.get("games", [])})
-    for activity in imported:
-        activity.import_games = [games[pk] for pk in activity.data.get("games", []) if pk in games]
+    covered = [activity for activity in activities if activity.kind in (Activity.Kind.IMPORT, Activity.Kind.TIDY)]
+    games = Game.objects.in_bulk({pk for activity in covered for pk in activity.data.get("games", [])})
+    for activity in covered:
+        activity.cover_games = [games[pk] for pk in activity.data.get("games", []) if pk in games]
     return [activity for activity in activities if activity.has_content], next_cursor
 
 

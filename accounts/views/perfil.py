@@ -12,6 +12,7 @@ from django.shortcuts import get_object_or_404, render
 
 from challenges import progress as challenge_progress
 from games.models import LANGUAGE_FILTERS, Game, Genre, language_filter
+from library import backlog
 from library.models import HOURS_SOURCES, LibraryEntry, Review
 from library.views import mark_liked
 from lists.views import SHOWCASE_LISTS, SHOWCASE_TIER_LISTS, mark_boards, profile_lists
@@ -67,7 +68,8 @@ def _profile_context(request, owner, favorites=None, preview=False):
     «100 %» (achievement_badge) y las cifras de la cabecera, sus platinos y sus juegos al 100 %; si el escaparate
     enseña la sección «Logros», lleva también sus últimos logros y el más raro (achievements.showcase). Si enseña la
     sección «Retos», sus insignias y los retos que lleva en marcha, solo los que quien mira puede ver
-    (challenges.progress.showcase).
+    (challenges.progress.showcase). A su dueño le dice cuántos juegos le quedan por repasar (library.backlog.pending,
+    para el aviso que lleva a Repasar la biblioteca) y, en la pestaña Pendiente, lo que cuesta hoy (backlog.value).
 
     Pantallas: Perfil (cabecera, escaparate y pestañas), Editar perfil (vista previa).
     """
@@ -149,6 +151,9 @@ def _profile_context(request, owner, favorites=None, preview=False):
         "achievement_showcase": (
             achievements.showcase(owner) if show_showcase and "logros" in owner.profile.visible_sections else None
         ),
+        # Lo que le queda por repasar, para el aviso que lleva a Repasar la biblioteca: solo para su dueño.
+        "tidy_counts": dict(zip(("playing", "played"), map(len, backlog.pending(entries)))) if is_owner else None,
+        "backlog_value": backlog.value(owner) if status == LibraryEntry.Status.BACKLOG else None,
         # En la vista previa, los retos como los vería cualquiera: sin los privados.
         "challenge_showcase": (
             challenge_progress.showcase(owner, AnonymousUser() if preview else request.user)

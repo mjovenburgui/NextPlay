@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Repasa tu biblioteca · NextPlay{% endblock %}
+
+{% block content %}
+  {# Repasar la biblioteca: de juego en juego, lo que las importaciones no saben si terminaste (library.backlog). #}
+  <section class="panel panel-wide tidy-page">
+    <header class="page-head">
+      <div>
+        <h1>{% include "_icon.html" with name="library" %} Repasa tu biblioteca</h1>
+        <p class="muted">Las importaciones no saben si terminaste un juego: lo que jugaste hace tiempo entra como «Jugado» y lo de hace poco, como «Jugando», aunque luego lo dejaras. Contesta de uno en uno; lo que repases no se vuelve a preguntar.</p>
+      </div>
+      <a class="btn" href="{% url 'profile' user.username %}">Volver a tu perfil</a>
+    </header>
+    {% include "library/_tidy_card.html" %}
+  </section>
+{% endblock %}
