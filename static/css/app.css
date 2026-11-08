@@ -1717,6 +1717,14 @@ p.update-hint { display: flex; border-left-color: var(--gold); }
 @media (max-width: 480px) {
   .composer-games, .composer-previews, .composer-foot, .composer > .help, .composer > .errorlist { margin-left: 0; }
 }
+/* Inicio en el móvil: la actividad antes que tu resumen. Tu columna (tarjeta y menú) no sale, porque la barra de abajo
+   ya lleva a tu perfil, y la caja de publicar se queda en su campo de texto hasta que la tocas; con texto o imágenes,
+   sigue abierta. */
+@media (max-width: 760px) {
+  .layout-3 > .col-left:has(.me-card) { display: none; }
+  .composer:not(:focus-within):not(:has(textarea:not(:placeholder-shown))):not(:has([data-previews]:not([hidden]))) :is(.composer-games, .composer-foot) { display: none; }
+  .composer:not(:focus-within) .composer-text textarea:placeholder-shown { height: 2.75rem; min-height: 0; resize: none; }
+}
 
 /* Listas: el mosaico de portadas, sus tarjetas, su página, el editor y, en la ficha, «Añadir a una lista» y «En N listas» */
 /* Mosaico: las portadas de los primeros juegos en dos filas de dos, con la proporción de una portada. */

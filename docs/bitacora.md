@@ -63,7 +63,11 @@ Las ramas van una encima de otra, en este orden. Ninguna está subida a GitHub: 
   - Si cierras, recargas o sales sin guardar, el navegador pregunta. Al guardar, no.
   - «Descartar» vuelve a lo guardado.
   - Es solo JavaScript: el test comprueba el HTML, pero el aviso del navegador hay que verlo en el servidor.
-- [ ] 6. **Inicio en el móvil:** la actividad antes que la tarjeta de resumen y la caja de publicar.
+- [x] 6. **Inicio en el móvil**, solo con CSS:
+  - tu tarjeta de resumen ya no sale (la barra de abajo lleva a tu perfil);
+  - la caja de publicar se queda en su campo de texto hasta que la tocas, y no se pliega mientras tenga texto o imágenes.
+
+  Así el feed sale antes. En escritorio no cambia nada.
 - [ ] 7. **Un test que obliga a que cada función diga sus pantallas** con nombres del catálogo.
 
 ---

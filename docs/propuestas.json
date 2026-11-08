@@ -972,7 +972,7 @@
   {
     "titulo": "Inicio en el móvil: la actividad antes que tu resumen",
     "fecha": "2026-10-28",
-    "estado": "pendiente",
+    "estado": "hecha",
     "prioridad": "media",
     "tipo": "Diseño",
     "resumen": "En un móvil de 390 × 844 la primera pantalla del inicio es tu tarjeta (foto, bio y contadores) y la caja de publicar entera, con todos los juegos que estás jugando; las pestañas Siguiendo y Descubrir empiezan debajo de la barra inferior y no se ve ninguna actividad sin desplazarse. En el móvil, quitar esa tarjeta, cuyos datos ya están en la pestaña Perfil, y dejar la caja de publicar en una línea que se abre al tocarla.",
@@ -982,7 +982,7 @@
       "Caja de publicar plegada en el móvil: solo el campo «¿Qué estás jugando?»; los juegos, «Imágenes», «Es un spoiler» y «Publicar» salen al tocarla o si ya tiene texto, con :focus-within y :has() y sin JavaScript.",
       "Comprobar a 360 y 390 px que las pestañas del feed y la primera actividad se ven sin desplazarse."
     ],
-    "notas": "En escritorio no cambia nada: las tres columnas siguen igual.",
+    "notas": "En escritorio no cambia nada: las tres columnas siguen igual. 08/11/2026: hecha en la rama remates-rapidos, sin subir, solo con CSS (app.css, por debajo de 760 px). La columna izquierda no sale cuando lleva tu tarjeta (con sesión; el menú ya se ocultaba por debajo de 900 px), así que sin sesión sigue la bienvenida. La caja de publicar se queda en su campo de texto, más bajo, hasta que la tocas (:focus-within), y no se pliega mientras tenga texto o imágenes (:has).",
     "revision": {
       "fecha": "2026-11-01",
       "hoy": "Igual: la tarjeta de resumen y la caja de publicar van enteras antes del feed en cualquier ancho. No necesita nada de servidor.",
