@@ -1065,7 +1065,7 @@
   {
     "titulo": "Avisar al salir de Editar perfil con cambios sin guardar",
     "fecha": "2026-10-22",
-    "estado": "pendiente",
+    "estado": "hecha",
     "prioridad": "media",
     "tipo": "Funcionalidad",
     "resumen": "Si se han tocado campos de Editar perfil y no se ha pulsado «Guardar cambios», preguntar antes de salir de la página (al pulsar un enlace, cerrar la pestaña o recargar) y señalar en la barra de guardar que hay cambios pendientes.",
@@ -1076,7 +1076,7 @@
       "Texto «Cambios sin guardar» junto a «Guardar cambios», con el color del perfil.",
       "Botón «Descartar» que vuelva a lo guardado (recargar la página) y limpie la vista previa."
     ],
-    "notas": "Va justo después de la vista previa en escritorio y móvil (22/10/2026), que pinta los cambios sin guardarlos.",
+    "notas": "Va justo después de la vista previa en escritorio y móvil (22/10/2026), que pinta los cambios sin guardarlos. 08/11/2026: hecha en la rama remates-rapidos, sin subir. Un script aparte en accounts/edit_profile.html marca el formulario como cambiado con el primer «input» o «change» (los emojis, los colores y el encuadre ya los lanzan al tocarlos, nunca al cargar) y enseña «Cambios sin guardar», con el color del perfil, y «Descartar» en la barra de guardar. Con cambios, beforeunload hace que el navegador avise antes de cerrar, recargar o salir, también con «Cancelar»; al guardar no avisa. «Descartar» vuelve a cargar la página, sin el #sección, y con ella la vista previa. 1 test de que el aviso nace oculto.",
     "revision": {
       "fecha": "2026-11-01",
       "hoy": "Igual: edit_profile.html no tiene beforeunload, aunque su script ya escucha cada cambio para pedir la vista previa (profile_preview).",

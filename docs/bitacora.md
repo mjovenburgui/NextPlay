@@ -58,7 +58,11 @@ Las ramas van una encima de otra, en este orden. Ninguna está subida a GitHub: 
   - **solo se puede invitar a quien te sigue:** si no, sale «leo no te sigue: solo puedes invitar a gente que te sigue». Las sugerencias del campo pasan a ser tus seguidores aún no invitados.
   - **aviso al dueño** cuando alguien acepta, una vez por persona, en el grupo «Tus listas». Migración `accounts.0025`.
   - **un nivel con un color raro** coge el de serie de su puesto, en vez de romper la tier list.
-- [ ] 5. **Editar perfil avisa al salir con cambios sin guardar**, con «Cambios sin guardar» y «Descartar».
+- [x] 5. **Editar perfil avisa al salir con cambios sin guardar.**
+  - En cuanto tocas algo salen «Cambios sin guardar» y «Descartar» en la barra de guardar.
+  - Si cierras, recargas o sales sin guardar, el navegador pregunta. Al guardar, no.
+  - «Descartar» vuelve a lo guardado.
+  - Es solo JavaScript: el test comprueba el HTML, pero el aviso del navegador hay que verlo en el servidor.
 - [ ] 6. **Inicio en el móvil:** la actividad antes que la tarjeta de resumen y la caja de publicar.
 - [ ] 7. **Un test que obliga a que cada función diga sus pantallas** con nombres del catálogo.
 

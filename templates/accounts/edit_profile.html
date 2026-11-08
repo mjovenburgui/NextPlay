@@ -291,6 +291,9 @@
         </section>
 
         <div class="settings-savebar">
+          {# Salen en cuanto se toca algo del formulario (el script del final): el aviso y «Descartar», que vuelve a lo guardado. #}
+          <span class="unsaved" data-unsaved role="status" hidden>Cambios sin guardar</span>
+          <button class="btn" type="button" data-discard hidden>Descartar</button>
           {# Solo en pantallas estrechas: en las anchas la vista previa ya está al lado. #}
           <button class="btn btn-preview" type="button" data-open-preview aria-haspopup="dialog">{% include "_icon.html" with name="eye" %} <span>Vista previa</span></button>
           <a class="btn" href="{% url 'profile' user.username %}">Cancelar</a>
@@ -789,6 +792,41 @@
         });
       }, { rootMargin: "-30% 0px -60% 0px" });
       document.querySelectorAll(".settings-card").forEach(function (card) { observer.observe(card); });
+    })();
+  </script>
+  <script>
+    // Cambios sin guardar: en cuanto se toca algo del formulario del perfil salen «Cambios sin guardar» y «Descartar»
+    // junto a «Guardar cambios», y el navegador avisa antes de cerrar, recargar o irse de la página sin guardar.
+    // Pantallas: Editar perfil (aviso de cambios sin guardar).
+    (function () {
+      var form = document.getElementById("profile-form");
+      var flag = form && form.querySelector("[data-unsaved]");
+      var discard = form && form.querySelector("[data-discard]");
+      if (!flag || !discard) return;
+      var dirty = false;
+
+      // Marca el formulario como cambiado y enseña el aviso y «Descartar».
+      function markDirty() {
+        if (dirty) return;
+        dirty = true;
+        flag.hidden = false;
+        discard.hidden = false;
+      }
+
+      form.addEventListener("input", markDirty);
+      form.addEventListener("change", markDirty);
+      // Al guardar no hay nada que avisar.
+      form.addEventListener("submit", function () { dirty = false; });
+      window.addEventListener("beforeunload", function (event) {
+        if (!dirty) return;
+        event.preventDefault();
+        event.returnValue = "";
+      });
+      // «Descartar»: vuelve a lo guardado cargando la página de nuevo (sin el #sección), y con ella la vista previa.
+      discard.addEventListener("click", function () {
+        dirty = false;
+        window.location.assign(window.location.pathname);
+      });
     })();
   </script>
 {% endblock %}

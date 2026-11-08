@@ -1130,6 +1130,9 @@ a.social-link:hover { border-color: var(--violet); text-decoration: none; }
   padding: .85rem 1rem; background: rgba(14, 18, 34, .94); backdrop-filter: blur(10px);
   border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 -10px 30px rgba(0, 0, 0, .35);
 }
+/* «Cambios sin guardar» a la izquierda de la barra, con el color del perfil; «Descartar» y él, ocultos hasta que se toca algo */
+.settings-savebar .unsaved { align-self: center; margin-right: auto; color: var(--violet); font-size: .9rem; font-weight: 600; }
+.settings-savebar [hidden] { display: none; }
 .field-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 0 1rem; }
 .status-row-input { display: flex; gap: .5rem; }
 .status-row-input .emoji-input { flex: none; width: 4.25rem; padding: .4rem .5rem; font-size: 1.2rem; text-align: center; }
