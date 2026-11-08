@@ -1,6 +1,6 @@
 """Vistas de los juegos: Inicio (la portada), Catálogo y Ficha del juego, con los trozos de la ficha que se cargan con
-HTMX («Dónde comprarlo», el historial de precios y el carrusel de imágenes y vídeos) y el botón del Catálogo para
-traer juegos de IGDB.
+HTMX («Dónde comprarlo», el historial de precios, el carrusel de imágenes y vídeos y la ficha técnica) y el botón del
+Catálogo para traer juegos de IGDB.
 """
 
 import logging
@@ -22,8 +22,9 @@ from library.views import review_context
 from lists.views import game_page_context
 from social.views import composer_context, feed_context
 
-from . import history, igdb, media, prices
-from .models import LANGUAGE_FILTERS, Game, GamePrice, Genre, Platform, language_filter, search_filter
+from . import details, history, igdb, media, prices
+from .filters import CatalogFilters
+from .models import ENDLESS_HOURS, Game, GamePrice, Genre
 
 PAGE_SIZE = 24
 TRENDING_DAYS = 30
@@ -92,31 +93,21 @@ def home(request):
 def catalog(request):
     """Catálogo de juegos.
 
-    Filtra por nombre (?q=, que también busca el nombre en España y los otros nombres del juego, como
-    sus siglas), género (?genero=), plataforma (?plataforma=) e idioma (?idioma=, ver LANGUAGE_FILTERS)
-    y pagina de 24 en 24. Si hay sesión, marca en cada tarjeta el estado del juego en la biblioteca del
-    usuario (library_status, su nombre, y library_status_key, su valor, que le da el color). Ofrece importar
-    de IGDB cuando hay búsqueda, sesión y credenciales de IGDB.
+    Busca por nombre (?q=, que también busca el nombre en España y los otros nombres del juego, como sus
+    siglas), filtra y ordena con los parámetros de games.filters.CatalogFilters (tipo, género, plataforma,
+    año, nota, duración, modo, tema, estudio, idioma, precio, tu biblioteca…) y pagina de 24 en 24. Las
+    ediciones de otro juego no salen, y los DLC y expansiones solo si se piden: si una búsqueda tiene
+    alguno escondido, lo dice (hidden_count). Si hay sesión, marca en cada tarjeta el estado del juego en
+    la biblioteca del usuario (library_status, su nombre, y library_status_key, su valor, que le da el
+    color). Ofrece importar de IGDB cuando hay búsqueda, sesión y credenciales de IGDB. Los filtros
+    cambian la lista con HTMX, que pide la misma página; la dirección que se queda en el navegador
+    (HX-Push-Url) lleva solo los filtros puestos, para que se pueda compartir.
 
     Pantallas: Catálogo.
     """
-    query = request.GET.get("q", "").strip()
-    genre = request.GET.get("genero", "")
-    platform = request.GET.get("plataforma", "")
-    language = request.GET.get("idioma", "")
-    if language not in LANGUAGE_FILTERS:
-        language = ""
-
-    games = Game.objects.all()
-    if query:
-        games = games.filter(search_filter(query))
-    if genre:
-        games = games.filter(genres__slug=genre)
-    if platform:
-        games = games.filter(platforms__slug=platform)
-    if language:
-        games = games.filter(language_filter(language))
-
+    filters = CatalogFilters(request.GET, request.user)
+    query = filters.value("q").strip()
+    games = filters.games().prefetch_related("genres")
     page = Paginator(games, PAGE_SIZE).get_page(request.GET.get("page"))
 
     entries = {}
@@ -129,40 +120,70 @@ def catalog(request):
         game.library_status = entry.get_status_display() if entry else ""
         game.library_status_key = entry.status if entry else ""
 
-    filters = {
-        k: v for k, v in (("q", query), ("genero", genre), ("plataforma", platform), ("idioma", language)) if v
-    }
-    return render(
+    hidden_count = filters.hidden_count() if query else 0
+    filter_qs = filters.query_string()
+    response = render(
         request,
         "games/catalog.html",
         {
             "page": page,
             "query": query,
-            "active_genre": genre,
-            "active_platform": platform,
-            "active_language": language,
-            "language_filters": LANGUAGE_FILTERS.items(),
-            "genres": Genre.objects.filter(games__isnull=False).distinct(),
-            "platforms": Platform.objects.filter(games__isnull=False).distinct(),
-            "filter_qs": urlencode(filters),
+            "filters": filters,
+            "filter_qs": filter_qs,
+            "hidden_count": hidden_count,
+            "all_types_qs": filters.query_string(tipo="todo") if hidden_count else "",
             "can_import": bool(query) and request.user.is_authenticated and igdb.is_configured(),
         },
     )
+    if request.headers.get("HX-Request"):
+        response["HX-Push-Url"] = f"{reverse('games:catalog')}?{filter_qs}" if filter_qs else reverse("games:catalog")
+    return response
+
+
+# Lo que se pide de cada juego para su ficha: sus géneros, plataformas y precios y lo que sale de la pasada a IGDB.
+DETAIL_PREFETCH = (
+    "genres", "platforms", "prices", "modes", "themes", "perspectives", "developers", "publishers",
+)
+
+
+def _details_context(request, game, entry, edition=None):
+    """Variables de lo que sale de la pasada a IGDB en la ficha (games.details): la ficha técnica, «Ediciones y
+    versiones» (con edition marcada), «Juegos parecidos», de qué juego es remake, DLC… (origin) y lo que le falta a
+    quien lo juega según Cuánto dura (remaining).
+
+    Pantallas: Ficha del juego (ficha técnica, Cuánto dura, «Ediciones y versiones», «Juegos parecidos» y cabecera).
+    """
+    return {
+        "sheet": details.sheet(game),
+        "versions": details.versions(game, edition),
+        "similar": details.similar(game, request.user),
+        "origin": details.origin(game),
+        "remaining": details.remaining(game, entry),
+        "endless_hours": ENDLESS_HOURS,
+    }
 
 
 def detail(request, slug):
-    """Ficha de un juego: cabecera con su arte, datos, nota de la crítica, valoración de la comunidad,
-    widget de biblioteca, botones de favoritos del perfil y de «Añadir a una lista», las listas en las que
-    está (lists.views.game_page_context), carrusel de imágenes y vídeos, precios y reseñas.
+    """Ficha de un juego: cabecera con su arte, datos (y de qué juego es remake, DLC…), notas de la crítica y de los
+    jugadores de IGDB, valoración de la comunidad, Cuánto dura, widget de biblioteca, botones de favoritos del perfil
+    y de «Añadir a una lista», las listas en las que está (lists.views.game_page_context), ficha técnica, carrusel de
+    imágenes y vídeos, idiomas, «Ediciones y versiones», precios, «Juegos parecidos» y reseñas.
 
-    La cabecera y el carrusel salen de games.media: si sus imágenes de IGDB están al día se pintan ya;
-    si no, la ficha carga el carrusel después con HTMX (game_media). «Dónde comprarlo» (_prices_context) se pinta
-    ya si los precios del juego se han buscado alguna vez; si no, la ficha lo carga después con HTMX
-    (game_prices), que antes los busca. Las reseñas de perfiles privados solo las ve su autor.
+    La ficha de una edición de otro juego («Game of the Year Edition») lleva a la de su juego, con ?edicion= para
+    marcarla y decir de dónde se viene. La cabecera y el carrusel salen de games.media: si sus imágenes de IGDB
+    están al día se pintan ya; si no, la ficha carga el carrusel después con HTMX (game_media). Lo mismo con la ficha
+    técnica (games.details), si nunca se ha pedido a IGDB (game_details). «Dónde comprarlo» (_prices_context) se pinta
+    ya si los precios del juego se han buscado alguna vez; si no, la ficha lo carga después con HTMX (game_prices),
+    que antes los busca. Las reseñas de perfiles privados solo las ve su autor.
 
     Pantallas: Ficha del juego.
     """
-    game = get_object_or_404(Game.objects.prefetch_related("genres", "platforms", "prices"), slug=slug)
+    game = get_object_or_404(Game.objects.select_related("parent").prefetch_related(*DETAIL_PREFETCH), slug=slug)
+    if game.parent_id:
+        return redirect(f"{game.parent.get_absolute_url()}?{urlencode({'edicion': game.slug})}")
+    edition = None
+    if request.GET.get("edicion"):
+        edition = Game.objects.filter(slug=request.GET["edicion"], parent=game).first()
     entry = wish = None
     if request.user.is_authenticated:
         entry = LibraryEntry.objects.filter(user=request.user, game=game).first()
@@ -176,6 +197,9 @@ def detail(request, slug):
         "games/detail.html",
         {
             "game": game,
+            "edition": edition,
+            "load_details": details.missing(game) and igdb.is_configured(),
+            **_details_context(request, game, entry, edition),
             "hero": media.hero(game),
             "carousel": media.carousel(game) if media_fresh else None,
             "load_media": not media_fresh and igdb.is_configured(),
@@ -202,7 +226,7 @@ def game_media(request, slug):
 
     Pantallas: Ficha del juego (carrusel de imágenes y vídeos que se carga con HTMX).
     """
-    game = get_object_or_404(Game.objects.prefetch_related("genres", "platforms"), slug=slug)
+    game = get_object_or_404(Game.objects.prefetch_related("genres", "platforms", "modes"), slug=slug)
     before = media.hero(game)
     if media.needs_update(game) and igdb.is_configured():
         try:
@@ -218,9 +242,37 @@ def game_media(request, slug):
             "carousel": media.carousel(game),
             "hero": hero,
             "hero_oob": hero != before,
+            "origin": details.origin(game),
             "can_set_banner": request.user.is_authenticated
             and LibraryEntry.objects.filter(user=request.user, game=game).exists(),
         },
+    )
+
+
+def game_details(request, slug):
+    """Ficha técnica de la ficha, con «Ediciones y versiones», «Juegos parecidos» y Cuánto dura en su sitio (fragmento
+    HTML que la ficha carga con HTMX cuando nunca se han pedido a IGDB).
+
+    Si siguen sin pedirse, antes los pide (details.update_details); si IGDB falla, la ficha se queda sin ellos y lo
+    vuelve a intentar la próxima vez que se abra.
+
+    Pantallas: Ficha del juego (ficha técnica, Cuánto dura, «Ediciones y versiones» y «Juegos parecidos», cuando se
+    cargan con HTMX).
+    """
+    game = get_object_or_404(Game, slug=slug)
+    if details.missing(game) and igdb.is_configured():
+        try:
+            details.update_details([game])
+        except igdb.IGDBError:
+            logger.exception("No se pudo pedir a IGDB la ficha técnica de %s", game.slug)
+    game = Game.objects.prefetch_related(*DETAIL_PREFETCH).get(pk=game.pk)
+    entry = None
+    if request.user.is_authenticated:
+        entry = LibraryEntry.objects.filter(user=request.user, game=game).first()
+    return render(
+        request,
+        "games/_details.html",
+        {"game": game, "entry": entry, "oob": True, **_details_context(request, game, entry)},
     )
 
 

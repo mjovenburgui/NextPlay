@@ -13,12 +13,11 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Las cuatro ramas de este trabajo se subieron el 08/11/2026 y se fusionaron con `main` ese mismo día, en orden, cada una con su PR.
-
-Justo después de fusionar, en el mismo paso, toca aplicar las ocho migraciones a tu base de datos de verdad, con una copia de seguridad antes. Lo que haya salido de ese paso te lo digo al terminar la sesión.
+Las cuatro ramas de abajo se subieron el 08/11/2026 y se fusionaron con `main` ese mismo día, en orden, cada una con su PR. Las ocho migraciones ya están aplicadas en tu base de datos de verdad (comprobado el 08/11/2026).
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
+| `pasada-a-igdb` | Una pasada a IGDB: ficha técnica, duración, ediciones agrupadas, sin DLC en las búsquedas y catálogo con filtros | Hecha, solo en local. Falta que la revises; trae la migración `games.0010`. |
 | `avisos-en-un-solo-sitio` | Avisos en un solo sitio, con preferencias por tipo | Fusionada con `main`: [PR #34](https://github.com/mjovenburgui/NextPlay/pull/34). |
 | `retos-fase-2` | Retos: insignias, sección en el perfil, feed, avisos y cierre cada noche | Fusionada con `main`: [PR #35](https://github.com/mjovenburgui/NextPlay/pull/35). |
 | `repaso-de-la-biblioteca` | Repaso de la biblioteca y valor del pendiente | Fusionada con `main`: [PR #36](https://github.com/mjovenburgui/NextPlay/pull/36). |
@@ -31,6 +30,102 @@ Justo después de fusionar, en el mismo paso, toca aplicar las ocho migraciones 
 - `library.0014`.
 
 Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan estas migraciones: `manage.py migrate`.
+
+---
+
+## 08/11/2026 · Una pasada a IGDB y las ediciones de cada juego (hecho, sin subir)
+
+**Rama:** `pasada-a-igdb`, encima de `main`. Un solo commit, solo en local.
+
+**Por qué:** me dijiste «empieza con la 2 a ver si puedes hacer que también salgan las ediciones de cada juego». Una sola pasada a IGDB trae para todo el catálogo lo que piden cinco propuestas: «Quitar DLC y actualizaciones de las búsquedas en IGDB», «Ficha del juego más completa», «Duración estimada de los juegos», «Ediciones agrupadas bajo su juego» y «Catálogo con filtros y orden al nivel de Backloggd (y más)».
+
+**Plan:**
+- [x] **La pasada:** comando `fill_game_fields`. Para los 2235 juegos de la copia tarda menos de un minuto: unas tres peticiones por cada 500 juegos. Guarda tipo, estado, modos, temas, perspectiva, estudio, editora, nota de los usuarios de IGDB, duración, PEGI, sagas, ediciones, DLC, remakes y juegos parecidos. Lo que se filtra va en campos; lo que solo se lee, en `Game.details`.
+- [x] **Ediciones:** la ficha enseña las ediciones de cada juego (GOTY, Deluxe…) con su portada. Si alguien tiene una edición importada, cuenta como el juego:
+  - la ficha de la edición lleva a la del juego, que lo dice y la marca;
+  - lo que se importa de una edición va al juego;
+  - lo que ya estaba guardado lo junta `merge_editions`.
+- [x] **Sin DLC en las búsquedas de IGDB.** El catálogo los esconde salvo que los pidas, y las tarjetas dicen si es remake, remaster, expansión…
+- [x] **Ficha técnica y duración en la ficha.** Estudio, editora, PEGI, modos, cooperativo, temas, saga, motor, nota de los usuarios de IGDB y cuánto dura. Si lo estás jugando, cuánto te falta.
+- [x] **Catálogo con filtros y orden.** Año, tipo, nota, duración, modo, tema, estudio, precio, rebajas y tu biblioteca, con la dirección lista para compartir.
+- [x] **Extra para el repaso de la biblioteca:**
+  - la pista «Suele durar unas 30 h, y tú llevas más», que propone «Lo terminé»;
+  - los juegos sin final (Dead by Daylight, Fortnite…) van al fondo, como apuntamos el día 4.
+- [x] Tests, propuestas, PDF y esta bitácora.
+- [x] Comprobarlo en el servidor, con la copia de tu base de datos.
+
+**Qué cambia para ti:**
+- **Ficha del juego:**
+  - **Ficha técnica**, debajo de la sinopsis. El estudio, los modos, la perspectiva y los temas llevan al catálogo filtrado por ellos.
+  - **Nota de los jugadores de IGDB**, junto a la de la crítica.
+  - **«Cuánto dura»** en la columna de la carátula: normal, con prisa y al 100 %. Si lo estás jugando, «Te faltan unas 4 h». Con menos de 5 respuestas dice «dato orientativo», y por encima de 200 h, que no tiene un final claro.
+  - **«Ediciones y versiones»**, antes de «Dónde comprarlo»: las ediciones, los remakes, remasters y ports, las expansiones y DLC y los recopilatorios, con portada. Lo que no está en el catálogo lleva a buscarlo para traerlo de IGDB.
+  - **«Juegos parecidos»**, después de los precios, primero los de tu Pendiente.
+  - **En la cabecera**, de qué juego es («Remake de Resident Evil 4») y su estado si conviene saberlo («Ya no se vende», «Servidores cerrados»).
+- **Ediciones juntadas:** la ficha de «Batman: Arkham Asylum - Game of the Year Edition» lleva a la de Batman: Arkham Asylum. Tus horas, notas, reseñas y listas de la edición cuentan en el juego.
+- **Catálogo:**
+  - por defecto, sin ediciones sueltas ni DLC; con «Tipo» se ven, y si tu búsqueda tiene alguno escondido, lo dice;
+  - tipo, género, plataforma y orden a la vista, y el resto en «Más filtros»;
+  - los filtros puestos salen como etiquetas que se quitan una a una;
+  - la dirección se puede compartir: `/juegos/?duracion=corta&tema=terror`.
+- **Repaso de la biblioteca:** dice cuánto suele durar cada juego y propone «Lo terminé» si llevas más. Los juegos sin final van al fondo y no se proponen.
+- **Cada noche** (`nightly`): `fill_game_fields` pone al día las fichas de hace más de 30 días y `merge_editions` junta las ediciones nuevas.
+
+**Qué he tocado:**
+- **`games/models.py`:**
+  - tipo, estado, edición de (`parent`), nota de IGDB, duración y `details` en `Game`;
+  - modos, temas, perspectivas y compañías como tablas (`GameMode`, `Theme`, `Perspective`, `Company`).
+  - Migración `games.0010`.
+- **`games/igdb.py`:**
+  - los campos nuevos en todas las consultas;
+  - el filtro que deja fuera DLC, packs y actualizaciones;
+  - `games_with_details`, `time_to_beat`, `classify` y `link_editions`.
+- **Nuevos:**
+  - `games/details.py`: la pasada y lo que enseña la ficha;
+  - `games/editions.py`: juntar ediciones;
+  - `games/filters.py`: los filtros del catálogo;
+  - los comandos `fill_game_fields` y `merge_editions`.
+- **Vistas y plantillas:**
+  - `games/views.py`, con el trozo nuevo `games:details`, que la ficha pide con HTMX si un juego nunca ha tenido ficha técnica;
+  - `_sheet.html`, `_duration.html`, `_versions.html`, `_similar.html` y `_details.html`;
+  - `detail.html`, `_hero.html`, `_card.html` y `catalog.html`;
+  - `static/css/app.css`.
+- **Importaciones:**
+  - `accounts/matching.py` y `accounts/steam.py`: una edición cuenta como su juego;
+  - `lists/views/editar_lista.py`: al buscar juegos para una lista no salen ediciones.
+- **Repaso:** `library/backlog.py`.
+- **Admin:** «es una edición de», para los recopilatorios que IGDB no enlaza.
+- **Documentación:**
+  - `docs/pantallas.json` y el README;
+  - cinco propuestas actualizadas y dos nuevas: «Páginas de saga con tu progreso» y «Ampliar el catálogo por tandas».
+
+**Cómo lo he comprobado:**
+- **Tests:** TESTS_PENDIENTES
+- **La pasada de verdad, en la copia de tu base de datos:**
+  - los 2235 juegos tienen tipo y 1530, duración;
+  - 899 tienen ediciones en IGDB, 1896 tienen PEGI y hay 1465 compañías.
+- **`merge_editions` en la copia:** ha juntado 5 ediciones. Por ejemplo, `tester_steam` tenía «Battlefield 1» (383 min de PlayStation) y «Battlefield 1: Revolution» (278 min de Steam) como dos juegos, y ahora es uno con las dos horas.
+- **En el navegador** (servidor del puerto 8004, sin sesión):
+  - la ficha de The Witcher 3 enseña su ficha técnica, «Cuánto dura» (71 h según 42 jugadores), sus 3 ediciones, sus 3 expansiones y 5 DLC y los juegos parecidos;
+  - la de la GOTY de Batman lleva a Batman: Arkham Asylum con la edición marcada;
+  - en el catálogo, «Remakes» deja los 5 de Resident Evil, y «terror de menos de 10 h» da 84 juegos sin recargar la página;
+  - a 375 px nada se sale por los lados;
+  - sin errores en la consola ni en el servidor.
+- **Sin ver en el navegador:** «Te faltan unas X h» y la carga con HTMX de una ficha técnica que nunca se había pedido, porque necesitan sesión o un juego sin pasar. Los comprueban los tests.
+
+**Qué falta:**
+1. Que lo revises en el servidor del puerto 8004, que usa una copia de tu base de datos.
+2. Cuando me digas «súbela», abro el PR y se fusiona.
+3. Después, en tu base de datos de verdad, con una copia de seguridad antes:
+   - la migración `games.0010`;
+   - `fill_game_fields`, menos de un minuto;
+   - `merge_editions`, primero con `--simular` para que veas qué junta.
+4. Lo que se queda para otro día:
+   - las páginas de saga con tu progreso;
+   - ampliar el catálogo, que con 2235 juegos deja cortos los filtros finos;
+   - la duración propia de la comunidad.
+
+   Lo he apuntado en sus propuestas.
 
 ---
 

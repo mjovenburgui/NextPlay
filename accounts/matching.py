@@ -295,8 +295,10 @@ def save_titles(user, platform, titles, auto_match):
     """Guarda los títulos importados de un usuario en una plataforma y devuelve {ID externo: Game o None}.
 
     titles es el dict que llena add_title. Los títulos que ya tienen juego, o que alguien dejó sin
-    juego a mano, se respetan; los demás se buscan con auto_match(ids), que devuelve {ID: Game}. Los
-    minutos, las partidas y las plataformas del usuario se sobrescriben con los de esta importación.
+    juego a mano, se respetan; los demás se buscan con auto_match(ids), que devuelve {ID: Game}. Si lo
+    encontrado es una edición de otro juego (la «Game of the Year Edition» que vende Steam con su propio
+    ID), el título se queda con el juego (Game.main), para que sus horas cuenten en él. Los minutos, las
+    partidas y las plataformas del usuario se sobrescriben con los de esta importación.
 
     Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
     Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
@@ -308,7 +310,7 @@ def save_titles(user, platform, titles, auto_match):
         i for i in ids
         if i not in known or (known[i].game_id is None and known[i].source == ExternalTitle.Source.AUTO)
     ]
-    found = auto_match(pending) if pending else {}
+    found = {i: game.main for i, game in (auto_match(pending) if pending else {}).items()}
 
     now = timezone.now()
     new, changed = [], []

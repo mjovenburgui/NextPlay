@@ -43,20 +43,31 @@
         {% endif %}
       </div>
 
-      {% if game.critic_score is not None %}
+      {# Las dos notas de fuera: la media de la crítica y la de los usuarios de IGDB, cada una con cuántos la dan. #}
+      {% if game.critic_score is not None or game.igdb_score is not None %}
         <section class="widget side-score">
-          <p class="widget-label">Nota de la crítica</p>
-          <div class="critic">
-            <span class="score score-{{ game.critic_tier }}">{{ game.critic_score }}</span>
-            <p class="muted small">
-              Media de {{ game.critic_rating_count }} reseña{{ game.critic_rating_count|pluralize }}
-              profesional{{ game.critic_rating_count|pluralize:"es" }} · IGDB
-            </p>
-          </div>
+          {% if game.critic_score is not None %}
+            <p class="widget-label">Nota de la crítica</p>
+            <div class="critic">
+              <span class="score score-{{ game.critic_tier }}">{{ game.critic_score }}</span>
+              <p class="muted small">
+                Media de {{ game.critic_rating_count }} reseña{{ game.critic_rating_count|pluralize }}
+                profesional{{ game.critic_rating_count|pluralize:"es" }} · IGDB
+              </p>
+            </div>
+          {% endif %}
+          {% if game.igdb_score is not None %}
+            <p class="widget-label{% if game.critic_score is not None %} score-next{% endif %}">Nota de los jugadores de IGDB</p>
+            <div class="critic">
+              <span class="score score-{{ game.igdb_tier }}">{{ game.igdb_score }}</span>
+              <p class="muted small">{{ game.igdb_rating_count }} voto{{ game.igdb_rating_count|pluralize }} en IGDB</p>
+            </div>
+          {% endif %}
         </section>
       {% endif %}
 
       {% include "games/_community.html" %}
+      {% include "games/_duration.html" %}
       {% if entry %}{% include "accounts/_achievement_card.html" %}{% endif %}
       {% include "lists/_game_box.html" %}
     </aside>
@@ -75,6 +86,14 @@
         </p>
       {% endif %}
 
+      {# Si se llega desde la ficha de una edición («Game of the Year Edition»), qué ha pasado: su ficha es esta. #}
+      {% if edition %}
+        <p class="edition-note">
+          <strong>{{ edition.name }}</strong> es una edición de este juego, así que su ficha es esta: sus horas, notas
+          y reseñas cuentan aquí. La tienes marcada en «Ediciones y versiones».
+        </p>
+      {% endif %}
+
       {# Sinopsis en español de Steam o de la tienda de Xbox; si no hay, la de IGDB, que está en inglés. #}
       {% if game.summary_es %}
         <p class="summary">{{ game.summary_es }}</p>
@@ -88,6 +107,18 @@
       {% elif game.summary %}
         <p class="summary" lang="en">{{ game.summary }}</p>
         <p class="help summary-source"><span class="pill pill-en">En inglés</span> Aún no tenemos su sinopsis en español.</p>
+      {% endif %}
+
+      {# Ficha técnica de IGDB (games.details): si nunca se ha pedido, la ficha la pide con HTMX y mientras tanto lo dice; con ella #}
+      {# llegan también Cuánto dura, «Ediciones y versiones» y «Juegos parecidos», que van a sus huecos. #}
+      {% if load_details %}
+        <section class="widget tech-sheet" id="ficha-tecnica" aria-busy="true"
+                 hx-get="{% url 'games:details' game.slug %}" hx-trigger="load" hx-swap="outerHTML">
+          <h2 class="widget-label">Ficha técnica</h2>
+          <p class="help">Buscando su ficha técnica en IGDB…</p>
+        </section>
+      {% else %}
+        {% include "games/_sheet.html" %}
       {% endif %}
 
       {# Carrusel de imágenes y vídeos: con las de IGDB al día va ya; si no, la ficha las pide después con HTMX. #}
@@ -118,6 +149,8 @@
         </details>
       {% endif %}{% endwith %}
 
+      {% include "games/_versions.html" %}
+
       {# «Dónde comprarlo»: con los precios buscados alguna vez va ya; si nunca se han buscado, la ficha los pide con HTMX #}
       {# (lleva la misma ?tiendas= y ?tienda= de la ficha) y mientras tanto avisa de que los está buscando. #}
       {% if load_prices %}
@@ -129,6 +162,8 @@
       {% else %}
         {% include "games/_prices.html" %}
       {% endif %}
+
+      {% include "games/_similar.html" %}
 
       {% include "library/_reviews.html" %}
     </div>

@@ -70,7 +70,8 @@ def search_context(game_list, query):
     """
     results = []
     if query:
-        results = list(Game.objects.filter(search_filter(query))[:SEARCH_RESULTS])
+        # Sin ediciones de otro juego: su ficha es la del juego, que es el que se añade.
+        results = list(Game.objects.filter(search_filter(query), parent__isnull=True)[:SEARCH_RESULTS])
         listed = set(game_list.items.filter(game__in=results).values_list("game_id", flat=True))
         for game in results:
             game.in_list = game.pk in listed

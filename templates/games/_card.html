@@ -29,5 +29,8 @@
         </p>
       {% endif %}
     {% endwith %}
-  {% elif game.release_year %}<p class="muted small">{{ game.release_year }}</p>{% endif %}
+  {% elif game.release_year or game.type_label %}
+    {# El año y, si no es un juego normal, su tipo («Remake», «Expansión»…), para distinguir los dos Resident Evil 4 de un vistazo. #}
+    <p class="muted small">{{ game.release_year|default:"" }}{% if game.release_year and game.type_label %} · {% endif %}{% if game.type_label %}<span class="card-type">{{ game.type_label }}</span>{% endif %}</p>
+  {% endif %}
 </a>

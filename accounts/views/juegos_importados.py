@@ -28,9 +28,14 @@ IMPORTED_SEARCH_IGDB_BELOW = 5
 def _search_games(query):
     """Juegos del catálogo cuyo nombre contiene query, de más a menos popular, completando con IGDB si salen pocos.
 
+    Sin ediciones de otro juego: se elige el juego, que es donde cuenta lo importado de cualquiera de sus ediciones.
+
     Pantallas: Juegos importados (buscador para elegir el juego de un título).
     """
-    games = list(Game.objects.filter(name__icontains=query).prefetch_related("platforms")[:IMPORTED_SEARCH_RESULTS])
+    games = list(
+        Game.objects.filter(name__icontains=query, parent__isnull=True)
+        .prefetch_related("platforms")[:IMPORTED_SEARCH_RESULTS]
+    )
     if len(games) < IMPORTED_SEARCH_IGDB_BELOW and igdb.is_configured():
         try:
             found = igdb.upsert_games(igdb.IGDBClient().search(query, limit=IMPORTED_SEARCH_RESULTS))

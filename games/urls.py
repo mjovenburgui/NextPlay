@@ -1,6 +1,6 @@
 """Direcciones de los juegos. Pantallas: Catálogo (juegos/) y Ficha del juego (juegos/<juego>/), con los trozos de la
-ficha que se cargan aparte (precios, historial de precios e imágenes y vídeos); «importar» es el botón del Catálogo
-para traer de IGDB lo que buscas.
+ficha que se cargan aparte (precios, historial de precios, imágenes y vídeos y ficha técnica); «importar» es el botón
+del Catálogo para traer de IGDB lo que buscas.
 """
 
 from django.urls import path
@@ -16,4 +16,5 @@ urlpatterns = [
     path("<slug:slug>/precios/", views.game_prices, name="prices"),
     path("<slug:slug>/historial-de-precios/", views.price_history, name="price_history"),
     path("<slug:slug>/imagenes-y-videos/", views.game_media, name="media"),
+    path("<slug:slug>/ficha-tecnica/", views.game_details, name="details"),
 ]

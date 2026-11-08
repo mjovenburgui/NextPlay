@@ -1,0 +1,19 @@
+{# «Juegos parecidos» de la ficha (games.details.similar): los parecidos según IGDB que están en el catálogo, primero los de tu Pendiente. #}
+{# Con oob, HTMX la pone en su sitio cuando llega la ficha técnica. #}
+{% if similar %}
+  <section class="similar" id="parecidos" aria-labelledby="parecidos-titulo"{% if oob %} hx-swap-oob="true"{% endif %}>
+    <h2 id="parecidos-titulo">Juegos parecidos</h2>
+    <p class="help">Según IGDB{% if user.is_authenticated %}; primero los que tienes en Pendiente{% endif %}.</p>
+    <div class="grid grid-compact">
+      {% for other in similar %}
+        {% if other.in_backlog %}
+          {% include "games/_card.html" with game=other status="Pendiente" status_key="backlog" entry=None %}
+        {% else %}
+          {% include "games/_card.html" with game=other status="" status_key="" entry=None %}
+        {% endif %}
+      {% endfor %}
+    </div>
+  </section>
+{% else %}
+  <div id="parecidos"{% if oob %} hx-swap-oob="true"{% endif %}></div>
+{% endif %}

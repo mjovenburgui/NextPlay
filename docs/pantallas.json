@@ -9,12 +9,12 @@
     {
       "nombre": "Catálogo",
       "urls": ["games:catalog"],
-      "que_es": "«Juegos» en el menú y el buscador de la barra de arriba: todos los juegos en tarjetas, con filtros por nombre, género, plataforma e idioma, el estado de cada uno en tu biblioteca y, si buscas algo que no está, el botón para traerlo de IGDB."
+      "que_es": "«Juegos» en el menú y el buscador de la barra de arriba: todos los juegos en tarjetas (sin ediciones sueltas ni, si no se piden, DLC y expansiones), con su tipo si es un remake, una expansión…, filtros por nombre, tipo, género, plataforma, año, nota, duración, modo, tema, perspectiva, estudio, idioma, precio, rebajas y tu biblioteca, varios órdenes, la dirección lista para compartir, el estado de cada uno en tu biblioteca y, si buscas algo que no está, el botón para traerlo de IGDB."
     },
     {
       "nombre": "Ficha del juego",
-      "urls": ["games:detail", "games:prices", "games:price_history", "games:media", "game_achievements"],
-      "que_es": "La página de cada juego: cabecera con su arte, datos y notas (crítica y comunidad), tu biblioteca (estado, nota, reseña, lista de deseos), favoritos y «Añadir a una lista», tus horas y tus logros, el carrusel de imágenes y vídeos, «Dónde comprarlo» con su historial de precios, las reseñas y las listas en las que sale."
+      "urls": ["games:detail", "games:prices", "games:price_history", "games:media", "games:details", "game_achievements"],
+      "que_es": "La página de cada juego: cabecera con su arte, datos (y de qué juego es remake, DLC…) y notas (crítica, jugadores de IGDB y comunidad), cuánto dura, tu biblioteca (estado, nota, reseña, lista de deseos), favoritos y «Añadir a una lista», tus horas y tus logros, la ficha técnica (estudio, editora, modos, temas, saga, PEGI…), el carrusel de imágenes y vídeos, «Ediciones y versiones» (ediciones, remakes, expansiones, DLC y recopilatorios), «Dónde comprarlo» con su historial de precios, juegos parecidos, las reseñas y las listas en las que sale. La ficha de una edición lleva a la de su juego."
     },
     {
       "nombre": "Listas del juego",

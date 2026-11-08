@@ -4,68 +4,107 @@
 
 {% block content %}
   <div class="page-head catalog-head">
-    <div>
-      <h1>{% if query %}Resultados para «{{ query }}»{% else %}Catálogo{% endif %}</h1>
-      <p class="muted small">{{ page.paginator.count }} juego{{ page.paginator.count|pluralize }}{% if active_genre or active_platform or active_language %} · <a href="{% url 'games:catalog' %}{% if query %}?q={{ query|urlencode }}{% endif %}">Quitar filtros</a>{% endif %}</p>
-    </div>
-    <form class="filters" method="get">
-      {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
-      <select name="genero" aria-label="Género" onchange="this.form.submit()">
-        <option value="">Todos los géneros</option>
-        {% for genre in genres %}
-          <option value="{{ genre.slug }}" {% if genre.slug == active_genre %}selected{% endif %}>{{ genre.name }}</option>
-        {% endfor %}
-      </select>
-      <select name="plataforma" aria-label="Plataforma" onchange="this.form.submit()">
-        <option value="">Todas las plataformas</option>
-        {% for platform in platforms %}
-          <option value="{{ platform.slug }}" {% if platform.slug == active_platform %}selected{% endif %}>{{ platform.name }}</option>
-        {% endfor %}
-      </select>
-      <select name="idioma" aria-label="Idioma" onchange="this.form.submit()">
-        <option value="">Cualquier idioma</option>
-        {% for value, label in language_filters %}
-          <option value="{{ value }}" {% if value == active_language %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-      <noscript><button class="btn" type="submit">Filtrar</button></noscript>
-    </form>
+    <h1>{% if query %}Resultados para «{{ query }}»{% else %}Catálogo{% endif %}</h1>
   </div>
 
-  {% if page.object_list %}
-    {# Las portadas, directamente sobre la página: dentro de una caja solo perdían sitio (en el móvil, una columna). #}
-    <div class="grid">
-      {% for game in page.object_list %}
-        {% include "games/_card.html" with status=game.library_status status_key=game.library_status_key %}
+  {# Filtros y orden (games.filters.CatalogFilters). Al cambiar uno, HTMX trae la lista nueva y cambia la dirección, para poder #}
+  {# compartir la búsqueda; sin JavaScript, el botón «Filtrar». Tipo, género, plataforma y orden van a la vista; el resto, en «Más filtros». #}
+  <form class="catalog-filters" method="get" action="{% url 'games:catalog' %}"
+        hx-get="{% url 'games:catalog' %}" hx-trigger="change" hx-target="#catalog-results" hx-select="#catalog-results"
+        hx-swap="outerHTML" hx-push-url="true" hx-indicator="#catalog-results">
+    {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
+    {% if filters.cleaned_data.estudio %}<input type="hidden" name="estudio" value="{{ filters.cleaned_data.estudio }}">{% endif %}
+    <div class="filters">
+      {% for select in filters.main_selects %}
+        <select name="{{ select.name }}" aria-label="{{ select.label }}">
+          {% for value, label in select.options %}
+            <option value="{{ value }}"{% if value == select.value %} selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
       {% endfor %}
     </div>
-
-    {% if page.has_other_pages %}
-      <nav class="pager" aria-label="Paginación">
-        {% if page.has_previous %}
-          <a class="btn" href="?{% if filter_qs %}{{ filter_qs }}&amp;{% endif %}page={{ page.previous_page_number }}">← Anterior</a>
-        {% endif %}
-        <span class="muted">Página {{ page.number }} de {{ page.paginator.num_pages }}</span>
-        {% if page.has_next %}
-          <a class="btn" href="?{% if filter_qs %}{{ filter_qs }}&amp;{% endif %}page={{ page.next_page_number }}">Siguiente →</a>
-        {% endif %}
-      </nav>
-    {% endif %}
-  {% else %}
-    {# Vacío: qué se ha buscado y cómo seguir (quitar los filtros o, más abajo, buscarlo en IGDB). #}
-    <div class="empty">
-      <p>
-        {% if query %}Ningún juego del catálogo coincide con «{{ query }}»{% if active_genre or active_platform or active_language %} con esos filtros{% endif %}.
-        {% elif active_genre or active_platform or active_language %}Ningún juego cumple esos filtros.
-        {% else %}El catálogo está vacío: importa juegos de IGDB con <code>import_igdb</code>.{% endif %}
-      </p>
-      {% if active_genre or active_platform or active_language %}
-        <div class="empty-actions">
-          <a class="btn" href="{% url 'games:catalog' %}{% if query %}?q={{ query|urlencode }}{% endif %}">Quitar filtros</a>
+    {# Cerrado aunque haya alguno puesto: lo dicen su número y las etiquetas de los filtros puestos, y en el móvil taparía la lista. #}
+    <details class="more-filters">
+      <summary>Más filtros{% if filters.more_active %} <span class="count">{{ filters.more_active }}</span>{% endif %}</summary>
+      <div class="more-filters-grid">
+        {% for select in filters.more_selects %}
+          <label class="filter-field">
+            <span>{{ select.label }}</span>
+            <select name="{{ select.name }}">
+              {% for value, label in select.options %}
+                <option value="{{ value }}"{% if value == select.value %} selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        {% endfor %}
+        <div class="filter-checks">
+          {% for check in filters.checks %}
+            <label class="filter-check"><input type="checkbox" name="{{ check.name }}" value="1"{% if check.value %} checked{% endif %}> {{ check.label }}</label>
+          {% endfor %}
+          <p class="help">El precio, las rebajas y el mínimo miran solo tus tiendas si las has elegido en Editar perfil.</p>
         </div>
+      </div>
+    </details>
+    <noscript><button class="btn" type="submit">Filtrar</button></noscript>
+  </form>
+
+  <div id="catalog-results" class="catalog-results">
+    <p class="muted small catalog-count">
+      {{ page.paginator.count }} juego{{ page.paginator.count|pluralize }}
+      {% if filters.active %} · <a href="{% url 'games:catalog' %}{% if query %}?q={{ query|urlencode }}{% endif %}">Quitar filtros</a>{% endif %}
+    </p>
+    {% if filters.active %}
+      {# Los filtros puestos, que se quitan uno a uno. #}
+      <ul class="active-filters" aria-label="Filtros puestos">
+        {% for label, url in filters.active %}
+          <li><a class="chip" href="{{ url }}" aria-label="Quitar el filtro {{ label }}">{{ label }} <span aria-hidden="true">×</span></a></li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {% if page.object_list %}
+      {# Las portadas, directamente sobre la página: dentro de una caja solo perdían sitio (en el móvil, una columna). #}
+      <div class="grid">
+        {% for game in page.object_list %}
+          {% include "games/_card.html" with status=game.library_status status_key=game.library_status_key %}
+        {% endfor %}
+      </div>
+
+      {% if hidden_count %}
+        <p class="catalog-hidden muted small">
+          Y {{ hidden_count }} más entre DLC, expansiones y similares. <a href="?{{ all_types_qs }}">Verlos también</a>
+        </p>
       {% endif %}
-    </div>
-  {% endif %}
+
+      {% if page.has_other_pages %}
+        <nav class="pager" aria-label="Paginación">
+          {% if page.has_previous %}
+            <a class="btn" href="?{% if filter_qs %}{{ filter_qs }}&amp;{% endif %}page={{ page.previous_page_number }}">← Anterior</a>
+          {% endif %}
+          <span class="muted">Página {{ page.number }} de {{ page.paginator.num_pages }}</span>
+          {% if page.has_next %}
+            <a class="btn" href="?{% if filter_qs %}{{ filter_qs }}&amp;{% endif %}page={{ page.next_page_number }}">Siguiente →</a>
+          {% endif %}
+        </nav>
+      {% endif %}
+    {% else %}
+      {# Vacío: qué se ha buscado y cómo seguir (ver también los DLC, quitar los filtros o, más abajo, buscarlo en IGDB). #}
+      <div class="empty">
+        <p>
+          {% if query %}Ningún juego del catálogo coincide con «{{ query }}»{% if filters.active %} con esos filtros{% endif %}.
+          {% elif filters.active %}Ningún juego cumple esos filtros.
+          {% else %}El catálogo está vacío: importa juegos de IGDB con <code>import_igdb</code>.{% endif %}
+          {% if hidden_count %}Hay {{ hidden_count }} entre los DLC, expansiones y similares, que no salen si no se piden.{% endif %}
+        </p>
+        {% if hidden_count or filters.active %}
+          <div class="empty-actions">
+            {% if hidden_count %}<a class="btn btn-primary" href="?{{ all_types_qs }}">Ver también DLC y expansiones</a>{% endif %}
+            {% if filters.active %}<a class="btn" href="{% url 'games:catalog' %}{% if query %}?q={{ query|urlencode }}{% endif %}">Quitar filtros</a>{% endif %}
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
 
   {% if can_import %}
     <form class="import" action="{% url 'games:import_search' %}" method="post">

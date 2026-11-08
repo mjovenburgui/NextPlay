@@ -12,11 +12,27 @@ from django.urls import reverse
 from django.utils import timezone
 from PIL import Image
 
-from library.models import LibraryEntry, Review, WishlistItem
-from social.models import Activity
+from accounts import steam
+from accounts.models import ExternalTitle, FavoriteGame, ImportedTitle, SteamAccount
+from challenges.models import Challenge
+from library.models import LibraryEntry, PlaySession, Review, WishlistItem
+from lists.models import GameList, ListItem
+from social.models import Activity, Post
 
-from . import history, igdb, media, nintendo, prices, spanish, xbox
-from .models import STEAM_DECK_SLUG, Game, GamePrice, Genre, Platform
+from . import details, editions, history, igdb, media, nintendo, prices, spanish, xbox
+from .models import (
+    STEAM_DECK_SLUG,
+    Company,
+    Game,
+    GameMode,
+    GamePrice,
+    GameStatus,
+    GameType,
+    Genre,
+    Perspective,
+    Platform,
+    Theme,
+)
 
 User = get_user_model()
 
@@ -1578,4 +1594,463 @@ class SpanishTests(TestCase):
         response = self.client.get(reverse("profile", args=["ana"]), {"idioma": "voces"})
         self.assertEqual([entry.game for entry in response.context["entries"]], [dubbed])
         self.assertIn("idioma=voces", response.context["keep_qs"])
+
+
+# La clasificación de Hades que trae IGDB en todas las consultas de juegos (igdb.CLASSIFY_FIELDS).
+HADES_CLASSIFIED = {
+    **IGDB_HADES,
+    "game_type": 0,
+    "rating": 92.6,
+    "rating_count": 1200,
+    "game_modes": [{"id": 1, "name": "Single player", "slug": "single-player"}],
+    "themes": [{"id": 1, "name": "Action", "slug": "action"}, {"id": 17, "name": "Fantasy", "slug": "fantasy"}],
+    "player_perspectives": [{"id": 3, "name": "Bird view / Isometric", "slug": "bird-view-slash-isometric"}],
+    "involved_companies": [
+        {"id": 1, "company": {"id": 1210, "name": "Supergiant Games", "slug": "supergiant-games"},
+         "developer": True, "publisher": True},
+    ],
+}
+
+# Lo que trae de The Witcher 3 una pasada a IGDB (IGDBClient.games_with_details): clasificación, ficha técnica,
+# juegos relacionados y sus ediciones. La GOTY viene como edición y también como recopilatorio.
+WITCHER_DETAILS = {
+    "id": 1942,
+    "name": "The Witcher 3: Wild Hunt",
+    "game_type": 0,
+    "rating": 94.4,
+    "rating_count": 5519,
+    "game_modes": [{"id": 1, "name": "Single player", "slug": "single-player"}],
+    "themes": [{"id": 17, "name": "Fantasy", "slug": "fantasy"}],
+    "player_perspectives": [{"id": 2, "name": "Third person", "slug": "third-person"}],
+    "involved_companies": [
+        {"id": 1, "company": {"id": 908, "name": "CD Projekt RED", "slug": "cd-projekt-red"}, "developer": True},
+        {"id": 2, "company": {"id": 1, "name": "Bandai Namco", "slug": "bandai-namco"}, "publisher": True},
+    ],
+    "age_ratings": [
+        {"id": 1, "organization": {"id": 1, "name": "ESRB"}, "rating_category": {"id": 4, "rating": "M"}},
+        {"id": 2, "organization": {"id": 2, "name": "PEGI"}, "rating_category": {"id": 12, "rating": "18"}},
+    ],
+    "collections": [{"id": 1, "name": "The Witcher"}],
+    "game_engines": [{"id": 1, "name": "REDengine"}],
+    "url": "https://www.igdb.com/games/the-witcher-3-wild-hunt",
+    "similar_games": [113112, 7346],
+    "multiplayer_modes": [{"id": 1, "onlinecoop": False, "offlinecoop": False}],
+    "expansions": [
+        {"id": 12503, "name": "Blood and Wine", "cover": {"id": 1, "image_id": "co1bw"},
+         "first_release_date": 1464048000, "game_type": 2},
+    ],
+    "remasters": [{"id": 300, "name": "The Witcher 3 Remastered", "game_type": 9}],
+    "bundles": [{"id": 22439, "name": "The Witcher 3: Wild Hunt - Game of the Year Edition", "game_type": 3}],
+    "editions": [
+        {"id": 22439, "name": "The Witcher 3: Wild Hunt - Game of the Year Edition", "version_parent": 1942,
+         "version_title": "Game of the Year Edition", "game_type": 3, "first_release_date": 1472169600,
+         "cover": {"id": 2, "image_id": "co1wz4"}},
+    ],
+}
+
+
+class ClassificationTests(TestCase):
+    """Lo que se filtra en el Catálogo, que llega con cada juego de IGDB (igdb.classify y classify_relations), y las
+    ediciones enlazadas con su juego."""
+
+    def test_upsert_saves_type_rating_modes_themes_and_studios_in_spanish(self):
+        igdb.upsert_games([HADES_CLASSIFIED])
+        game = Game.objects.get(igdb_id=113112)
+        self.assertEqual((game.game_type, game.igdb_score, game.igdb_rating_count), (GameType.MAIN, 93, 1200))
+        self.assertEqual(game.type_label, "")
+        self.assertEqual([mode.name for mode in game.modes.all()], ["Un jugador"])
+        self.assertEqual(sorted(theme.slug for theme in game.themes.all()), ["accion", "fantasia"])
+        self.assertEqual(game.perspectives.get().name, "Vista cenital o isométrica")
+        self.assertEqual([company.name for company in game.developers.all()], ["Supergiant Games"])
+        self.assertEqual(game.publishers.get().slug, "supergiant-games")
+        # Otra pasada no repite las etiquetas.
+        igdb.upsert_games([HADES_CLASSIFIED])
+        self.assertEqual((Theme.objects.count(), Company.objects.count()), (2, 1))
+
+    def test_editions_are_linked_to_their_game(self):
+        goty = {
+            "id": 9, "name": "Hades - Game of the Year Edition", "slug": "hades-goty", "version_parent": 113112,
+            "version_title": "Game of the Year Edition", "game_type": 3,
+        }
+        edition, game = igdb.upsert_games([goty, HADES_CLASSIFIED])
+        edition.refresh_from_db()
+        self.assertEqual((edition.parent, edition.edition_name, edition.main), (game, "Game of the Year Edition", game))
+        self.assertEqual((game.main, edition.type_label), (game, "Recopilatorio"))
+
+    @override_settings(IGDB_CLIENT_ID="id", IGDB_CLIENT_SECRET="secret")
+    def test_searches_leave_out_dlc_packs_and_updates_but_steam_ids_do_not(self):
+        client = igdb.IGDBClient()
+        with mock.patch.object(client, "query", return_value=[]) as query, mock.patch("games.igdb.time.sleep"):
+            client.search("monster hunter")
+            client.top_games(limit=5)
+            client.games_by_names(["Monster Hunter Wilds"])
+            client.games_by_steam_ids([2246340])
+        bodies = [call.args[1] for call in query.call_args_list]
+        self.assertEqual([("game_type != (1,13,14)" in body) for body in bodies], [True, True, True, False])
+
+    @override_settings(IGDB_CLIENT_ID="id", IGDB_CLIENT_SECRET="secret")
+    def test_steam_ids_also_bring_the_game_of_an_edition(self):
+        client = igdb.IGDBClient()
+        goty = {"id": 9, "name": "Hades GOTY", "version_parent": 113112}
+        with mock.patch.object(client, "query", return_value=[{"game": 9, "uid": "123"}]), \
+                mock.patch.object(client, "games_by_ids", side_effect=[[goty], [HADES_CLASSIFIED]]) as by_ids, \
+                mock.patch("games.igdb.time.sleep"):
+            games, steam_to_igdb = client.games_by_steam_ids([123])
+        self.assertEqual(steam_to_igdb, {123: 9})
+        self.assertEqual([game["id"] for game in games], [9, 113112])
+        self.assertEqual(by_ids.call_args_list[1].args[0], [113112])
+
+
+class GameDetailsTests(TestCase):
+    """La pasada a IGDB (games.details.update_details y el comando fill_game_fields)."""
+
+    def igdb_client(self, payload=(WITCHER_DETAILS,), durations=None):
+        """Un cliente de IGDB falso que contesta payload a la pasada y durations (o la de The Witcher 3) a la duración."""
+        client = mock.Mock(spec=igdb.IGDBClient)
+        client.games_with_details.return_value = list(payload)
+        client.time_to_beat.return_value = durations if durations is not None else {
+            1942: {"game_id": 1942, "hastily": 135000, "normally": 255600, "completely": 579600, "count": 42},
+        }
+        return client
+
+    def test_saves_sheet_duration_classification_and_versions(self):
+        witcher = Game.objects.create(igdb_id=1942, name="The Witcher 3: Wild Hunt", slug="the-witcher-3")
+        details.update_details([witcher], client=self.igdb_client())
+        witcher.refresh_from_db()
+        self.assertEqual((witcher.ttb_quick, witcher.ttb_normal, witcher.ttb_full, witcher.ttb_count), (2250, 4260, 9660, 42))
+        self.assertEqual((witcher.duration["normal"], witcher.duration["rough"], witcher.normal_hours), (71.0, False, 71.0))
+        info = witcher.details
+        self.assertEqual((info["pegi"], info["sagas"], info["engines"], info["coop"]), ("18", ["The Witcher"], ["REDengine"], None))
+        self.assertEqual(
+            [(item["title"], item["year"], item["cover"]) for item in info["editions"]],
+            [("Game of the Year Edition", 2016, "co1wz4")],
+        )
+        # La GOTY también venía como recopilatorio: no se repite.
+        self.assertNotIn("bundles", info["related"])
+        self.assertEqual([(item["name"], item["year"]) for item in info["related"]["expansions"]], [("Blood and Wine", 2016)])
+        self.assertEqual((witcher.developers.get().name, witcher.publishers.get().name), ("CD Projekt RED", "Bandai Namco"))
+        self.assertFalse(details.missing(witcher))
+
+    def test_marks_what_igdb_does_not_return_and_brings_missing_parents(self):
+        gone = Game.objects.create(igdb_id=5, name="Borrado de IGDB", slug="borrado")
+        goty = Game.objects.create(igdb_id=9, name="Hades GOTY", slug="hades-goty")
+        client = self.igdb_client(
+            payload=[{"id": 9, "name": "Hades GOTY", "version_parent": 113112, "version_title": "GOTY"}], durations={},
+        )
+        client.games_by_ids.return_value = [HADES_CLASSIFIED]
+        linked = details.update_details([gone, goty], client=client)
+        gone.refresh_from_db()
+        goty.refresh_from_db()
+        self.assertEqual([game.pk for game in linked], [goty.pk])
+        self.assertEqual((goty.parent.igdb_id, goty.edition_name), (113112, "GOTY"))
+        self.assertEqual((gone.details, gone.ttb_normal, details.missing(gone)), ({}, None, False))
+
+    def test_cooperative_summary(self):
+        coop = details._coop([
+            {"onlinecoop": True, "onlinecoopmax": 2, "splitscreen": True, "campaigncoop": True},
+            {"offlinecoop": True, "offlinecoopmax": 4},
+        ])
+        self.assertEqual(
+            details.coop_parts(coop), ["en línea, hasta 2", "en local, hasta 4", "pantalla partida", "toda la campaña"],
+        )
+        self.assertIsNone(details._coop([{"onlinecoop": False}]))
+
+    @override_settings(IGDB_CLIENT_ID="id", IGDB_CLIENT_SECRET="secret")
+    def test_fill_game_fields_asks_only_what_is_missing(self):
+        Game.objects.create(igdb_id=1942, name="The Witcher 3: Wild Hunt", slug="the-witcher-3")
+        Game.objects.create(name="Sin IGDB", slug="sin-igdb")
+        out = io.StringIO()
+        with mock.patch.object(igdb.IGDBClient, "games_with_details", return_value=[WITCHER_DETAILS]) as asked, \
+                mock.patch.object(igdb.IGDBClient, "time_to_beat", return_value={}):
+            call_command("fill_game_fields", stdout=out)
+            self.assertIn("1 juegos al día: 1 con tipo, 0 con duración y 0 ediciones enlazadas", out.getvalue())
+            self.assertEqual(asked.call_args.args[0], [1942])
+            call_command("fill_game_fields", stdout=out)
+            self.assertIn("No hay juegos pendientes.", out.getvalue())
+            call_command("fill_game_fields", "--todos", stdout=out)
+        self.assertEqual(asked.call_count, 2)
+
+
+class GamePageDetailsTests(TestCase):
+    """Lo que sale de la pasada a IGDB en la ficha: ficha técnica, Cuánto dura, «Ediciones y versiones», «Juegos
+    parecidos», de qué juego es y las ediciones que llevan a su juego."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.witcher = Game.objects.create(
+            igdb_id=1942, name="The Witcher 3: Wild Hunt", slug="the-witcher-3", details=details._details(WITCHER_DETAILS),
+            details_updated_at=timezone.now(), ttb_normal=12 * 60, ttb_quick=8 * 60, ttb_count=11, igdb_rating=94.4,
+            igdb_rating_count=5519, prices_updated_at=timezone.now(),
+        )
+        cls.witcher.developers.add(Company.objects.create(igdb_id=908, name="CD Projekt RED", slug="cd-projekt-red"))
+        cls.witcher.publishers.add(Company.objects.create(igdb_id=1, name="Bandai Namco", slug="bandai-namco"))
+        cls.hades = Game.objects.create(igdb_id=113112, name="Hades", slug="hades", popularity=10)
+        cls.zelda = Game.objects.create(igdb_id=7346, name="Zelda", slug="zelda", popularity=99)
+        cls.blood = Game.objects.create(igdb_id=12503, name="Blood and Wine", slug="blood-and-wine", game_type=GameType.EXPANSION)
+
+    def test_sheet_duration_versions_and_similar(self):
+        LibraryEntry.objects.create(user=self.user, game=self.hades, status=LibraryEntry.Status.BACKLOG)
+        LibraryEntry.objects.create(
+            user=self.user, game=self.witcher, status=LibraryEntry.Status.PLAYING, steam_playtime_minutes=10 * 60,
+        )
+        self.client.force_login(self.user)
+        response = self.client.get(self.witcher.get_absolute_url())
+        self.assertFalse(response.context["load_details"])
+        self.assertContains(response, "Ficha técnica")
+        self.assertContains(response, f'href="{reverse("games:catalog")}?estudio=cd-projekt-red"')
+        self.assertContains(response, "PEGI 18")
+        self.assertContains(response, "Nota de los jugadores de IGDB")
+        self.assertContains(response, "Te faltan unas <strong>2 h</strong>")
+        self.assertContains(response, "Game of the Year Edition")
+        # Lo que está en el catálogo lleva a su ficha; lo que no, a buscarlo con todos los tipos.
+        self.assertContains(response, f'href="{self.blood.get_absolute_url()}"')
+        self.assertContains(response, "tipo=todo")
+        # Juegos parecidos: primero el de su pendiente, aunque sea menos popular.
+        self.assertEqual(response.context["similar"], [self.hades, self.zelda])
+        self.assertTrue(response.context["similar"][0].in_backlog)
+
+    def test_rough_and_endless_durations(self):
+        Game.objects.filter(pk=self.witcher.pk).update(ttb_count=3)
+        self.assertContains(self.client.get(self.witcher.get_absolute_url()), "Dato orientativo")
+        Game.objects.filter(pk=self.witcher.pk).update(ttb_normal=300 * 60, ttb_count=40)
+        self.assertContains(self.client.get(self.witcher.get_absolute_url()), "No tiene un final claro")
+        self.assertIsNone(Game.objects.get(pk=self.witcher.pk).normal_hours)
+
+    def test_an_edition_page_takes_you_to_its_game(self):
+        goty = Game.objects.create(
+            igdb_id=22439, name="The Witcher 3: GOTY", slug="the-witcher-3-goty", parent=self.witcher,
+            edition_name="Game of the Year Edition",
+        )
+        response = self.client.get(goty.get_absolute_url())
+        self.assertRedirects(response, f"{self.witcher.get_absolute_url()}?edicion=the-witcher-3-goty")
+        response = self.client.get(response["Location"])
+        self.assertContains(response, "es una edición de este juego")
+        self.assertContains(response, "Vienes de esta")
+        # Las ediciones no salen en el Catálogo.
+        self.assertNotIn(goty, self.client.get(reverse("games:catalog")).context["page"].object_list)
+
+    def test_the_header_says_what_it_is_a_remake_of_and_its_status(self):
+        original = Game.objects.create(igdb_id=974, name="Resident Evil 4", slug="resident-evil-4")
+        remake = Game.objects.create(
+            igdb_id=132181, name="Resident Evil 4", slug="resident-evil-4-remake", game_type=GameType.REMAKE,
+            game_status=GameStatus.DELISTED, details={"parent": {"id": 974, "name": "Resident Evil 4", "type": 0}},
+            details_updated_at=timezone.now(), prices_updated_at=timezone.now(),
+        )
+        response = self.client.get(remake.get_absolute_url())
+        self.assertContains(response, f'Remake de <a href="{original.get_absolute_url()}">Resident Evil 4</a>')
+        self.assertContains(response, '<span class="status-flag">Ya no se vende</span>')
+
+    @override_settings(IGDB_CLIENT_ID="id", IGDB_CLIENT_SECRET="secret")
+    def test_a_never_fetched_sheet_comes_with_htmx(self):
+        Game.objects.filter(pk=self.witcher.pk).update(details_updated_at=None, details={}, ttb_normal=None, ttb_count=0)
+        response = self.client.get(self.witcher.get_absolute_url())
+        url = reverse("games:details", args=[self.witcher.slug])
+        self.assertContains(response, f'hx-get="{url}"')
+        with mock.patch.object(igdb.IGDBClient, "games_with_details", return_value=[WITCHER_DETAILS]), \
+                mock.patch.object(igdb.IGDBClient, "time_to_beat", return_value={1942: {"normally": 36000, "count": 8}}):
+            response = self.client.get(url)
+        self.assertContains(response, 'id="ficha-tecnica"')
+        self.assertContains(response, 'id="duracion" hx-swap-oob="true"')
+        self.assertContains(response, 'id="versiones" aria-labelledby="versiones-titulo" hx-swap-oob="true"')
+        self.assertFalse(details.missing(Game.objects.get(pk=self.witcher.pk)))
+
+
+class EditionMergeTests(TestCase):
+    """Ediciones juntadas con su juego (games.editions, el comando merge_editions y las importaciones)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.luis = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.game = Game.objects.create(igdb_id=500, name="Batman: Arkham Asylum", slug="batman-arkham-asylum")
+        cls.goty = Game.objects.create(
+            igdb_id=27862, name="Batman: Arkham Asylum - GOTY", slug="batman-goty", parent=cls.game,
+            edition_name="Game of the Year Edition", steam_app_id=35140,
+        )
+
+    def test_merge_moves_everything_to_the_game(self):
+        ana, luis, game, goty = self.ana, self.luis, self.game, self.goty
+        title = ExternalTitle.objects.create(platform="steam", external_id="35140", name="Batman GOTY", game=goty)
+        ImportedTitle.objects.create(user=ana, title=title, game=goty, minutes=300)
+        LibraryEntry.objects.create(user=ana, game=game, status=LibraryEntry.Status.BACKLOG, psn_playtime_minutes=120)
+        LibraryEntry.objects.create(
+            user=ana, game=goty, status=LibraryEntry.Status.COMPLETED, rating=8, steam_playtime_minutes=300,
+        )
+        LibraryEntry.objects.create(user=luis, game=goty, status=LibraryEntry.Status.PLAYED)
+        review = Review.objects.create(user=ana, game=goty, text="Genial", published_at=timezone.now())
+        WishlistItem.objects.create(user=luis, game=goty)
+        WishlistItem.objects.create(user=ana, game=goty)
+        WishlistItem.objects.create(user=ana, game=game)
+        game_list = GameList.objects.create(user=ana, title="Los mejores")
+        ListItem.objects.create(game_list=game_list, game=game, position=0)
+        ListItem.objects.create(game_list=game_list, game=goty, position=1)
+        FavoriteGame.objects.create(user=luis, game=goty)
+        day = timezone.localdate()
+        PlaySession.objects.create(user=ana, game=goty, platform="steam", day=day, minutes=30)
+        PlaySession.objects.create(user=ana, game=game, platform="steam", day=day, minutes=15)
+        activity = Activity.objects.create(user=ana, kind=Activity.Kind.GAME, game=goty)
+        post = Post.objects.create(user=ana, text="Qué juegazo", game=goty)
+        challenge = Challenge.objects.create(creator=ana, title="Batman", kind=Challenge.Kind.GAMES, target=1)
+        challenge.games.add(goty)
+        ana.profile.banner_game = goty
+        ana.profile.save()
+
+        out = io.StringIO()
+        call_command("merge_editions", stdout=out)
+        self.assertIn(
+            "Batman: Arkham Asylum - GOTY → Batman: Arkham Asylum: en 2 bibliotecas, 1 reseña, en 2 listas de deseos",
+            out.getvalue(),
+        )
+        self.assertEqual(editions.holdings(goty), {})
+        entry = LibraryEntry.objects.get(user=ana, game=game)
+        self.assertEqual(
+            (entry.status, entry.rating, entry.steam_playtime_minutes, entry.psn_playtime_minutes),
+            (LibraryEntry.Status.COMPLETED, 8, 300, 120),
+        )
+        self.assertEqual(LibraryEntry.objects.get(user=luis).game, game)
+        for item in (review, activity, post, title):
+            item.refresh_from_db()
+            self.assertEqual(item.game, game)
+        self.assertEqual(sorted(WishlistItem.objects.values_list("user__username", "game_id")), [("ana", game.pk), ("luis", game.pk)])
+        self.assertEqual(list(game_list.items.values_list("game_id", flat=True)), [game.pk])
+        self.assertEqual(FavoriteGame.objects.get(user=luis).game, game)
+        self.assertEqual(PlaySession.objects.get(user=ana).minutes, 45)
+        self.assertEqual(list(challenge.games.all()), [game])
+        ana.profile.refresh_from_db()
+        self.assertEqual(ana.profile.banner_game, game)
+        self.assertEqual(ImportedTitle.objects.get(user=ana).game, game)
+
+    def test_simulating_only_says_what_it_would_do(self):
+        LibraryEntry.objects.create(user=self.ana, game=self.goty)
+        out = io.StringIO()
+        call_command("merge_editions", "--simular", stdout=out)
+        self.assertIn("en 1 biblioteca", out.getvalue())
+        self.assertIn("Se juntarían 1 ediciones", out.getvalue())
+        self.assertTrue(LibraryEntry.objects.filter(game=self.goty).exists())
+
+    def test_importing_an_edition_counts_in_its_game(self):
+        SteamAccount.objects.create(user=self.ana, steam_id="76561197960287930")
+        owned = [{"appid": 35140, "playtime_forever": 600, "rtime_last_played": 1600000000}]
+        with mock.patch.object(steam, "owned_games", return_value=owned):
+            steam.import_library(self.ana)
+        self.assertEqual(LibraryEntry.objects.get(user=self.ana).game, self.game)
+        self.assertEqual(ExternalTitle.objects.get(external_id="35140").game, self.game)
+
+
+class CatalogFilterTests(TestCase):
+    """Filtros y orden del Catálogo (games.filters.CatalogFilters)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("ana", "ana@example.com", "x")
+        coop = GameMode.objects.create(igdb_id=3, name="Cooperativo", slug="cooperativo")
+        horror = Theme.objects.create(igdb_id=19, name="Terror", slug="terror")
+        first = Perspective.objects.create(igdb_id=1, name="Primera persona", slug="primera-persona")
+        cls.big = Game.objects.create(
+            name="Grande", slug="grande", game_type=GameType.MAIN, popularity=1000, first_release_date=date(2015, 5, 19),
+            critic_rating=92, critic_rating_count=20, igdb_rating=80, igdb_rating_count=50, ttb_normal=40 * 60,
+            ttb_count=30,
+        )
+        cls.big.modes.add(coop)
+        cls.big.themes.add(horror)
+        cls.big.perspectives.add(first)
+        cls.big.developers.add(Company.objects.create(igdb_id=1, name="Estudio", slug="estudio"))
+        cls.short = Game.objects.create(
+            name="Corto", slug="corto", game_type=GameType.MAIN, popularity=300, first_release_date=date(2020, 1, 1),
+            critic_rating=99, critic_rating_count=1, igdb_rating=95, igdb_rating_count=12, ttb_normal=3 * 60,
+            ttb_count=5, historical_low=Decimal("4.00"),
+        )
+        cls.short.publishers.add(Company.objects.create(igdb_id=2, name="Editora", slug="editora"))
+        for game, price, regular, cut in ((cls.short, "4.00", "8.00", 50), (cls.big, "29.99", "29.99", 0)):
+            GamePrice.objects.create(
+                game=game, shop_id=61, shop_name="Steam", price=Decimal(price), regular_price=Decimal(regular),
+                currency="EUR", cut=cut, url="https://example.com",
+            )
+        cls.remake = Game.objects.create(
+            name="Grande (remake)", slug="grande-remake", game_type=GameType.REMAKE, popularity=50,
+            first_release_date=date(2023, 3, 24),
+        )
+        cls.dlc = Game.objects.create(name="Grande: traje", slug="grande-traje", game_type=GameType.DLC, popularity=5)
+        cls.edition = Game.objects.create(name="Grande GOTY", slug="grande-goty", parent=cls.big, popularity=2000)
+        cls.unknown = Game.objects.create(name="Sin datos", slug="sin-datos", popularity=100, first_release_date=date(2030, 1, 1))
+
+    def names(self, **params):
+        """Slugs de los juegos del Catálogo con esos parámetros, en su orden."""
+        return [game.slug for game in self.client.get(reverse("games:catalog"), params).context["page"].object_list]
+
+    def test_no_editions_or_dlc_unless_asked(self):
+        self.assertEqual(self.names(), ["grande", "corto", "sin-datos", "grande-remake"])
+        self.assertEqual(self.names(tipo="todo"), ["grande", "corto", "sin-datos", "grande-remake", "grande-traje"])
+        self.assertEqual(self.names(tipo="remakes"), ["grande-remake"])
+        self.assertEqual(self.names(tipo="dlc"), ["grande-traje"])
+        self.assertEqual(self.names(tipo="no-existe"), self.names())
+        response = self.client.get(reverse("games:catalog"), {"q": "grande"})
+        self.assertEqual(response.context["hidden_count"], 1)
+        self.assertContains(response, "Y 1 más entre DLC")
+        self.assertContains(response, "q=grande&amp;tipo=todo")
+
+    def test_year_release_score_duration_and_fame(self):
+        self.assertEqual(self.names(anio="2010s"), ["grande"])
+        self.assertEqual(self.names(anio="2020s"), ["corto", "grande-remake"])
+        self.assertEqual(self.names(salida="proximos"), ["sin-datos"])
+        self.assertEqual(self.names(nota="critica-90"), ["grande", "corto"])
+        self.assertEqual(self.names(nota="jugadores-90"), ["corto"])
+        self.assertEqual(self.names(duracion="corta"), ["corto"])
+        self.assertEqual(self.names(duracion="larga"), ["grande"])
+        self.assertEqual(self.names(fama="popular"), ["grande"])
+        self.assertEqual(self.names(fama="nicho"), ["sin-datos", "grande-remake"])
+
+    def test_modes_themes_perspective_and_studio(self):
+        self.assertEqual(self.names(modo="cooperativo"), ["grande"])
+        self.assertEqual(self.names(tema="terror"), ["grande"])
+        self.assertEqual(self.names(perspectiva="primera-persona"), ["grande"])
+        self.assertEqual(self.names(estudio="estudio"), ["grande"])
+        self.assertEqual(self.names(estudio="editora"), ["corto"])
+        self.assertEqual(len(self.names(estudio="no-existe")), 4)
+        response = self.client.get(reverse("games:catalog"), {"estudio": "editora"})
+        self.assertEqual(response.context["filters"].active, [("Estudio: Editora", "?")])
+
+    def test_prices_sales_and_historical_low(self):
+        self.assertEqual(self.names(precio="5"), ["corto"])
+        self.assertEqual(self.names(precio="30"), ["grande", "corto"])
+        self.assertEqual(self.names(rebajado="1"), ["corto"])
+        self.assertEqual(self.names(minimo="1"), ["corto"])
+        # Con sus tiendas elegidas, solo cuentan esas.
+        self.user.profile.shops = [35]
+        self.user.profile.save()
+        self.client.force_login(self.user)
+        self.assertEqual(self.names(precio="30"), [])
+
+    def test_your_library(self):
+        LibraryEntry.objects.create(user=self.user, game=self.big, status=LibraryEntry.Status.BACKLOG)
+        LibraryEntry.objects.create(user=self.user, game=self.short, status=LibraryEntry.Status.PLAYED)
+        WishlistItem.objects.create(user=self.user, game=self.remake)
+        self.assertEqual(len(self.names(mio="pendiente")), 4)
+        self.client.force_login(self.user)
+        self.assertEqual(self.names(mio="pendiente"), ["grande"])
+        self.assertEqual(self.names(mio="lo-tengo"), ["grande", "corto"])
+        self.assertEqual(self.names(mio="no-lo-tengo"), ["sin-datos", "grande-remake"])
+        self.assertEqual(self.names(mio="deseados"), ["grande-remake"])
+
+    def test_orders(self):
+        self.assertEqual(self.names(orden="nombre"), ["corto", "grande", "grande-remake", "sin-datos"])
+        self.assertEqual(self.names(orden="recientes"), ["sin-datos", "grande-remake", "corto", "grande"])
+        self.assertEqual(self.names(orden="antiguos"), ["grande", "corto", "grande-remake", "sin-datos"])
+        # Corto tiene mejor nota de la crítica, pero de un solo medio: va detrás.
+        self.assertEqual(self.names(orden="critica")[:2], ["grande", "corto"])
+        self.assertEqual(self.names(orden="jugadores")[:2], ["corto", "grande"])
+        self.assertEqual(self.names(orden="cortos")[:2], ["corto", "grande"])
+        self.assertEqual(self.names(orden="largos")[:2], ["grande", "corto"])
+        self.assertEqual(self.names(orden="baratos")[:2], ["corto", "grande"])
+        LibraryEntry.objects.create(user=self.user, game=self.remake)
+        self.assertEqual(self.names(orden="tendencia")[0], "grande-remake")
+
+    def test_the_address_keeps_only_what_is_set(self):
+        response = self.client.get(
+            reverse("games:catalog"), {"tipo": "remakes", "genero": "", "orden": "", "rebajado": ""},
+            headers={"HX-Request": "true"},
+        )
+        self.assertEqual(response["HX-Push-Url"], f"{reverse('games:catalog')}?tipo=remakes")
+        self.assertEqual(response.context["filters"].active, [("Tipo: Remakes", "?")])
 
