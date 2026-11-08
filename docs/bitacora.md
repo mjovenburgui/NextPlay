@@ -13,11 +13,11 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Las cuatro ramas de abajo se subieron el 08/11/2026 y se fusionaron con `main` ese mismo día, en orden, cada una con su PR. Las ocho migraciones ya están aplicadas en tu base de datos de verdad (comprobado el 08/11/2026).
+Todas las ramas de abajo están fusionadas con `main`, cada una con su PR. Las migraciones de las cuatro primeras ya están en tu base de datos de verdad (comprobado el 08/11/2026). Justo después de fusionar `pasada-a-igdb`, en el mismo paso, toca aplicar su migración, `games.0010`, y hacer la pasada a IGDB, con una copia de seguridad antes. Lo que salga te lo digo al terminar la sesión.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
-| `pasada-a-igdb` | Una pasada a IGDB: ficha técnica, duración, ediciones agrupadas, sin DLC en las búsquedas y catálogo con filtros | Hecha, solo en local. Falta que la revises; trae la migración `games.0010`. |
+| `pasada-a-igdb` | Una pasada a IGDB: ficha técnica, duración, ediciones agrupadas, sin DLC en las búsquedas y catálogo con filtros | Fusionada con `main`: [PR #38](https://github.com/mjovenburgui/NextPlay/pull/38). Trae la migración `games.0010`. |
 | `avisos-en-un-solo-sitio` | Avisos en un solo sitio, con preferencias por tipo | Fusionada con `main`: [PR #34](https://github.com/mjovenburgui/NextPlay/pull/34). |
 | `retos-fase-2` | Retos: insignias, sección en el perfil, feed, avisos y cierre cada noche | Fusionada con `main`: [PR #35](https://github.com/mjovenburgui/NextPlay/pull/35). |
 | `repaso-de-la-biblioteca` | Repaso de la biblioteca y valor del pendiente | Fusionada con `main`: [PR #36](https://github.com/mjovenburgui/NextPlay/pull/36). |
@@ -33,9 +33,9 @@ Si un servidor de `main` da error de columnas que no existen, es que a esa base 
 
 ---
 
-## 08/11/2026 · Una pasada a IGDB y las ediciones de cada juego (hecho, sin subir)
+## 08/11/2026 · Una pasada a IGDB y las ediciones de cada juego (fusionado con main)
 
-**Rama:** `pasada-a-igdb`, encima de `main`. Un solo commit, solo en local.
+**Rama:** `pasada-a-igdb`, encima de `main`. Fusionada con `main` el 08/11/2026: [PR #38](https://github.com/mjovenburgui/NextPlay/pull/38).
 
 **Por qué:** me dijiste «empieza con la 2 a ver si puedes hacer que también salgan las ediciones de cada juego». Una sola pasada a IGDB trae para todo el catálogo lo que piden cinco propuestas: «Quitar DLC y actualizaciones de las búsquedas en IGDB», «Ficha del juego más completa», «Duración estimada de los juegos», «Ediciones agrupadas bajo su juego» y «Catálogo con filtros y orden al nivel de Backloggd (y más)».
 
@@ -100,7 +100,7 @@ Si un servidor de `main` da error de columnas que no existen, es que a esa base 
   - cinco propuestas actualizadas y dos nuevas: «Páginas de saga con tu progreso» y «Ampliar el catálogo por tandas».
 
 **Cómo lo he comprobado:**
-- **Tests:** TESTS_PENDIENTES
+- **Tests:** 24 nuevos, 562 en total. Todos pasan sin claves y con claves falsas detrás de un proxy muerto.
 - **La pasada de verdad, en la copia de tu base de datos:**
   - los 2235 juegos tienen tipo y 1530, duración;
   - 899 tienen ediciones en IGDB, 1896 tienen PEGI y hay 1465 compañías.
@@ -114,13 +114,12 @@ Si un servidor de `main` da error de columnas que no existen, es que a esa base 
 - **Sin ver en el navegador:** «Te faltan unas X h» y la carga con HTMX de una ficha técnica que nunca se había pedido, porque necesitan sesión o un juego sin pasar. Los comprueban los tests.
 
 **Qué falta:**
-1. Que lo revises en el servidor del puerto 8004, que usa una copia de tu base de datos.
-2. Cuando me digas «súbela», abro el PR y se fusiona.
-3. Después, en tu base de datos de verdad, con una copia de seguridad antes:
+1. Me pediste fusionarla al terminar, así que está en `main` sin que la hayas revisado: mírala cuando quieras.
+2. En tu base de datos de verdad, justo después de fusionar y con una copia de seguridad antes:
    - la migración `games.0010`;
    - `fill_game_fields`, menos de un minuto;
-   - `merge_editions`, primero con `--simular` para que veas qué junta.
-4. Lo que se queda para otro día:
+   - `merge_editions --simular`, para que veas qué juntaría; lo junto de verdad cuando me digas.
+3. Lo que se queda para otro día:
    - las páginas de saga con tu progreso;
    - ampliar el catálogo, que con 2235 juegos deja cortos los filtros finos;
    - la duración propia de la comunidad.
