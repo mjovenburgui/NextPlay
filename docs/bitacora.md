@@ -13,21 +13,24 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Las ramas van una encima de otra. El 08/11/2026 las subí a GitHub, cada una con su PR.
+Las cuatro ramas de este trabajo se subieron el 08/11/2026 y se fusionaron con `main` ese mismo día, en orden, cada una con su PR.
 
-Hay que fusionarlas en este orden: cada PR enseña también los cambios de los de debajo hasta que se fusionan. Después hay que aplicar las ocho migraciones a tu base de datos de verdad, haciendo antes una copia de seguridad.
+Justo después de fusionar, en el mismo paso, toca aplicar las ocho migraciones a tu base de datos de verdad, con una copia de seguridad antes. Lo que haya salido de ese paso te lo digo al terminar la sesión.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
-| `avisos-en-un-solo-sitio` | Avisos en un solo sitio, con preferencias por tipo | Subida: [PR #34](https://github.com/mjovenburgui/NextPlay/pull/34), abierto. |
-| `retos-fase-2` | Retos: insignias, sección en el perfil, feed, avisos y cierre cada noche | Subida: [PR #35](https://github.com/mjovenburgui/NextPlay/pull/35), abierto, encima del #34. |
-| `repaso-de-la-biblioteca` | Repaso de la biblioteca y valor del pendiente | Subida: [PR #36](https://github.com/mjovenburgui/NextPlay/pull/36), abierto, encima del #35. |
-| `remates-rapidos` | Siete remates rápidos, un commit por cada uno, y los PDF al día | Subida: [PR #37](https://github.com/mjovenburgui/NextPlay/pull/37), abierto, encima del #36. |
+| `avisos-en-un-solo-sitio` | Avisos en un solo sitio, con preferencias por tipo | Fusionada con `main`: [PR #34](https://github.com/mjovenburgui/NextPlay/pull/34). |
+| `retos-fase-2` | Retos: insignias, sección en el perfil, feed, avisos y cierre cada noche | Fusionada con `main`: [PR #35](https://github.com/mjovenburgui/NextPlay/pull/35). |
+| `repaso-de-la-biblioteca` | Repaso de la biblioteca y valor del pendiente | Fusionada con `main`: [PR #36](https://github.com/mjovenburgui/NextPlay/pull/36). |
+| `remates-rapidos` | Siete remates rápidos, un commit por cada uno, y los PDF al día | Fusionada con `main`: [PR #37](https://github.com/mjovenburgui/NextPlay/pull/37). |
 
-**Servidor para revisar:** puerto 8001 (`nexplay-avisos` en `.claude/launch.json`).
-- Usa una copia de tu base de datos (`db.sqlite3` de este worktree), así que lo que pruebes ahí no toca la tuya.
-- La copia ya tiene aplicadas las migraciones de las cuatro ramas: `accounts.0022` a `accounts.0025`, `challenges.0002`, `social.0008`, `library.0014` y `social.0009`.
-- La app de escritorio apaga el servidor cuando la sesión se queda quieta: si no responde, pídeme que lo levante.
+**Migraciones de estas cuatro ramas:**
+- `accounts.0022` a `accounts.0025`;
+- `challenges.0002`;
+- `social.0008` y `social.0009`;
+- `library.0014`.
+
+Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan estas migraciones: `manage.py migrate`.
 
 ---
 
