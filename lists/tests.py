@@ -1235,6 +1235,15 @@ class OpenTierListTests(TestCase):
         )
         activity = Activity.objects.get(user=self.luis)
         self.assertEqual((activity.game_list, activity.list_created), (version, True))
+        # A ana, que la abrió, le llega un aviso con la versión de luis; volver a pulsarlo no lo repite.
+        notice = Notification.objects.get(user=self.ana)
+        self.assertEqual(
+            (notice.kind, notice.actor, notice.text, notice.url),
+            (Notification.Kind.LIST_VERSION, self.luis, "luis ha hecho su versión de tu tier list «Indies».",
+             version.get_absolute_url()),
+        )
+        self.client.post(reverse("lists:make_version", args=[self.open.pk]))
+        self.assertEqual(Notification.objects.filter(user=self.ana).count(), 1)
 
     def test_one_version_each_and_none_of_your_own(self):
         url = reverse("lists:make_version", args=[self.open.pk])

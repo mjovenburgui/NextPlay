@@ -53,7 +53,7 @@ Las ramas van una encima de otra, en este orden. Ninguna está subida a GitHub: 
 - Los remates 3 a 7, sin empezar.
 - La batería completa de tests de esta rama.
 - Regenerar los dos PDF.
-- [ ] 3. **Aviso a quien abre una tier list a la comunidad** cuando alguien hace su versión.
+- [x] 3. **Aviso a quien abre una tier list a la comunidad** cuando alguien hace su versión. Llega uno por persona, con el enlace a su versión, y se apaga en Editar perfil › Avisos › «Tus listas», un grupo nuevo. Migración `accounts.0024`.
 - [ ] 4. **Listas colaborativas:**
   - solo se puede invitar a quien te sigue;
   - aviso al dueño cuando alguien acepta;
