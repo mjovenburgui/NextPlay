@@ -1723,7 +1723,8 @@ p.update-hint { display: flex; border-left-color: var(--gold); }
 @media (max-width: 760px) {
   .layout-3 > .col-left:has(.me-card) { display: none; }
   .composer:not(:focus-within):not(:has(textarea:not(:placeholder-shown))):not(:has([data-previews]:not([hidden]))) :is(.composer-games, .composer-foot) { display: none; }
-  .composer:not(:focus-within) .composer-text textarea:placeholder-shown { height: 2.75rem; min-height: 0; resize: none; }
+  /* Plegada, caben las dos líneas de «¿Qué estás jugando? Cuenta lo que quieras…» enteras y sin barra de desplazamiento. */
+  .composer:not(:focus-within) .composer-text textarea:placeholder-shown { height: 4.25rem; min-height: 0; overflow: hidden; resize: none; }
 }
 
 /* Listas: el mosaico de portadas, sus tarjetas, su página, el editor y, en la ficha, «Añadir a una lista» y «En N listas» */

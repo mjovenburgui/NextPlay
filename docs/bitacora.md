@@ -19,17 +19,17 @@ Las ramas van una encima de otra, en este orden. Ninguna está subida a GitHub: 
 |---|---|---|
 | `avisos-en-un-solo-sitio` | Avisos en un solo sitio, con preferencias por tipo | Commit `d025255`, local. Lista para revisar. |
 | `retos-fase-2` | Retos: insignias, sección en el perfil, feed, avisos y cierre cada noche | Commit `3f2532d`, local, encima de la anterior. Lista para revisar. |
-| `repaso-de-la-biblioteca` | Repaso de la biblioteca y valor del pendiente | Commit local, encima de la anterior. Lista para revisar. |
-| `remates-rapidos` | Siete remates rápidos, un commit por cada uno | En curso, encima de la anterior. |
+| `repaso-de-la-biblioteca` | Repaso de la biblioteca y valor del pendiente | Commit `f736952`, local, encima de la anterior. Lista para revisar. |
+| `remates-rapidos` | Siete remates rápidos, un commit por cada uno, y los PDF al día | Commits locales, encima de la anterior. Lista para revisar. |
 
 **Servidor para revisar:** puerto 8001 (`nexplay-avisos` en `.claude/launch.json`).
 - Usa una copia de tu base de datos (`db.sqlite3` de este worktree), así que lo que pruebes ahí no toca la tuya.
-- La copia ya tiene aplicadas las migraciones de las tres ramas: `accounts.0022`, `accounts.0023`, `challenges.0002`, `social.0008`, `library.0014` y `social.0009`.
+- La copia ya tiene aplicadas las migraciones de las cuatro ramas: `accounts.0022` a `accounts.0025`, `challenges.0002`, `social.0008`, `library.0014` y `social.0009`.
 - La app de escritorio apaga el servidor cuando la sesión se queda quieta: si no responde, pídeme que lo levante.
 
 ---
 
-## 04/11/2026 · Siete remates rápidos (en curso)
+## 04-08/11/2026 · Siete remates rápidos (hecho, sin subir)
 
 **Rama:** `remates-rapidos`, encima de `repaso-de-la-biblioteca`. Lleva un commit por cada remate, para que se puedan revisar por separado.
 
@@ -47,12 +47,7 @@ Las ramas van una encima de otra, en este orden. Ninguna está subida a GitHub: 
   - `500.html`, que va sola, sin la base de datos, por si es eso lo que falla;
   - formulario caducado (`config.views.csrf_failure`), con tu sesión y un botón para volver atrás sin perder lo escrito.
 
-  Está en `docs/pantallas.json` como «Páginas de error». Tiene 3 tests nuevos (`config/tests.py`), que pasan. Sin probar todavía en el navegador.
-
-**Pendiente:**
-- Los remates 3 a 7, sin empezar.
-- La batería completa de tests de esta rama.
-- Regenerar los dos PDF.
+  Está en `docs/pantallas.json` como «Páginas de error». Tiene 3 tests nuevos (`config/tests.py`). En el servidor de revisión no se ven: con el modo de desarrollo, Django pone sus propias páginas de error.
 - [x] 3. **Aviso a quien abre una tier list a la comunidad** cuando alguien hace su versión. Llega uno por persona, con el enlace a su versión, y se apaga en Editar perfil › Avisos › «Tus listas», un grupo nuevo. Migración `accounts.0024`.
 - [x] 4. **Listas colaborativas:**
   - **solo se puede invitar a quien te sigue:** si no, sale «leo no te sigue: solo puedes invitar a gente que te sigue». Las sugerencias del campo pasan a ser tus seguidores aún no invitados.
@@ -71,6 +66,26 @@ Las ramas van una encima de otra, en este orden. Ninguna está subida a GitHub: 
 - [x] 7. **Un test que obliga a que cada función diga sus pantallas** con nombres del catálogo (`config/tests.py`).
   - Usa las mismas reglas que el PDF y hoy pasa con todo el proyecto.
   - Lo he probado con un archivo que incumplía las dos cosas: falló como debía, y luego lo borré.
+
+**Cómo lo he comprobado:**
+- **Tests:** 10 nuevos, 538 en total. Todos pasan sin claves y con claves falsas detrás de un proxy muerto.
+- **En el navegador, con la cuenta `tester`** (en la copia de tu base de datos):
+  - **Editar perfil:**
+    - al cargar no hay aviso, y el navegador no pregunta al salir;
+    - al escribir en el nombre salen «Cambios sin guardar» (en violeta) y «Descartar», y el navegador ya preguntaría;
+    - «Descartar» recarga la página y el nombre vuelve al guardado.
+  - **Inicio a 375 px:**
+    - no sale tu columna;
+    - la caja de publicar va plegada y se abre al tocarla;
+    - las pestañas del feed y la primera actividad caben en la primera pantalla.
+
+    El campo plegado cortaba su texto de ayuda a media línea y enseñaba una barra de desplazamiento: lo he dejado en dos líneas enteras.
+  - Sin errores en la consola ni en el servidor.
+- **Migraciones:** `accounts.0024` y `accounts.0025` están aplicadas en la copia.
+- **Los dos PDF están regenerados.**
+- **Sin ver en el navegador:**
+  - **las páginas de error:** con el modo de desarrollo, Django pone las suyas; solo las comprueban los tests;
+  - **las listas colaborativas y el aviso de versiones de tier list:** también solo con tests.
 
 ---
 
