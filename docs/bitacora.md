@@ -13,14 +13,16 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Las ramas van una encima de otra, en este orden. Ninguna está subida a GitHub: cuando me digas «súbelas», abro un PR por rama y se fusionan en este orden.
+Las ramas van una encima de otra. El 08/11/2026 las subí a GitHub, cada una con su PR.
+
+Hay que fusionarlas en este orden: cada PR enseña también los cambios de los de debajo hasta que se fusionan. Después hay que aplicar las ocho migraciones a tu base de datos de verdad, haciendo antes una copia de seguridad.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
-| `avisos-en-un-solo-sitio` | Avisos en un solo sitio, con preferencias por tipo | Commit `d025255`, local. Lista para revisar. |
-| `retos-fase-2` | Retos: insignias, sección en el perfil, feed, avisos y cierre cada noche | Commit `3f2532d`, local, encima de la anterior. Lista para revisar. |
-| `repaso-de-la-biblioteca` | Repaso de la biblioteca y valor del pendiente | Commit `f736952`, local, encima de la anterior. Lista para revisar. |
-| `remates-rapidos` | Siete remates rápidos, un commit por cada uno, y los PDF al día | Commits locales, encima de la anterior. Lista para revisar. |
+| `avisos-en-un-solo-sitio` | Avisos en un solo sitio, con preferencias por tipo | Subida: [PR #34](https://github.com/mjovenburgui/NextPlay/pull/34), abierto. |
+| `retos-fase-2` | Retos: insignias, sección en el perfil, feed, avisos y cierre cada noche | Subida: [PR #35](https://github.com/mjovenburgui/NextPlay/pull/35), abierto, encima del #34. |
+| `repaso-de-la-biblioteca` | Repaso de la biblioteca y valor del pendiente | Subida: [PR #36](https://github.com/mjovenburgui/NextPlay/pull/36), abierto, encima del #35. |
+| `remates-rapidos` | Siete remates rápidos, un commit por cada uno, y los PDF al día | Subida: [PR #37](https://github.com/mjovenburgui/NextPlay/pull/37), abierto, encima del #36. |
 
 **Servidor para revisar:** puerto 8001 (`nexplay-avisos` en `.claude/launch.json`).
 - Usa una copia de tu base de datos (`db.sqlite3` de este worktree), así que lo que pruebes ahí no toca la tuya.
