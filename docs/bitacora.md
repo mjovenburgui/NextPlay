@@ -68,7 +68,9 @@ Las ramas van una encima de otra, en este orden. Ninguna está subida a GitHub: 
   - la caja de publicar se queda en su campo de texto hasta que la tocas, y no se pliega mientras tenga texto o imágenes.
 
   Así el feed sale antes. En escritorio no cambia nada.
-- [ ] 7. **Un test que obliga a que cada función diga sus pantallas** con nombres del catálogo.
+- [x] 7. **Un test que obliga a que cada función diga sus pantallas** con nombres del catálogo (`config/tests.py`).
+  - Usa las mismas reglas que el PDF y hoy pasa con todo el proyecto.
+  - Lo he probado con un archivo que incumplía las dos cosas: falló como debía, y luego lo borré.
 
 ---
 

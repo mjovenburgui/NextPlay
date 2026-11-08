@@ -810,7 +810,7 @@
   {
     "titulo": "Que las pantallas de cada función se comprueben solas",
     "fecha": "2026-11-03",
-    "estado": "pendiente",
+    "estado": "en curso",
     "prioridad": "media",
     "tipo": "Documentación",
     "resumen": "Un test que pare las funciones nuevas sin su párrafo «Pantallas:» y un aviso en el PDF de funciones cuando el código usa una función en una pantalla que su docstring no dice, para que el mapa de pantallas no se quede viejo.",
@@ -820,7 +820,7 @@
       "Un test que falle si una función no termina su docstring con «Pantallas:» o nombra una pantalla que no está en el catálogo, para que no llegue a main.",
       "En el PDF, una sección «Pantallas que el código ve y la docstring no dice», solo como aviso: el análisis no sabe dónde sale lo que se guarda (lo que importa Steam se ve en el Perfil), así que propone, no decide."
     ],
-    "notas": "Sale de reestructurar la documentación para que cada función diga qué hace y a qué pantallas afecta (03/11/2026).",
+    "notas": "Sale de reestructurar la documentación para que cada función diga qué hace y a qué pantallas afecta (03/11/2026). 08/11/2026: hecho el paso 2 en la rama remates-rapidos, sin subir. config.tests.ScreensInDocstringsTests recorre las apps del proyecto y config con las mismas reglas que el PDF (carga docs/generar_pdf.py y usa su parse y su split_screens), y falla con la lista de funciones sin «Pantallas:» o que nombran una pantalla que no está en docs/pantallas.json. Hoy pasa con todo el proyecto. Comprobado que salta con un archivo de prueba que incumplía las dos cosas, borrado después. Donde no está reportlab (solo va en requirements-dev.txt), se salta avisándolo. Faltan los pasos 1 y 3: el análisis que calcula las pantallas desde el código y su sección de avisos en el PDF.",
     "revision": {
       "fecha": "2026-11-03",
       "hoy": "Propuesta nueva. El análisis existe, pero fuera del repositorio: acierta con las vistas, lo que llaman y lo que usan las plantillas, y falla con los métodos que se llaman igual en varios modelos (get_absolute_url sale en todas las pantallas) y con lo que no se llama por su nombre (las señales y los métodos de los formularios).",
