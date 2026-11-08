@@ -117,6 +117,8 @@ EMAIL_BACKEND = os.environ.get(
 DEFAULT_FROM_EMAIL = os.environ.get("DJANGO_DEFAULT_FROM_EMAIL", "NextPlay <no-reply@localhost>")
 # Dirección pública de la web, para los enlaces de los correos que se mandan sin petición (avisos de precio).
 SITE_URL = os.environ.get("SITE_URL", "http://localhost:8000").rstrip("/")
+# Formulario caducado (falla la comprobación CSRF): página propia, con la cabecera y la sesión de siempre.
+CSRF_FAILURE_VIEW = "config.views.csrf_failure"
 
 if not DEBUG:
     SECURE_SSL_REDIRECT = True

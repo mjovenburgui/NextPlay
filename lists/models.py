@@ -4,6 +4,8 @@ lista, en Editar lista, en las pestañas Listas y Tier lists del Perfil, en la p
 y en Listas del juego.
 """
 
+import re
+
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import IntegrityError, models, transaction
@@ -29,6 +31,8 @@ DEFAULT_TIERS = [
 ]
 # Gente a la que el dueño de una lista puede invitar a editarla.
 MAX_COLLABORATORS = 10
+# Color de un nivel: «#rrggbb», en mayúsculas o en minúsculas.
+TIER_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
 def default_tiers():
@@ -273,10 +277,19 @@ class GameList(models.Model):
     def tier_list(self):
         """Sus niveles, de mejor a peor, cada uno con el color de su texto (text, ver accounts.models.text_on).
 
+        Un nivel cuyo color no es «#rrggbb» (o no tiene) lleva el de serie de su puesto (DEFAULT_TIERS), en vez de
+        romper la página.
+
         Pantallas: Página de la lista (tablero), Editar lista (niveles), Perfil (tablero en miniatura),
         Nueva tier list.
         """
-        return [{**tier, "text": text_on(tier["color"])} for tier in self.tiers]
+        tiers = []
+        for position, tier in enumerate(self.tiers):
+            color = tier.get("color")
+            if not isinstance(color, str) or not TIER_COLOR.match(color):
+                color = DEFAULT_TIERS[position % len(DEFAULT_TIERS)][1]
+            tiers.append({**tier, "color": color, "text": text_on(color)})
+        return tiers
 
     def tier_rows(self, items, keep_loose=False):
         """Los juegos items (ListItem, en su orden) repartidos por niveles: [(nivel, juegos)] en el orden de los

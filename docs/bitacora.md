@@ -13,19 +13,84 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Las ramas van una encima de otra, en este orden. Ninguna está subida a GitHub: cuando me digas «súbelas», abro un PR por rama y se fusionan en este orden.
+Las cuatro ramas de este trabajo se subieron el 08/11/2026 y se fusionaron con `main` ese mismo día, en orden, cada una con su PR.
+
+Justo después de fusionar, en el mismo paso, toca aplicar las ocho migraciones a tu base de datos de verdad, con una copia de seguridad antes. Lo que haya salido de ese paso te lo digo al terminar la sesión.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
-| `avisos-en-un-solo-sitio` | Avisos en un solo sitio, con preferencias por tipo | Commit `d025255`, local. Lista para revisar. |
-| `retos-fase-2` | Retos: insignias, sección en el perfil, feed, avisos y cierre cada noche | Commit `3f2532d`, local, encima de la anterior. Lista para revisar. |
-| `repaso-de-la-biblioteca` | Repaso de la biblioteca y valor del pendiente | Commit local, encima de la anterior. Lista para revisar. |
-| `remates-rapidos` | Siete remates rápidos, un commit por cada uno | En curso, encima de la anterior. |
+| `avisos-en-un-solo-sitio` | Avisos en un solo sitio, con preferencias por tipo | Fusionada con `main`: [PR #34](https://github.com/mjovenburgui/NextPlay/pull/34). |
+| `retos-fase-2` | Retos: insignias, sección en el perfil, feed, avisos y cierre cada noche | Fusionada con `main`: [PR #35](https://github.com/mjovenburgui/NextPlay/pull/35). |
+| `repaso-de-la-biblioteca` | Repaso de la biblioteca y valor del pendiente | Fusionada con `main`: [PR #36](https://github.com/mjovenburgui/NextPlay/pull/36). |
+| `remates-rapidos` | Siete remates rápidos, un commit por cada uno, y los PDF al día | Fusionada con `main`: [PR #37](https://github.com/mjovenburgui/NextPlay/pull/37). |
 
-**Servidor para revisar:** puerto 8001 (`nexplay-avisos` en `.claude/launch.json`).
-- Usa una copia de tu base de datos (`db.sqlite3` de este worktree), así que lo que pruebes ahí no toca la tuya.
-- La copia ya tiene aplicadas las migraciones de las tres ramas: `accounts.0022`, `accounts.0023`, `challenges.0002`, `social.0008`, `library.0014` y `social.0009`.
-- La app de escritorio apaga el servidor cuando la sesión se queda quieta: si no responde, pídeme que lo levante.
+**Migraciones de estas cuatro ramas:**
+- `accounts.0022` a `accounts.0025`;
+- `challenges.0002`;
+- `social.0008` y `social.0009`;
+- `library.0014`.
+
+Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan estas migraciones: `manage.py migrate`.
+
+---
+
+## 04-08/11/2026 · Siete remates rápidos (hecho, sin subir)
+
+**Rama:** `remates-rapidos`, encima de `repaso-de-la-biblioteca`. Lleva un commit por cada remate, para que se puedan revisar por separado.
+
+**Por qué:** me preguntaste qué se podía hacer rápido y elegiste las siete. Todas son propuestas que ya estaban abiertas y no dependen de nada tuyo.
+
+**Plan:**
+- [x] 1. **Arreglos pequeños que salieron al medir:**
+  - **«Mejor precio ahora»** sale ya en todas las fichas con precios, también cuando la tienda más barata está a la vista; antes solo salía si estaba plegada. El mínimo histórico va siempre a su lado.
+  - **La vuelta de «Lo quiero»** comprueba que la página es de esta web, como las demás: `/\otra.web` ya no cuela.
+  - **Las reseñas y los comentarios** traen ya la cuenta de Xbox de cada autor, en vez de una consulta por autor.
+  - **Fuera 6 clases de CSS sin usar.** La séptima, `shop-logo`, sí se usa: la llevan los iconos de las tiendas.
+  - 3 tests nuevos.
+- [x] 2. **Páginas de error propias**, hecho en la rama `remates-rapidos`:
+  - `404.html`, con la cabecera de siempre y un buscador;
+  - `500.html`, que va sola, sin la base de datos, por si es eso lo que falla;
+  - formulario caducado (`config.views.csrf_failure`), con tu sesión y un botón para volver atrás sin perder lo escrito.
+
+  Está en `docs/pantallas.json` como «Páginas de error». Tiene 3 tests nuevos (`config/tests.py`). En el servidor de revisión no se ven: con el modo de desarrollo, Django pone sus propias páginas de error.
+- [x] 3. **Aviso a quien abre una tier list a la comunidad** cuando alguien hace su versión. Llega uno por persona, con el enlace a su versión, y se apaga en Editar perfil › Avisos › «Tus listas», un grupo nuevo. Migración `accounts.0024`.
+- [x] 4. **Listas colaborativas:**
+  - **solo se puede invitar a quien te sigue:** si no, sale «leo no te sigue: solo puedes invitar a gente que te sigue». Las sugerencias del campo pasan a ser tus seguidores aún no invitados.
+  - **aviso al dueño** cuando alguien acepta, una vez por persona, en el grupo «Tus listas». Migración `accounts.0025`.
+  - **un nivel con un color raro** coge el de serie de su puesto, en vez de romper la tier list.
+- [x] 5. **Editar perfil avisa al salir con cambios sin guardar.**
+  - En cuanto tocas algo salen «Cambios sin guardar» y «Descartar» en la barra de guardar.
+  - Si cierras, recargas o sales sin guardar, el navegador pregunta. Al guardar, no.
+  - «Descartar» vuelve a lo guardado.
+  - Es solo JavaScript: el test comprueba el HTML, pero el aviso del navegador hay que verlo en el servidor.
+- [x] 6. **Inicio en el móvil**, solo con CSS:
+  - tu tarjeta de resumen ya no sale (la barra de abajo lleva a tu perfil);
+  - la caja de publicar se queda en su campo de texto hasta que la tocas, y no se pliega mientras tenga texto o imágenes.
+
+  Así el feed sale antes. En escritorio no cambia nada.
+- [x] 7. **Un test que obliga a que cada función diga sus pantallas** con nombres del catálogo (`config/tests.py`).
+  - Usa las mismas reglas que el PDF y hoy pasa con todo el proyecto.
+  - Lo he probado con un archivo que incumplía las dos cosas: falló como debía, y luego lo borré.
+
+**Cómo lo he comprobado:**
+- **Tests:** 10 nuevos, 538 en total. Todos pasan sin claves y con claves falsas detrás de un proxy muerto.
+- **En el navegador, con la cuenta `tester`** (en la copia de tu base de datos):
+  - **Editar perfil:**
+    - al cargar no hay aviso, y el navegador no pregunta al salir;
+    - al escribir en el nombre salen «Cambios sin guardar» (en violeta) y «Descartar», y el navegador ya preguntaría;
+    - «Descartar» recarga la página y el nombre vuelve al guardado.
+  - **Inicio a 375 px:**
+    - no sale tu columna;
+    - la caja de publicar va plegada y se abre al tocarla;
+    - las pestañas del feed y la primera actividad caben en la primera pantalla.
+
+    El campo plegado cortaba su texto de ayuda a media línea y enseñaba una barra de desplazamiento: lo he dejado en dos líneas enteras.
+  - Sin errores en la consola ni en el servidor.
+- **Migraciones:** `accounts.0024` y `accounts.0025` están aplicadas en la copia.
+- **Los dos PDF están regenerados.**
+- **Sin ver en el navegador:**
+  - **las páginas de error:** con el modo de desarrollo, Django pone las suyas; solo las comprueban los tests;
+  - **las listas colaborativas y el aviso de versiones de tier list:** también solo con tests.
 
 ---
 

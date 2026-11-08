@@ -472,9 +472,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .reviews { margin-top: 2rem; }
 .reviews h2 { font-size: 1.3rem; margin: 0 0 .75rem; }
 .reviews h2 .muted { font-size: 1rem; font-weight: 400; }
-.review-form summary { cursor: pointer; margin: 0; }
-.review-form[open] summary { margin-bottom: .75rem; }
-.review-form .btn + .help { display: inline; margin-left: .75rem; }
 .review { margin: 0 0 .75rem; padding: 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 .review.is-own { border-color: rgba(157, 92, 255, .6); }
 .review-head { display: flex; align-items: center; gap: .75rem; }
@@ -484,9 +481,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .own-tag { margin-left: .4rem; padding: .05rem .45rem; border-radius: 6px; background: var(--violet); color: #fff; font-size: .72rem; font-weight: 600; }
 .review-thumb { flex: none; width: 44px; aspect-ratio: 3 / 4; overflow: hidden; border: 1px solid var(--border); border-radius: 6px; background: linear-gradient(145deg, #1b1440, #0b2740); }
 .review-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.review-stars { letter-spacing: .05em; color: var(--star-off); }
-.review-stars { display: inline-flex; flex-direction: row-reverse; }
-.review-stars .on { color: var(--gold); }
 .review-text { margin: .75rem 0 0; max-width: 75ch; overflow-wrap: anywhere; }
 .spoiler { margin-top: .75rem; }
 .spoiler summary { color: var(--pink); cursor: pointer; font-size: .9rem; }
@@ -643,12 +637,6 @@ button.chip-link { background: none; font-family: inherit; cursor: pointer; }
 .hours-when { grid-column: 1 / -1; color: var(--muted); font-size: .8rem; }
 .hours-total { margin: 0; color: var(--muted); font-size: .85rem; }
 .hours-total strong { color: var(--text); font-variant-numeric: tabular-nums; }
-.rate-stars { display: inline-flex; flex-direction: row-reverse; }
-.rate-star { padding: 0 .1rem; background: none; border: 0; font-size: 1.5rem; line-height: 1; color: var(--star-off); cursor: pointer; }
-.rate-star.is-on { color: var(--gold); }
-.rate-stars:hover .rate-star { color: var(--star-off); }
-.rate-stars .rate-star:hover, .rate-stars .rate-star:hover ~ .rate-star { color: var(--gold); }
-.rate-star:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; border-radius: 4px; }
 
 /* Juegos importados sin emparejar */
 .panel-wide { max-width: 760px; }
@@ -767,8 +755,6 @@ button.chip-link { background: none; font-family: inherit; cursor: pointer; }
 .settings-card { scroll-margin-top: 5rem; padding: 1.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 .settings-card h2 { margin: 0 0 .35rem; font-size: 1.2rem; }
 .settings-card > .help { margin: 0; font-size: .9rem; }
-.settings-form h2 + .field { margin-top: 1rem; }
-.settings-form h2:not(:first-of-type) { margin-top: 1.75rem; }
 .field-foot { display: flex; justify-content: space-between; gap: 1rem; }
 .field-foot span:last-child { flex: none; font-variant-numeric: tabular-nums; }
 .settings-actions { display: flex; justify-content: flex-end; gap: .5rem; flex-wrap: wrap; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); }
@@ -1144,6 +1130,9 @@ a.social-link:hover { border-color: var(--violet); text-decoration: none; }
   padding: .85rem 1rem; background: rgba(14, 18, 34, .94); backdrop-filter: blur(10px);
   border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 -10px 30px rgba(0, 0, 0, .35);
 }
+/* «Cambios sin guardar» a la izquierda de la barra, con el color del perfil; «Descartar» y él, ocultos hasta que se toca algo */
+.settings-savebar .unsaved { align-self: center; margin-right: auto; color: var(--violet); font-size: .9rem; font-weight: 600; }
+.settings-savebar [hidden] { display: none; }
 .field-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 0 1rem; }
 .status-row-input { display: flex; gap: .5rem; }
 .status-row-input .emoji-input { flex: none; width: 4.25rem; padding: .4rem .5rem; font-size: 1.2rem; text-align: center; }
@@ -1418,7 +1407,6 @@ html:has(> body.is-preview) { scrollbar-width: none; }
 .fact .icon { width: .95rem; height: .95rem; }
 .fact-done { border-color: rgba(34, 224, 240, .55); color: var(--cyan-text); }
 .fact-hours { border-color: rgba(157, 92, 255, .5); }
-.fact-source { color: var(--muted); font-weight: 500; }
 div.review-text { margin: .35rem 0 0; }
 .review-text p { margin: .6rem 0 0; }
 .review-more { display: inline-block; margin-top: .4rem; font-size: .9rem; font-weight: 600; }
@@ -1728,6 +1716,15 @@ p.update-hint { display: flex; border-left-color: var(--gold); }
 .post-comments .comments { margin-top: 0; }
 @media (max-width: 480px) {
   .composer-games, .composer-previews, .composer-foot, .composer > .help, .composer > .errorlist { margin-left: 0; }
+}
+/* Inicio en el móvil: la actividad antes que tu resumen. Tu columna (tarjeta y menú) no sale, porque la barra de abajo
+   ya lleva a tu perfil, y la caja de publicar se queda en su campo de texto hasta que la tocas; con texto o imágenes,
+   sigue abierta. */
+@media (max-width: 760px) {
+  .layout-3 > .col-left:has(.me-card) { display: none; }
+  .composer:not(:focus-within):not(:has(textarea:not(:placeholder-shown))):not(:has([data-previews]:not([hidden]))) :is(.composer-games, .composer-foot) { display: none; }
+  /* Plegada, caben las dos líneas de «¿Qué estás jugando? Cuenta lo que quieras…» enteras y sin barra de desplazamiento. */
+  .composer:not(:focus-within) .composer-text textarea:placeholder-shown { height: 4.25rem; min-height: 0; overflow: hidden; resize: none; }
 }
 
 /* Listas: el mosaico de portadas, sus tarjetas, su página, el editor y, en la ficha, «Añadir a una lista» y «En N listas» */
@@ -2096,6 +2093,14 @@ form:has(input[name="mode"]:checked:not([value="tiers"])) .switch-row[data-field
 .activity-trophy .icon { width: 1.5rem; height: 1.5rem; }
 .activity-trophy.is-won { color: var(--gold); border-color: rgba(255, 200, 74, .5); }
 .activity-challenge .muted { margin: .2rem 0 0; }
+/* Páginas de error (404.html, 500.html y 403_csrf.html): centradas, con el código grande y por dónde seguir */
+.error-page { max-width: 640px; margin: 2.5rem auto; text-align: center; }
+.error-code { margin: 0; font-size: 4rem; font-weight: 800; line-height: 1; color: var(--violet); }
+.error-page h1 { margin: .5rem 0; }
+.error-search { display: flex; gap: .5rem; max-width: 420px; margin: 1.25rem auto 0; }
+.error-search input { flex: 1; min-width: 0; }
+.error-links { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; margin: 1.25rem 0 0; }
+.error-links .btn { display: inline-flex; align-items: center; gap: .35rem; }
 /* Repasar la biblioteca: el aviso del perfil y la tarjeta de cada juego, con sus botones grandes */
 .tidy-callout { display: flex; align-items: center; gap: .9rem; margin: 0 0 1rem; padding: .85rem 1rem; background: linear-gradient(120deg, rgba(157, 92, 255, .14), var(--surface-2)); border: 1px solid rgba(157, 92, 255, .45); border-radius: 12px; }
 .tidy-callout > .icon { flex: none; width: 1.5rem; height: 1.5rem; color: var(--violet); }

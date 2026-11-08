@@ -23,16 +23,16 @@ SUGGESTED_COLLABORATORS = 20
 
 def collaborators_context(game_list, owner):
     """Variables de la sección «Quién puede editarla» del editor (lists/_collaborators.html): la gente invitada, con si
-    ha aceptado; cuántos caben; y, para escribir su nombre, la gente a la que sigue owner que aún no está invitada
-    (suggested, como mucho SUGGESTED_COLLABORATORS).
+    ha aceptado; cuántos caben; y, para escribir su nombre, la gente que sigue a owner y aún no está invitada, que es a
+    quien puede invitar (suggested, como mucho SUGGESTED_COLLABORATORS).
 
     Pantallas: Editar lista («Quién puede editarla»).
     """
     collaborators = list(game_list.collaborators.select_related("user__profile", "user__psn_account", "user__xbox_account"))
     invited = [collaborator.user_id for collaborator in collaborators]
     suggested = list(
-        owner.following.exclude(followed_id__in=invited)
-        .values_list("followed__username", flat=True)[:SUGGESTED_COLLABORATORS]
+        owner.followers.exclude(follower_id__in=invited)
+        .values_list("follower__username", flat=True)[:SUGGESTED_COLLABORATORS]
     )
     return {
         "game_list": game_list, "collaborators": collaborators, "max_collaborators": MAX_COLLABORATORS,
@@ -59,7 +59,8 @@ def _collaborators_response(request, game_list, error=""):
 @login_required
 def invite(request, list_id):
     """Invita a alguien (usuario=, su nombre de usuario, con o sin @) a editar los juegos de una lista del usuario y se
-    lo avisa en la campana. Caben MAX_COLLABORATORS; no puede invitarse a sí mismo ni a quien ya está invitado.
+    lo avisa en la campana. Solo a quien le sigue: seguir ya es una forma de decir que quiere saber de él. Caben
+    MAX_COLLABORATORS; no puede invitarse a sí mismo ni a quien ya está invitado.
 
     Pantallas: Editar lista (invitar a alguien), Avisos (aviso al invitado), Página de la lista (le pregunta si
     acepta).
@@ -74,6 +75,8 @@ def invite(request, list_id):
         error = "Ya puedes editarla: es tuya."
     elif game_list.collaborators.filter(user=invitee).exists():
         error = f"{invitee.profile.name} ya está invitado."
+    elif not invitee.following.filter(followed=request.user).exists():
+        error = f"{invitee.profile.name} no te sigue: solo puedes invitar a gente que te sigue."
     elif game_list.collaborators.count() >= MAX_COLLABORATORS:
         error = f"Caben {MAX_COLLABORATORS} personas por lista: quita a alguien para invitar a otra."
     else:
@@ -101,14 +104,23 @@ def collaborator_remove(request, list_id, user_id):
 @require_POST
 @login_required
 def accept(request, list_id):
-    """Acepta la invitación del usuario a editar una lista y lleva a su editor; 404 si no le han invitado.
+    """Acepta la invitación del usuario a editar una lista, se lo cuenta a su dueño (una vez por persona:
+    accounts.notices) y lleva a su editor; 404 si no le han invitado.
 
-    Pantallas: Página de la lista (aceptar la invitación), Editar lista.
+    Pantallas: Página de la lista (aceptar la invitación), Editar lista, Avisos (al dueño de la lista).
     """
-    invitation = get_object_or_404(ListCollaborator, game_list_id=list_id, user=request.user)
+    invitation = get_object_or_404(
+        ListCollaborator.objects.select_related("game_list__user"), game_list_id=list_id, user=request.user,
+    )
     if invitation.accepted_at is None:
         invitation.accepted_at = timezone.now()
         invitation.save(update_fields=["accepted_at"])
+        game_list = invitation.game_list
+        notices.notify(
+            game_list.user, Notification.Kind.LIST_ACCEPT,
+            f"{request.user.profile.name} ya puede editar tu {game_list.noun} «{game_list.title}».",
+            game_list.get_absolute_url(), actor=request.user,
+        )
         messages.success(request, "Ya puedes añadir, ordenar y comentar los juegos de esta lista.")
     return redirect(f"{reverse('lists:edit', args=[list_id])}#juegos")
 

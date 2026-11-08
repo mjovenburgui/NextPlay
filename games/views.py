@@ -258,8 +258,9 @@ def _user_shops(request):
 def _prices_context(request, game):
     """Variables de «Dónde comprarlo» (games/_prices.html).
 
-    Los precios llegan ya repartidos por Game.price_groups(); store_searches() da los enlaces de búsqueda a las
-    tiendas de consola sin precio. Si el usuario ha elegido sus tiendas solo se enseñan esas, salvo con
+    Los precios llegan ya repartidos por Game.price_groups(), y el mejor de ahora, de Game.cheapest() con las mismas
+    tiendas, esté a la vista o plegado; store_searches() da los enlaces de búsqueda a las tiendas de consola sin
+    precio. Si el usuario ha elegido sus tiendas solo se enseñan esas, salvo con
     ?tiendas=todas. El historial de precios de PC va ya pintado si está al día; si hay que pedirlo a ITAD, se carga
     después con HTMX (price_history), y su gráfica elige tienda con ?tienda=.
 
@@ -267,7 +268,9 @@ def _prices_context(request, game):
     """
     user_shops = _user_shops(request)
     show_all = request.GET.get("tiendas") == history.ALL_SHOPS or not user_shops
-    featured_prices, listed_prices, folded_prices, best_price = game.price_groups(None if show_all else user_shops)
+    shown_shops = None if show_all else user_shops
+    featured_prices, listed_prices, folded_prices = game.price_groups(shown_shops)
+    best_price = game.cheapest(shown_shops)
     has_pc_prices = any(price.source == GamePrice.Source.ITAD for price in game.prices.all())
     # Con el historial reciente se pinta ya; si hay que pedirlo a ITAD, la ficha lo carga después con HTMX.
     fresh = not history.needs_update(game)

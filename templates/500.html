@@ -1,0 +1,21 @@
+{% load static %}<!doctype html>
+{# Fallo del servidor: la de Django (server_error) con esta plantilla. Va sola, sin base.html ni nada de la base de datos, porque puede que lo que falle sea justo eso. #}
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Algo ha fallado · NextPlay</title>
+  <link rel="icon" href="{% static 'favicon.svg' %}" type="image/svg+xml">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+  <main class="container">
+    <section class="panel error-page">
+      <p class="error-code" aria-hidden="true">500</p>
+      <h1>Algo ha fallado</h1>
+      <p class="muted">No es culpa tuya: algo se ha roto de nuestro lado. Vuelve a intentarlo dentro de un momento; si sigue pasando, ya nos habrá llegado el aviso.</p>
+      <p class="error-links"><a class="btn btn-primary" href="/">Volver al inicio</a></p>
+    </section>
+  </main>
+</body>
+</html>

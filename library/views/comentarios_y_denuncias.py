@@ -33,7 +33,10 @@ def comment_thread(parent, comments, viewer, *, comment_url, delete_url_name, re
 
     Pantallas: Página de la reseña, Página de la publicación, Página de la lista (comentarios).
     """
-    comments = list(comments.select_related("user__profile", "user__psn_account").prefetch_related("user__steam_accounts"))
+    comments = list(
+        comments.select_related("user__profile", "user__psn_account", "user__xbox_account")
+        .prefetch_related("user__steam_accounts")
+    )
     reported = set()
     if viewer.is_authenticated and comments:
         reported = set(

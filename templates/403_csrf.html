@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Formulario caducado · NextPlay{% endblock %}
+
+{% block content %}
+  {# Formulario caducado (config.views.csrf_failure): el envío no traía su comprobación de seguridad o ya no valía. #}
+  <section class="panel error-page">
+    <p class="error-code" aria-hidden="true">403</p>
+    <h1>El formulario ha caducado</h1>
+    <p class="muted">La página llevaba mucho rato abierta o se cerró la sesión en otra pestaña, así que no hemos guardado nada por seguridad. Vuelve atrás, recarga la página y envíalo otra vez: lo que escribiste puede seguir ahí.</p>
+    {% if reason %}<p class="help">Motivo (solo en desarrollo): {{ reason }}</p>{% endif %}
+    <p class="error-links">
+      {# Atrás con el historial, y no con un enlace: así el navegador suele conservar lo que había escrito en el formulario. #}
+      <button class="btn btn-primary" type="button" onclick="history.back()">Volver atrás</button>
+      <a class="btn" href="{% url 'home' %}">{% include "_icon.html" with name="home" %} Ir al inicio</a>
+    </p>
+  </section>
+{% endblock %}

@@ -137,6 +137,11 @@
       "que_es": "Los cuatro pasos para cambiar la contraseña olvidada (pedirla, revisar el correo, escribir la nueva y listo) y el correo que se manda. Las vistas son las de Django (django.contrib.auth); NextPlay solo pone las plantillas, así que ninguna función del proyecto las toca."
     },
     {
+      "nombre": "Páginas de error",
+      "urls": [],
+      "que_es": "Lo que sale cuando una dirección no existe (o es de algo privado o borrado), cuando falla el servidor y cuando un formulario ha caducado: qué ha pasado y por dónde seguir. Las dos primeras son las vistas de Django con las plantillas 404.html y 500.html; la del formulario caducado es config.views.csrf_failure."
+    },
+    {
       "nombre": "Panel de administración",
       "urls": [],
       "direccion": "/admin/",

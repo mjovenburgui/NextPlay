@@ -124,11 +124,12 @@ def _readable_list(request, list_id):
 @login_required
 def make_version(request, list_id):
     """«Haz tu versión» de una tier list abierta a la comunidad: crea la del usuario (GameList.make_version), la apunta
-    en su actividad y lleva a su página, para colocar los juegos en su tablero; si ya la tiene, lleva a ella. Las que no
-    están abiertas dan 404, y la propia 400: su tablero ya cuenta en la de la comunidad.
+    en su actividad, se lo cuenta a quien la abrió (una vez por persona: accounts.notices) y lleva a su página, para
+    colocar los juegos en su tablero; si ya la tiene, lleva a ella. Las que no están abiertas dan 404, y la propia 400:
+    su tablero ya cuenta en la de la comunidad.
 
     Pantallas: Página de la lista (botón «Haz tu versión»), Perfil (pestaña Tier lists), Tier lists, Inicio (feed:
-    «hizo su versión de…»).
+    «hizo su versión de…»), Avisos (a quien la abrió).
     """
     game_list = _readable_list(request, list_id)
     if not game_list.accepts_versions:
@@ -138,6 +139,11 @@ def make_version(request, list_id):
     version, created = game_list.make_version(request.user)
     if created:
         activity.list_created(version)
+        notices.notify(
+            game_list.user, Notification.Kind.LIST_VERSION,
+            f"{request.user.profile.name} ha hecho su versión de tu tier list «{game_list.title}».",
+            version.get_absolute_url(), actor=request.user,
+        )
         messages.success(
             request, "Ya tienes tu versión: arrastra los juegos a su nivel. Cuenta en la de la comunidad en cuanto colocas alguno.",
         )

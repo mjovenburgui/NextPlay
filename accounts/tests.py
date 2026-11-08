@@ -2442,3 +2442,9 @@ class NoticePrefsTests(TestCase):
         self.client.post(reverse("edit_profile"), {"display_name": "Ana", "is_public": "on"})
         self.assertEqual(self.prefs(), {})
         self.assertEqual(Profile.objects.get(user=self.user).display_name, "Ana")
+
+    def test_unsaved_changes_warning_starts_hidden(self):
+        response = self.client.get(reverse("edit_profile"))
+        self.assertContains(response, '<span class="unsaved" data-unsaved role="status" hidden>Cambios sin guardar</span>')
+        self.assertContains(response, '<button class="btn" type="button" data-discard hidden>Descartar</button>')
+        self.assertContains(response, 'window.addEventListener("beforeunload"')
