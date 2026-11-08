@@ -44,9 +44,9 @@
     </header>
 
     {% if mine %}
-      {# Cómo vas tú: se cuenta solo con tu biblioteca. #}
-      <section class="card-box challenge-mine{% if mine.completed_at %} is-won{% endif %}" aria-labelledby="challenge-mine-title">
-        <h2 id="challenge-mine-title">{% if mine.completed_at %}{% include "_icon.html" with name="trophy" %} ¡Lo has conseguido!{% else %}Tu progreso{% endif %}</h2>
+      {# Cómo vas tú: se cuenta solo con tu biblioteca. Si has llegado al objetivo, sale conseguido aunque aún no esté apuntado (lo apuntan la biblioteca, las importaciones y el repaso de cada noche). #}
+      <section class="card-box challenge-mine{% if mine.completed_at or mine.progress.reached %} is-won{% endif %}" aria-labelledby="challenge-mine-title">
+        <h2 id="challenge-mine-title">{% if mine.completed_at or mine.progress.reached %}{% include "_icon.html" with name="trophy" %} ¡Lo has conseguido!{% else %}Tu progreso{% endif %}</h2>
         <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ mine.progress.percent }}" aria-labelledby="challenge-mine-title">
           <span style="width: {{ mine.progress.percent }}%"></span>
         </div>
@@ -87,7 +87,7 @@
               <div class="challenge-rank-main">
                 <p>
                   <a class="person-name" href="{{ participation.user.profile.get_absolute_url }}">{{ participation.user.profile.name }}</a>
-                  {% if participation.completed_at %}<span class="pill pill-won">{% include "_icon.html" with name="check" %} Conseguido</span>{% endif %}
+                  {% if participation.completed_at or participation.progress.reached %}<span class="pill pill-won">{% include "_icon.html" with name="check" %} Conseguido</span>{% endif %}
                 </p>
                 <span class="progress-bar" aria-hidden="true"><span style="width: {{ participation.progress.percent }}%"></span></span>
               </div>

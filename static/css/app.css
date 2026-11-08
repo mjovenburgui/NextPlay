@@ -2081,6 +2081,21 @@ form:has(input[name="mode"]:checked:not([value="tiers"])) .switch-row[data-field
 .challenge-rank-value { flex: none; font-weight: 800; font-variant-numeric: tabular-nums; }
 .pill-won { display: inline-flex; align-items: center; gap: .2rem; margin: 0; border-color: rgba(255, 200, 74, .6); color: var(--gold-text); }
 .pill-won .icon { width: .85rem; height: .85rem; }
+/* Insignias de la sección «Retos» del perfil: un trofeo dorado y el título de cada reto conseguido */
+.challenge-badges { display: flex; flex-wrap: wrap; gap: .5rem; margin: .5rem 0 .9rem; padding: 0; list-style: none; }
+.challenge-badge {
+  display: inline-flex; align-items: center; gap: .4rem; max-width: 100%; padding: .4rem .75rem; color: var(--text);
+  background: linear-gradient(120deg, rgba(255, 200, 74, .16), var(--surface-2)); border: 1px solid rgba(255, 200, 74, .5);
+  border-radius: 999px; font-size: .9rem; font-weight: 600;
+}
+.challenge-badge:hover { border-color: var(--gold); text-decoration: none; }
+.challenge-badge .icon { flex: none; width: 1rem; height: 1rem; color: var(--gold); }
+.challenge-badge span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* En el feed, los retos llevan un trofeo donde los juegos llevan su portada; dorado si lo ha conseguido */
+.activity-trophy { display: grid; place-items: center; height: 48px; color: var(--muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; }
+.activity-trophy .icon { width: 1.5rem; height: 1.5rem; }
+.activity-trophy.is-won { color: var(--gold); border-color: rgba(255, 200, 74, .5); }
+.activity-challenge .muted { margin: .2rem 0 0; }
 .challenge-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 0 1rem; }
 .challenge-form fieldset { padding: 0; border: 0; }
 .challenge-form legend { margin-bottom: .4rem; font-weight: 600; font-size: .9rem; }

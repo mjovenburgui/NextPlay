@@ -1,5 +1,5 @@
 {% load reviews %}
-{# Una actividad: lo que hizo un jugador con un juego (estado, nota y reseña juntos), lo que importó, lo que publicó o una lista que creó o a la que añadió juegos. #}
+{# Una actividad: lo que hizo un jugador con un juego (estado, nota y reseña juntos), lo que importó, lo que publicó, una lista que creó o a la que añadió juegos o un reto que creó, al que se unió o que consiguió. #}
 {# Necesita activity; con show_user también se ve quién fue (para el feed). #}
 <li class="activity">
   {% if show_user %}{% include "accounts/_avatar.html" with profile=activity.user.profile size="sm" %}{% endif %}
@@ -31,6 +31,19 @@
           {% endfor %}
         </ul>
       {% endif %}
+    {% elif activity.kind == "challenge" %}
+      {% with challenge=activity.challenge %}
+        <p class="activity-line">
+          {% if show_user %}<a class="activity-author" href="{{ activity.user.profile.get_absolute_url }}">{{ activity.user.profile.name }}</a> {{ activity.challenge_verb }}{% else %}{{ activity.challenge_verb|capfirst }}{% endif %}
+          <a class="activity-game" href="{{ challenge.get_absolute_url }}">{{ challenge.title }}</a>{% if challenge.creator_id != activity.user_id %} de <a class="activity-author" href="{{ challenge.creator.profile.get_absolute_url }}">{{ challenge.creator.profile.name }}</a>{% endif %}
+        </p>
+        {# El reto: lo que hay que hacer, cuándo y cuánta gente está. #}
+        <div class="activity-review activity-challenge">
+          <p class="review-text">{{ challenge.rules_text }}</p>
+          <p class="muted small">{{ challenge.dates_text|capfirst }} · {{ challenge.participant_count }} participante{{ challenge.participant_count|pluralize }}</p>
+          <p class="feed-actions"><a class="review-more" href="{{ challenge.get_absolute_url }}">Ver el reto</a></p>
+        </div>
+      {% endwith %}
     {% elif activity.kind == "list" %}
       {% with game_list=activity.game_list %}
         <p class="activity-line">
@@ -96,5 +109,8 @@
     <a class="review-thumb activity-cover" href="{{ activity.game.get_absolute_url }}" tabindex="-1" aria-hidden="true">{% if activity.game.cover_url %}<img src="{{ activity.game.cover_url }}" alt="" loading="lazy">{% endif %}</a>
   {% elif activity.game_list %}
     <a class="activity-cover" href="{{ activity.game_list.get_absolute_url }}" tabindex="-1" aria-hidden="true">{% include "lists/_mosaic.html" with game_list=activity.game_list size="sm" %}</a>
+  {% elif activity.challenge %}
+    {# Los retos no tienen portada: un trofeo, dorado si lo ha conseguido. #}
+    <a class="activity-cover activity-trophy{% if activity.data.won %} is-won{% endif %}" href="{{ activity.challenge.get_absolute_url }}" tabindex="-1" aria-hidden="true">{% include "_icon.html" with name="trophy" %}</a>
   {% endif %}
 </li>

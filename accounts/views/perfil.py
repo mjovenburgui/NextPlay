@@ -10,6 +10,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.http import Http404
 from django.shortcuts import get_object_or_404, render
 
+from challenges import progress as challenge_progress
 from games.models import LANGUAGE_FILTERS, Game, Genre, language_filter
 from library.models import HOURS_SOURCES, LibraryEntry, Review
 from library.views import mark_liked
@@ -64,7 +65,9 @@ def _profile_context(request, owner, favorites=None, preview=False):
     pestañas y el escaparate; las tier lists que se enseñan llevan su tablero en miniatura (lists.views.mark_boards).
     Con sus logros importados (accounts.achievements), cada juego de la biblioteca lleva su insignia de «Platino» o
     «100 %» (achievement_badge) y las cifras de la cabecera, sus platinos y sus juegos al 100 %; si el escaparate
-    enseña la sección «Logros», lleva también sus últimos logros y el más raro (achievements.showcase).
+    enseña la sección «Logros», lleva también sus últimos logros y el más raro (achievements.showcase). Si enseña la
+    sección «Retos», sus insignias y los retos que lleva en marcha, solo los que quien mira puede ver
+    (challenges.progress.showcase).
 
     Pantallas: Perfil (cabecera, escaparate y pestañas), Editar perfil (vista previa).
     """
@@ -145,6 +148,11 @@ def _profile_context(request, owner, favorites=None, preview=False):
         "show_showcase": show_showcase,
         "achievement_showcase": (
             achievements.showcase(owner) if show_showcase and "logros" in owner.profile.visible_sections else None
+        ),
+        # En la vista previa, los retos como los vería cualquiera: sin los privados.
+        "challenge_showcase": (
+            challenge_progress.showcase(owner, AnonymousUser() if preview else request.user)
+            if show_showcase and "retos" in owner.profile.visible_sections else None
         ),
         "favorites": list(owner.favorite_games.select_related("game")) if favorites is None else favorites,
         "max_favorites": FavoriteGame.MAX_PER_USER,

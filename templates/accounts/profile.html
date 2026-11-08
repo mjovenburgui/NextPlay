@@ -234,6 +234,33 @@
             {% endif %}
           </section>
         {% endif %}
+      {% elif key == "retos" %}
+        {# Sus insignias (los retos que ha conseguido) y los que lleva en marcha, con cómo va (challenges.progress.showcase); a su dueño, aunque no tenga, para que sepa de dónde salen. Los privados solo los ve quien los crea. #}
+        {% if challenge_showcase or is_owner %}
+          <section class="card-box showcase">
+            <header class="box-head">
+              <h2>{% include "_icon.html" with name="trophy" %} Retos</h2>
+              {% if challenge_showcase.won_count %}<span class="muted small">{{ challenge_showcase.won_count }} conseguido{{ challenge_showcase.won_count|pluralize }}</span>{% endif %}
+            </header>
+            {% if challenge_showcase %}
+              {% if challenge_showcase.won %}
+                <h3 class="achievement-heading">Insignias</h3>
+                <ul class="challenge-badges">
+                  {% for challenge in challenge_showcase.won %}
+                    <li><a class="challenge-badge" href="{{ challenge.get_absolute_url }}" title="{{ challenge.rules_text }} · conseguido el {{ challenge.won_at|date:'j \d\e F \d\e Y' }}">{% include "_icon.html" with name="trophy" %}<span>{{ challenge.title }}</span></a></li>
+                  {% endfor %}
+                </ul>
+              {% endif %}
+              {% if challenge_showcase.active %}
+                <h3 class="achievement-heading">En marcha{% if challenge_showcase.active_count > challenge_showcase.active|length %} <span class="muted">{{ challenge_showcase.active_count }}</span>{% endif %}</h3>
+                {# El progreso es el del dueño del perfil: a los demás se lo cuenta en tercera persona. #}
+                <div class="challenges-grid">{% for challenge in challenge_showcase.active %}{% if is_owner %}{% include "challenges/_card.html" %}{% else %}{% include "challenges/_card.html" with third_person=True %}{% endif %}{% endfor %}</div>
+              {% endif %}
+            {% else %}
+              <p class="muted small box-empty">Aquí saldrán las insignias de los retos que consigas y cómo vas en los que tengas en marcha: <a href="{% url 'challenges:explore' %}">únete a un reto o crea el tuyo</a>.</p>
+            {% endif %}
+          </section>
+        {% endif %}
       {% endif %}
     {% endfor %}{% endif %}
 

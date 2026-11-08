@@ -23,6 +23,7 @@ from django.views.decorators.http import require_POST
 
 from accounts import images, notices
 from accounts.models import Notification, Profile
+from challenges.models import Challenge
 from games.models import Game
 from library.models import LibraryEntry, Report, Review
 from library.views import _report, comment_thread, mark_liked
@@ -177,8 +178,9 @@ def _batch(activities, viewer, cursor):
     lo da la tanda anterior, y vacío (o roto) es desde el principio. Cada actividad trae su reseña solo si
     viewer puede leerla (si su autor la volvió a dejar en borrador, no), con sus imágenes y sus «me gusta» y
     comentarios contados; su lista, solo si viewer puede verla, con su mosaico, sus «me gusta» y cuánto ha jugado
-    de ella viewer; y las importaciones traen sus juegos (import_games). Las que se quedan sin nada que enseñar no
-    salen. No mira de quién son: eso lo decide quien la llama.
+    de ella viewer; su reto, solo si viewer puede verlo (los privados, solo quien los crea), con cuánta gente está; y
+    las importaciones traen sus juegos (import_games). Las que se quedan sin nada que enseñar no salen. No mira de
+    quién son: eso lo decide quien la llama.
 
     Pantallas: Inicio (feed: cada tanda, también la de «Cargar más»), Perfil (pestaña Actividad).
     """
@@ -192,6 +194,7 @@ def _batch(activities, viewer, cursor):
             Prefetch("review", queryset=Review.objects.visible_to(viewer)),
             Prefetch("post", queryset=_posts()),
             Prefetch("game_list", queryset=GameList.objects.visible_to(viewer).with_preview()),
+            Prefetch("challenge", queryset=Challenge.objects.visible_to(viewer).with_counts()),
         )[: ACTIVITY_PAGE + 1]
     )
     next_cursor = _cursor(activities[ACTIVITY_PAGE - 1]) if len(activities) > ACTIVITY_PAGE else ""

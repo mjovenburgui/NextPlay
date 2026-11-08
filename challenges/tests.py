@@ -6,13 +6,13 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts import matching
-from accounts.models import ExternalTitle, ImportedTitle
+from accounts.models import ExternalTitle, ImportedTitle, Notification, Profile
 from games.models import Game, Genre, Platform
 from library.models import LibraryEntry, PlaySession
 from lists.models import GameList
-from social.models import Follow
+from social.models import Activity, Follow
 
-from . import progress
+from . import closing, progress
 from .models import Challenge, Participation
 
 User = get_user_model()
@@ -242,9 +242,11 @@ class ChallengePagesTests(TestCase):
         self.assertEqual([participation.user.username for participation in response.context["ranking"]], ["luis", "ana"])
         self.assertEqual(response.context["mine"].progress["value"], 1)
         self.assertContains(response, "Tu progreso")
-        # Luis ha llegado al objetivo: queda apuntado.
-        self.assertIsNotNone(Participation.objects.get(user=self.luis).completed_at)
+        # Luis ha llegado al objetivo: sale como conseguido, pero la página no apunta nada; lo apunta check.
         self.assertContains(response, "Conseguido")
+        self.assertIsNone(Participation.objects.get(user=self.luis).completed_at)
+        progress.check(self.luis)
+        self.assertIsNotNone(Participation.objects.get(user=self.luis).completed_at)
 
     def test_private_challenges_are_only_for_their_creator(self):
         challenge = self.create(is_public="")
@@ -296,3 +298,133 @@ class ChallengePagesTests(TestCase):
         response = self.client.get(reverse("challenges:explore"))
         self.assertContains(response, "De Ana")
         self.assertNotIn("mine", response.context)
+
+
+class ChallengeNewsTests(TestCase):
+    """Fase 2: lo que cuentan los retos fuera de su página: los avisos, la actividad, la sección del perfil y el repaso
+    de cada noche."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.luis = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.hades = make_game("Hades")
+        cls.celeste = make_game("Celeste")
+
+    def challenge(self, title="Dos juegos", target=1, creator=None, **fields):
+        """Un reto de número de juegos de creator (ana), con creator ya dentro."""
+        challenge = Challenge.objects.create(
+            creator=creator or self.ana, title=title, kind=Challenge.Kind.COUNT, target=target, **fields,
+        )
+        Participation.objects.create(challenge=challenge, user=challenge.creator)
+        return challenge
+
+    def texts(self, user, kind):
+        """Los textos de los avisos de tipo kind de user, del más nuevo al más viejo."""
+        return list(Notification.objects.filter(user=user, kind=kind).values_list("text", flat=True))
+
+    def test_winning_notifies_once_and_shows_in_the_feed(self):
+        self.challenge(title="Uno cualquiera")
+        self.client.force_login(self.ana)
+        self.client.post(reverse("library:set_status", args=[self.hades.pk]), {"status": "completed"})
+        self.assertIsNotNone(Participation.objects.get().completed_at)
+        self.assertEqual(
+            self.texts(self.ana, Notification.Kind.CHALLENGE_WON), ["¡Has conseguido el reto «Uno cualquiera»!"],
+        )
+        self.assertEqual(Activity.objects.get(kind=Activity.Kind.CHALLENGE).challenge_verb, "consiguió el reto")
+        # Terminar otro juego no lo repite.
+        self.client.post(reverse("library:set_status", args=[self.celeste.pk]), {"status": "completed"})
+        self.assertEqual(len(self.texts(self.ana, Notification.Kind.CHALLENGE_WON)), 1)
+        self.client.force_login(self.luis)
+        response = self.client.get(reverse("home"), {"ver": "descubrir"})
+        self.assertContains(response, "consiguió el reto")
+        self.assertContains(response, "Uno cualquiera")
+
+    def test_joining_tells_the_creator_once_and_leaving_forgets_the_activity(self):
+        challenge = self.challenge(target=2)
+        join = reverse("challenges:join", args=[challenge.pk])
+        self.client.force_login(self.luis)
+        self.client.post(join)
+        self.assertEqual(
+            self.texts(self.ana, Notification.Kind.CHALLENGE_JOINED), ["luis se ha unido a tu reto «Dos juegos»."],
+        )
+        self.assertEqual(Activity.objects.get(user=self.luis).challenge_verb, "se unió al reto")
+        self.client.post(reverse("challenges:leave", args=[challenge.pk]))
+        self.assertFalse(Activity.objects.filter(user=self.luis).exists())
+        self.client.post(join)  # vuelve: a ana no se le avisa otra vez
+        self.assertEqual(len(self.texts(self.ana, Notification.Kind.CHALLENGE_JOINED)), 1)
+
+    def test_private_challenges_stay_out_of_other_peoples_feed(self):
+        self.client.force_login(self.ana)
+        self.client.post(reverse("challenges:new"), {
+            "title": "Mi secreto", "description": "", "is_public": "", "kind": "count", "target": 3,
+        })
+        self.assertEqual(Activity.objects.get(user=self.ana).challenge_verb, "creó el reto")
+        self.assertContains(self.client.get(reverse("profile", args=["ana"]), {"vista": "actividad"}), "Mi secreto")
+        self.client.force_login(self.luis)
+        self.assertNotContains(self.client.get(reverse("home"), {"ver": "descubrir"}), "Mi secreto")
+        self.assertNotContains(self.client.get(reverse("profile", args=["ana"]), {"vista": "actividad"}), "Mi secreto")
+
+    def test_profile_section_with_badges_and_the_ones_in_progress(self):
+        won = self.challenge(title="Conseguido")
+        Participation.objects.filter(challenge=won).update(completed_at=timezone.now())
+        self.challenge(title="En marcha", target=3)
+        self.challenge(title="Secreto", is_public=False)
+        url = reverse("profile", args=["ana"])
+        response = self.client.get(url)
+        showcase = response.context["challenge_showcase"]
+        self.assertEqual([challenge.title for challenge in showcase["won"]], ["Conseguido"])
+        self.assertEqual([challenge.title for challenge in showcase["active"]], ["En marcha"])
+        self.assertContains(response, "Lleva 0 de 3")
+        self.client.force_login(self.ana)
+        response = self.client.get(url)
+        self.assertEqual(
+            {challenge.title for challenge in response.context["challenge_showcase"]["active"]}, {"En marcha", "Secreto"},
+        )
+        self.assertContains(response, "Llevas 0 de 3")
+        # Sin la sección en el escaparate no se pide nada.
+        Profile.objects.filter(user=self.ana).update(sections=[["retos", False]])
+        self.assertIsNone(self.client.get(url).context["challenge_showcase"])
+
+    def test_late_syncs_still_count_for_a_week(self):
+        today = timezone.localdate()
+        self.challenge(title="Reciente", ends_on=today - timedelta(days=2))
+        self.challenge(title="Antiguo", ends_on=today - timedelta(days=progress.GRACE_DAYS + 2))
+        complete(self.ana, self.hades, timezone.now() - timedelta(days=10))
+        self.assertEqual([challenge.title for challenge in progress.check(self.ana)], ["Reciente"])
+
+    def test_nightly_review_reminds_grants_and_closes(self):
+        today = timezone.localdate()
+        ending = self.challenge(title="Se acaba", target=2, ends_on=today + timedelta(days=2))
+        late = self.challenge(title="Tardío", starts_on=today - timedelta(days=10), ends_on=today - timedelta(days=3))
+        over = self.challenge(title="Terminado", starts_on=today - timedelta(days=20), ends_on=today - timedelta(days=8))
+        Participation.objects.create(challenge=over, user=self.luis)
+        # Sin pasar por la biblioteca: nadie ha mirado aún si cuentan.
+        complete(self.ana, self.hades, timezone.now() - timedelta(days=5))
+        complete(self.luis, self.celeste, timezone.now() - timedelta(days=12))
+
+        self.assertEqual(closing.close_all(), {"won": 2, "ending": 1, "closed": 1})
+        self.assertEqual(
+            self.texts(self.ana, Notification.Kind.CHALLENGE_ENDING),
+            ["Te quedan 3 días para el reto «Se acaba»: llevas 1 de 2 juegos."],
+        )
+        self.assertIsNotNone(Participation.objects.get(challenge=late, user=self.ana).completed_at)
+        self.assertEqual(
+            self.texts(self.luis, Notification.Kind.CHALLENGE_RESULT),
+            ["El reto «Terminado» ha terminado: lo conseguiste y quedaste 1.º de 2."],
+        )
+        self.assertEqual(
+            self.texts(self.ana, Notification.Kind.CHALLENGE_RESULT),
+            ["El reto «Terminado» ha terminado: llegaste a 0 de 1 juego y quedaste 2.º de 2."],
+        )
+        over.refresh_from_db()
+        self.assertIsNotNone(over.closed_at)
+        self.assertIsNone(Challenge.objects.get(pk=ending.pk).closed_at)
+        # La noche siguiente no repite nada.
+        self.assertEqual(closing.close_all(), {"won": 0, "ending": 0, "closed": 0})
+        self.assertEqual(Notification.objects.filter(kind=Notification.Kind.CHALLENGE_ENDING).count(), 1)
+
+    def test_nightly_reviews_the_challenges_after_syncing(self):
+        from accounts.management.commands.nightly import Command
+
+        self.assertLess(Command.TASKS.index("sync_libraries"), Command.TASKS.index("close_challenges"))

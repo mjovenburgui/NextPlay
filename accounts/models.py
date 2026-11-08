@@ -35,6 +35,7 @@ SECTIONS = [
     ("listas", "Listas"),
     ("tier-lists", "Tier lists"),
     ("logros", "Logros"),
+    ("retos", "Retos"),
 ]
 
 # Redes sociales que se pueden enseñar en el perfil: clave → (nombre, expresión que debe cumplir el usuario,
@@ -995,6 +996,10 @@ class Notification(models.Model):
         LIST_LIKE = "list_like", "Me gusta en tu lista"
         LIST_COMMENT = "list_comment", "Comentario en tu lista"
         LIST_INVITE = "list_invite", "Invitación a editar una lista"
+        CHALLENGE_WON = "challenge_won", "Reto conseguido"
+        CHALLENGE_JOINED = "challenge_join", "Alguien se une a tu reto"
+        CHALLENGE_ENDING = "challenge_ending", "A un reto le quedan pocos días"
+        CHALLENGE_RESULT = "challenge_result", "Un reto ha terminado"
         # Solo para los administradores.
         REPORT = "report", "Denuncia"
 

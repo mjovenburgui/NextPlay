@@ -223,6 +223,9 @@ class Activity(models.Model):
     - POST: una publicación (post), con su juego si lo tiene. Se borra con ella.
     - LIST: una lista (game_list): que la ha creado («created» en data) y cuántos juegos le ha añadido («added»),
       juntos si van seguidos (MERGE_WINDOW). Se borra con ella; si es privada, solo la ve su dueño.
+    - CHALLENGE: un reto (challenge): que se ha unido a él, que lo ha creado («created» en data) o que lo ha
+      conseguido («won»), juntos si van seguidos (MERGE_WINDOW). Se borra con el reto o si lo deja; si es privado,
+      solo la ve su creador.
 
     updated_at es la hora de lo último que se ha juntado: la que se enseña y por la que se ordena.
     """
@@ -232,6 +235,7 @@ class Activity(models.Model):
         IMPORT = "import", "Importación"
         POST = "post", "Publicación"
         LIST = "list", "Lista"
+        CHALLENGE = "challenge", "Reto"
 
     # Estado al que pasa el juego → lo que dice la actividad, en minúscula y partido en lo que va antes del
     # nombre del juego y lo que va después: «terminó Hades», «añadió Hades a Pendiente».
@@ -261,6 +265,9 @@ class Activity(models.Model):
     )
     game_list = models.ForeignKey(
         "lists.GameList", on_delete=models.CASCADE, null=True, blank=True, related_name="+", verbose_name="lista"
+    )
+    challenge = models.ForeignKey(
+        "challenges.Challenge", on_delete=models.CASCADE, null=True, blank=True, related_name="+", verbose_name="reto"
     )
     data = models.JSONField("datos", default=dict, blank=True)
     created_at = models.DateTimeField("primera acción", default=timezone.now)
@@ -303,6 +310,8 @@ class Activity(models.Model):
             return bool(self.import_count)
         if self.kind == self.Kind.POST:
             return self.post is not None
+        if self.kind == self.Kind.CHALLENGE:
+            return self.challenge is not None
         if self.kind == self.Kind.LIST:
             game_list = self.game_list
             if game_list is None:
@@ -326,6 +335,19 @@ class Activity(models.Model):
         Pantallas: Inicio (feed: actividades de listas), Perfil (pestaña Actividad).
         """
         return self.data.get("added", 0)
+
+    @property
+    def challenge_verb(self):
+        """Qué hizo con el reto, en minúscula y con su artículo: «consiguió el reto», «creó el reto» o «se unió al
+        reto». Conseguirlo manda sobre lo demás si van juntos.
+
+        Pantallas: Inicio (feed: actividades de retos), Perfil (pestaña Actividad).
+        """
+        if self.data.get("won"):
+            return "consiguió el reto"
+        if self.data.get("created"):
+            return "creó el reto"
+        return "se unió al reto"
 
     @property
     def verb(self):
@@ -380,5 +402,7 @@ class Activity(models.Model):
         if self.kind == self.Kind.LIST:
             title = self.game_list.title if self.game_list else "(borrada)"
             return f"creó la lista {title}" if self.list_created else f"añadió {self.list_added} juegos a la lista {title}"
+        if self.kind == self.Kind.CHALLENGE:
+            return f"{self.challenge_verb} {self.challenge.title if self.challenge else '(borrado)'}"
         before, after = self.verb
         return " ".join(part for part in (before, str(self.game), after) if part)
