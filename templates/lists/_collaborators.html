@@ -2,7 +2,7 @@
 {# Necesita las variables de lists.views.collaborators_context y, si lo hay, collaborator_error. HTMX lo cambia entero al invitar o quitar a alguien. #}
 <div id="list-collaborators">
   <h2>Quién puede editarla</h2>
-  <p class="muted small">Invita a alguien a añadir, ordenar y comentar los juegos de la lista contigo: le llega un aviso y, cuando acepte, podrá editarla. Los datos de la lista los cambias solo tú.</p>
+  <p class="muted small">Invita a alguien que te siga a añadir, ordenar y comentar los juegos de la lista contigo: le llega un aviso y, cuando acepte, podrá editarla y te avisaremos. Los datos de la lista los cambias solo tú.</p>
   {% if collaborators %}
     <ul class="people list-collaborators">
       {% for collaborator in collaborators %}
@@ -26,8 +26,9 @@
           hx-post="{% url 'lists:invite' game_list.pk %}" hx-target="#list-collaborators" hx-swap="outerHTML">
       {% csrf_token %}
       <label class="visually-hidden" for="invitar-usuario">Nombre de usuario de quien quieres invitar</label>
-      <input id="invitar-usuario" type="text" name="usuario" placeholder="Su nombre de usuario (@…)" autocomplete="off" list="gente-que-sigues" required>
-      {% if suggested %}<datalist id="gente-que-sigues">{% for username in suggested %}<option value="{{ username }}"></option>{% endfor %}</datalist>{% endif %}
+      <input id="invitar-usuario" type="text" name="usuario" placeholder="Su nombre de usuario (@…)" autocomplete="off" list="gente-que-te-sigue" required>
+      {# Las sugerencias: tus seguidores que aún no están invitados (los únicos a los que puedes invitar). #}
+      {% if suggested %}<datalist id="gente-que-te-sigue">{% for username in suggested %}<option value="{{ username }}"></option>{% endfor %}</datalist>{% endif %}
       <button class="btn btn-primary" type="submit">{% include "_icon.html" with name="user-plus" %} Invitar</button>
     </form>
   {% else %}

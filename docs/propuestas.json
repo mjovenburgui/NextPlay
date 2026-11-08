@@ -1034,7 +1034,7 @@
   {
     "titulo": "Listas colaborativas: invitar solo a quien te sigue y avisar al aceptar",
     "fecha": "2026-10-26",
-    "estado": "pendiente",
+    "estado": "hecha",
     "prioridad": "media",
     "tipo": "Funcionalidad",
     "resumen": "Tres arreglos de las listas que se vieron antes de subirlas: que solo se pueda invitar a editar una lista a quien te sigue, avisar al dueño cuando alguien acepta y que un color de nivel mal guardado no rompa la página de una tier list.",
@@ -1044,7 +1044,7 @@
       "Aviso al dueño cuando alguien acepta la invitación («Luis ya puede editar tu lista…»), con su foto.",
       "En GameList.tier_list, si un color no es «#rrggbb», usar uno de los de serie en vez de fallar."
     ],
-    "notas": "Salen de la revisión de la fase 3 de «Listas personalizadas de juegos» (26/10/2026); el usuario prefirió seguir con los retos y dejarlos para después.",
+    "notas": "Salen de la revisión de la fase 3 de «Listas personalizadas de juegos» (26/10/2026); el usuario prefirió seguir con los retos y dejarlos para después. 08/11/2026: hecha en la rama remates-rapidos, sin subir. lists.views.invite solo deja invitar a quien sigue al dueño («leo no te sigue: solo puedes invitar a gente que te sigue»), y las sugerencias del campo pasan a ser sus seguidores aún no invitados. accept avisa al dueño, una vez por persona («luis ya puede editar tu lista…», Notification.Kind.LIST_ACCEPT, migración accounts.0025, en el grupo «Tus listas» de Editar perfil › Avisos). GameList.tier_list pone el color de serie de su puesto a un nivel cuyo color no es «#rrggbb», en vez de romper la página. 3 tests nuevos y los de colaboración, con seguidores.",
     "revision": {
       "fecha": "2026-11-01",
       "hoy": "Confirmado en el código: lists.views.invite acepta a cualquiera, accept no avisa al dueño y GameList.tier_list pasa cada color por text_on sin comprobarlo.",

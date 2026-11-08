@@ -997,6 +997,7 @@ class Notification(models.Model):
         LIST_COMMENT = "list_comment", "Comentario en tu lista"
         LIST_INVITE = "list_invite", "Invitación a editar una lista"
         LIST_VERSION = "list_version", "Versión de tu tier list"
+        LIST_ACCEPT = "list_accept", "Han aceptado editar tu lista"
         CHALLENGE_WON = "challenge_won", "Reto conseguido"
         CHALLENGE_JOINED = "challenge_join", "Alguien se une a tu reto"
         CHALLENGE_ENDING = "challenge_ending", "A un reto le quedan pocos días"

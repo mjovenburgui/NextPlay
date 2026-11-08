@@ -53,8 +53,9 @@ REPEAT = {
     Kind.LIST_LIKE: ONCE_PER_PERSON,
     Kind.LIST_COMMENT: UNTIL_READ,
     Kind.LIST_INVITE: ALWAYS,
-    # Una vez por persona que hace su versión de una tier list abierta.
+    # Una vez por persona que hace su versión de una tier list abierta o acepta editar una lista.
     Kind.LIST_VERSION: ONCE_PER_PERSON,
+    Kind.LIST_ACCEPT: ONCE_PER_PERSON,
     # De los retos, uno de cada por reto: conseguirlo, que le quedan pocos días y cómo ha terminado.
     Kind.CHALLENGE_WON: Repeat(("url",)),
     Kind.CHALLENGE_ENDING: Repeat(("url",)),
@@ -99,8 +100,9 @@ GROUPS = {
         (Kind.LIST_INVITE,),
     ),
     "listas": Group(
-        "Tus listas", "Cuando alguien hace su versión de una tier list tuya abierta a la comunidad.",
-        (Kind.LIST_VERSION,),
+        "Tus listas",
+        "Cuando alguien hace su versión de una tier list tuya abierta a la comunidad o acepta editar una lista tuya.",
+        (Kind.LIST_VERSION, Kind.LIST_ACCEPT),
     ),
     "resenas": Group(
         "Reseñas que se han quedado atrás",

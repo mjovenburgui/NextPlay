@@ -16,7 +16,8 @@ from social.models import Activity, Follow
 from . import presets
 from .community import community_board, middle_tier
 from .models import (
-    LIST_MAX_GAMES, MAX_COLLABORATORS, NOTE_MAX_LENGTH, GameList, ListCollaborator, ListComment, ListItem, ListLike,
+    DEFAULT_TIERS, LIST_MAX_GAMES, MAX_COLLABORATORS, NOTE_MAX_LENGTH, GameList, ListCollaborator, ListComment, ListItem,
+    ListLike,
 )
 from .views.tarjetas import BOARD_COVERS, mark_boards
 
@@ -947,6 +948,9 @@ class CollaborationTests(TestCase):
         cls.luis = User.objects.create_user("luis", "luis@example.com", "x")
         cls.eva = User.objects.create_user("eva", "eva@example.com", "x")
         cls.hades, cls.celeste = make_games("Hades", "Celeste")
+        # Solo se puede invitar a quien sigue al dueño de la lista.
+        for follower in (cls.luis, cls.eva):
+            Follow.objects.create(follower=follower, followed=cls.ana)
 
     def setUp(self):
         self.game_list = GameList.objects.create(user=self.ana, title="Para jugar juntos", is_public=False)
@@ -983,7 +987,10 @@ class CollaborationTests(TestCase):
         self.assertContains(self.invite("ana"), "Ya puedes editarla: es tuya.")
         self.invite("luis")
         self.assertContains(self.invite("luis"), "luis ya está invitado.")
+        User.objects.create_user("leo", "leo@example.com", "x")
+        self.assertContains(self.invite("leo"), "leo no te sigue: solo puedes invitar a gente que te sigue.")
         others = [User.objects.create_user(f"amigo{n}", f"amigo{n}@example.com", "x") for n in range(MAX_COLLABORATORS)]
+        Follow.objects.bulk_create(Follow(follower=other, followed=self.ana) for other in others)
         for other in others[: MAX_COLLABORATORS - 1]:
             self.invite(other.username)
         self.assertContains(self.invite(others[-1].username), f"Caben {MAX_COLLABORATORS} personas por lista")
@@ -991,6 +998,26 @@ class CollaborationTests(TestCase):
         # Solo invita su dueño.
         self.client.force_login(self.eva)
         self.assertEqual(self.invite("eva").status_code, 404)
+
+    def test_the_owner_hears_when_someone_accepts_and_suggestions_are_followers(self):
+        response = self.client.get(reverse("lists:edit", args=[self.game_list.pk]))
+        self.assertEqual(sorted(response.context["suggested"]), ["eva", "luis"])
+        self.join(self.luis)
+        notice = Notification.objects.get(user=self.ana)
+        self.assertEqual(
+            (notice.kind, notice.actor, notice.text),
+            (Notification.Kind.LIST_ACCEPT, self.luis, "luis ya puede editar tu lista «Para jugar juntos»."),
+        )
+        self.client.post(reverse("lists:accept", args=[self.game_list.pk]))  # ya había aceptado: no repite
+        self.assertEqual(Notification.objects.filter(user=self.ana).count(), 1)
+
+    def test_a_tier_with_a_strange_color_takes_the_default_one(self):
+        tier_list = GameList(
+            user=self.ana, title="Rara", mode=GameList.Mode.TIERS,
+            tiers=[{"id": 0, "label": "S", "color": "rojo"}, {"id": 1, "label": "A", "color": "#00FF00"}],
+        )
+        first, second = tier_list.tier_list
+        self.assertEqual((first["color"], second["color"]), (DEFAULT_TIERS[0][1], "#00FF00"))
 
     def test_the_invitee_sees_the_private_list_and_can_accept(self):
         self.invite("luis")
