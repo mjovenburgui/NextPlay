@@ -19,6 +19,7 @@
       <a href="#escaparate">Escaparate</a>
       <a href="#redes">Redes sociales</a>
       <a href="#privacidad">Privacidad</a>
+      <a href="#avisos">Avisos</a>
       <a href="#tiendas">Tiendas</a>
       <a href="#cuentas">Cuentas vinculadas</a>
     </nav>
@@ -250,7 +251,7 @@
         </section>
 
         <section class="settings-card" id="privacidad">
-          <h2>Privacidad y avisos</h2>
+          <h2>Privacidad</h2>
           {% for field in form.privacy_fields %}
             <label class="switch-row" for="{{ field.id_for_label }}">
               <span>
@@ -260,6 +261,32 @@
               <span class="switch">{{ field }}</span>
             </label>
             {{ field.errors }}
+          {% endfor %}
+        </section>
+
+        {# Los avisos no cambian cómo se ve el perfil: data-no-preview hace que no se pida la vista previa al tocarlos. #}
+        <section class="settings-card" id="avisos" data-no-preview>
+          <h2>Avisos</h2>
+          <p class="help">De qué te avisamos en la campana de arriba. Lo que apagues deja de llegar; los avisos que ya tienes no se borran.</p>
+          {# Dice que el envío trae esta sección: sin él, los interruptores que no llegan no apagan nada. #}
+          <input type="hidden" name="avisos" value="1">
+          {% for bell, email in form.notice_rows %}
+            <label class="switch-row" for="{{ bell.id_for_label }}">
+              <span>
+                <strong>{{ bell.label }}</strong>
+                <span class="help">{{ bell.help_text }}</span>
+              </span>
+              <span class="switch">{{ bell }}</span>
+            </label>
+            {% if email %}
+              <label class="switch-row switch-row-sub" for="{{ email.id_for_label }}">
+                <span>
+                  <strong>{{ email.label }}</strong>
+                  <span class="help">{{ email.help_text }}</span>
+                </span>
+                <span class="switch">{{ email }}</span>
+              </label>
+            {% endif %}
           {% endfor %}
         </section>
 
@@ -700,9 +727,14 @@
         clearTimeout(timer);
         timer = setTimeout(refresh, delay);
       }
-      // Mientras se escribe espera a que se pare un momento; al elegir una opción va al instante.
-      form.addEventListener("input", function () { schedule(400); });
-      form.addEventListener("change", function () { schedule(0); });
+      // Mientras se escribe espera a que se pare un momento; al elegir una opción va al instante. Lo que no
+      // cambia el perfil (las secciones con data-no-preview, como «Avisos») no la pide.
+      form.addEventListener("input", function (event) {
+        if (!event.target.closest("[data-no-preview]")) schedule(400);
+      });
+      form.addEventListener("change", function (event) {
+        if (!event.target.closest("[data-no-preview]")) schedule(0);
+      });
       // Las imágenes del juego de la cabecera llegan con HTMX y cambian la que está elegida.
       document.body.addEventListener("htmx:afterSettle", function () { schedule(0); });
 

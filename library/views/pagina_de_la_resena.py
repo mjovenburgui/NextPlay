@@ -9,6 +9,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
+from accounts import notices
 from accounts.models import Notification
 
 from ..forms import CommentForm
@@ -80,20 +81,17 @@ def _comments_context(review, viewer):
 def _notify(review, actor, kind):
     """Avisa al autor de la reseña de que actor le ha dado «me gusta» o la ha comentado.
 
-    No se repite: un «me gusta» de la misma persona solo avisa una vez aunque lo quite y lo vuelva a dar, y
-    un comentario no avisa si ya hay uno igual sin leer.
+    No se repite (accounts.notices): un «me gusta» de la misma persona solo avisa una vez aunque lo quite y lo vuelva
+    a dar, y un comentario no avisa si ya hay otro suyo sin leer en esa reseña.
 
     Pantallas: Avisos («me gusta» y comentarios en tus reseñas), todas (el número de la campana).
     """
     name = actor.profile.name
     if kind == Notification.Kind.LIKE:
         text, url = f"A {name} le ha gustado tu reseña de {review.game.name}.", review.get_absolute_url()
-        repeated = Notification.objects.filter(user=review.user, kind=kind, text=text, url=url)
     else:
         text, url = f"{name} ha comentado tu reseña de {review.game.name}.", f"{review.get_absolute_url()}#comentarios"
-        repeated = Notification.objects.filter(user=review.user, kind=kind, text=text, url=url, read_at=None)
-    if not repeated.exists():
-        Notification.objects.create(user=review.user, kind=kind, text=text[:300], url=url, game=review.game)
+    notices.notify(review.user, kind, text, url, game=review.game, actor=actor)
 
 
 @require_POST

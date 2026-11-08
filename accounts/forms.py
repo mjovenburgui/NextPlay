@@ -1,5 +1,5 @@
 """Formularios de las cuentas: el de Registro (SignupForm), el de Editar perfil (ProfileForm: datos, apariencia,
-escaparate, redes y privacidad, también para su vista previa) y el de la cuenta de otra plataforma
+escaparate, redes, privacidad y avisos, también para su vista previa) y el de la cuenta de otra plataforma
 (PlatformAccountForm), en Cuentas vinculadas de Editar perfil y en el modal «Vincular cuentas» del Perfil.
 """
 
@@ -15,7 +15,7 @@ from django.urls import reverse
 from games.models import Game
 from library.models import Review
 
-from . import images
+from . import images, notices
 from .models import (
     DEFAULT_ACCENT, FRAME_ZOOM_MAX, HEX_COLOR, SECTIONS, SOCIAL_LINKS, FavoriteGame, PlatformAccount, Profile,
     normalize_handle,
@@ -54,9 +54,10 @@ class ProfileForm(forms.ModelForm):
     """Todo lo que se cambia en Editar perfil salvo las tiendas y las cuentas vinculadas.
 
     Datos (nombre, estado, pronombres, ubicación, biografía), apariencia (foto, cabecera, fondo, color y
-    diseño), escaparate (favoritos, reseña destacada y secciones), redes sociales y privacidad. Las
-    redes llegan en campos link_<red> y se guardan juntas en Profile.links. Los favoritos y las
-    secciones llegan como listas en el orden en que están en la página.
+    diseño), escaparate (favoritos, reseña destacada y secciones), redes sociales, privacidad y avisos. Las
+    redes llegan en campos link_<red> y se guardan juntas en Profile.links; los avisos, en campos aviso_<grupo> y
+    correo_<grupo> que se guardan juntos en Profile.notification_prefs. Los favoritos y las secciones llegan como
+    listas en el orden en que están en la página.
     """
 
     # Campos con valor por defecto que pueden no venir en el envío: si faltan se deja lo que había.
@@ -64,8 +65,8 @@ class ProfileForm(forms.ModelForm):
         "avatar_source", "avatar_shape", "banner_mode", "background_mode", "background_dim", "layout",
         *(name for name in FRAMING_FIELDS if not name.endswith("_fit")),
     )
-    # Interruptores de «Privacidad y avisos».
-    PRIVACY = ("is_public", "price_alert_emails")
+    # Interruptores de «Privacidad».
+    PRIVACY = ("is_public",)
 
     favoritos = forms.TypedMultipleChoiceField(coerce=int, required=False)
     quitar_favoritos = forms.TypedMultipleChoiceField(coerce=int, required=False)
@@ -78,7 +79,7 @@ class ProfileForm(forms.ModelForm):
             "display_name", "bio", "status_emoji", "status_text", "pronouns", "location",
             "avatar", "avatar_source", "avatar_shape", "banner_mode", "banner", "banner_game", "banner_art",
             "background_mode", "background", "background_dim", "accent_color", "layout", "pinned_review",
-            "is_public", "price_alert_emails", *FRAMING_FIELDS,
+            "is_public", *FRAMING_FIELDS,
         )
         widgets = {
             **{f"{name}_{part}": forms.HiddenInput for name in IMAGE_FIELDS for part in ("x", "y")},
@@ -106,7 +107,7 @@ class ProfileForm(forms.ModelForm):
 
         Los juegos de la cabecera son los de su biblioteca (y el que ya tenga puesto), las reseñas que
         puede destacar son las suyas y las fotos que puede elegir son las de las cuentas que tiene
-        vinculadas. Añade un campo por red social con lo que tenga guardado.
+        vinculadas. Añade un campo por red social con lo que tenga guardado y los interruptores de «Avisos».
 
         Pantallas: Editar perfil (y su vista previa).
         """
@@ -164,16 +165,39 @@ class ProfileForm(forms.ModelForm):
             label="Web", required=False, max_length=200, assume_scheme="https", initial=links.get("web", ""),
             widget=forms.TextInput(attrs={"inputmode": "url", "placeholder": "https://…"}),
         )
+        # Interruptores de «Avisos»: uno por grupo de accounts.notices (aviso_<grupo>) y, en los que también pueden
+        # llegar por correo, otro para el correo (correo_<grupo>). Lo que no ha tocado sale encendido.
+        prefs = profile.notification_prefs
+        for key, group in notices.GROUPS.items():
+            self.fields[f"aviso_{key}"] = forms.BooleanField(
+                label=group.label, help_text=group.help_text, required=False, initial=notices.enabled(prefs, key),
+            )
+            if group.email:
+                self.fields[f"correo_{key}"] = forms.BooleanField(
+                    label="Por correo", required=False, initial=notices.enabled(prefs, key, notices.EMAIL),
+                    help_text=f"A {user.email}." if user.email else "Tu cuenta no tiene correo.",
+                )
         # Nombres de las imágenes guardadas, para borrarlas del disco si se sustituyen o se quitan.
         self._old_images = {name: getattr(profile, name).name for name in IMAGE_FIELDS}
 
     @property
     def privacy_fields(self):
-        """Los campos de «Privacidad y avisos», que la plantilla pinta como interruptores.
+        """Los campos de «Privacidad», que la plantilla pinta como interruptores.
 
-        Pantallas: Editar perfil (Privacidad y avisos).
+        Pantallas: Editar perfil (Privacidad).
         """
         return [self[name] for name in self.PRIVACY]
+
+    @property
+    def notice_rows(self):
+        """Los interruptores de «Avisos», grupo a grupo: (el de la campana, el del correo o None).
+
+        Pantallas: Editar perfil (Avisos).
+        """
+        return [
+            (self[f"aviso_{key}"], self[f"correo_{key}"] if group.email else None)
+            for key, group in notices.GROUPS.items()
+        ]
 
     def _clean_image(self, name):
         """Pasa la imagen nueva del campo name por accounts.images; sin imagen nueva deja lo que había (False = quitarla).
@@ -265,13 +289,13 @@ class ProfileForm(forms.ModelForm):
         return data
 
     def save(self, commit=True):
-        """Guarda el perfil con sus redes y el orden de sus secciones.
+        """Guarda el perfil con sus redes, el orden de sus secciones y los avisos que quiere recibir.
 
         Con commit también borra del disco las imágenes sustituidas o quitadas y guarda el orden de los
         favoritos (quitando los marcados).
 
         Pantallas: Editar perfil (botón «Guardar»), Perfil (todo lo que se personaliza), todas (tu nombre y tu foto en
-        la barra de arriba).
+        la barra de arriba), Avisos (los que te llegan).
         """
         profile = super().save(commit=False)
         self._apply_extras(profile)
@@ -300,17 +324,27 @@ class ProfileForm(forms.ModelForm):
         return profile, self._favorite_changes()[1]
 
     def _apply_extras(self, profile):
-        """Pone en profile lo que no se guarda campo a campo: las redes (en links) y el orden y la visibilidad de las secciones.
+        """Pone en profile lo que no se guarda campo a campo: las redes (en links), el orden y la visibilidad de las
+        secciones y los avisos que quiere recibir (en notification_prefs).
 
-        Si las secciones enviadas no son válidas, se dejan como estaban.
+        Si las secciones enviadas no son válidas, se dejan como estaban. Los avisos solo cambian si el envío trae la
+        sección «Avisos» (lo dice su campo oculto «avisos»): un envío sin ella no apaga ninguno.
 
-        Pantallas: Editar perfil (redes y secciones del escaparate, también en la vista previa), Perfil (redes y
-        escaparate).
+        Pantallas: Editar perfil (redes, secciones del escaparate y avisos, también en la vista previa), Perfil (redes
+        y escaparate), Avisos (los que te llegan).
         """
         profile.links = self.cleaned_data.get("links", {})
         sections, visible = self.cleaned_data.get("secciones"), self.cleaned_data.get("secciones_visibles")
         if "secciones" in self.data and sections is not None and visible is not None:
             profile.sections = [[key, key in visible] for key in dict.fromkeys(sections)]
+        if "avisos" in self.data:
+            profile.notification_prefs = {
+                key: {
+                    notices.BELL: bool(self.cleaned_data.get(f"aviso_{key}")),
+                    **({notices.EMAIL: bool(self.cleaned_data.get(f"correo_{key}"))} if group.email else {}),
+                }
+                for key, group in notices.GROUPS.items()
+            }
 
     def _delete_replaced_images(self, profile):
         """Borra del disco las imágenes que tenía el perfil y ya no usa (sustituidas por otra o quitadas).

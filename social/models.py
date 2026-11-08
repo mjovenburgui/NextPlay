@@ -10,6 +10,7 @@ from django.db import models
 from django.urls import reverse
 from django.utils import timezone
 
+from accounts import notices
 from accounts.models import Notification
 from library.models import COMMENT_MAX_LENGTH, HOURS_SOURCES, MAX_RATING, AttachedImage, LibraryEntry
 
@@ -22,7 +23,8 @@ class FollowManager(models.Manager):
     def follow(self, follower, followed):
         """Hace que follower siga a followed y avisa a followed en la campana; devuelve True si no lo seguía ya.
 
-        El aviso llega solo la primera vez: si follower deja de seguir a followed y vuelve, no se repite. Lleva a
+        El aviso llega solo la primera vez (accounts.notices): si follower deja de seguir a followed y vuelve, no se
+        repite, y no llega si followed ha apagado los avisos de nuevos seguidores en Editar perfil. Lleva a
         la página de follower o, si followed no puede verla (perfil privado), a la lista de seguidores de
         followed, donde sale sin enlace. No comprueba si followed se puede seguir (eso lo mira social.views.follow).
 
@@ -30,16 +32,14 @@ class FollowManager(models.Manager):
         Avisos (aviso al seguido).
         """
         _, created = self.get_or_create(follower=follower, followed=followed)
-        notified = Notification.objects.filter(user=followed, kind=Notification.Kind.FOLLOW, actor=follower)
-        if created and not notified.exists():
+        if created:
             profile = follower.profile
             if profile.visible_to(followed):
                 url = profile.get_absolute_url()
             else:
                 url = reverse("social:followers", args=[followed.username])
-            Notification.objects.create(
-                user=followed, kind=Notification.Kind.FOLLOW, actor=follower,
-                text=f"{profile.name} ha empezado a seguirte."[:300], url=url,
+            notices.notify(
+                followed, Notification.Kind.FOLLOW, f"{profile.name} ha empezado a seguirte.", url, actor=follower,
             )
         return created
 

@@ -315,6 +315,7 @@ class ReviewTests(TestCase):
         self.assertEqual(review.likes.count(), 1)
         notices = Notification.objects.filter(user=self.user, kind=Notification.Kind.LIKE)
         self.assertEqual([notice.text for notice in notices], ["A luis le ha gustado tu reseña de Hades."])
+        self.assertEqual(notices[0].actor, self.other)
         self.client.force_login(self.user)
         self.assertEqual(self.client.post(url).status_code, 400)  # la propia no
 
@@ -796,10 +797,26 @@ class WishlistTests(TestCase):
         LibraryEntry.objects.create(user=self.user, game=self.game)
         self.assertEqual(wishlist.check_alerts(), 0)
         LibraryEntry.objects.all().delete()
-        self.user.profile.price_alert_emails = False
+        self.user.profile.notification_prefs = {"precios": {"correo": False}}
         self.user.profile.save()
         self.assertEqual(wishlist.check_alerts(), 1)
         self.assertEqual(len(mail.outbox), 0)
+
+    def test_alerts_go_only_where_the_user_wants_them(self):
+        WishlistItem.objects.create(user=self.user, game=self.game, target_price=Decimal("30"))
+        profile = self.user.profile
+        profile.notification_prefs = {"precios": {"campana": False, "correo": False}}
+        profile.save()
+        self.assertEqual(wishlist.check_alerts(), 0)  # apagadas: ni se avisa ni cuenta como avisada
+        self.assertIsNone(WishlistItem.objects.get().alerted_price)
+        self.assertContains(self.client.get(reverse("library:wishlist")), "Tienes apagados los avisos de las bajadas")
+        profile.notification_prefs = {"precios": {"campana": False}}  # solo por correo
+        profile.save()
+        self.assertEqual(wishlist.check_alerts(), 1)
+        self.assertFalse(Notification.objects.exists())
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("http://localhost:8000/cuenta/perfil/#avisos", mail.outbox[0].body)
+        self.assertContains(self.client.get(reverse("library:wishlist")), "Te avisamos por correo cuando")
 
     def test_update_prices_command_checks_alerts(self):
         WishlistItem.objects.create(user=self.user, game=self.game, target_price=Decimal("30"))

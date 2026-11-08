@@ -13,6 +13,7 @@ from django.template.defaultfilters import pluralize
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
+from accounts import notices
 from accounts.models import Notification
 from games.models import Game, format_price
 from library.models import LibraryEntry, WishlistItem
@@ -168,17 +169,16 @@ def like(request, list_id):
 
 
 def _notify_like(game_list, actor):
-    """Avisa al dueño de game_list de que a actor le ha gustado, solo la primera vez aunque lo quite y lo vuelva a dar.
+    """Avisa al dueño de game_list de que a actor le ha gustado, solo la primera vez aunque lo quite y lo vuelva a dar
+    (accounts.notices).
 
     Pantallas: Avisos (a quien le gusta tu lista), todas (el número de la campana).
     """
-    url = game_list.get_absolute_url()
-    notices = Notification.objects.filter(user=game_list.user, kind=Notification.Kind.LIST_LIKE, actor=actor, url=url)
-    if not notices.exists():
-        Notification.objects.create(
-            user=game_list.user, kind=Notification.Kind.LIST_LIKE, actor=actor, url=url,
-            text=f"A {actor.profile.name} le ha gustado tu {game_list.noun} «{game_list.title}»."[:300],
-        )
+    notices.notify(
+        game_list.user, Notification.Kind.LIST_LIKE,
+        f"A {actor.profile.name} le ha gustado tu {game_list.noun} «{game_list.title}».",
+        game_list.get_absolute_url(), actor=actor,
+    )
 
 
 def _list_comments(game_list, viewer):
@@ -222,19 +222,16 @@ def comment(request, list_id):
 
 
 def _notify_comment(game_list, actor):
-    """Avisa al dueño de game_list de que actor la ha comentado, salvo si ya tiene un aviso igual sin leer.
+    """Avisa al dueño de game_list de que actor la ha comentado, salvo si ya tiene otro suyo sin leer
+    (accounts.notices).
 
     Pantallas: Avisos (comentarios en tus listas), todas (el número de la campana).
     """
-    url = f"{game_list.get_absolute_url()}#comentarios"
-    notices = Notification.objects.filter(
-        user=game_list.user, kind=Notification.Kind.LIST_COMMENT, actor=actor, url=url, read_at=None,
+    notices.notify(
+        game_list.user, Notification.Kind.LIST_COMMENT,
+        f"{actor.profile.name} ha comentado tu {game_list.noun} «{game_list.title}».",
+        f"{game_list.get_absolute_url()}#comentarios", actor=actor,
     )
-    if not notices.exists():
-        Notification.objects.create(
-            user=game_list.user, kind=Notification.Kind.LIST_COMMENT, actor=actor, url=url,
-            text=f"{actor.profile.name} ha comentado tu {game_list.noun} «{game_list.title}»."[:300],
-        )
 
 
 @require_POST

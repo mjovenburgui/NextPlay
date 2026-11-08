@@ -10,6 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from accounts import notices
 from accounts.models import Notification
 
 from ..models import MAX_COLLABORATORS, ListCollaborator
@@ -77,9 +78,10 @@ def invite(request, list_id):
         error = f"Caben {MAX_COLLABORATORS} personas por lista: quita a alguien para invitar a otra."
     else:
         ListCollaborator.objects.create(game_list=game_list, user=invitee)
-        Notification.objects.create(
-            user=invitee, kind=Notification.Kind.LIST_INVITE, actor=request.user, url=game_list.get_absolute_url(),
-            text=f"{request.user.profile.name} te ha invitado a editar su {game_list.noun} «{game_list.title}»."[:300],
+        notices.notify(
+            invitee, Notification.Kind.LIST_INVITE,
+            f"{request.user.profile.name} te ha invitado a editar su {game_list.noun} «{game_list.title}».",
+            game_list.get_absolute_url(), actor=request.user,
         )
     return _collaborators_response(request, game_list, error)
 

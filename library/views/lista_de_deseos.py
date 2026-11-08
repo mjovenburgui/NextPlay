@@ -9,6 +9,8 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
+from accounts import notices
+from accounts.models import Notification
 from games.models import LANGUAGE_FILTERS, Game, language_filter
 
 from ..models import LibraryEntry, WishlistItem
@@ -151,4 +153,9 @@ def wishlist(request):
         "active_language": language,
         "on_steam": on_steam,
         "skipped": len(request.user.profile.steam_wishlist_skip),
+        # Por dónde le avisamos de las bajadas de precio, según lo que eligió en Editar perfil › Avisos.
+        "price_bell": notices.wants(request.user, Notification.Kind.PRICE),
+        "price_email": (
+            bool(request.user.email) and notices.wants(request.user, Notification.Kind.PRICE, notices.EMAIL)
+        ),
     })

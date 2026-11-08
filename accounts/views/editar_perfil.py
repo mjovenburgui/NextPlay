@@ -1,6 +1,6 @@
-"""Vistas de Editar perfil (cuenta/perfil/): el formulario de datos, apariencia, escaparate, redes y privacidad, su vista
-previa en directo, las imágenes de un juego para la cabecera y las tiendas en las que compras. Las cuentas vinculadas
-van aparte, en cuentas_vinculadas.py.
+"""Vistas de Editar perfil (cuenta/perfil/): el formulario de datos, apariencia, escaparate, redes, privacidad y
+avisos, su vista previa en directo, las imágenes de un juego para la cabecera y las tiendas en las que compras. Las
+cuentas vinculadas van aparte, en cuentas_vinculadas.py.
 """
 
 import logging
@@ -55,7 +55,7 @@ FRAMER_VIEWS = {
 
 @login_required
 def edit_profile(request):
-    """Editar perfil: datos, apariencia (foto, cabecera, fondo, color y diseño), escaparate, redes y privacidad.
+    """Editar perfil: datos, apariencia (foto, cabecera, fondo, color y diseño), escaparate, redes, privacidad y avisos.
 
     El formulario trabaja con una copia del perfil para que, si no es válido, la página (las imágenes
     subidas, la barra superior) siga enseñando lo guardado. Al lado va la vista previa del perfil en un

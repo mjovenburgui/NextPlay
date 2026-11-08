@@ -145,11 +145,9 @@ class Profile(models.Model):
     steam_wishlist_skip = models.JSONField("deseados de Steam que no traer", default=list, blank=True)
     # Ids de las tiendas en las que compra (los de GamePrice.shop_id; 0 es Xbox). Vacía = todas.
     shops = models.JSONField("tiendas en las que compro", default=list, blank=True)
-    price_alert_emails = models.BooleanField(
-        "avisarme también por correo",
-        default=True,
-        help_text="Cuando un juego de tu lista de deseos baje de tu precio o llegue a su mínimo histórico.",
-    )
+    # Lo que ha elegido en la sección «Avisos» de Editar perfil, por grupos de accounts.notices.GROUPS, como
+    # {"me_gusta": {"campana": false}, "precios": {"campana": true, "correo": false}}. Lo que no está, encendido.
+    notification_prefs = models.JSONField("avisos que recibe", default=dict, blank=True)
     # Personalización. Las imágenes llegan ya tratadas por accounts.images (recortadas, en WebP y sin EXIF).
     status_emoji = models.CharField("emoji del estado", max_length=16, blank=True)
     status_text = models.CharField("estado", max_length=80, blank=True)
