@@ -491,7 +491,8 @@ def _wishlist_games(app_ids):
     """Juegos del catálogo de unos IDs de Steam de la lista de deseos: {ID: Game o None}.
 
     Si alguien corrigió a mano el juego de esa app (ExternalTitle, también para decir que no es un juego),
-    manda la corrección; los demás se buscan como los de la biblioteca (_match_games).
+    manda la corrección; los demás se buscan como los de la biblioteca (_match_games). Una edición cuenta
+    como su juego (Game.main).
 
     Pantallas: Editar perfil (Cuentas vinculadas › Steam), Lista de deseos, Ficha del juego (botón «Lo quiero»).
     """
@@ -502,7 +503,8 @@ def _wishlist_games(app_ids):
         ).exclude(source=ExternalTitle.Source.AUTO).select_related("game")
     }
     found = _match_games([app_id for app_id in app_ids if app_id not in corrected])
-    return {app_id: corrected[app_id] if app_id in corrected else found.get(app_id) for app_id in app_ids}
+    games = {app_id: corrected[app_id] if app_id in corrected else found.get(app_id) for app_id in app_ids}
+    return {app_id: game.main if game is not None else None for app_id, game in games.items()}
 
 
 def import_wishlist(user):

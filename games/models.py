@@ -1,6 +1,6 @@
-"""Modelos del catálogo: cada juego (con lo que trae de IGDB y de las tiendas: portadas, idiomas, IDs de tienda e
-imágenes), sus géneros, sus plataformas y sus precios por tienda. Salen en casi todas las pantallas, sobre todo en el
-Catálogo y en la Ficha del juego.
+"""Modelos del catálogo: cada juego (con lo que trae de IGDB y de las tiendas: portadas, idiomas, IDs de tienda,
+imágenes, tipo, duración y ficha técnica), sus géneros, plataformas, modos de juego, temas, perspectivas, estudios y
+editoras, y sus precios por tienda. Salen en casi todas las pantallas, sobre todo en el Catálogo y en la Ficha del juego.
 """
 
 from urllib.parse import quote
@@ -169,6 +169,176 @@ class Platform(models.Model):
         return self.abbreviation or self.name
 
 
+# Modos de juego, temas y perspectivas de IGDB con su nombre en español, por su slug de IGDB: IGDB solo los da en inglés.
+# Son listas cortas y fijas (endpoints game_modes, themes y player_perspectives).
+MODE_NAMES_ES = {
+    "single-player": "Un jugador",
+    "multiplayer": "Multijugador",
+    "co-operative": "Cooperativo",
+    "split-screen": "Pantalla partida",
+    "massively-multiplayer-online-mmo": "Multijugador masivo (MMO)",
+    "battle-royale": "Battle royale",
+}
+THEME_NAMES_ES = {
+    "action": "Acción",
+    "fantasy": "Fantasía",
+    "science-fiction": "Ciencia ficción",
+    "horror": "Terror",
+    "thriller": "Suspense",
+    "survival": "Supervivencia",
+    "historical": "Histórico",
+    "stealth": "Sigilo",
+    "comedy": "Comedia",
+    "business": "Negocios",
+    "drama": "Drama",
+    "non-fiction": "No ficción",
+    "sandbox": "Sandbox",
+    "educational": "Educativo",
+    "kids": "Infantil",
+    "open-world": "Mundo abierto",
+    "warfare": "Bélico",
+    "party": "Juegos de fiesta",
+    "4x-explore-expand-exploit-and-exterminate": "4X",
+    "erotic": "Erótico",
+    "mystery": "Misterio",
+    "romance": "Romance",
+}
+PERSPECTIVE_NAMES_ES = {
+    "first-person": "Primera persona",
+    "third-person": "Tercera persona",
+    "bird-view-slash-isometric": "Vista cenital o isométrica",
+    "side-view": "Vista lateral",
+    "text": "Texto",
+    "auditory": "Solo sonido",
+    "virtual-reality": "Realidad virtual",
+}
+# IDs de IGDB de los modos de los juegos que no se acaban: multijugador masivo y battle royale.
+ENDLESS_MODE_IDS = (5, 6)
+# ID de IGDB del modo multijugador.
+MULTIPLAYER_MODE_ID = 2
+
+
+class IGDBTag(models.Model):
+    """Base de las etiquetas que vienen de IGDB (modos, temas, perspectivas y compañías): su id de IGDB, su nombre en
+    español y el slug con el que se filtra el Catálogo."""
+
+    igdb_id = models.PositiveIntegerField(unique=True, null=True, blank=True)
+    name = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=255, unique=True)
+
+    class Meta:
+        abstract = True
+
+    def __str__(self):
+        """Nombre de la etiqueta.
+
+        Pantallas: Panel de administración, Catálogo (filtros de modo, tema, perspectiva y estudio), Ficha del juego
+        (ficha técnica).
+        """
+        return self.name
+
+
+class GameMode(IGDBTag):
+    """Modo de juego de IGDB: un jugador, multijugador, cooperativo, pantalla partida, MMO o battle royale."""
+
+    class Meta:
+        ordering = ["igdb_id"]
+        verbose_name = "modo de juego"
+        verbose_name_plural = "modos de juego"
+
+
+class Theme(IGDBTag):
+    """Tema de IGDB (terror, ciencia ficción, mundo abierto...): dice más del juego que los géneros."""
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "tema"
+        verbose_name_plural = "temas"
+
+
+class Perspective(IGDBTag):
+    """Perspectiva de IGDB: primera persona, tercera persona, vista cenital, lateral..."""
+
+    class Meta:
+        ordering = ["igdb_id"]
+        verbose_name = "perspectiva"
+        verbose_name_plural = "perspectivas"
+
+
+class Company(IGDBTag):
+    """Estudio o editora de IGDB (involved_companies)."""
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "compañía"
+        verbose_name_plural = "compañías"
+
+
+class GameType(models.IntegerChoices):
+    """Tipo de juego en IGDB (endpoint game_types): juego, DLC, remake, edición ampliada..."""
+
+    MAIN = 0, "Juego"
+    DLC = 1, "DLC"
+    EXPANSION = 2, "Expansión"
+    BUNDLE = 3, "Recopilatorio"
+    STANDALONE_EXPANSION = 4, "Expansión independiente"
+    MOD = 5, "Mod"
+    EPISODE = 6, "Episodio"
+    SEASON = 7, "Temporada"
+    REMAKE = 8, "Remake"
+    REMASTER = 9, "Remaster"
+    EXPANDED = 10, "Edición ampliada"
+    PORT = 11, "Port"
+    FORK = 12, "Versión derivada"
+    PACK = 13, "Pack"
+    UPDATE = 14, "Actualización"
+
+
+class GameStatus(models.IntegerChoices):
+    """Estado de un juego en IGDB (endpoint game_statuses). Casi todos los publicados lo tienen vacío."""
+
+    RELEASED = 0, "Publicado"
+    ALPHA = 2, "En alfa"
+    BETA = 3, "En beta"
+    EARLY_ACCESS = 4, "En acceso anticipado"
+    OFFLINE = 5, "Servidores cerrados"
+    CANCELLED = 6, "Cancelado"
+    RUMORED = 7, "Rumor"
+    DELISTED = 8, "Ya no se vende"
+
+
+# Tipos que nunca entran al catálogo desde las búsquedas de IGDB: DLC sueltos (trajes...), packs y actualizaciones.
+ADDON_TYPES = (GameType.DLC, GameType.PACK, GameType.UPDATE)
+# Tipos que el Catálogo esconde si no se piden con su filtro: lo que necesita otro juego o es un trozo de uno.
+HIDDEN_TYPES = (
+    GameType.DLC, GameType.EXPANSION, GameType.MOD, GameType.EPISODE, GameType.SEASON, GameType.PACK, GameType.UPDATE,
+)
+# Duración: con menos respuestas en IGDB es un dato orientativo; para contar con ella (lo que te falta, los filtros
+# y la pista del repaso) hacen falta al menos DURATION_USABLE_ANSWERS. Por encima de ENDLESS_HOURS, el juego no se
+# acaba o los jugadores apuntan todo lo que llevan, así que tampoco cuenta.
+DURATION_MIN_ANSWERS = 5
+DURATION_USABLE_ANSWERS = 2
+ENDLESS_HOURS = 200
+
+
+def score_tier(score):
+    """Franja de una nota de 0 a 100 para colorearla: «high» (75 o más), «mid» (50-74), «low» o vacío sin nota.
+
+    Pantallas: Ficha del juego (color de la nota de la crítica y de la de los usuarios de IGDB).
+    """
+    if score is None:
+        return ""
+    return "high" if score >= 75 else "mid" if score >= 50 else "low"
+
+
+def half_hours(minutes):
+    """Minutos en horas redondeadas a la media hora (870 → 14.5), o None si no hay minutos.
+
+    Pantallas: Ficha del juego (Cuánto dura).
+    """
+    return round(minutes / 30) / 2 if minutes else None
+
+
 class Game(models.Model):
     # Null for games that did not come from IGDB (demo seed, manual entries).
     igdb_id = models.PositiveIntegerField(unique=True, null=True, blank=True)
@@ -253,8 +423,37 @@ class Game(models.Model):
     # Artes, capturas, logos y vídeos de IGDB para la cabecera y el carrusel de la ficha (formato en games.media).
     media = models.JSONField("imágenes y vídeos", default=dict, blank=True)
     media_updated_at = models.DateTimeField("imágenes y vídeos pedidos", null=True, blank=True)
+    # Tipo y estado en IGDB (GameType y GameStatus); vacíos si el juego no viene de IGDB o aún no se han pedido.
+    game_type = models.PositiveSmallIntegerField("tipo", choices=GameType.choices, null=True, blank=True, db_index=True)
+    game_status = models.PositiveSmallIntegerField("estado", choices=GameStatus.choices, null=True, blank=True)
+    # Si es una edición de otro juego («Game of the Year Edition», «Deluxe Edition»...: version_parent en IGDB), ese
+    # juego y el nombre de la edición. Las ediciones no salen en el Catálogo, su ficha lleva a la del juego y lo que la
+    # gente tiene de ellas se junta con el juego (comando merge_editions). También se puede poner a mano en el admin.
+    parent = models.ForeignKey(
+        "self", on_delete=models.SET_NULL, null=True, blank=True, related_name="editions",
+        verbose_name="es una edición de",
+    )
+    edition_name = models.CharField("nombre de la edición", max_length=255, blank=True)
+    # Nota de los usuarios de IGDB (rating, de 0 a 100) y cuántos han votado.
+    igdb_rating = models.FloatField("nota de los usuarios de IGDB", null=True, blank=True)
+    igdb_rating_count = models.PositiveIntegerField("votos de los usuarios de IGDB", default=0)
+    # Cuánto dura según los jugadores de IGDB (game_time_to_beats), en minutos: con prisa, normal y al 100 %, y
+    # cuántos han respondido.
+    ttb_quick = models.PositiveIntegerField("duración con prisa", null=True, blank=True)
+    ttb_normal = models.PositiveIntegerField("duración normal", null=True, blank=True, db_index=True)
+    ttb_full = models.PositiveIntegerField("duración al 100 %", null=True, blank=True)
+    ttb_count = models.PositiveIntegerField("respuestas de la duración", default=0)
+    # Lo que la ficha solo enseña, sin filtrar por ello (formato en games.details): PEGI, sagas, motor, cooperativo,
+    # ediciones, DLC, remakes, ports, recopilatorios y juegos parecidos.
+    details = models.JSONField("ficha técnica", default=dict, blank=True)
+    details_updated_at = models.DateTimeField("ficha técnica pedida", null=True, blank=True)
     genres = models.ManyToManyField(Genre, related_name="games", blank=True)
     platforms = models.ManyToManyField(Platform, related_name="games", blank=True)
+    modes = models.ManyToManyField(GameMode, related_name="games", blank=True, verbose_name="modos de juego")
+    themes = models.ManyToManyField(Theme, related_name="games", blank=True, verbose_name="temas")
+    perspectives = models.ManyToManyField(Perspective, related_name="games", blank=True, verbose_name="perspectivas")
+    developers = models.ManyToManyField(Company, related_name="developed", blank=True, verbose_name="estudios")
+    publishers = models.ManyToManyField(Company, related_name="published", blank=True, verbose_name="editoras")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -523,10 +722,95 @@ class Game(models.Model):
 
         Pantallas: Ficha del juego (color de la nota de la crítica).
         """
-        score = self.critic_score
-        if score is None:
+        return score_tier(self.critic_score)
+
+    @property
+    def igdb_score(self):
+        """Nota de los usuarios de IGDB redondeada (0-100), o None si no tiene.
+
+        Pantallas: Ficha del juego (nota de los jugadores de IGDB).
+        """
+        return round(self.igdb_rating) if self.igdb_rating is not None else None
+
+    @property
+    def igdb_tier(self):
+        """Franja de la nota de los usuarios de IGDB para colorearla, como critic_tier.
+
+        Pantallas: Ficha del juego (color de la nota de los jugadores de IGDB).
+        """
+        return score_tier(self.igdb_score)
+
+    @property
+    def type_label(self):
+        """Tipo del juego para su etiqueta («Remake», «Expansión», «Edición ampliada»...), o vacío si es un juego normal
+        o no se sabe.
+
+        Pantallas: Catálogo (etiqueta de las tarjetas), Ficha del juego (de qué es remake, DLC... en la cabecera).
+        """
+        if self.game_type in (None, GameType.MAIN) or self.game_type not in GameType.values:
             return ""
-        return "high" if score >= 75 else "mid" if score >= 50 else "low"
+        return GameType(self.game_type).label
+
+    @property
+    def status_label(self):
+        """Estado que conviene saber antes de comprarlo («Ya no se vende», «Servidores cerrados», «En acceso
+        anticipado»...), o vacío si está publicado o no se sabe.
+
+        Pantallas: Ficha del juego (cabecera y ficha técnica).
+        """
+        if self.game_status in (None, GameStatus.RELEASED) or self.game_status not in GameStatus.values:
+            return ""
+        return GameStatus(self.game_status).label
+
+    @property
+    def main(self):
+        """El juego que cuenta: si es una edición de otro, ese otro; si no, él mismo.
+
+        Pantallas: Ficha del juego (la de una edición lleva a la de su juego), Juegos importados, Perfil (biblioteca y
+        horas: lo importado de una edición va al juego), Lista de deseos (lo que se trae de Steam).
+        """
+        return self.parent if self.parent_id else self
+
+    @property
+    def duration(self):
+        """Cuánto dura según los jugadores de IGDB, para la ficha: {"normal", "quick", "full" (horas, redondeadas a la
+        media hora; None las que no hay), "count" (cuántos han respondido), "rough" (menos de DURATION_MIN_ANSWERS
+        respuestas: dato orientativo) y "endless" (más de ENDLESS_HOURS: no se acaba)}, o None si no hay datos.
+
+        Pantallas: Ficha del juego (Cuánto dura).
+        """
+        if not (self.ttb_normal or self.ttb_quick or self.ttb_full):
+            return None
+        return {
+            "normal": half_hours(self.ttb_normal),
+            "quick": half_hours(self.ttb_quick),
+            "full": half_hours(self.ttb_full),
+            "count": self.ttb_count,
+            "rough": self.ttb_count < DURATION_MIN_ANSWERS,
+            "endless": bool(self.ttb_normal and self.ttb_normal > ENDLESS_HOURS * 60),
+        }
+
+    @property
+    def normal_hours(self):
+        """Horas que suele durar (la duración normal de IGDB) si es un dato con el que contar: al menos
+        DURATION_USABLE_ANSWERS respuestas y no más de ENDLESS_HOURS; None si no.
+
+        Pantallas: Ficha del juego (Cuánto dura: lo que te falta), Repasar la biblioteca (pista «suele durar…»).
+        """
+        if not self.ttb_normal or self.ttb_count < DURATION_USABLE_ANSWERS or self.ttb_normal > ENDLESS_HOURS * 60:
+            return None
+        return self.ttb_normal / 60
+
+    @property
+    def is_endless(self):
+        """Indica si es un juego que no se acaba: multijugador masivo o battle royale, o los jugadores de IGDB apuntan
+        más de ENDLESS_HOURS (con al menos DURATION_USABLE_ANSWERS respuestas).
+
+        Pantallas: Repasar la biblioteca (los juegos sin final van al fondo y sin «¿lo terminaste?»).
+        """
+        if self.ttb_normal and self.ttb_count >= DURATION_USABLE_ANSWERS and self.ttb_normal > ENDLESS_HOURS * 60:
+            return True
+        return any(mode.igdb_id in ENDLESS_MODE_IDS for mode in self.modes.all())
 
     @property
     def historical_low_symbol(self):

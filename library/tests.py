@@ -18,7 +18,7 @@ from PIL import Image
 
 from accounts.models import Achievement, ExternalTitle, ImportedTitle, Notification, UnlockedAchievement
 from challenges.models import Challenge, Participation
-from games.models import STEAM_DECK_SLUG, Game, GamePrice, Platform
+from games.models import STEAM_DECK_SLUG, Game, GameMode, GamePrice, Platform
 from social.models import Activity
 
 from . import backlog, markup, reminders, wishlist
@@ -949,6 +949,34 @@ class TidyTests(TestCase):
         # Lo repasado no vuelve a salir.
         LibraryEntry.objects.filter(pk=many.pk).update(reviewed_at=timezone.now())
         self.assertEqual(backlog.queue(self.user), [stale, few])
+
+    def test_what_it_usually_lasts_and_endless_games_go_last(self):
+        old = timezone.now() - timedelta(days=400)
+        Game.objects.filter(pk=self.hades.pk).update(ttb_normal=20 * 60, ttb_count=10)
+        Game.objects.filter(pk=self.celeste.pk).update(ttb_normal=10 * 60, ttb_count=10)
+        self.doom.modes.add(GameMode.objects.create(igdb_id=5, name="Multijugador masivo (MMO)", slug="mmo"))
+        longer = self.entry(Game.objects.get(pk=self.hades.pk), LibraryEntry.Status.PLAYED, hours=25, played=old)
+        shorter = self.entry(Game.objects.get(pk=self.celeste.pk), LibraryEntry.Status.PLAYED, hours=4, played=old)
+        endless = self.entry(self.doom, LibraryEntry.Status.PLAYED, hours=500, played=old)
+        hint = backlog.hint(longer)
+        self.assertIn("Suele durar unas 20 h, y tú llevas más.", hint["lines"])
+        self.assertEqual(hint["suggest"], "terminado")
+        hint = backlog.hint(shorter)
+        self.assertIn("Suele durar unas 10 h: te faltarían unas 6 h.", hint["lines"])
+        self.assertIsNone(hint["suggest"])
+        hint = backlog.hint(endless)
+        self.assertIn("No tiene un final claro: es de los que se juegan sin parar.", hint["lines"])
+        self.assertIsNone(hint["suggest"])
+        # Con multijugador y más de 4 veces lo que suele durar, tampoco se propone (Rocket League, Counter-Strike…).
+        celeste = Game.objects.get(pk=self.celeste.pk)
+        celeste.modes.add(GameMode.objects.create(igdb_id=2, name="Multijugador", slug="multijugador"))
+        shorter.steam_playtime_minutes = 60 * 60
+        hint = backlog.hint(shorter)
+        self.assertIn("No tiene un final claro: es de los que se juegan sin parar.", hint["lines"])
+        self.assertIsNone(hint["suggest"])
+        shorter.refresh_from_db()
+        # Aunque sea el de más horas, el que no se acaba va al final.
+        self.assertEqual(backlog.queue(self.user), [longer, shorter, endless])
 
     def test_finished_takes_the_date_of_the_last_achievement_and_counts_only_where_it_should(self):
         when = timezone.now() - timedelta(days=200)

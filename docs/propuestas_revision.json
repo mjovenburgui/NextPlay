@@ -77,7 +77,7 @@
   "piezas": [
     {
       "titulo": "Una pasada a IGDB",
-      "texto": "Un comando fill_game_fields, con 5 peticiones para todo el catálogo, trae de una vez tipo, estado, modos, temas, parecidos, compañías y nota de usuarios. Mejor una sola vez que una por propuesta.",
+      "texto": "Un comando fill_game_fields, con 5 peticiones para todo el catálogo, trae de una vez tipo, estado, modos, temas, parecidos, compañías y nota de usuarios. Mejor una sola vez que una por propuesta. Hecha el 08/11/2026 en la rama pasada-a-igdb: fill_game_fields, menos de un minuto para todo el catálogo.",
       "tareas": [
         "Quitar DLC y actualizaciones de las búsquedas en IGDB",
         "Ficha del juego más completa",
@@ -183,7 +183,9 @@
         "Contadores y reparto de valoraciones en la ficha",
         "Próximos lanzamientos: fechas por plataforma y aviso cuando sale",
         "Joyas ocultas y juegos en los que la comunidad discrepa",
-        "Ediciones agrupadas bajo su juego (GOTY, Complete, Definitive…)"
+        "Ediciones agrupadas bajo su juego (GOTY, Complete, Definitive…)",
+        "Páginas de saga con tu progreso",
+        "Ampliar el catálogo por tandas"
       ]
     },
     {

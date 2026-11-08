@@ -1,4 +1,5 @@
-"""Cliente de IGDB y la función que vuelca sus juegos en el catálogo local."""
+"""Cliente de IGDB y las funciones que vuelcan sus juegos en el catálogo local: datos, clasificación (tipo, modos,
+temas, perspectivas y compañías) y ediciones enlazadas con su juego."""
 
 import re
 import time
@@ -12,7 +13,21 @@ from django.db.models import Q
 from django.utils.text import slugify
 
 from . import spanish
-from .models import Game, GamePrice, Genre, Platform, spanish_genre_name
+from .models import (
+    ADDON_TYPES,
+    MODE_NAMES_ES,
+    PERSPECTIVE_NAMES_ES,
+    THEME_NAMES_ES,
+    Company,
+    Game,
+    GameMode,
+    GamePrice,
+    Genre,
+    Perspective,
+    Platform,
+    Theme,
+    spanish_genre_name,
+)
 
 TOKEN_URL = "https://id.twitch.tv/oauth2/token"
 API_URL = "https://api.igdb.com/v4"
@@ -42,6 +57,32 @@ STEAM_FIELDS = "external_games.uid, external_games.name, external_games.external
 # (_store_alternatives), por preferencia: sus ports y sus ediciones ampliadas, que son el mismo juego en otra ficha
 # (la versión de PC de Red Dead Redemption, The Witcher 2: Enhanced Edition), y sus remasters.
 RELATED_STORES = ("ports", "expanded_games", "remasters")
+# Lo que se filtra en el Catálogo (lo guardan classify y classify_relations): tipo, estado, de qué juego es edición,
+# nota de los usuarios, modos, temas, perspectivas y compañías. Va en todas las consultas de juegos: son ids y nombres.
+CLASSIFY_FIELDS = (
+    "game_type, game_status, version_parent, version_title, rating, rating_count, game_modes.name, game_modes.slug, "
+    "themes.name, themes.slug, player_perspectives.name, player_perspectives.slug, involved_companies.company.name, "
+    "involved_companies.company.slug, involved_companies.developer, involved_companies.publisher"
+)
+# Juegos relacionados que enseña la ficha en «Ediciones y versiones» (ver games.details).
+RELATED_GAMES = (
+    "remakes", "remasters", "expanded_games", "ports", "expansions", "standalone_expansions", "dlcs", "bundles",
+)
+# Lo que la ficha solo lee (games.details): edades, sagas, motor, cooperativo, de qué juego es remake, DLC o port,
+# sus parecidos y los juegos relacionados con su portada y su año.
+DETAIL_FIELDS = (
+    "age_ratings.organization.name, age_ratings.rating_category.rating, collections.name, franchises.name, "
+    "game_engines.name, url, parent_game.name, parent_game.game_type, similar_games, multiplayer_modes.campaigncoop, "
+    "multiplayer_modes.offlinecoop, multiplayer_modes.offlinecoopmax, multiplayer_modes.onlinecoop, "
+    "multiplayer_modes.onlinecoopmax, multiplayer_modes.splitscreen, "
+    + ", ".join(
+        f"{key}.name, {key}.cover.image_id, {key}.first_release_date, {key}.game_type" for key in RELATED_GAMES
+    )
+)
+# Condición de las búsquedas que deja fuera los DLC sueltos, los packs y las actualizaciones (models.ADDON_TYPES).
+NOT_ADDONS = f"game_type != ({','.join(str(int(kind)) for kind in ADDON_TYPES)})"
+# Campos de Game que cambia classify.
+CLASSIFY_MODEL_FIELDS = ["game_type", "game_status", "edition_name", "igdb_rating", "igdb_rating_count"]
 GAME_FIELDS = (
     "fields name, slug, summary, first_release_date, total_rating_count, cover.image_id, "
     f"aggregated_rating, aggregated_rating_count, {STEAM_FIELDS}, "
@@ -49,7 +90,8 @@ GAME_FIELDS = (
         f"{related}.name, {STEAM_FIELDS.replace('external_games', related + '.external_games')}, "
         for related in RELATED_STORES
     )
-    + f"genres.name, genres.slug, platforms.name, platforms.abbreviation, platforms.slug, {spanish.SPANISH_FIELDS};"
+    + f"genres.name, genres.slug, platforms.name, platforms.abbreviation, platforms.slug, {spanish.SPANISH_FIELDS}, "
+    + f"{CLASSIFY_FIELDS};"
 )
 
 
@@ -136,7 +178,8 @@ class IGDBClient:
             raise IGDBError(f"Error consultando IGDB: {exc}") from exc
 
     def top_games(self, limit=MAX_PAGE_SIZE, offset=0):
-        """Una página de los juegos más valorados por número de votos, sin ediciones sueltas, con sus ediciones.
+        """Una página de los juegos más valorados por número de votos, sin ediciones sueltas ni DLC, packs o
+        actualizaciones (NOT_ADDONS), con sus ediciones.
 
         Pantallas: Catálogo (los juegos populares que trae el comando import_igdb), Ficha del juego, Inicio, Perfil,
         Lista de deseos, Página de la lista, Página del reto (los datos de cada juego: nombre, portada, géneros y
@@ -144,13 +187,14 @@ class IGDBClient:
         """
         limit = min(limit, MAX_PAGE_SIZE)
         body = (
-            f"{GAME_FIELDS} where version_parent = null & total_rating_count > 0; "
+            f"{GAME_FIELDS} where version_parent = null & total_rating_count > 0 & {NOT_ADDONS}; "
             f"sort total_rating_count desc; limit {limit}; offset {offset};"
         )
         return self._with_editions(self.query("games", body))
 
     def search(self, term, limit=20):
-        """Busca juegos por texto en IGDB (hasta limit resultados, sin ediciones sueltas), con sus ediciones.
+        """Busca juegos por texto en IGDB (hasta limit resultados, sin ediciones sueltas ni DLC, packs o
+        actualizaciones: NOT_ADDONS), con sus ediciones.
 
         Pantallas: Catálogo (botón para traer de IGDB lo que buscas), Juegos importados (buscar el juego de un
         título), Editar perfil (Cuentas vinculadas: títulos de PlayStation y Xbox que no están en el catálogo), Perfil
@@ -160,13 +204,15 @@ class IGDBClient:
         term = term.replace("\\", " ").replace('"', " ").strip()
         if not term:
             return []
-        body = f'search "{term}"; {GAME_FIELDS} where version_parent = null; limit {limit};'
+        body = f'search "{term}"; {GAME_FIELDS} where version_parent = null & {NOT_ADDONS}; limit {limit};'
         return self._with_editions(self.query("games", body))
 
     def games_by_steam_ids(self, app_ids):
         """Juegos de IGDB (con sus ediciones) de una lista de IDs de Steam y un dict {ID de Steam: id de IGDB}.
 
-        Los IDs que IGDB no conoce (herramientas, bandas sonoras, servidores...) no aparecen en el dict.
+        Los IDs que IGDB no conoce (herramientas, bandas sonoras, servidores...) no aparecen en el dict. Si alguno es
+        una edición (la «Game of the Year Edition» que Steam vende con su propio ID), trae también su juego, para que
+        upsert_games las enlace y lo importado cuente en el juego.
 
         Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y
         horas: juegos de Steam que aún no están en el catálogo), Ficha del juego (tus horas), Juegos importados (los
@@ -184,7 +230,11 @@ class IGDBClient:
             ):
                 if item.get("game") and str(item.get("uid") or "").isdigit():
                     steam_to_igdb.setdefault(int(item["uid"]), item["game"])
-        return self.games_by_ids(sorted(set(steam_to_igdb.values()))), steam_to_igdb
+        games = self.games_by_ids(sorted(set(steam_to_igdb.values())))
+        parents = {game["version_parent"] for game in games if game.get("version_parent")} - {game["id"] for game in games}
+        if parents:
+            games += self.games_by_ids(sorted(parents))
+        return games, steam_to_igdb
 
     def games_by_ids(self, igdb_ids):
         """Juegos de IGDB (con sus ediciones) a partir de sus ids, en lotes de MAX_PAGE_SIZE.
@@ -201,7 +251,8 @@ class IGDBClient:
         return self._with_editions(games)
 
     def games_by_names(self, names):
-        """Juegos de IGDB (con sus ediciones) cuyo nombre es exactamente uno de names, sin ediciones sueltas.
+        """Juegos de IGDB (con sus ediciones) cuyo nombre es exactamente uno de names, sin ediciones sueltas ni DLC,
+        packs o actualizaciones (NOT_ADDONS).
 
         Va en lotes para no hacer una petición por juego. Si dos juegos se llaman igual vienen los dos;
         quien llama decide con cuál quedarse (p. ej. el más popular).
@@ -219,7 +270,7 @@ class IGDBClient:
             time.sleep(0.25)  # IGDB admite 4 peticiones por segundo
             games += self.query(
                 "games",
-                f"{GAME_FIELDS} where name = ({chunk}) & version_parent = null; "
+                f"{GAME_FIELDS} where name = ({chunk}) & version_parent = null & {NOT_ADDONS}; "
                 f"sort total_rating_count desc; limit {MAX_PAGE_SIZE};",
             )
         return self._with_editions(games)
@@ -271,8 +322,44 @@ class IGDBClient:
         found = self.query("games", f"{MEDIA_FIELDS} where id = {int(igdb_id)};")
         return found[0] if found else {}
 
+    def games_with_details(self, igdb_ids):
+        """Lo que trae una pasada a IGDB de esos juegos, en lotes de MAX_PAGE_SIZE: su clasificación (CLASSIFY_FIELDS),
+        su ficha técnica (DETAIL_FIELDS) y sus ediciones («editions»). Los que IGDB no conoce no vienen.
+
+        Pantallas: Ficha del juego (ficha técnica, «Ediciones y versiones» y «Si te gustó»), Catálogo (filtros de tipo,
+        modo, tema, perspectiva y estudio, y etiqueta de las tarjetas).
+        """
+        games = []
+        for start in range(0, len(igdb_ids), MAX_PAGE_SIZE):
+            ids = ",".join(str(game_id) for game_id in igdb_ids[start:start + MAX_PAGE_SIZE])
+            time.sleep(0.25)  # IGDB admite 4 peticiones por segundo
+            games += self._with_editions(self.query(
+                "games", f"fields name, {CLASSIFY_FIELDS}, {DETAIL_FIELDS}; where id = ({ids}); limit {MAX_PAGE_SIZE};"
+            ))
+        return games
+
+    def time_to_beat(self, igdb_ids):
+        """Cuánto duran esos juegos según los jugadores de IGDB (endpoint game_time_to_beats), en lotes de
+        MAX_PAGE_SIZE: {id de IGDB: {"hastily", "normally", "completely", "count"}}, en segundos y solo los que tienen.
+
+        Pantallas: Ficha del juego (Cuánto dura), Catálogo (filtro y orden por duración), Repasar la biblioteca (pista
+        «suele durar…»).
+        """
+        found = {}
+        for start in range(0, len(igdb_ids), MAX_PAGE_SIZE):
+            ids = ",".join(str(game_id) for game_id in igdb_ids[start:start + MAX_PAGE_SIZE])
+            time.sleep(0.25)  # IGDB admite 4 peticiones por segundo
+            for row in self.query(
+                "game_time_to_beats",
+                f"fields game_id, hastily, normally, completely, count; where game_id = ({ids}); limit {MAX_PAGE_SIZE};",
+            ):
+                if row.get("game_id"):
+                    found[row["game_id"]] = row
+        return found
+
     def _with_editions(self, games):
-        """Añade a cada juego sus ediciones (GOTY, Definitive...) en la clave «editions», para tener sus IDs de tienda.
+        """Añade a cada juego sus ediciones (GOTY, Definitive...) en la clave «editions»: sus IDs de tienda, para buscar
+        precios, y su nombre de edición, portada, año y tipo, para la ficha.
 
         Pantallas: Catálogo, Ficha del juego (Dónde comprarlo: los IDs de tienda de sus ediciones), Inicio, Perfil,
         Lista de deseos (mejor precio de hoy y mínimo histórico), Página de la lista (lo que cuesta lo que te falta),
@@ -286,7 +373,8 @@ class IGDBClient:
             time.sleep(0.25)  # IGDB allows 4 requests per second
             page = self.query(
                 "games",
-                f"fields name, version_parent, {STEAM_FIELDS}; where version_parent = ({ids}); "
+                f"fields name, version_parent, version_title, game_type, first_release_date, cover.image_id, "
+                f"{STEAM_FIELDS}; where version_parent = ({ids}); "
                 f"sort id asc; limit {MAX_PAGE_SIZE}; offset {offset};",
             )
             editions += page
@@ -307,6 +395,131 @@ def sort_arts(artworks):
     """
     arts = [art for art in artworks if art.get("artwork_type") not in NOT_ART_TYPES]
     return sorted(arts, key=lambda art: art.get("artwork_type") not in KEY_ART_TYPES)
+
+
+def classify(game, data):
+    """Pone en game, sin guardarlo, lo que se filtra de CLASSIFY_FIELDS: tipo, estado, nombre de la edición (si es
+    edición de otro juego) y nota de los usuarios de IGDB. Lo que IGDB no manda se queda vacío: casi todos los juegos
+    publicados no tienen estado.
+
+    Pantallas: Catálogo (filtros de tipo y nota, y etiqueta de las tarjetas), Ficha del juego (cabecera, nota de los
+    jugadores de IGDB y ficha técnica).
+    """
+    game.game_type = data.get("game_type")
+    game.game_status = data.get("game_status")
+    game.edition_name = (data.get("version_title") or "")[:255] if data.get("version_parent") else ""
+    game.igdb_rating = data.get("rating")
+    game.igdb_rating_count = data.get("rating_count") or 0
+
+
+def classify_relations(game, data, refs):
+    """Pone a game (ya guardado) sus modos, temas, perspectivas, estudios y editoras de IGDB.
+
+    refs es una caché {(modelo, id de IGDB): etiqueta} (ver known_refs) que se va llenando con las nuevas, para no
+    buscar la misma en cada juego.
+
+    Pantallas: Catálogo (filtros de modo, tema, perspectiva y estudio), Ficha del juego (ficha técnica).
+    """
+    game.modes.set(_tags(GameMode, data.get("game_modes"), MODE_NAMES_ES, refs))
+    game.themes.set(_tags(Theme, data.get("themes"), THEME_NAMES_ES, refs))
+    game.perspectives.set(_tags(Perspective, data.get("player_perspectives"), PERSPECTIVE_NAMES_ES, refs))
+    involved = [item for item in data.get("involved_companies") or [] if isinstance(item.get("company"), dict)]
+    game.developers.set(_companies([item["company"] for item in involved if item.get("developer")], refs))
+    game.publishers.set(_companies([item["company"] for item in involved if item.get("publisher")], refs))
+
+
+def known_refs():
+    """Caché de las etiquetas de IGDB que ya están guardadas, {(modelo, id de IGDB): etiqueta}, para que una pasada por
+    todo el catálogo no las busque una a una.
+
+    Pantallas: Catálogo (filtros de modo, tema, perspectiva y estudio), Ficha del juego (ficha técnica).
+    """
+    return {
+        (model, tag.igdb_id): tag
+        for model in (GameMode, Theme, Perspective, Company)
+        for tag in model.objects.exclude(igdb_id=None)
+    }
+
+
+def _tags(model, items, names, refs):
+    """Modos, temas o perspectivas de un juego (model) a partir de los de IGDB, con su nombre en español de names.
+
+    Pantallas: Catálogo (filtros de modo, tema y perspectiva), Ficha del juego (ficha técnica).
+    """
+    tags = []
+    for item in items or []:
+        if not isinstance(item, dict) or not item.get("id") or not item.get("name"):
+            continue
+        key = (model, item["id"])
+        if key not in refs:
+            refs[key] = _save_tag(model, item["id"], names.get(item.get("slug"), item["name"]))
+        tags.append(refs[key])
+    return tags
+
+
+def _companies(items, refs):
+    """Estudios o editoras de un juego a partir de las compañías de IGDB, con el slug de IGDB.
+
+    Pantallas: Catálogo (filtro de estudio), Ficha del juego (ficha técnica: estudio y editora).
+    """
+    companies = []
+    for item in items:
+        if not item.get("id") or not item.get("name"):
+            continue
+        key = (Company, item["id"])
+        if key not in refs:
+            refs[key] = _save_tag(Company, item["id"], item["name"], item.get("slug", ""))
+        if refs[key] not in companies:
+            companies.append(refs[key])
+    return companies
+
+
+def _save_tag(model, igdb_id, name, slug=""):
+    """Busca o crea la etiqueta de IGDB igdb_id de model con ese nombre. El slug (lo que se ve en la dirección del
+    Catálogo: ?tema=terror) se pone al crearla, del slug dado o del nombre; si ya lo tiene otra, lleva el id detrás.
+
+    Pantallas: Catálogo (filtros de modo, tema, perspectiva y estudio), Ficha del juego (ficha técnica).
+    """
+    name = name[:255]
+    tag = model.objects.filter(igdb_id=igdb_id).first()
+    if tag is not None:
+        if tag.name != name:
+            tag.name = name
+            tag.save(update_fields=["name"])
+        return tag
+    slug = (slug or slugify(name) or str(igdb_id))[:240]
+    if model.objects.filter(slug=slug).exists():
+        slug = f"{slug}-{igdb_id}"
+    return model.objects.create(igdb_id=igdb_id, name=name, slug=slug)
+
+
+def link_editions(pairs, client=None):
+    """Pone a cada edición el juego del que es edición (Game.parent) a partir de pairs, [(edición, id de IGDB de su
+    juego)], y devuelve las que han cambiado.
+
+    Si el juego aún no está en el catálogo y hay client, lo trae de IGDB; si no, la edición se queda como está. No
+    enlaza una edición consigo misma ni con otra edición, y nunca quita un enlace (puede venir del admin).
+
+    Pantallas: Ficha del juego (la de una edición lleva a la de su juego; «Ediciones y versiones»), Catálogo (las
+    ediciones no salen), Perfil (biblioteca y horas: lo importado de una edición cuenta en su juego).
+    """
+    wanted = {parent_id for _, parent_id in pairs}
+    if not wanted:
+        return []
+    known = {game.igdb_id: game for game in Game.objects.filter(igdb_id__in=wanted)}
+    missing = sorted(wanted - set(known))
+    if missing and client is not None:
+        for game in upsert_games(client.games_by_ids(missing)):
+            known[game.igdb_id] = game
+    linked = []
+    for edition, parent_id in pairs:
+        parent = known.get(parent_id)
+        if parent is None or parent.pk == edition.pk or parent.parent_id or edition.parent_id == parent.pk:
+            continue
+        edition.parent = parent
+        edition.save(update_fields=["parent"])
+        linked.append(edition)
+    return linked
 
 
 def _upsert_ref(model, data, **extra):
@@ -406,17 +619,19 @@ def _xbox_product_ids(data):
 def upsert_games(payload):
     """Crea o actualiza los juegos locales a partir de los de IGDB y devuelve la lista de Game.
 
-    Guarda datos, nota, portada, IDs de tienda, géneros, plataformas y lo de castellano (idiomas,
-    nombre en España, otros nombres y portada europea, ver games.spanish). Aprovecha juegos de demo o
-    creados a mano con el mismo nombre o slug en vez de duplicarlos. Si cambian los IDs de tienda,
-    borra los precios de PC, que se buscaron con los IDs viejos. Todo va en una transacción.
+    Guarda datos, nota, portada, IDs de tienda, géneros, plataformas, lo de castellano (idiomas,
+    nombre en España, otros nombres y portada europea, ver games.spanish) y su clasificación (tipo,
+    estado, modos, temas, perspectivas y compañías: classify). Aprovecha juegos de demo o creados a
+    mano con el mismo nombre o slug en vez de duplicarlos. Si cambian los IDs de tienda, borra los
+    precios de PC, que se buscaron con los IDs viejos. Al final enlaza las ediciones con su juego si
+    ya está en el catálogo (link_editions). Todo va en una transacción.
 
     Pantallas: Catálogo (botón para traer de IGDB), Ficha del juego, Inicio, Perfil (modal «Vincular cuentas» de su
     dueño), Lista de deseos, Página de la lista, Página del reto (los datos de cada juego: nombre, portada, géneros y
     plataformas), Juegos importados (buscar en IGDB), Editar perfil (Cuentas vinculadas: juegos importados que aún no
     están en el catálogo).
     """
-    genres, platforms, games = {}, {}, []
+    genres, platforms, games, refs, editions = {}, {}, [], {}, []
     for data in payload:
         if not data.get("name") or not data.get("slug"):
             continue
@@ -457,6 +672,7 @@ def upsert_games(payload):
         game.store_alternatives = _store_alternatives(data, store_ids)
         game.xbox_product_ids = _xbox_product_ids(data)
         spanish.apply_igdb(game, data)
+        classify(game, data)
         game.save()
 
         game_genres = []
@@ -474,6 +690,10 @@ def upsert_games(payload):
                 )
             game_platforms.append(platforms[item["id"]])
         game.platforms.set(game_platforms)
+        classify_relations(game, data, refs)
+        if data.get("version_parent"):
+            editions.append((game, data["version_parent"]))
 
         games.append(game)
+    link_editions(editions)
     return games

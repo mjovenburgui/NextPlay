@@ -2136,3 +2136,91 @@ form:has(input[name="mode"]:checked:not([value="tiers"])) .switch-row[data-field
 /* Lo que pide cada tipo: la lista, solo en los de juegos concretos; los filtros, solo en los de número de juegos u horas. */
 form:has(input[name="kind"][value="games"]:checked) .challenge-for-count { display: none; }
 form:has(input[name="kind"]:checked:not([value="games"])) .challenge-for-games { display: none; }
+
+/* Pasada a IGDB en la ficha. Ficha técnica: filas «etiqueta y valores», con enlace al Catálogo lo que se puede filtrar. */
+.tech-sheet .widget-label, .versions .widget-label, .side-duration .widget-label { font-family: inherit; }
+.sheet { display: grid; gap: .45rem; margin: 0; }
+.sheet-row { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); gap: .25rem .9rem; }
+.sheet dt { color: var(--muted); font-size: .88rem; }
+.sheet dd { margin: 0; color: var(--text-2); overflow-wrap: anywhere; }
+.sheet-sep { margin: 0 .4rem; color: var(--muted); }
+.tech-sheet .help { margin-top: .75rem; }
+@media (max-width: 480px) {
+  .sheet-row { grid-template-columns: minmax(0, 1fr); gap: 0; }
+}
+/* Las dos notas de fuera en la misma caja: la de los jugadores de IGDB, separada de la de la crítica. */
+.side-score .score-next { margin-top: 1rem; }
+/* Cuánto dura, en la columna de la carátula: la duración normal destacada y debajo lo que te falta. */
+.game-side .side-duration { margin: 1rem 0 0; }
+.duration { display: grid; gap: .3rem; margin: 0 0 .55rem; }
+.duration div { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; font-size: .9rem; }
+.duration dt { color: var(--muted); }
+.duration dd { margin: 0; color: var(--text-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.duration .duration-main dt { color: var(--text-2); }
+.duration .duration-main dd { color: var(--text); font-size: 1.35rem; font-weight: 800; }
+.duration-left { margin: 0 0 .55rem; padding: .45rem .7rem; background: var(--surface-2); border-left: 3px solid var(--cyan); border-radius: 8px; font-size: .9rem; color: var(--text-2); }
+.duration-left strong { color: var(--cyan-text); }
+.duration-endless { margin: 0 0 .5rem; font-size: .9rem; color: var(--text-2); }
+.side-duration > .muted { margin: 0; }
+/* Ediciones y versiones: tiras de portadas pequeñas que se pasan de lado, una por grupo. */
+.versions-title { display: flex; align-items: baseline; gap: .4rem; margin: 1.1rem 0 .55rem; font-size: .98rem; }
+.versions-title:first-of-type { margin-top: .2rem; }
+.versions-title .muted { font-size: .85rem; font-weight: 500; }
+.version-row {
+  display: flex; gap: .8rem; margin: 0; padding: 0 0 .5rem; list-style: none; overflow-x: auto; scroll-snap-type: x proximity;
+  scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent;
+}
+.version { flex: 0 0 104px; scroll-snap-align: start; }
+.version > a { display: block; color: var(--text); }
+.version > a:hover { text-decoration: none; }
+.version > a:hover .cover { border-color: var(--violet); }
+.version .cover { border-radius: 10px; }
+.version .cover-fallback { font-size: .75rem; }
+.version-name { margin: .4rem 0 0; font-size: .82rem; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.version .muted { margin: .1rem 0 0; font-size: .75rem; }
+.version.is-current .cover { border-color: var(--cyan); box-shadow: 0 0 0 2px color-mix(in srgb, var(--cyan) 35%, transparent); }
+.version-current { color: var(--cyan-text); font-weight: 600; }
+/* Juegos parecidos, entre los precios y las reseñas. */
+.similar { margin: 1.75rem 0; }
+.similar h2 { margin: 0; font-size: 1.3rem; }
+.similar .help { margin: .2rem 0 .9rem; }
+/* Aviso de arriba cuando se llega desde la ficha de una edición. */
+.edition-note { margin: 0 0 1rem; padding: .65rem .9rem; background: var(--surface-2); border-left: 3px solid var(--violet); border-radius: 10px; font-size: .92rem; color: var(--text-2); }
+.edition-note strong { color: var(--text); }
+/* Cabecera: de qué juego es (remake, DLC…) y su estado si conviene saberlo antes de comprarlo. */
+.game-origin { margin: 0; color: #d5d9ee; font-weight: 600; text-shadow: 0 1px 8px rgba(0, 0, 0, .9); }
+.game-origin a { color: var(--cyan-text); }
+.status-flag {
+  display: inline-block; margin-left: .5rem; padding: .05rem .6rem; vertical-align: .1em;
+  background: rgba(7, 9, 18, .62); border: 1px solid color-mix(in srgb, var(--gold) 70%, transparent); border-radius: 999px;
+  color: var(--gold-text); font-size: .8rem; text-shadow: none;
+}
+/* Tipo de juego en las tarjetas («Remake», «Expansión»…). */
+.card-type { color: var(--violet-text); }
+
+/* Catálogo: los filtros de siempre en una fila y el resto en «Más filtros», que se abre solo si alguno está puesto. */
+.catalog-filters { margin: 0 0 1rem; }
+.more-filters { margin-top: .6rem; }
+.more-filters summary { display: inline-flex; align-items: center; gap: .45rem; min-height: 2.25rem; color: var(--cyan); font-size: .92rem; font-weight: 600; cursor: pointer; }
+.more-filters summary .count { padding: 0 .45rem; border-radius: 999px; background: var(--violet); color: #fff; font-size: .72rem; font-weight: 700; }
+.more-filters-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr)); align-items: start; gap: .8rem 1rem; margin-top: .6rem;
+  padding: 1rem; background: rgba(14, 18, 34, .88); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.filter-field { display: grid; gap: .3rem; color: var(--muted); font-size: .8rem; font-weight: 600; }
+.filter-field select { width: 100%; padding: .45rem 2.2rem .45rem .75rem; background-color: var(--surface-2); }
+.filter-field select:has(option:checked:not([value=""])) { border-color: var(--violet); }
+.filter-checks { display: grid; gap: .4rem; align-content: start; }
+.filter-check { display: flex; align-items: center; gap: .5rem; color: var(--text-2); font-size: .9rem; }
+.filter-checks .help { margin: .1rem 0 0; }
+.catalog-count { margin: 0 0 .6rem; }
+.active-filters { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1rem; padding: 0; list-style: none; }
+.active-filters .chip:hover { border-color: var(--pink); color: var(--pink-text); text-decoration: none; }
+.catalog-hidden { margin: 1.25rem 0 0; text-align: center; }
+@media (max-width: 480px) {
+  /* En el móvil, dos desplegables por fila para que «Más filtros» no ocupe toda la pantalla. */
+  .more-filters-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem .7rem; padding: .8rem; }
+  .filter-field select { padding-right: 1.9rem; text-overflow: ellipsis; }
+  .filter-checks { grid-column: 1 / -1; }
+}
+.catalog-results.htmx-request { opacity: .55; transition: opacity .15s; }

@@ -641,7 +641,7 @@
   {
     "titulo": "Ficha del juego más completa",
     "fecha": "2026-10-17",
-    "estado": "pendiente",
+    "estado": "hecha",
     "prioridad": "alta",
     "tipo": "Funcionalidad",
     "resumen": "Traer más datos de IGDB a la ficha: tráiler, capturas, estudio y editora, edad PEGI, modos de juego (cooperativo, online, pantalla partida), DLC y la saga con tu progreso («has jugado 3 de 9»).",
@@ -656,10 +656,10 @@
       "Usar un arte o una captura apaisada de IGDB como fondo de la cabecera de la ficha en vez de la portada desenfocada (Backloggd pone una captura arriba).",
       "Enlace «Ver en IGDB» con el campo url, como el «More on IGDB» de Backloggd."
     ],
-    "notas": "21/10/2026: comparada con la ficha de Backloggd, que también sale de IGDB: enseña estudio y editora, una captura arriba, resumen, fecha, géneros, plataformas y pestañas de DLC, actualizaciones, ediciones, saga y mods. De The Witcher 3, IGDB da 16 artes, 12 capturas, 17 vídeos, 7 clasificaciones de edad, 48 idiomas, 16 webs y 82 palabras clave, así que la ficha puede quedar más completa que la suya. Pedirlo todo en cada importación hace las respuestas mucho más grandes: mejor traer lo extra al abrir la ficha (con caché) y por la noche para los más populares. 22/10/2026: el tráiler, la galería de capturas y el arte de la cabecera pasan a «Rediseño de la ficha: cabecera con arte y carrusel de imágenes y vídeos».",
+    "notas": "21/10/2026: comparada con la ficha de Backloggd, que también sale de IGDB: enseña estudio y editora, una captura arriba, resumen, fecha, géneros, plataformas y pestañas de DLC, actualizaciones, ediciones, saga y mods. De The Witcher 3, IGDB da 16 artes, 12 capturas, 17 vídeos, 7 clasificaciones de edad, 48 idiomas, 16 webs y 82 palabras clave, así que la ficha puede quedar más completa que la suya. Pedirlo todo en cada importación hace las respuestas mucho más grandes: mejor traer lo extra al abrir la ficha (con caché) y por la noche para los más populares. 22/10/2026: el tráiler, la galería de capturas y el arte de la cabecera pasan a «Rediseño de la ficha: cabecera con arte y carrusel de imágenes y vídeos». 08/11/2026: hecha en la rama pasada-a-igdb (PR #38, fusionado con main el 08/11/2026), con la pasada a IGDB (games.details y fill_game_fields). Ficha técnica: estudio y editora (juntos si son los mismos) con enlace al Catálogo de ese estudio, modos de juego, cooperativo (en línea o en local, con cuántos, pantalla partida y campaña), perspectiva, temas, saga, motor, PEGI y estado («Ya no se vende», «Servidores cerrados», «En acceso anticipado»…, también en la cabecera), y «Ver en IGDB». Nota de los usuarios de IGDB junto a la de la crítica. «Ediciones y versiones» con portadas: ediciones, remakes, remasters, ediciones ampliadas, ports, expansiones, DLC y recopilatorios; lo que está en el catálogo lleva a su ficha y lo que no, a su búsqueda. En la cabecera, de qué juego es («Remake de Resident Evil 4»). «Juegos parecidos» (similar_games), primero los de tu Pendiente. Lo que se filtra va en campos y tablas (GameMode, Theme, Perspective, Company); lo que solo se lee, en Game.details. Si un juego nunca la ha pedido, la ficha la pide con HTMX al abrirse. Las páginas de saga con tu progreso pasan a su propia propuesta («Páginas de saga con tu progreso»).",
     "revision": {
-      "fecha": "2026-11-01",
-      "hoy": "Lo visual ya está (cabecera y carrusel, games/media.py). Falta casi todo el dato. Medido hoy en IGDB sobre los 2206 juegos del catálogo: compañías en 2191, clasificación por edades en 2102, modos de juego en 2193, modos multijugador en 838, colecciones en 1776, DLC en 471, expansiones en 270, remasters en 278, remakes en 152 y webs en 2190.",
+      "fecha": "2026-11-08",
+      "hoy": "Hecha el 08/11/2026 en la rama pasada-a-igdb (PR #38, fusionado con main el 08/11/2026). En la copia de la base de datos: 1896 juegos con PEGI, 899 con ediciones, 1465 compañías y la pasada entera del catálogo en menos de un minuto. Queda fuera lo que no se ha pedido: storyline, palabras clave, webs y fechas por plataforma y región.",
       "plan": [
         "Separar lo que se filtra de lo que solo se lee. Se filtra: game_type, game_status y modos, en campos normales o M2M rellenos al importar. Solo se lee: un JSON Game.details con la misma receta que Game.media (se pide con HTMX al abrir la ficha si falta o tiene más de 30 días, y de noche para los populares).",
         "IGDBClient.game_details(igdb_id), una sola consulta con los campos expandidos: compañías con desarrolladora y editora, edades (comprobado: age_ratings.organization.name y rating_category.rating dan «PEGI» y «18»), modos, colecciones, franquicias, DLC, remakes, remasters, ports, webs, storyline, temas, perspectivas y motor.",
@@ -668,10 +668,9 @@
         "Comando fill_game_fields para el catálogo existente, por lotes de 500 (5 peticiones en total), como localize_games --sin-tiendas."
       ],
       "profundizar": [
-        "«¿Por dónde empiezo?»: con colecciones y remakes, el orden recomendado de una saga y el aviso «hay un remake de 2023; este es el original».",
-        "«Si te gustó»: similar_games está en 2196 de 2206 juegos. Un bloque con los que ya tienes en tu pendiente primero convierte la ficha en una decisión de qué jugar.",
+        "«¿Por dónde empiezo?»: con colecciones y remakes, el orden recomendado de una saga y el aviso «hay un remake de 2023; este es el original» (va con «Páginas de saga con tu progreso»).",
         "Accesibilidad: las categorías de Steam incluyen dificultad ajustable, opciones de subtítulos, alternativas de color o jugable sin restricciones de tiempo (comprobado, en español). Se piden en la misma llamada de localize_games con filters=basic,categories, sin peticiones de más.",
-        "Estado real antes de comprar: game_status marca 37 juegos del catálogo como retirados de la venta, 24 sin servidores y 16 en acceso anticipado. «Ya no se vende» o «Servidores cerrados» ahorran disgustos."
+        "Fechas por plataforma (release_dates): «en PS5 salió dos años después», y el aviso de lanzamiento de «Próximos lanzamientos»."
       ]
     }
   },
@@ -696,7 +695,7 @@
   {
     "titulo": "Catálogo con filtros y orden al nivel de Backloggd (y más)",
     "fecha": "2026-10-21",
-    "estado": "pendiente",
+    "estado": "hecha",
     "prioridad": "alta",
     "tipo": "Funcionalidad",
     "resumen": "Que el catálogo se pueda ordenar y filtrar como en Backloggd (año, si ya ha salido, tipo de juego, nota, juegos de nicho…) y además por cosas que solo tiene NextPlay: precio, rebajas, idioma y lo que tienes en tu biblioteca.",
@@ -708,23 +707,14 @@
       "Filtros que Backloggd no puede tener: precio máximo, rebajado ahora, en su mínimo histórico, doblado al castellano y «no lo tengo» o «está en mi pendiente».",
       "Filtros con HTMX que cambian la URL, para poder compartir una búsqueda («RPG de 2015 por menos de 10 €»)."
     ],
-    "notas": "Los filtros de idioma y de Game Pass dependen de «Fichas en castellano» y de «Saber qué juegos están en Game Pass».",
+    "notas": "Los filtros de idioma y de Game Pass dependen de «Fichas en castellano» y de «Saber qué juegos están en Game Pass». 08/11/2026: hecha en la rama pasada-a-igdb (PR #38, fusionado con main el 08/11/2026). games/filters.py (CatalogFilters, un formulario que valida cada parámetro e ignora lo que no vale) con: tipo (por defecto sin DLC ni expansiones), género, plataforma, año (este, el anterior y décadas), ya salidos o por salir, nota (de la crítica o de los jugadores de IGDB), duración, muy conocidos o de nicho, modo, tema, perspectiva, estudio (desde la ficha técnica), idioma, precio máximo, rebajados, en su mínimo histórico y tu biblioteca (no lo tengo, lo tengo, en mi pendiente, en mi lista de deseos). Los precios miran solo tus tiendas si las has elegido. Órdenes: más populares, en tendencia, nombre, más recientes, más antiguos, mejor nota de la crítica (con al menos 3 medios) y de los jugadores (con al menos 10 votos), más cortos, más largos y más baratos ahora. Tipo, género, plataforma y orden van a la vista y el resto en «Más filtros»; los puestos salen como etiquetas que se quitan una a una. Con HTMX la lista cambia sin recargar y la dirección se queda solo con lo puesto (HX-Push-Url), lista para compartir: «?duracion=corta&tema=terror». Ampliar el catálogo pasa a su propia propuesta («Ampliar el catálogo por tandas»).",
     "revision": {
-      "fecha": "2026-11-01",
-      "hoy": "Sigue con texto, género, plataforma e idioma, y orden fijo por popularidad. Ojo: el catálogo local son 2206 juegos y filtros finos saldrán casi vacíos aunque IGDB tenga cientos, así que ampliar el catálogo va en el mismo trabajo.",
-      "plan": [
-        "games/filters.py con un formulario que valida todos los parámetros y devuelve el queryset, con un test por filtro: la vista catalog ya ha crecido y esto la vacía.",
-        "Primero lo que se puede hoy: año o década, nota de la crítica, popular o de nicho (popularity), «no lo tengo» y «en mi pendiente» (Exists sobre LibraryEntry). Precios: Min de prices__price filtrado por las tiendas de Profile.shops, rebajado (cut mayor que 0) y en su mínimo (historical_low).",
-        "Tipo y estado cuando esté «Quitar DLC y actualizaciones de las búsquedas en IGDB»; duración cuando esté «Duración estimada de los juegos».",
-        "Órdenes con un diccionario como PROFILE_SORTS, pero de expresiones SQL. Tendencia: las altas de 30 días de trending_games y, con pocos usuarios, popularity_primitives de IGDB.",
-        "HTMX con hx-get, hx-push-url y la rejilla como destino: la URL se puede compartir y, sin JavaScript, sigue siendo un formulario GET.",
-        "Ampliar el catálogo por tandas nocturnas con import_igdb (por ejemplo, hasta 20.000) y medir cómo responde cada filtro antes de seguir."
-      ],
+      "fecha": "2026-11-08",
+      "hoy": "Hecha el 08/11/2026 en la rama pasada-a-igdb (PR #38, fusionado con main el 08/11/2026). Con los 2235 juegos de la copia, «terror de menos de 10 h» da 84. Los filtros finos se quedan cortos con un catálogo tan pequeño: eso sigue en «Ampliar el catálogo por tandas».",
       "profundizar": [
         "Búsquedas guardadas con aviso: guardar «RPG de 2015 por menos de 10 €, doblado» y recibir un aviso cuando aparezca alguno. Encaja con wishlist.check_alerts: una lista de deseos por condiciones y no por juegos.",
         "Tendencia real desde el primer día: popularity_primitives da datos de Steam (pico de jugadores, más vendidos, más deseados) y de Twitch (horas vistas), comprobado. Sirve hasta que haya comunidad.",
-        "Temas y perspectivas como filtros: themes está en 2180 juegos y player_perspectives en 2178. «Terror en primera persona» dice más que los géneros de IGDB.",
-        "La misma vista para decidir qué jugar: «de tu pendiente, menos de 10 h, en castellano y jugable en Deck». Es la pregunta que da nombre a NextPlay."
+        "La misma vista para decidir qué jugar: «de tu pendiente, menos de 10 h, en castellano y jugable en Deck». Es la pregunta que da nombre a NextPlay, y CatalogFilters ya sabe hacerla con ?mio=pendiente."
       ]
     }
   },
@@ -1096,7 +1086,7 @@
   {
     "titulo": "Quitar DLC y actualizaciones de las búsquedas en IGDB",
     "fecha": "2026-10-18",
-    "estado": "pendiente",
+    "estado": "hecha",
     "prioridad": "media",
     "tipo": "Funcionalidad",
     "resumen": "Que al buscar en IGDB (desde el catálogo o al emparejar un juego importado) solo entren juegos completos, remakes, remasters y ediciones ampliadas, no DLC, trajes ni «Title Update».",
@@ -1106,10 +1096,10 @@
       "Filtrar en la consulta los tipos de juego principal, remake, remaster, juego ampliado y port.",
       "Comando para borrar del catálogo los DLC ya importados que no estén en ninguna biblioteca."
     ],
-    "notas": "",
+    "notas": "08/11/2026: hecha en la rama pasada-a-igdb (PR #38, fusionado con main el 08/11/2026). Game.game_type (con índice) y Game.game_status llegan con cada juego de IGDB (igdb.CLASSIFY_FIELDS va en todas las consultas) y, para todo el catálogo, con el comando fill_game_fields. search, top_games y games_by_names dejan fuera los DLC sueltos, los packs y las actualizaciones (igdb.NOT_ADDONS: game_type != (1,13,14)); games_by_steam_ids no, para que lo que alguien tiene se pueda emparejar. El Catálogo esconde por defecto DLC, expansiones, mods, episodios, temporadas, packs y actualizaciones (models.HIDDEN_TYPES), con el filtro «Tipo» para verlos, y si una búsqueda tiene alguno escondido lo dice («Y 3 más entre DLC, expansiones y similares»). Las tarjetas llevan el tipo («Remake», «Expansión»…). Comprobado con IGDB: «Monster Hunter Wilds» pasa de 14 resultados a 2 (el juego y su expansión). No he hecho el comando que borra los DLC ya importados: escondidos ya no molestan, y borrarlos arriesga quitar algo que alguien tenga.",
     "revision": {
-      "fecha": "2026-11-01",
-      "hoy": "Medido hoy en IGDB sobre los 2206 juegos: 20 DLC, 5 packs y 6 actualizaciones (31 que claramente sobran), más 3 episodios, 3 temporadas y 2 mods por revisar. También hay 40 expansiones y 35 bundles, que no conviene quitar a ciegas. No es tan grave como parecía, pero crece con cada búsqueda. Game no guarda game_type.",
+      "fecha": "2026-11-08",
+      "hoy": "Hecha el 08/11/2026 en la rama pasada-a-igdb (PR #38, fusionado con main el 08/11/2026). En la copia de la base de datos, los 2235 juegos tienen ya su tipo: 20 DLC, 5 packs, 6 actualizaciones, 45 expansiones, 3 episodios, 3 temporadas y 2 mods, que el Catálogo ya no enseña si no se piden. Los DLC y expansiones salen donde toca: en «Ediciones y versiones» de la ficha del juego.",
       "plan": [
         "Game.game_type y Game.game_status (enteros con índice), en GAME_FIELDS y rellenos con fill_game_fields. Los valores los da IGDB (comprobado): 1 DLC, 13 pack, 14 actualización.",
         "Filtro en las consultas de búsqueda (search, top_games, games_by_names): excluir 1, 13 y 14. No tocar games_by_steam_ids: lo que alguien tiene de verdad se tiene que poder emparejar.",
@@ -1118,9 +1108,8 @@
         "Comando prune_catalog --dry-run: borra los DLC que no están en ninguna biblioteca, lista, lista de deseos ni reseña, y enseña la lista antes de borrar."
       ],
       "profundizar": [
-        "Enseñar los DLC donde toca: en la ficha del juego base (dlcs en 471 juegos y expansions en 270), con su precio cuando lo haya. El problema no es que existan, sino que salgan como juegos.",
-        "Etiqueta de tipo en las tarjetas («Remake», «Expansión», «Remaster»), para distinguir los dos Resident Evil 4 de un vistazo.",
-        "Limpiar también lo importado: ocultar solos los títulos sin emparejar que acaban en Soundtrack, SDK, Dedicated Server o Demo. Hoy se ocultan a mano uno a uno."
+        "Limpiar también lo importado: ocultar solos los títulos sin emparejar que acaban en Soundtrack, SDK, Dedicated Server o Demo. Hoy se ocultan a mano uno a uno.",
+        "Precio de los DLC en «Ediciones y versiones»: IsThereAnyDeal los tiene como juegos aparte, así que se podrían pedir con los IDs de tienda de cada DLC."
       ]
     }
   },
@@ -1159,7 +1148,7 @@
   {
     "titulo": "Ediciones agrupadas bajo su juego (GOTY, Complete, Definitive…)",
     "fecha": "2026-10-21",
-    "estado": "pendiente",
+    "estado": "hecha",
     "prioridad": "media",
     "tipo": "Funcionalidad",
     "resumen": "Que las ediciones de un juego no salgan como juegos sueltos sino dentro de la ficha del juego principal, con un selector de edición para las estadísticas y las reseñas, como hace Backloggd.",
@@ -1171,10 +1160,10 @@
       "Redirigir la ficha de una edición a la del juego principal con esa edición elegida.",
       "Comando para fusionar las entradas de biblioteca que ya están repetidas por ediciones."
     ],
-    "notas": "Los remasters y remakes son juegos distintos en IGDB (BioShock Remastered es un remaster con parent_game BioShock) y deben seguir separados: solo se juntan las ediciones. Ojo: IGDB marca algunas reediciones como bundle sin version_parent (GTA V Enhanced), que seguirán necesitando el ID manual.",
+    "notas": "Los remasters y remakes son juegos distintos en IGDB (BioShock Remastered es un remaster con parent_game BioShock) y deben seguir separados: solo se juntan las ediciones. Ojo: IGDB marca algunas reediciones como bundle sin version_parent (GTA V Enhanced), que seguirán necesitando el ID manual. 08/11/2026: hecha en la rama pasada-a-igdb (PR #38, fusionado con main el 08/11/2026), a petición del usuario («que también salgan las ediciones de cada juego»). Game.parent y Game.edition_name salen de version_parent y version_title de IGDB (igdb.link_editions, que trae el juego si aún no está en el catálogo), y se pueden poner a mano en el admin para los recopilatorios sin padre. La ficha de cada juego enseña sus ediciones de IGDB con su portada en «Ediciones y versiones». La ficha de una edición lleva a la del juego (?edicion=), que avisa de dónde se viene y la marca. Las ediciones no salen en el Catálogo ni al buscar juegos para una lista. Lo que se importa de una edición cuenta en su juego (accounts.matching.save_titles y la lista de deseos de Steam usan Game.main), y games_by_steam_ids trae también el juego de cada edición. Lo que ya estaba guardado lo junta el comando merge_editions (también cada noche, con --simular para ver antes qué haría): títulos importados, biblioteca (juntando estado, nota y horas si el jugador tenía las dos), reseñas, lista de deseos, listas, favoritos, sesiones, actividad, publicaciones, avisos, retos y cabeceras de perfil. En la copia de la base de datos juntó 5 ediciones: tester_steam tenía «Battlefield 1» (383 min de PlayStation) y «Battlefield 1: Revolution» (278 min de Steam) como dos juegos, y ahora es uno con las dos horas. Se queda fuera el selector «todas las versiones o una edición» para los contadores y las reseñas: con las ediciones juntadas todo cuenta en el juego, que era lo que se veía mal; los precios de cada edición siguen en «¿Qué edición compro? Precios de cada edición y remaster».",
     "revision": {
-      "fecha": "2026-11-01",
-      "hoy": "Medido: solo 4 de los 2206 juegos tienen version_parent en IGDB, porque top_games, search y games_by_names ya excluyen las ediciones. Pero mirar solo eso se queda corto: en la biblioteca de tester_steam hay 3 con version_parent y otros 19 son bundles o ediciones ampliadas que IGDB no enlaza así (Ghost of Tsushima: Director's Cut, Final Fantasy VII Remake Intergrade, Mass Effect Legendary Edition…), más del 6 % de sus 348 juegos. Son notas y reseñas repartidas entre dos fichas.",
+      "fecha": "2026-11-08",
+      "hoy": "Hecha el 08/11/2026 en la rama pasada-a-igdb (PR #38, fusionado con main el 08/11/2026). 899 juegos del catálogo tienen ediciones en IGDB y se ven en su ficha; 5 ediciones que alguien tenía importadas se han juntado con su juego en la copia de la base de datos.",
       "plan": [
         "Game.parent (FK a sí mismo) y Game.edition_name, rellenos con fill_game_fields a partir de version_parent y parent_game (comprobar cuántas ediciones ampliadas cubre este último); lo demás, a mano en el admin.",
         "En accounts.matching.update_library, si el juego de un título es una edición, sumar sus horas en el padre. ExternalTitle sigue apuntando a la edición, para saber con cuál se jugó.",
@@ -1184,8 +1173,55 @@
       ],
       "profundizar": [
         "Mi edición: cada uno elige con qué edición y portada se ve el juego en su biblioteca. Va con el perfil personalizable y con «Colección física con escáner de código de barras».",
-        "Los bundles sin padre: un campo «es edición de» en el admin para los 35 del catálogo, con la corrección compartida, como en ExternalTitle.",
+        "Los recopilatorios sin padre (GTA V Enhanced, Mass Effect Legendary Edition): enlazarlos a mano en el admin con «es una edición de», y que merge_editions junte lo de la gente por la noche.",
         "Comparar notas entre ediciones: «la Definitive tiene mejor nota que la original», cuando haya datos."
+      ]
+    }
+  },
+  {
+    "titulo": "Páginas de saga con tu progreso",
+    "fecha": "2026-11-08",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Funcionalidad",
+    "resumen": "Una página por saga con sus juegos en orden de salida, cuáles tienes y cuánto llevas («has jugado 3 de 9»), y el orden recomendado con sus remakes.",
+    "motivo": "La ficha técnica ya dice la saga de cada juego que la tiene en IGDB, pero solo como texto: no lleva a ningún sitio, y «¿por dónde empiezo?» es una de las preguntas que más se hacen con una saga larga.",
+    "pasos": [
+      "Guardar las sagas como tabla (Collection: id de IGDB, nombre y slug) relacionada con Game, rellena en la pasada a IGDB, en vez de solo el nombre en Game.details.",
+      "Página de la saga (/sagas/<slug>/): los juegos en orden de salida con su estado en tu biblioteca y la barra de progreso de las listas (lists.views.list_progress).",
+      "En la ficha técnica, la saga enlaza a su página, y el Catálogo filtra por saga (?saga=).",
+      "«¿Por dónde empiezo?»: con los remakes y remasters de cada juego (Game.details), el orden recomendado y el aviso «hay un remake de 2023; este es el original»."
+    ],
+    "notas": "Sale de «Ficha del juego más completa» (08/11/2026), que ya enseña la saga como texto.",
+    "revision": {
+      "fecha": "2026-11-08",
+      "hoy": "Sin empezar. La ficha técnica enseña los nombres de las sagas (collections de IGDB, o las franquicias si no hay) desde la pasada a IGDB; la tabla de sagas aún no existe.",
+      "profundizar": [
+        "Retos de saga: «termina la saga Batman: Arkham» con un clic desde su página, con los juegos ya puestos (Challenge.Kind.GAMES).",
+        "Tier list de una saga desde su página, con las plantillas de lists/presets.py."
+      ]
+    }
+  },
+  {
+    "titulo": "Ampliar el catálogo por tandas",
+    "fecha": "2026-11-08",
+    "estado": "pendiente",
+    "prioridad": "media",
+    "tipo": "Infraestructura",
+    "resumen": "Traer de IGDB muchos más juegos (unos 20.000) en tandas nocturnas, para que los filtros finos del Catálogo no salgan casi vacíos.",
+    "motivo": "El catálogo local tiene 2235 juegos: con los filtros nuevos, búsquedas como «terror en primera persona de menos de 10 h» dan pocos resultados aunque IGDB tenga cientos.",
+    "pasos": [
+      "import_igdb en tandas de 2000 por noche, siguiendo por donde se quedó la anterior (el offset, guardado).",
+      "Después de cada tanda, fill_game_fields con los nuevos: unas tres peticiones por cada 500 juegos.",
+      "Medir cómo responden el Catálogo y sus filtros con 20.000 juegos antes de seguir (índices en game_type, ttb_normal y popularity, ya puestos).",
+      "Precios y castellano, solo de los más populares, como ahora: update_prices y localize_games ya van por popularidad."
+    ],
+    "notas": "Sale de «Catálogo con filtros y orden al nivel de Backloggd (y más)» (08/11/2026).",
+    "revision": {
+      "fecha": "2026-11-08",
+      "hoy": "Sin empezar. La pasada a IGDB de todo el catálogo tarda menos de un minuto, así que el cuello de botella serán los precios y los textos de Steam, no IGDB.",
+      "profundizar": [
+        "Traer antes lo que la gente busca: cada búsqueda del Catálogo sin resultados es un juego que falta, y se podría apuntar para la tanda de esa noche."
       ]
     }
   },
@@ -1448,7 +1484,7 @@
   {
     "titulo": "Duración estimada de los juegos",
     "fecha": "2026-10-17",
-    "estado": "pendiente",
+    "estado": "en curso",
     "prioridad": "media",
     "tipo": "Funcionalidad",
     "resumen": "Mostrar en la ficha cuánto se tarda en terminar un juego (historia, historia + extras, 100 %) y cuánto le falta al usuario según sus horas.",
@@ -1458,16 +1494,13 @@
       "Calcular con las horas de la comunidad de NextPlay los tiempos de quienes lo marcaron como Completado.",
       "Filtro del catálogo y del pendiente por duración («menos de 10 horas»)."
     ],
-    "notas": "Ya estaba planeada antes de proponerla. 04/11/2026: el repaso de la biblioteca («Valor del pendiente y repaso de la biblioteca») la espera para su pista más útil: «Llevas 40 h y suele durar 30: ¿lo terminaste?». Con la duración guardada en Game, basta con añadirla a library.backlog.hint, sin contar los juegos de servicio.",
+    "notas": "Ya estaba planeada antes de proponerla. 04/11/2026: el repaso de la biblioteca («Valor del pendiente y repaso de la biblioteca») la espera para su pista más útil: «Llevas 40 h y suele durar 30: ¿lo terminaste?». Con la duración guardada en Game, basta con añadirla a library.backlog.hint, sin contar los juegos de servicio. 08/11/2026: hecha la parte de IGDB en la rama pasada-a-igdb (PR #38, fusionado con main el 08/11/2026). Game.ttb_quick, ttb_normal (con índice), ttb_full y ttb_count, en minutos, del endpoint game_time_to_beats, con fill_game_fields (una petición por cada 500 juegos): 1530 de los 2235 juegos de la copia la tienen. En la ficha, «Cuánto dura» en la columna de la carátula: normal, con prisa y al 100 %, «según 42 jugadores de IGDB», «dato orientativo» con menos de 5 respuestas y «no tiene un final claro» por encima de 200 h; a quien lo juega, «Te faltan unas 4 h». En el Catálogo, filtro por duración (menos de 10 h, de 10 a 30, de 30 a 60 y más de 60) y orden por los más cortos o los más largos, contando solo las duraciones con al menos 2 respuestas y sin las de más de 200 h. En el repaso de la biblioteca, la pista «Suele durar unas 30 h, y tú llevas más», que propone «Lo terminé». Falta la duración de la comunidad de NextPlay (mediana de las horas de quien lo tiene Completado, desde 5 personas) y el filtro por duración en la biblioteca del perfil y en la lista de deseos.",
     "revision": {
-      "fecha": "2026-11-01",
-      "hoy": "Sin empezar. Medido en IGDB: 1690 de 2206 juegos tienen fila en game_time_to_beats y 1523 tienen tiempo normal, pero solo 540 con 5 respuestas o más, así que hay que enseñar de cuánta gente sale. Vienen en segundos: hastily, normally y completely. Y hay valores absurdos: Content Warning sale con 21.614 h (3 respuestas), Ark con 1486 h y GTA V Enhanced con 626 h, de modo que sumar sin más el pendiente de tester_steam da 25.278 h. Solo los 66 juegos de 100 h o menos suman 1346 h, con una mediana de 17 h.",
+      "fecha": "2026-11-08",
+      "hoy": "La duración de IGDB está hecha (rama pasada-a-igdb, PR #38, fusionado con main el 08/11/2026): en la ficha, en el Catálogo y en el repaso de la biblioteca. Faltan la duración propia de la comunidad y el filtro en la biblioteca del perfil y la lista de deseos.",
       "plan": [
-        "Campos en Game en minutos (ttb_quick, ttb_normal, ttb_full) y ttb_count, con índice en ttb_normal.",
-        "Comando fill_time_to_beat por lotes de 500, semanal en nightly, y también al importar juegos nuevos.",
-        "Ficha: «Unas 12,5 h · según 11 jugadores de IGDB» y, si tienes horas y no lo has terminado, «Te faltan unas 4 h». Con menos de 5 respuestas, «dato orientativo», y fuera de los totales: por eso salen las cifras absurdas.",
-        "Dato propio: mediana de horas de quienes lo tienen Completado, a partir de 5 personas, calculada de noche y enseñada al lado.",
-        "Filtro por duración en el catálogo, la biblioteca y la lista de deseos (ver «Catálogo con filtros y orden al nivel de Backloggd (y más)»)."
+        "Dato propio: mediana de horas de quienes lo tienen Completado, a partir de 5 personas, calculada de noche y enseñada al lado de la de IGDB.",
+        "Filtro por duración en la biblioteca del perfil y en la lista de deseos, con los mismos tramos que el Catálogo (games.filters.DURATIONS)."
       ],
       "profundizar": [
         "Proponer Completado: horas por encima de la duración normal y estado Jugado dan «¿Lo terminaste?» con un clic, sin los juegos de servicio, que siempre la superan. Es la forma más barata de llenar una columna casi vacía (1 de 348).",
@@ -2120,7 +2153,7 @@
       "Valor del pendiente sumando el mejor precio actual de cada juego.",
       "Asistente «Revisa tu biblioteca» con los juegos en Jugando sin partidas en 6 meses (las fechas de la última partida ya se importan) para pasarlos a Abandonado o Pendiente."
     ],
-    "notas": "Con la duración estimada de los juegos se podría añadir «a tu ritmo terminarías el pendiente en N años». 04/11/2026: de la fase 2 de los retos llega una pieza más para el repaso: proponer «¿Lo has terminado?» al llegar a las horas o al logro del final, para que los retos de terminar juegos no se queden a cero con bibliotecas importadas. 04/11/2026: hecha en la rama repaso-de-la-biblioteca (PR #36, fusionado con main el 08/11/2026), con el nombre que proponía la revisión. Página Repasar la biblioteca (/biblioteca/repasar/, library.backlog y library/views/repasar_la_biblioteca.py): de uno en uno, primero los de «Jugando» que no se mueven desde hace 180 días (STALE_DAYS; cuenta LibraryEntry.updated_at, que cambian tanto las importaciones como el jugador) y luego los de «Jugado» que nunca se han repasado, arriba los que tienen todos sus logros o el platino y detrás los de más horas. Cada tarjeta dice sus horas, su última partida y sus logros, y tiene cinco botones: «Lo terminé», «Lo dejé», «Sigo jugando», «Al pendiente» y «Saltar»; con HTMX, contestar trae la siguiente. Con todos los logros o el platino propone «Lo terminé». Al marcarlo terminado, completed_at es la fecha de su último logro (los de Steam se guardan uno a uno) o, si no, la de su última partida, y la tarjeta lo dice antes de contestar; después se mira si consigue algún reto, que solo cuenta si esa fecha cae en sus fechas. Lo contestado queda en LibraryEntry.reviewed_at y no se vuelve a preguntar. Lo que se termina o se deja va a la actividad en una sola entrada (Activity.Kind.TIDY: «ordenó su biblioteca: 12 terminados y 3 abandonados», con portadas), no una por juego. Al acabar, lo repasado hoy y un botón «Ponte un reto para este año», que abre Nuevo reto con 12 juegos del 1 de enero al 31 de diciembre, solo para ti. En el perfil, un aviso a su dueño con lo que le queda por repasar, y en la pestaña Pendiente, lo que cuesta hoy (library.backlog.value): «Al precio de hoy, 34 de los 120 juegos del pendiente suman 447,91 €; el resto no tiene precio hoy». 6 tests nuevos.",
+    "notas": "Con la duración estimada de los juegos se podría añadir «a tu ritmo terminarías el pendiente en N años». 04/11/2026: de la fase 2 de los retos llega una pieza más para el repaso: proponer «¿Lo has terminado?» al llegar a las horas o al logro del final, para que los retos de terminar juegos no se queden a cero con bibliotecas importadas. 04/11/2026: hecha en la rama repaso-de-la-biblioteca (PR #36, fusionado con main el 08/11/2026), con el nombre que proponía la revisión. Página Repasar la biblioteca (/biblioteca/repasar/, library.backlog y library/views/repasar_la_biblioteca.py): de uno en uno, primero los de «Jugando» que no se mueven desde hace 180 días (STALE_DAYS; cuenta LibraryEntry.updated_at, que cambian tanto las importaciones como el jugador) y luego los de «Jugado» que nunca se han repasado, arriba los que tienen todos sus logros o el platino y detrás los de más horas. Cada tarjeta dice sus horas, su última partida y sus logros, y tiene cinco botones: «Lo terminé», «Lo dejé», «Sigo jugando», «Al pendiente» y «Saltar»; con HTMX, contestar trae la siguiente. Con todos los logros o el platino propone «Lo terminé». Al marcarlo terminado, completed_at es la fecha de su último logro (los de Steam se guardan uno a uno) o, si no, la de su última partida, y la tarjeta lo dice antes de contestar; después se mira si consigue algún reto, que solo cuenta si esa fecha cae en sus fechas. Lo contestado queda en LibraryEntry.reviewed_at y no se vuelve a preguntar. Lo que se termina o se deja va a la actividad en una sola entrada (Activity.Kind.TIDY: «ordenó su biblioteca: 12 terminados y 3 abandonados», con portadas), no una por juego. Al acabar, lo repasado hoy y un botón «Ponte un reto para este año», que abre Nuevo reto con 12 juegos del 1 de enero al 31 de diciembre, solo para ti. En el perfil, un aviso a su dueño con lo que le queda por repasar, y en la pestaña Pendiente, lo que cuesta hoy (library.backlog.value): «Al precio de hoy, 34 de los 120 juegos del pendiente suman 447,91 €; el resto no tiene precio hoy». 6 tests nuevos. 08/11/2026: con la duración de IGDB (rama pasada-a-igdb), la tarjeta del repaso dice «Suele durar unas 30 h, y tú llevas más» y propone «Lo terminé», o «te faltarían unas 6 h». Los juegos sin final (multijugador masivo, battle royale o más de 200 h según IGDB) van al fondo de la cola y no se proponen, y tampoco los multijugador en los que se llevan más de 4 veces su duración (Rocket League, Counter-Strike 2…).",
     "revision": {
       "fecha": "2026-11-04",
       "hoy": "Hecha. Lo que falta son formas de ir más allá. La más útil es la pista por duración, que necesita antes guardar la duración de cada juego («Duración estimada de los juegos»).",

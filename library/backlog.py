@@ -2,8 +2,9 @@
 
 Las importaciones de Steam, PlayStation y Xbox nunca dan un juego por terminado: lo que se jugó hace tiempo entra como
 «Jugado», sin saber si se terminó, y lo que se jugó hace poco, como «Jugando», aunque luego se deje. El repaso los va
-sacando de uno en uno (queue) con lo que NextPlay ya sabe de cada uno (hint: horas, última partida y logros) para que
-se contesten con un botón (answer). Lo repasado no se vuelve a preguntar (LibraryEntry.reviewed_at).
+sacando de uno en uno (queue) con lo que NextPlay ya sabe de cada uno (hint: horas, última partida, logros y lo que
+suele durar según IGDB) para que se contesten con un botón (answer). Lo repasado no se vuelve a preguntar
+(LibraryEntry.reviewed_at).
 
 value es lo que cuesta hoy el pendiente de alguien, contando solo lo que tiene precio.
 
@@ -20,7 +21,7 @@ from django.utils.timesince import timesince
 from accounts import achievements
 from accounts.models import UnlockedAchievement
 from challenges import progress as challenge_progress
-from games.models import format_price
+from games.models import MULTIPLAYER_MODE_ID, format_price, half_hours
 from social import activity
 
 from .models import HOURS_SOURCES, LibraryEntry
@@ -29,6 +30,9 @@ Status = LibraryEntry.Status
 
 # Un juego en «Jugando» que no se toca en estos días (ni se juega ni se cambia) se pregunta en el repaso.
 STALE_DAYS = 180
+# Con multijugador y más de estas veces lo que suele durar, es de los que se juegan sin parar (Rocket League,
+# Counter-Strike…): IGDB les da modo de un jugador y una duración, pero las horas no dicen si se terminó.
+SERVICE_FACTOR = 4
 
 # Respuestas del repaso → estado al que pasa el juego (None: se queda como estaba).
 ANSWERS = {
@@ -75,16 +79,20 @@ def pending(entries):
 def queue(user):
     """Lo que le queda por repasar a user, en el orden en que se pregunta: primero los de «Jugando» que llevan más
     tiempo sin tocarse; después los de «Jugado», primero los que tienen todos sus logros o el platino (los que mejor se
-    contestan) y luego los de más horas.
+    contestan) y luego los de más horas. Los juegos sin final (Game.is_endless: multijugador masivo, battle royale o
+    cientos de horas según IGDB) van al fondo de cada grupo, porque sus horas no dicen si se terminaron.
 
     Pantallas: Repasar la biblioteca (el siguiente juego y cuántos quedan).
     """
-    entries = LibraryEntry.objects.filter(user=user, status__in=[Status.PLAYING, Status.PLAYED]).select_related("game")
+    entries = (
+        LibraryEntry.objects.filter(user=user, status__in=[Status.PLAYING, Status.PLAYED])
+        .select_related("game").prefetch_related("game__modes")
+    )
     playing, played = pending(list(entries))
     complete = _complete_games(user, [entry.game_id for entry in played])
-    playing.sort(key=lambda entry: entry.updated_at)
+    playing.sort(key=lambda entry: (entry.game.is_endless, entry.updated_at))
     played.sort(key=lambda entry: (
-        entry.game_id not in complete, -(entry.playtime_minutes or 0), entry.game.name.casefold(),
+        entry.game.is_endless, entry.game_id not in complete, -(entry.playtime_minutes or 0), entry.game.name.casefold(),
     ))
     return playing + played
 
@@ -114,7 +122,9 @@ def hint(entry):
     si se marca terminado, o None si sería hoy, "finished_from": de dónde sale esa fecha}.
 
     Con todos los logros o el platino propone «terminado», con la fecha de su último logro si se conoce (los de Steam
-    se guardan uno a uno) o, si no, la de su última partida.
+    se guardan uno a uno) o, si no, la de su última partida. También lo propone si lleva más horas de lo que suele
+    durar según los jugadores de IGDB (Game.normal_hours), salvo en los juegos sin final, de los que solo dice que no
+    se acaban: los de Game.is_endless y los multijugador en los que lleva más de SERVICE_FACTOR veces esa duración.
 
     Pantallas: Repasar la biblioteca (la tarjeta de cada juego).
     """
@@ -129,6 +139,20 @@ def hint(entry):
         lines.append(f"Llevas {_number(hours)} h.")
     elif played_on:
         lines.append(f"La última partida fue hace {timesince(played_on, depth=1)}.")
+    normal, endless, past_normal = entry.game.normal_hours, entry.game.is_endless, False
+    multiplayer = any(mode.igdb_id == MULTIPLAYER_MODE_ID for mode in entry.game.modes.all())
+    if normal and hours and multiplayer and hours > SERVICE_FACTOR * normal:
+        endless = True
+    if endless:
+        lines.append("No tiene un final claro: es de los que se juegan sin parar.")
+    elif normal and hours:
+        usual = _number(half_hours(round(normal * 60)))
+        past_normal = hours >= normal
+        if past_normal:
+            lines.append(f"Suele durar unas {usual} h, y tú llevas más.")
+        else:
+            left = _number(half_hours(round((normal - hours) * 60)) or 0.5)
+            lines.append(f"Suele durar unas {usual} h: te faltarían unas {left} h.")
     rows = achievements.progress_by_game(entry.user_id, [entry.game_id]).get(entry.game_id, [])
     best = max(rows, key=lambda row: (row["platinum"], row["unlocked"] / row["total"]), default=None)
     complete = bool(best and (best["complete"] or best["platinum"]))
@@ -148,7 +172,7 @@ def hint(entry):
         finished_on, finished_from = played_on, "la de tu última partida"
     return {
         "lines": lines,
-        "suggest": "terminado" if complete else None,
+        "suggest": "terminado" if complete or past_normal else None,
         "finished_on": finished_on,
         "finished_from": finished_from,
     }

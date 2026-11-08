@@ -1,0 +1,26 @@
+{# «Cuánto dura», en la columna de la carátula: la duración normal, con prisa y al 100 % según los jugadores de IGDB (Game.duration) #}
+{# y, a quien lo está jugando, lo que le falta (games.details.remaining). Con oob, HTMX la pone en su sitio cuando llega la ficha técnica. #}
+{% with time=game.duration %}
+  {% if time %}
+    <section class="widget side-duration" id="duracion"{% if oob %} hx-swap-oob="true"{% endif %}>
+      <h2 class="widget-label">Cuánto dura</h2>
+      {% if time.endless %}
+        <p class="duration-endless">No tiene un final claro: los jugadores de IGDB apuntan más de {{ endless_hours }} h.</p>
+      {% else %}
+        <dl class="duration">
+          {% if time.normal %}<div class="duration-main"><dt>Normal</dt><dd>{{ time.normal|floatformat:"-1" }} h</dd></div>{% endif %}
+          {% if time.quick %}<div><dt>Con prisa</dt><dd>{{ time.quick|floatformat:"-1" }} h</dd></div>{% endif %}
+          {% if time.full %}<div><dt>Al 100 %</dt><dd>{{ time.full|floatformat:"-1" }} h</dd></div>{% endif %}
+        </dl>
+        {% if remaining.left %}
+          <p class="duration-left">Te faltan unas <strong>{{ remaining.left|floatformat:"-1" }} h</strong></p>
+        {% elif remaining.over %}
+          <p class="duration-left">Ya llevas más de lo que suele durar.</p>
+        {% endif %}
+      {% endif %}
+      <p class="muted small">{% if time.rough %}Dato orientativo: {% endif %}según {{ time.count }} jugador{{ time.count|pluralize:"es" }} de IGDB</p>
+    </section>
+  {% else %}
+    <div id="duracion"{% if oob %} hx-swap-oob="true"{% endif %}></div>
+  {% endif %}
+{% endwith %}

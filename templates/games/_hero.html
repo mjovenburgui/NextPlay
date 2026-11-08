@@ -16,8 +16,14 @@
       {% endif %}
     </h1>
     {% if game.spain_name %}<p class="name-es">En España: <strong>{{ game.spain_name }}</strong></p>{% endif %}
-    {% if game.first_release_date %}
-      <p class="game-date">{{ game.first_release_date|date:"j \d\e F \d\e Y" }}</p>
+    {# De qué juego es remake, DLC, port… (games.details.origin), con enlace a su ficha o a su búsqueda. #}
+    {% if origin %}<p class="game-origin">{{ origin.text }} <a href="{{ origin.url }}">{{ origin.name }}</a></p>{% endif %}
+    {% if game.first_release_date or game.status_label %}
+      <p class="game-date">
+        {% if game.first_release_date %}{{ game.first_release_date|date:"j \d\e F \d\e Y" }}{% endif %}
+        {# Lo que conviene saber antes de comprarlo: ya no se vende, servidores cerrados, acceso anticipado… #}
+        {% if game.status_label %}<span class="status-flag">{{ game.status_label }}</span>{% endif %}
+      </p>
     {% endif %}
     <div class="chips">
       {% for genre in game.genres.all %}

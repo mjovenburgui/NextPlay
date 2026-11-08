@@ -176,6 +176,31 @@ con los 200 más populares que falten:
 .venv/Scripts/python manage.py localize_games --limit 500     # además, sinopsis de los 500 más populares
 ```
 
+## Ficha técnica, duración y ediciones (la pasada a IGDB)
+
+Cada juego trae de IGDB su tipo (juego, remake, remaster, expansión, DLC…), su estado («Ya no se vende»,
+«Servidores cerrados»…), sus modos, temas y perspectiva, su estudio y su editora, la nota de los usuarios
+de IGDB y cuánto dura (con prisa, normal y al 100 %, según los jugadores de IGDB). La ficha lo enseña en
+su ficha técnica, en «Cuánto dura» y en «Ediciones y versiones» (sus ediciones, remakes, expansiones, DLC
+y recopilatorios), y el catálogo filtra y ordena por todo ello. Las búsquedas en IGDB ya no traen trajes,
+packs ni actualizaciones, y el catálogo esconde los DLC y expansiones si no se piden con `?tipo=`.
+
+Lo trae el comando `fill_game_fields`, unas tres peticiones por cada 500 juegos (menos de un minuto para
+todo el catálogo); `nightly` lo lanza cada noche con los que tienen la ficha de hace más de 30 días, y la
+ficha de un juego que nunca la ha pedido la pide al abrirse.
+
+Las ediciones de un juego («Game of the Year Edition», «Deluxe Edition»…) se enlazan con él: no salen en
+el catálogo, su ficha lleva a la del juego y lo que se importa de ellas cuenta en el juego. Lo que ya
+estaba guardado de una edición (biblioteca, horas, reseñas, listas…) lo junta con su juego
+`merge_editions`, que también va en `nightly`; con `--simular` solo dice lo que haría.
+
+```bash
+.venv/Scripts/python manage.py fill_game_fields             # los que faltan o tienen más de 30 días
+.venv/Scripts/python manage.py fill_game_fields --todos     # todo el catálogo otra vez
+.venv/Scripts/python manage.py merge_editions --simular     # qué se juntaría
+.venv/Scripts/python manage.py merge_editions               # juntarlo
+```
+
 ## Perfil personalizable
 
 En Editar perfil cada usuario elige su foto (subida o la de Steam, PlayStation o Xbox) y su forma, la
