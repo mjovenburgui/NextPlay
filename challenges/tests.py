@@ -196,6 +196,13 @@ class ChallengePagesTests(TestCase):
         self.assertEqual((challenge.title, challenge.creator, challenge.genre, challenge.target), ("Octubre de miedo", self.ana, self.horror, 2))
         self.assertTrue(Participation.objects.filter(challenge=challenge, user=self.ana).exists())
 
+    def test_the_challenge_of_the_year_starts_with_its_dates(self):
+        year = timezone.localdate().year
+        form = self.client.get(reverse("challenges:new"), {"anual": 1}).context["form"]
+        self.assertEqual(form["title"].value(), f"Juegos terminados en {year}")
+        self.assertEqual((form["starts_on"].value(), form["ends_on"].value()), (date(year, 1, 1), date(year, 12, 31)))
+        self.assertFalse(form["is_public"].value())
+
     def test_form_errors(self):
         url = reverse("challenges:new")
         base = {"title": "Reto", "description": "", "kind": "count"}

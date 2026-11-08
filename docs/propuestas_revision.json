@@ -30,7 +30,7 @@
       "titulo": "Completado está casi vacío",
       "texto": "Solo 1 de los 348 juegos de tester_steam está en Completado, porque las importaciones nunca completan; otros 220 están en Jugado sin saber si se terminaron. Los retos de terminar juegos, las estadísticas y la duración de la comunidad se apoyan en esa columna. Un repaso guiado con pistas («llevas 40 h y suele durar 30: ¿lo terminaste?») la llena: cruzando las horas con la duración de IGDB, 121 de esos 220 tendrían ya una respuesta propuesta.",
       "tareas": [
-        "Retos del año y control del pendiente",
+        "Valor del pendiente y repaso de la biblioteca",
         "Logros uno a uno: cuáles tienes, cuándo los conseguiste y lo raros que son"
       ]
     },
@@ -163,7 +163,7 @@
         "Tier lists que se rellenan solas con tu biblioteca: «Jugados en 2026», tu pendiente, tus platinos…",
         "Tier lists de la comunidad, con su propia pestaña como Retos",
         "Diario de partidas que se escribe solo",
-        "Retos del año y control del pendiente",
+        "Valor del pendiente y repaso de la biblioteca",
         "La gente que sigues en la ficha y en los perfiles",
         "Publicaciones con imágenes asociadas a un juego",
         "Cabecera y color automáticos según lo que juegas",
@@ -246,7 +246,7 @@
     "Subir «Logros uno a uno» a prioridad alta, por lo que desbloquea.",
     "Cerrar «Rediseño de toda la web» cuando se decida lo de las tres columnas: lo que queda ya tiene sus propias propuestas.",
     "Dividir «Precios de Nintendo eShop y PlayStation Store»: Nintendo, hecha; PlayStation, aparte, pendiente de la clave de PlatPrices.",
-    "Renombrar «Retos del año y control del pendiente» a «Valor del pendiente y repaso de la biblioteca» y subirla a media: los retos ya cubren lo demás, y el repaso es lo que llena Completado.",
+    "Hecho el 04/11/2026: «Retos del año y control del pendiente» se llama ya «Valor del pendiente y repaso de la biblioteca» y ha subido a media; los retos cubren lo del reto anual, y el repaso es lo que llena Completado.",
     "Quitar «antes de las rebajas de invierno» del título de «Publicar NextPlay» mientras siga aparcada."
   ]
 }

@@ -2,6 +2,8 @@
 reto.
 """
 
+from datetime import date
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Exists, OuterRef, Q
@@ -134,9 +136,11 @@ def new(request):
     ha creado.
 
     Con lista= (desde «Convertir en reto» de una lista que puede ver) empieza como uno de juegos concretos con los de esa
-    lista; si no, como uno de número de juegos.
+    lista; con anual= (desde el final de Repasar la biblioteca), como el reto del año: terminar 12 juegos del 1 de enero
+    al 31 de diciembre, solo para ti; si no, como uno de número de juegos.
 
-    Pantallas: Nuevo reto, Inicio (feed: «creó el reto»), Perfil (pestaña Actividad).
+    Pantallas: Nuevo reto, Repasar la biblioteca (botón «Ponte un reto para este año»), Inicio (feed: «creó el reto»),
+    Perfil (pestaña Actividad).
     """
     raw = request.POST.get("lista") or request.GET.get("lista", "")
     game_list = None
@@ -147,6 +151,12 @@ def new(request):
     initial = {"kind": Challenge.Kind.COUNT}
     if game_list is not None:
         initial = {"kind": Challenge.Kind.GAMES, "source_list": game_list.pk, "title": f"Pásate «{game_list.title}»"[:100]}
+    elif request.GET.get("anual"):
+        year = timezone.localdate().year
+        initial = {
+            "kind": Challenge.Kind.COUNT, "title": f"Juegos terminados en {year}", "target": 12,
+            "starts_on": date(year, 1, 1), "ends_on": date(year, 12, 31), "is_public": False,
+        }
     form = ChallengeForm(request.POST or None, user=request.user, game_list=game_list, initial=initial)
     if request.method == "POST" and form.is_valid():
         challenge = form.save(request.user)

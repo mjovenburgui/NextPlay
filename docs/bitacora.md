@@ -18,12 +18,56 @@ Las ramas van una encima de otra, en este orden. Ninguna está subida a GitHub: 
 | Rama | Qué lleva | Estado |
 |---|---|---|
 | `avisos-en-un-solo-sitio` | Avisos en un solo sitio, con preferencias por tipo | Commit `d025255`, local. Lista para revisar. |
-| `retos-fase-2` | Retos: insignias, sección en el perfil, feed, avisos y cierre cada noche | Commit local, encima de la anterior. Lista para revisar. |
+| `retos-fase-2` | Retos: insignias, sección en el perfil, feed, avisos y cierre cada noche | Commit `3f2532d`, local, encima de la anterior. Lista para revisar. |
+| `repaso-de-la-biblioteca` | Repaso de la biblioteca y valor del pendiente | Commit local, encima de la anterior. Lista para revisar. |
+| `remates-rapidos` | Siete remates rápidos, un commit por cada uno | En curso, encima de la anterior. |
 
 **Servidor para revisar:** puerto 8001 (`nexplay-avisos` en `.claude/launch.json`).
 - Usa una copia de tu base de datos (`db.sqlite3` de este worktree), así que lo que pruebes ahí no toca la tuya.
-- La copia ya tiene aplicadas las migraciones de las dos ramas: `accounts.0022`, `accounts.0023`, `challenges.0002` y `social.0008`.
+- La copia ya tiene aplicadas las migraciones de las tres ramas: `accounts.0022`, `accounts.0023`, `challenges.0002`, `social.0008`, `library.0014` y `social.0009`.
 - La app de escritorio apaga el servidor cuando la sesión se queda quieta: si no responde, pídeme que lo levante.
+
+---
+
+## 04/11/2026 · Repaso de la biblioteca y valor del pendiente (hecho, sin subir)
+
+**Rama:** `repaso-de-la-biblioteca`, encima de `retos-fase-2`.
+
+**Por qué ahora:** «Completado» está casi vacío porque las importaciones nunca completan nada. `tester_steam` tiene 1 juego completado y 263 en «Jugado» sin saber si los terminó. Con eso, los retos de terminar juegos y las estadísticas se quedan cortos. El repaso es lo que llena esa columna.
+
+**Plan:**
+- [x] **Página «Repasa tu biblioteca»** (`/biblioteca/repasar/`). Va de juego en juego con botones grandes: «Lo terminé», «Lo dejé», «Sigo jugando», «Al pendiente» y «Saltar». Al contestar sale el siguiente sin recargar.
+  - Primero, los que están en «Jugando» y llevan 6 meses sin tocarse.
+  - Después, los de «Jugado» que nunca has repasado: arriba los que tienen todos sus logros y, detrás, los de más horas.
+- [x] **Pistas** con lo que ya sabe NextPlay: horas, última partida y logros. Si tienes todos los logros (o el platino), propone «Lo terminé».
+- [x] **Fecha aproximada** al marcarlo terminado: la de tu último logro o la de tu última partida, no la de hoy, para que no cuente en un reto que no le toca. La tarjeta dice qué fecha va a apuntar.
+- [x] **Lo repasado no se vuelve a preguntar** (`LibraryEntry.reviewed_at`). En el feed sale una sola entrada agrupada («ordenó su biblioteca: 12 terminados y 3 abandonados»), no una por juego.
+- [x] **Resumen al terminar**, un aviso en tu perfil cuando hay juegos por repasar, y el valor del pendiente en la pestaña Pendiente del perfil («al precio de hoy, 34 de los 120 juegos del pendiente suman 447,91 €»).
+- [x] **Extra del plan de la propuesta:** al acabar, un botón «Ponte un reto para este año». Abre Nuevo reto con 12 juegos del 1 de enero al 31 de diciembre, solo para ti.
+- [x] Tests (6 nuevos, 528 en total, todos bien sin claves y con claves falsas), propuestas y PDF, y esta bitácora.
+- [x] Commit en su rama y comprobarlo en el servidor.
+
+**Cómo lo he comprobado:**
+- **Tests:** 6 nuevos, 528 en total. Todos pasan sin claves y con claves falsas detrás de un proxy muerto.
+- **En el navegador, con la cuenta de prueba `tester`** (en la copia de tu base de datos):
+  - el perfil avisa de «121 en «Jugado» sin saber si los terminaste»;
+  - la pestaña Pendiente dice «Al precio de hoy, 119 de los 127 juegos del pendiente suman 1202,52 €»;
+  - la primera tarjeta del repaso es Dead by Daylight, con sus horas y su última partida;
+  - al pulsar «Saltar», la siguiente llega sin recargar la página y el contador pasa a «Quedan 120 · hoy llevas 1».
+
+**A mejorar:** como ordena por horas, salen primero los juegos online sin final (Dead by Daylight, Rainbow Six Siege…). Para mandarlos al fondo hacen falta los modos de juego de IGDB, que aún no se guardan; es la pieza «Una pasada a IGDB» de la revisión. Mientras tanto, «Saltar» o «Sigo jugando» los quitan de en medio.
+
+**Qué he tocado:**
+- **`library/backlog.py` (nuevo):** la cola (`queue`), las pistas (`hint`), las respuestas (`answer`), lo repasado hoy (`today_summary`) y lo que cuesta el pendiente (`value`).
+- **La pantalla nueva:** `library/views/repasar_la_biblioteca.py` y las plantillas `library/tidy.html` y `library/_tidy_card.html`. «Repasar la biblioteca» está ya en `docs/pantallas.json`.
+- **Migraciones:**
+  - `LibraryEntry.reviewed_at`, migración `library.0014`;
+  - `Activity.Kind.TIDY`, migración `social.0009`, en `social/activity.py`, `social/views.py` y `templates/social/_activity.html`.
+- **Perfil:** el aviso y el valor del pendiente, en `accounts/views/perfil.py` y `templates/accounts/profile.html`.
+- **Reto del año:** `challenges/views.py`.
+- **Propuesta renombrada:** ahora se llama «Valor del pendiente y repaso de la biblioteca», también en la revisión, como sugería ésta.
+
+**Lo que dejo para después:** la pista «llevas 40 h y suele durar 30». Hace falta guardar antes la duración de cada juego, que es otra propuesta: «Duración estimada de los juegos», donde lo he apuntado.
 
 ---
 

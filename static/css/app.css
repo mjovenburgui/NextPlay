@@ -2096,6 +2096,32 @@ form:has(input[name="mode"]:checked:not([value="tiers"])) .switch-row[data-field
 .activity-trophy .icon { width: 1.5rem; height: 1.5rem; }
 .activity-trophy.is-won { color: var(--gold); border-color: rgba(255, 200, 74, .5); }
 .activity-challenge .muted { margin: .2rem 0 0; }
+/* Repasar la biblioteca: el aviso del perfil y la tarjeta de cada juego, con sus botones grandes */
+.tidy-callout { display: flex; align-items: center; gap: .9rem; margin: 0 0 1rem; padding: .85rem 1rem; background: linear-gradient(120deg, rgba(157, 92, 255, .14), var(--surface-2)); border: 1px solid rgba(157, 92, 255, .45); border-radius: 12px; }
+.tidy-callout > .icon { flex: none; width: 1.5rem; height: 1.5rem; color: var(--violet); }
+.tidy-callout p { flex: 1; margin: 0; }
+.tidy-callout .btn { flex: none; }
+.backlog-value { margin: -.25rem 0 .9rem; }
+.tidy-remaining { margin: 0 0 .5rem; }
+.tidy-card { display: flex; gap: 1.25rem; align-items: flex-start; }
+.tidy-cover { flex: none; width: 150px; }
+.tidy-main { flex: 1; min-width: 0; }
+.tidy-main h2 { margin: .25rem 0 .5rem; font-size: 1.4rem; overflow-wrap: anywhere; }
+.tidy-status { margin: 0; color: var(--text-2); font-size: .9rem; }
+.tidy-hints { margin: 0 0 1rem; padding-left: 1.1rem; color: var(--text-2); }
+.tidy-hints li + li { margin-top: .2rem; }
+.tidy-answers { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 .6rem; }
+.tidy-answers .btn { display: inline-flex; align-items: center; gap: .35rem; padding: .6rem 1rem; }
+.tidy-skip { color: var(--muted); background: transparent; }
+.tidy-done h2 { display: flex; align-items: center; gap: .5rem; margin: 0 0 .5rem; }
+.tidy-done h2 .icon { color: var(--st-completed); }
+.tidy-done-links { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0 0; }
+.tidy-done-links .btn { display: inline-flex; align-items: center; gap: .35rem; }
+@media (max-width: 560px) {
+  .tidy-card { flex-direction: column; }
+  .tidy-cover { width: 110px; }
+  .tidy-callout { flex-wrap: wrap; }
+}
 .challenge-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 0 1rem; }
 .challenge-form fieldset { padding: 0; border: 0; }
 .challenge-form legend { margin-bottom: .4rem; font-weight: 600; font-size: .9rem; }

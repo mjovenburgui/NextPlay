@@ -26,4 +26,6 @@ urlpatterns = [
     path("<int:game_id>/deseo/", views.wish_toggle, name="wish_toggle"),
     path("<int:game_id>/deseo/precio/", views.wish_target, name="wish_target"),
     path("lista-de-deseos/", views.wishlist, name="wishlist"),
+    path("repasar/", views.tidy, name="tidy"),
+    path("repasar/<int:entry_id>/", views.tidy_answer, name="tidy_answer"),
 ]

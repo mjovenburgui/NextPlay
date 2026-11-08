@@ -333,6 +333,17 @@
         </p>
       {% endfor %}
     {% else %}
+      {% if tidy_counts.playing or tidy_counts.played %}
+        {# Lo que las importaciones no saben si terminó (library.backlog.pending): solo lo ve su dueño. #}
+        <div class="tidy-callout">
+          {% include "_icon.html" with name="library" %}
+          <p>
+            <strong>Tienes juegos por repasar:</strong>
+            {% if tidy_counts.played %}{{ tidy_counts.played }} en «Jugado» sin saber si los terminaste{% endif %}{% if tidy_counts.played and tidy_counts.playing %} y {% endif %}{% if tidy_counts.playing %}{{ tidy_counts.playing }} en «Jugando» que llevan meses sin moverse{% endif %}. Contestarlos llena «Completado», que es lo que cuentan los retos.
+          </p>
+          <a class="btn btn-primary" href="{% url 'library:tidy' %}">Repasar</a>
+        </div>
+      {% endif %}
       <div class="library-bar">
         <nav class="tabs tabs-sub" aria-label="Estados de la biblioteca">
           <a class="tab{% if not active_status %} is-active{% endif %}" href="?{{ keep_qs }}">Todos <span>{{ total }}</span></a>
@@ -358,6 +369,12 @@
         </form>
       </div>
 
+      {% if backlog_value.count %}
+        {# Lo que cuesta hoy su pendiente (library.backlog.value), solo con lo que tiene precio: el resto no se inventa. #}
+        <p class="muted small backlog-value">
+          {% if backlog_value.priced %}Al precio de hoy, {{ backlog_value.priced }} de los {{ backlog_value.count }} juegos del pendiente suman <strong>{{ backlog_value.total_text }}</strong>{% if backlog_value.priced < backlog_value.count %}; el resto no tiene precio hoy{% endif %}.{% else %}Ninguno de los {{ backlog_value.count }} juegos del pendiente tiene precio hoy.{% endif %}
+        </p>
+      {% endif %}
       {% if entries %}
         <div class="grid">
           {% for entry in entries %}
