@@ -8,7 +8,7 @@ import requests
 from django.conf import settings
 from django.db import transaction
 
-from .models import Game, GamePrice
+from .models import STORE_ADDON_TYPES, Game, GamePrice
 
 CATALOG_URL = "https://displaycatalog.mp.microsoft.com/v7.0/products"
 SEARCH_URL = "https://displaycatalog.mp.microsoft.com/v7.0/productFamilies/autosuggest"
@@ -204,7 +204,8 @@ def update_xbox_prices(games, sleep=time.sleep):
     Usa el primer ID de producto (el suyo y después sus ediciones) que se venda en consola. Como IGDB
     a menudo solo tiene productos que ya no se venden (p. ej. la versión original de un relanzamiento),
     los juegos de Xbox One/Series sin precio se buscan también por su título exacto, salvo que otro
-    juego del catálogo se llame igual o que la búsqueda dé más de un producto.
+    juego del catálogo se llame igual o que la búsqueda dé más de un producto. Los DLC y las expansiones
+    (STORE_ADDON_TYPES) no se buscan por título: el buscador solo mira juegos y nunca los encontraría.
 
     Pantallas: Ficha del juego (Dónde comprarlo: el precio de Xbox), Lista de deseos (mejor precio de hoy y mínimo
     histórico), Página de la lista (lo que cuesta lo que te falta).
@@ -216,6 +217,8 @@ def update_xbox_prices(games, sleep=time.sleep):
     searchable = [
         g for g in games
         if not chosen[g.pk] and not g.xbox_product_id_override and g.on_current_xbox
+        # Los DLC y las expansiones se venden como complemento y el buscador solo mira juegos: nunca saldrían.
+        and g.game_type not in STORE_ADDON_TYPES
         # A title shared in the catalog (Resident Evil 4 of 2005, 2011 and 2023) can't pick its own product.
         and not Game.objects.filter(name__iexact=g.name).exclude(pk=g.pk).exists()
     ]

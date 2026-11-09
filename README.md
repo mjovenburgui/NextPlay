@@ -181,9 +181,10 @@ con los 200 más populares que falten:
 Cada juego trae de IGDB su tipo (juego, remake, remaster, expansión, DLC…), su estado («Ya no se vende»,
 «Servidores cerrados»…), sus modos, temas y perspectiva, su estudio y su editora, la nota de los usuarios
 de IGDB y cuánto dura (con prisa, normal y al 100 %, según los jugadores de IGDB). La ficha lo enseña en
-su ficha técnica, en «Cuánto dura» y en «Ediciones y versiones» (sus ediciones, remakes, expansiones, DLC
-y recopilatorios), y el catálogo filtra y ordena por todo ello. Las búsquedas en IGDB ya no traen trajes,
-packs ni actualizaciones, y el catálogo esconde los DLC y expansiones si no se piden con `?tipo=`.
+su ficha técnica, en «Cuánto dura», en «Expansiones y DLC» y en «Ediciones y versiones» (sus ediciones,
+remakes, ports y recopilatorios), y el catálogo filtra y ordena por todo ello. Las búsquedas en IGDB ya no
+traen trajes, packs ni actualizaciones, y el catálogo esconde los DLC y expansiones si no se piden con
+`?tipo=`.
 
 Lo trae el comando `fill_game_fields`, unas tres peticiones por cada 500 juegos (menos de un minuto para
 todo el catálogo); `nightly` lo lanza cada noche con los que tienen la ficha de hace más de 30 días, y la
@@ -194,11 +195,19 @@ el catálogo, su ficha lleva a la del juego y lo que se importa de ellas cuenta 
 estaba guardado de una edición (biblioteca, horas, reseñas, listas…) lo junta con su juego
 `merge_editions`, que también va en `nightly`; con `--simular` solo dice lo que haría.
 
+Cada expansión y cada DLC tiene su propia ficha, con sus precios, como cualquier juego. Los que aún no
+están en el catálogo los trae `import_addons`, con su ficha técnica y sus precios de PC. También va en
+`nightly`, y sin nada pendiente no pide nada. Además, la ficha de un juego trae al abrirse los suyos que
+falten. Xbox y Nintendo no buscan los DLC por su nombre, porque sus buscadores solo miran juegos: les ponen
+precio solo si se conoce su ID de tienda.
+
 ```bash
 .venv/Scripts/python manage.py fill_game_fields             # los que faltan o tienen más de 30 días
 .venv/Scripts/python manage.py fill_game_fields --todos     # todo el catálogo otra vez
 .venv/Scripts/python manage.py merge_editions --simular     # qué se juntaría
 .venv/Scripts/python manage.py merge_editions               # juntarlo
+.venv/Scripts/python manage.py import_addons --simular      # cuántos DLC y expansiones faltan
+.venv/Scripts/python manage.py import_addons                # traerlos, con su ficha técnica y sus precios de PC
 ```
 
 ## Perfil personalizable

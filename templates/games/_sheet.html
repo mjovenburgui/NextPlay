@@ -1,16 +1,19 @@
-{# Ficha técnica de la ficha (games.details.sheet): estudio, editora, modos, cooperativo, perspectiva, temas, saga, motor, edad y estado. #}
-{# Lo que se puede filtrar enlaza al Catálogo filtrado por ello. Sin nada que enseñar, deja solo el hueco (por si llega con HTMX). #}
+{# Ficha técnica de la ficha (games.details.sheet), en la columna de los datos: estudio, editora, modos, cooperativo, edad, #}
+{# perspectiva, temas, saga, motor y estado, en ese orden. Con más de seis filas enseña las cinco primeras y pliega el resto #}
+{# en «Más datos». Lo que se puede filtrar enlaza al Catálogo filtrado por ello. Sin nada que enseñar, deja solo el hueco #}
+{# (por si llega con HTMX). #}
 {% if sheet %}
   <section class="widget tech-sheet" id="ficha-tecnica" aria-labelledby="ficha-tecnica-titulo">
     <h2 class="widget-label" id="ficha-tecnica-titulo">Ficha técnica</h2>
-    <dl class="sheet">
-      {% for label, items in sheet %}
-        <div class="sheet-row">
-          <dt>{{ label }}</dt>
-          <dd>{% for text, url in items %}{% if url %}<a href="{{ url }}">{{ text }}</a>{% else %}{{ text }}{% endif %}{% if not forloop.last %}<span class="sheet-sep" aria-hidden="true">·</span>{% endif %}{% endfor %}</dd>
-        </div>
-      {% endfor %}
-    </dl>
+    {% if sheet|length > 6 %}
+      {% include "games/_sheet_rows.html" with rows=sheet|slice:":5" %}
+      <details class="sheet-more">
+        <summary>Más datos <span class="muted">({{ sheet|slice:"5:"|length }})</span></summary>
+        {% include "games/_sheet_rows.html" with rows=sheet|slice:"5:" %}
+      </details>
+    {% else %}
+      {% include "games/_sheet_rows.html" with rows=sheet %}
+    {% endif %}
     {% if game.details.url %}<p class="help"><a href="{{ game.details.url }}" target="_blank" rel="noopener">Ver en IGDB</a></p>{% endif %}
   </section>
 {% else %}

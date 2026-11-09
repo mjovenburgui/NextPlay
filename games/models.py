@@ -313,6 +313,10 @@ ADDON_TYPES = (GameType.DLC, GameType.PACK, GameType.UPDATE)
 HIDDEN_TYPES = (
     GameType.DLC, GameType.EXPANSION, GameType.MOD, GameType.EPISODE, GameType.SEASON, GameType.PACK, GameType.UPDATE,
 )
+# Lo que las tiendas de consola venden como complemento de un juego, no como juego: sus buscadores solo miran juegos,
+# así que buscarlos por el título nunca da con ellos (xbox.update_xbox_prices y nintendo.update_nintendo_prices no lo
+# hacen).
+STORE_ADDON_TYPES = (GameType.DLC, GameType.EXPANSION, GameType.PACK, GameType.UPDATE)
 # Duración: con menos respuestas en IGDB es un dato orientativo; para contar con ella (lo que te falta, los filtros
 # y la pista del repaso) hacen falta al menos DURATION_USABLE_ANSWERS. Por encima de ENDLESS_HOURS, el juego no se
 # acaba o los jugadores apuntan todo lo que llevan, así que tampoco cuenta.

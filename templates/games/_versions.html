@@ -1,40 +1,51 @@
-{# «Ediciones y versiones» de la ficha (games.details.versions): las ediciones del juego (GOTY, Deluxe…) con su portada y, después, #}
-{# sus remakes, remasters y ports, sus expansiones y DLC y los recopilatorios en los que está, cada uno con su tipo y su año. #}
-{# Cada tira se pasa de lado. Lo que está en el catálogo lleva a su ficha; lo que no, a su búsqueda, desde donde se trae de IGDB. #}
-{# Con oob, HTMX la pone en su sitio cuando llega la ficha técnica. #}
+{# «Ediciones y versiones» de la ficha (games.details.versions), plegada: cerrada enseña cuántas ediciones, versiones y #}
+{# recopilatorios hay, y viene abierta si se llega desde una edición (edition), que va marcada. Abierta: las ediciones del juego #}
+{# (GOTY, Deluxe…) con su portada y, después, sus remakes, remasters y ports y los recopilatorios en los que está, cada uno con #}
+{# su tipo y su año. Las expansiones y los DLC van aparte, a la vista (games/_addons.html). Cada tira se pasa de lado. Lo que #}
+{# está en el catálogo lleva a su ficha; lo que no, a su búsqueda, desde donde se trae de IGDB. Con oob, HTMX la pone en su #}
+{# sitio cuando llega la ficha técnica. #}
 {% if versions %}
   <section class="widget versions" id="versiones" aria-labelledby="versiones-titulo"{% if oob %} hx-swap-oob="true"{% endif %}>
-    <h2 class="widget-label" id="versiones-titulo">Ediciones y versiones</h2>
-    {% if versions.editions %}
-      <h3 class="versions-title">Ediciones <span class="muted">{{ versions.editions|length }}</span></h3>
-      <ul class="version-row">
-        {% for item in versions.editions %}
-          <li class="version{% if item.current %} is-current{% endif %}">
-            <div class="cover">
-              {% if item.cover_url %}<img src="{{ item.cover_url }}" alt="" loading="lazy">{% else %}<span class="cover-fallback">{{ item.title }}</span>{% endif %}
-            </div>
-            <p class="version-name">{{ item.title }}</p>
-            <p class="muted">{% if item.current %}<span class="version-current">Vienes de esta</span>{% elif item.year %}{{ item.year }}{% endif %}</p>
-          </li>
-        {% endfor %}
-      </ul>
-    {% endif %}
-    {% for title, items in versions.groups %}
-      <h3 class="versions-title">{{ title }} <span class="muted">{{ items|length }}</span></h3>
-      <ul class="version-row">
-        {% for item in items %}
-          <li class="version">
-            <a href="{{ item.url }}"{% if not item.in_catalog %} title="Aún no está en el catálogo: búscalo para traerlo de IGDB"{% endif %}>
+    <details class="fold"{% if edition %} open{% endif %}>
+      <summary>
+        <h2 class="widget-label" id="versiones-titulo">Ediciones y versiones</h2>
+        <span class="fold-counts">
+          {% if versions.editions %}<span class="fold-count">Ediciones <strong>{{ versions.editions|length }}</strong></span>{% endif %}
+          {% for title, items in versions.groups %}<span class="fold-count">{{ title }} <strong>{{ items|length }}</strong></span>{% endfor %}
+        </span>
+        {% include "_icon.html" with name="down" %}
+      </summary>
+      {% if versions.editions %}
+        <h3 class="versions-title">Ediciones <span class="muted">{{ versions.editions|length }}</span></h3>
+        <ul class="version-row">
+          {% for item in versions.editions %}
+            <li class="version{% if item.current %} is-current{% endif %}">
               <div class="cover">
-                {% if item.cover_url %}<img src="{{ item.cover_url }}" alt="" loading="lazy">{% else %}<span class="cover-fallback">{{ item.name }}</span>{% endif %}
+                {% if item.cover_url %}<img src="{{ item.cover_url }}" alt="" loading="lazy">{% else %}<span class="cover-fallback">{{ item.title }}</span>{% endif %}
               </div>
-              <p class="version-name">{{ item.name }}</p>
-              <p class="muted">{{ item.label }}{% if item.label and item.year %} · {% endif %}{{ item.year|default:"" }}</p>
-            </a>
-          </li>
-        {% endfor %}
-      </ul>
-    {% endfor %}
+              <p class="version-name">{{ item.title }}</p>
+              <p class="muted">{% if item.current %}<span class="version-current">Vienes de esta</span>{% elif item.year %}{{ item.year }}{% endif %}</p>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      {% for title, items in versions.groups %}
+        <h3 class="versions-title">{{ title }} <span class="muted">{{ items|length }}</span></h3>
+        <ul class="version-row">
+          {% for item in items %}
+            <li class="version">
+              <a href="{{ item.url }}"{% if not item.in_catalog %} title="Aún no está en el catálogo: búscalo para traerlo de IGDB"{% endif %}>
+                <div class="cover">
+                  {% if item.cover_url %}<img src="{{ item.cover_url }}" alt="" loading="lazy">{% else %}<span class="cover-fallback">{{ item.name }}</span>{% endif %}
+                </div>
+                <p class="version-name">{{ item.name }}</p>
+                <p class="muted">{{ item.label }}{% if item.label and item.year %} · {% endif %}{{ item.year|default:"" }}</p>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endfor %}
+    </details>
   </section>
 {% else %}
   <div id="versiones"{% if oob %} hx-swap-oob="true"{% endif %}></div>

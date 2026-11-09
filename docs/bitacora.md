@@ -13,10 +13,11 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Todas las ramas de abajo están fusionadas con `main`, cada una con su PR. Las migraciones de las cuatro primeras ya están en tu base de datos de verdad (comprobado el 08/11/2026). Justo después de fusionar `pasada-a-igdb`, en el mismo paso, toca aplicar su migración, `games.0010`, y hacer la pasada a IGDB, con una copia de seguridad antes. Lo que salga te lo digo al terminar la sesión.
+Todas las ramas de abajo están fusionadas con `main`, cada una con su PR. Las migraciones de las cuatro del 08/11 ya están en tu base de datos de verdad (comprobado el 08/11/2026). También está la de `pasada-a-igdb`, `games.0010`, con la pasada a IGDB hecha (comprobado el 09/11/2026: sin migraciones pendientes y con la ficha técnica de 2235 de sus 2236 juegos). `ficha-ligera-y-dlc` no trae migraciones. Justo después de fusionarla, en el mismo paso, traigo los DLC y las expansiones a tu base de datos con `import_addons`, con una copia de seguridad antes. Lo que salga te lo digo al terminar.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
+| `ficha-ligera-y-dlc` | Ficha del juego más ligera: tres columnas, lo secundario plegado y cada DLC con su ficha y su precio | Fusionada con `main`: [PR #39](https://github.com/mjovenburgui/NextPlay/pull/39). Sin migraciones; los DLC llegan a tu base de datos con `import_addons`. |
 | `pasada-a-igdb` | Una pasada a IGDB: ficha técnica, duración, ediciones agrupadas, sin DLC en las búsquedas y catálogo con filtros | Fusionada con `main`: [PR #38](https://github.com/mjovenburgui/NextPlay/pull/38). Trae la migración `games.0010`. |
 | `avisos-en-un-solo-sitio` | Avisos en un solo sitio, con preferencias por tipo | Fusionada con `main`: [PR #34](https://github.com/mjovenburgui/NextPlay/pull/34). |
 | `retos-fase-2` | Retos: insignias, sección en el perfil, feed, avisos y cierre cada noche | Fusionada con `main`: [PR #35](https://github.com/mjovenburgui/NextPlay/pull/35). |
@@ -30,6 +31,77 @@ Todas las ramas de abajo están fusionadas con `main`, cada una con su PR. Las m
 - `library.0014`.
 
 Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan estas migraciones: `manage.py migrate`.
+
+---
+
+## 09/11/2026 · Ficha del juego más ligera: tres columnas, lo secundario plegado y cada DLC con su ficha y su precio (fusionado con main)
+
+**Rama:** `ficha-ligera-y-dlc`, encima de `main`; en local era la del worktree `game-card-layout-design-39a461`. Fusionada con `main` el 09/11/2026: [PR #39](https://github.com/mjovenburgui/NextPlay/pull/39).
+
+**Por qué:** me preguntaste «¿No crees que muestra demasiada información? Casi que debería verse en desplegables o aprovechar todo el ancho de la web». Sí. Después de la pasada a IGDB, la ficha de GTA V medía unos 4490 px de alto en una pantalla de 1440 px y solo usaba 1100 px de ancho. Además, la columna de la carátula se acababa a media página.
+
+**Qué cambia para ti:**
+- **Pantallas de 1280 px o más:** tres columnas en un contenedor de hasta 1440 px, como el de la portada.
+  - A la izquierda: la carátula, «Notas», Cuánto dura y tus logros. «Notas» junta en una caja la nota de la crítica, la de los jugadores de IGDB y la de la comunidad.
+  - En medio: tu biblioteca, la sinopsis, las imágenes y vídeos, «Dónde comprarlo», «Expansiones y DLC», «Ediciones y versiones» y las reseñas.
+  - A la derecha: la ficha técnica, los idiomas, los juegos parecidos y las listas en las que está.
+- **Entre 641 y 1279 px:** dos columnas; los datos bajan debajo de la carátula.
+- **En el móvil:** una sola columna, en este orden: notas, tu biblioteca, Cuánto dura, sinopsis, imágenes, precios, expansiones y DLC, ficha técnica e idiomas, ediciones, parecidos, reseñas y, al final, logros y listas.
+- **A la vista, «Expansiones y DLC»** (me preguntaste «¿y que salgan los DLC?»): una tira propia debajo de «Dónde comprarlo», con las expansiones primero y después los DLC. Cada uno lleva su tipo, su año, su precio más barato de ahora (con la rebaja) y el nombre sin el del juego delante («Shadow of the Erdtree»); el nombre entero sale al pasar el ratón. En la copia, 700 de los 2231 juegos con ficha técnica tienen alguno; The Witcher 3 tiene 8. En GTA V solo sale Grand Theft Auto Online: IGDB no le da más.
+- **Cada DLC, con su ficha y su precio** (me preguntaste «¿y pueden salir con ficha, con precio y todo?»):
+  - cada expansión o DLC lleva a su propia ficha, con «Dónde comprarlo», historial, imágenes y ficha técnica, como cualquier juego;
+  - los que aún no están en el catálogo los trae de IGDB la ficha de su juego al abrirse, por HTMX, y busca a la vez sus precios. Mientras tanto, la tira dice «Trayendo la ficha y el precio de cada uno…»;
+  - la ficha de un DLC dice de qué juego es («DLC de Borderlands 2») desde la primera visita;
+  - en la copia: Borderlands 2 trae sus 11 DLC en 3,4 s y sus precios en 1,3 s, y 10 salen con precio y rebaja. The Witcher 3 trae 6; salen sin precio los 5 «New Quest», que eran gratis, y Songs of the Past, que sale en 2027;
+  - una vez en el catálogo, `update_prices` les pone el precio al día cada noche, y `fill_game_fields`, la ficha técnica. El catálogo los sigue escondiendo salvo que se pidan con `?tipo=`.
+- **Todos traídos de golpe** (me preguntaste «¿puedes traer todos los que puedas?»):
+  - el comando nuevo `import_addons` trae de IGDB los DLC y las expansiones que faltan, con su ficha técnica, y busca sus precios de PC. Va también en `nightly`; sin nada pendiente no pide nada, y con `--simular` solo cuenta;
+  - en la copia ha traído, en unos 4 minutos, los 3014 que faltaban, y en una segunda pasada otros 30: los DLC de las expansiones independientes (como Grand Theft Auto Online), que salen al traer su ficha. Ya tienen ficha propia los 3162 (2314 DLC, 689 expansiones y 121 expansiones independientes);
+  - salen con precio 1761. Los demás son gratis, aún no han salido o no se venden en PC;
+  - la copia pasa de 2260 a 5304 juegos, pero el catálogo sin filtros solo pasa de 2148 a 2239: los DLC y las expansiones siguen escondidos, y solo se suman las expansiones independientes, que son juegos;
+  - Xbox y Nintendo ya no buscan los DLC por su nombre: sus buscadores solo miran juegos y nunca los encontrarían. Con 3000 DLC más, eso habrían sido miles de peticiones inútiles cada noche. Les ponen precio solo si IGDB da su ID de tienda;
+  - **tu base de datos de verdad no los tiene.** Al fusionar, hay que lanzar `manage.py import_addons` en ella, con una copia de seguridad antes, o esperar a que `nightly` lo haga cuando lo programes.
+- **Plegado:**
+  - «Ediciones y versiones», ya sin los DLC: cerrada, dice cuántas ediciones, versiones y recopilatorios hay; si vienes de una edición, viene abierta.
+  - «Idiomas».
+  - La ficha técnica, si tiene más de seis filas: enseña las cinco que más se miran y deja el resto en «Más datos». La edad (PEGI) sube a esas cinco.
+- **Resultado:** la ficha de GTA V pasa de unos 4490 px de alto a unos 2530.
+
+**Qué he tocado:**
+- Plantillas:
+  - `templates/games/detail.html`: los tres bloques;
+  - `_community.html`: ahora es una fila de «Notas»;
+  - `_sheet.html` y el nuevo `_sheet_rows.html`: «Más datos»;
+  - `_versions.html`: el desplegable;
+  - el nuevo `_addons.html`: la tira de expansiones y DLC con sus precios, que también llega por HTMX con la ficha técnica (`_details.html`, que ahora puede traer la cabecera);
+  - `_similar.html`: la rejilla de la columna;
+  - un comentario de `accounts/_achievement_card.html`.
+- `static/css/app.css`:
+  - la rejilla de la ficha en tres, dos y una columna;
+  - los desplegables, la caja «Notas» y la cabecera al ancho nuevo;
+  - fuera las reglas viejas de la columna lateral.
+- Código:
+  - `games/details.py`: la edad va justo después del cooperativo; las expansiones y los DLC salen de `VERSION_GROUPS` y los prepara `addons`, con el nombre corto de `short_name` y su precio; `import_addons` trae de IGDB los que faltan;
+  - `games/views.py`: la ficha y su trozo de HTMX llevan `addons`; la vista nueva `game_addons` (`/juegos/<juego>/expansiones-y-dlc/`) trae los que faltan y busca sus precios; `game_details` manda la cabecera cuando ya se sabe de qué juego es;
+  - `games/urls.py`: la dirección nueva;
+  - el comando nuevo `games/management/commands/import_addons.py`, y `accounts/management/commands/nightly.py`, que lo lanza después de `fill_game_fields`;
+  - `games/models.py` (`STORE_ADDON_TYPES`), `games/xbox.py` y `games/nintendo.py`: los DLC y las expansiones no se buscan por su nombre en las tiendas de consola;
+  - docstrings de `games/details.py`, `games/views.py` y `games/igdb.py`: decían «Si te gustó», un nombre que la ficha ya no usa.
+- Tests (`games/tests.py`): las notas con sus nombres nuevos, los desplegables, la tira de DLC (también por HTMX) y pruebas nuevas de «Más datos», de los nombres cortos, del precio en la tira, de traer de IGDB los que faltan, de la cabecera de un DLC, del comando `import_addons` y de que Xbox y Nintendo no buscan los DLC por su nombre.
+- `README.md` (el comando nuevo), `docs/pantallas.json` (lo que hay en la ficha y su dirección nueva), la propuesta «Ficha del juego más ligera: tres columnas y lo secundario plegado» y los dos PDF.
+
+**Cómo lo he comprobado:**
+- En el servidor de revisión del puerto 8001, con una copia de tu base de datos y la cuenta `tester`. Hice capturas a 1440, 1100 y 375 px con estas fichas:
+  - GTA V y The Witcher 3;
+  - Batman: Arkham Asylum, viniendo de su GOTY y sin sesión;
+  - Star Wars: X-Wing, que carga la ficha técnica por HTMX.
+- En el móvil no se sale nada de lado. La tira de DLC va justo después de los precios y se pasa de lado.
+- Al valorar el juego, la fila «Comunidad» de «Notas» se pone al día por HTMX, como antes.
+- Los DLC de The Witcher 3 y de Borderlands 2 se han traído de verdad (IGDB e IsThereAnyDeal) a la copia, y la ficha de uno de ellos (Captain Scarlett and Her Pirate's Booty) sale con sus precios.
+- `import_addons` ha traído a la copia todos los que faltaban; antes guardé una copia de seguridad de la base de datos de revisión en el scratchpad. Fallout 4 enseña sus 6 DLC con precio y rebaja.
+- Tests: los 570 pasan sin claves y también con claves falsas detrás de un proxy muerto.
+
+**Qué falta:** nada tuyo. Justo después de fusionar traigo los DLC a tu base de datos de verdad con `import_addons`, con una copia de seguridad antes. Lo que salga te lo digo al terminar.
 
 ---
 

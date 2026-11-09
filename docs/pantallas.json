@@ -13,8 +13,8 @@
     },
     {
       "nombre": "Ficha del juego",
-      "urls": ["games:detail", "games:prices", "games:price_history", "games:media", "games:details", "game_achievements"],
-      "que_es": "La página de cada juego: cabecera con su arte, datos (y de qué juego es remake, DLC…) y notas (crítica, jugadores de IGDB y comunidad), cuánto dura, tu biblioteca (estado, nota, reseña, lista de deseos), favoritos y «Añadir a una lista», tus horas y tus logros, la ficha técnica (estudio, editora, modos, temas, saga, PEGI…), el carrusel de imágenes y vídeos, «Ediciones y versiones» (ediciones, remakes, expansiones, DLC y recopilatorios), «Dónde comprarlo» con su historial de precios, juegos parecidos, las reseñas y las listas en las que sale. La ficha de una edición lleva a la de su juego."
+      "urls": ["games:detail", "games:prices", "games:price_history", "games:media", "games:details", "games:addons", "game_achievements"],
+      "que_es": "La página de cada juego: cabecera con su arte, datos (y de qué juego es remake, DLC…) y notas (crítica, jugadores de IGDB y comunidad), cuánto dura, tu biblioteca (estado, nota, reseña, lista de deseos), favoritos y «Añadir a una lista», tus horas y tus logros, la ficha técnica (estudio, editora, modos, temas, saga, PEGI…), el carrusel de imágenes y vídeos, «Dónde comprarlo» con su historial de precios, «Expansiones y DLC» (cada uno con su precio y su propia ficha), «Ediciones y versiones» (ediciones, remakes, ports y recopilatorios), juegos parecidos, las reseñas y las listas en las que sale. La ficha de una edición lleva a la de su juego."
     },
     {
       "nombre": "Listas del juego",

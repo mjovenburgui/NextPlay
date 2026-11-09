@@ -1,6 +1,6 @@
 """Comando «manage.py nightly»: las tareas de cada noche en orden (sync_libraries, close_challenges, update_prices,
-localize_games, fill_game_fields y merge_editions). No pinta ninguna pantalla; lo que guarda se ve sobre todo en el
-Perfil, la Ficha del juego, el Catálogo, los Retos y la Lista de deseos.
+localize_games, fill_game_fields, import_addons y merge_editions). No pinta ninguna pantalla; lo que guarda se ve
+sobre todo en el Perfil, la Ficha del juego, el Catálogo, los Retos y la Lista de deseos.
 """
 
 from django.core.management import call_command
@@ -11,14 +11,17 @@ class Command(BaseCommand):
     help = (
         "Tareas de cada noche, en orden: sincroniza las bibliotecas de Steam (sync_libraries), repasa los retos "
         "(close_challenges), actualiza los precios (update_prices), completa los datos en castellano de los juegos "
-        "(localize_games), pone al día su ficha técnica de IGDB (fill_game_fields) y junta las ediciones con su juego "
-        "(merge_editions). Es lo que hay que programar en cron o en el Programador de tareas."
+        "(localize_games), pone al día su ficha técnica de IGDB (fill_game_fields), trae las expansiones y los DLC que "
+        "aún no tienen ficha (import_addons) y junta las ediciones con su juego (merge_editions). Es lo que hay que "
+        "programar en cron o en el Programador de tareas."
     )
 
-    # Comandos que se lanzan, en este orden. Los retos van después de sincronizar, para que cuente lo que llega, y las
-    # ediciones se juntan después de la pasada a IGDB, que puede enlazar alguna nueva.
+    # Comandos que se lanzan, en este orden. Los retos van después de sincronizar, para que cuente lo que llega; los DLC
+    # se traen después de la pasada a IGDB, que puede descubrir alguno nuevo; y las ediciones se juntan al final, porque
+    # las dos cosas pueden enlazar alguna.
     TASKS = (
-        "sync_libraries", "close_challenges", "update_prices", "localize_games", "fill_game_fields", "merge_editions",
+        "sync_libraries", "close_challenges", "update_prices", "localize_games", "fill_game_fields", "import_addons",
+        "merge_editions",
     )
 
     def handle(self, *args, **options):
@@ -31,7 +34,8 @@ class Command(BaseCommand):
         Perfil (insignias de la sección «Retos»), Lista de deseos (mejor precio de hoy y mínimo histórico; filtro de
         idioma), Página de la lista (lo que cuesta lo que te falta), Avisos (bajadas de precio; retos conseguidos, que
         se acaban y cómo has quedado), Catálogo (búsqueda por nombre en España, filtros y etiqueta de las tarjetas),
-        Ficha del juego (ficha técnica, Cuánto dura y «Ediciones y versiones»).
+        Ficha del juego (ficha técnica, Cuánto dura, «Expansiones y DLC» con la ficha y el precio de cada uno y
+        «Ediciones y versiones»).
         """
         failed = []
         for name in self.TASKS:

@@ -1,0 +1,34 @@
+{# «Expansiones y DLC» de la ficha (games.details.addons), a la vista debajo de «Dónde comprarlo»: una tira de portadas que se #}
+{# pasa de lado, primero las expansiones y después los DLC, con su nombre sin el del juego delante («Shadow of the Erdtree»; #}
+{# el entero va en el title), su tipo, su año y, si ya tiene ficha y precios, el más barato de ahora. Cada uno lleva a su #}
+{# propia ficha; el que aún no está en el catálogo, a su búsqueda. Con load_addons (games.views._addons_pending), la tira se #}
+{# pide otra vez con HTMX a games.views.game_addons, que antes trae de IGDB los que faltan y busca sus precios. Con oob, HTMX #}
+{# la pone en su sitio cuando llega la ficha técnica. #}
+{% if addons %}
+  <section class="widget addons" id="dlc" aria-labelledby="dlc-titulo"{% if oob %} hx-swap-oob="true"{% endif %}{% if load_addons %} aria-busy="true"
+           hx-get="{% url 'games:addons' game.slug %}" hx-trigger="load" hx-swap="outerHTML"{% endif %}>
+    <h2 class="widget-label" id="dlc-titulo">Expansiones y DLC <span class="muted">{{ addons|length }}</span></h2>
+    <ul class="version-row">
+      {% for item in addons %}
+        <li class="version">
+          <a href="{{ item.url }}" title="{{ item.name }}{% if not item.in_catalog %} · Aún no está en el catálogo: búscalo para traerlo de IGDB{% endif %}">
+            <div class="cover">
+              {% if item.cover_url %}<img src="{{ item.cover_url }}" alt="" loading="lazy">{% else %}<span class="cover-fallback">{{ item.short }}</span>{% endif %}
+            </div>
+            <p class="version-name">{{ item.short }}</p>
+            <p class="muted">{{ item.label }}{% if item.label and item.year %} · {% endif %}{{ item.year|default:"" }}</p>
+            {% if item.price %}
+              <p class="addon-price">
+                <strong>{% if item.price.is_free %}Gratis{% else %}{{ item.price.price|floatformat:2 }} {{ item.price.symbol }}{% endif %}</strong>
+                {% if item.price.cut %}<span class="cut">-{{ item.price.cut }}%</span>{% endif %}
+              </p>
+            {% endif %}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+    {% if load_addons %}<p class="help">Trayendo la ficha y el precio de cada uno…</p>{% endif %}
+  </section>
+{% else %}
+  <div id="dlc"{% if oob %} hx-swap-oob="true"{% endif %}></div>
+{% endif %}

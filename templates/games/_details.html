@@ -1,6 +1,9 @@
 {# Lo que llega con HTMX cuando la ficha técnica de un juego nunca se había pedido a IGDB (games.views.game_details): la ficha técnica #}
-{# cambia su hueco y lo demás (Cuánto dura, «Ediciones y versiones» y «Juegos parecidos») va a los suyos con oob. #}
+{# cambia su hueco y lo demás (Cuánto dura, «Expansiones y DLC», «Ediciones y versiones» y «Juegos parecidos») va a los suyos con oob. #}
+{# Con hero (se sabe ya de qué juego es: la ficha de un DLC, un remake…), también la cabecera, que lo dice. #}
 {% include "games/_sheet.html" %}
 {% include "games/_duration.html" %}
+{% include "games/_addons.html" %}
 {% include "games/_versions.html" %}
 {% include "games/_similar.html" %}
+{% if hero %}{% include "games/_hero.html" %}{% endif %}
