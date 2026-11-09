@@ -635,7 +635,8 @@ class PricesTests(TestCase):
         self.hades.save()
         prices.update_prices([self.hades], self.client_mock)
         response = self.client.get(self.hades.get_absolute_url())
-        self.assertContains(response, "Nota de la crítica")
+        self.assertContains(response, '<p class="score-name">Crítica</p>', html=False)
+        self.assertContains(response, "41 reseñas")
         self.assertContains(response, ">93<")
         self.assertContains(response, "12,49 €")
         self.assertContains(response, "-50%")
@@ -684,7 +685,7 @@ class PricesTests(TestCase):
     def test_detail_says_when_no_prices_were_found(self):
         prices.update_prices([self.unknown], self.client_mock)  # buscado, pero ITAD no lo conoce
         response = self.client.get(self.unknown.get_absolute_url())
-        self.assertNotContains(response, "Nota de la crítica")
+        self.assertNotContains(response, '<p class="score-name">Crítica</p>', html=False)
         self.assertNotContains(response, 'class="shop-tile"')
         self.assertContains(response, "Ninguna tienda de PC, Xbox ni Nintendo lo vende ahora.")
         self.assertContains(response, "Precios buscados hace")
@@ -812,6 +813,15 @@ class XboxTests(TestCase):
     def test_no_search_for_titles_shared_in_the_catalog(self):
         self.game.platforms.add(Platform.objects.create(name="Xbox One", slug="xbox-one"))
         Game.objects.create(name="HADES", slug="hades-remake")
+        with self.catalog() as get:
+            xbox.update_xbox_prices([self.game], sleep=mock.Mock())
+        self.assertFalse(any(c.args[0] == xbox.SEARCH_URL for c in get.call_args_list))
+
+    def test_no_title_search_for_dlc_or_expansions(self):
+        """Los DLC y las expansiones no se buscan por su título: la tienda los vende como complemento y su buscador
+        solo mira juegos, así que nunca los encontraría."""
+        self.game.platforms.add(Platform.objects.create(name="Xbox One", slug="xbox-one"))
+        self.game.game_type = GameType.EXPANSION
         with self.catalog() as get:
             xbox.update_xbox_prices([self.game], sleep=mock.Mock())
         self.assertFalse(any(c.args[0] == xbox.SEARCH_URL for c in get.call_args_list))
@@ -963,6 +973,13 @@ class NintendoTests(TestCase):
 
     def test_no_search_for_titles_shared_in_the_catalog(self):
         Game.objects.create(name="HOLLOW KNIGHT", slug="hollow-knight-2")
+        with self.eshop() as get:
+            nintendo.update_nintendo_prices([self.game], sleep=mock.Mock())
+        self.assertFalse(get.called)
+
+    def test_no_title_search_for_dlc_or_expansions(self):
+        """Los DLC y las expansiones no se buscan por su título: el buscador de la eShop solo mira juegos."""
+        self.game.game_type = GameType.DLC
         with self.eshop() as get:
             nintendo.update_nintendo_prices([self.game], sleep=mock.Mock())
         self.assertFalse(get.called)
@@ -1800,7 +1817,8 @@ class GamePageDetailsTests(TestCase):
         self.assertContains(response, "Ficha técnica")
         self.assertContains(response, f'href="{reverse("games:catalog")}?estudio=cd-projekt-red"')
         self.assertContains(response, "PEGI 18")
-        self.assertContains(response, "Nota de los jugadores de IGDB")
+        self.assertContains(response, '<p class="score-name">Jugadores de IGDB</p>', html=False)
+        self.assertContains(response, "5519 votos")
         self.assertContains(response, "Te faltan unas <strong>2 h</strong>")
         self.assertContains(response, "Game of the Year Edition")
         # Lo que está en el catálogo lleva a su ficha; lo que no, a buscarlo con todos los tipos.
@@ -1809,6 +1827,84 @@ class GamePageDetailsTests(TestCase):
         # Juegos parecidos: primero el de su pendiente, aunque sea menos popular.
         self.assertEqual(response.context["similar"], [self.hades, self.zelda])
         self.assertTrue(response.context["similar"][0].in_backlog)
+        # «Ediciones y versiones» va plegada y cerrada dice cuántos hay de cada grupo, sin las expansiones ni los DLC,
+        # que van aparte y a la vista. Con cinco filas, la ficha técnica no pliega nada.
+        self.assertContains(response, '<details class="fold">', html=False)
+        self.assertContains(response, 'Otras versiones <strong>1</strong>', html=False)
+        self.assertNotContains(response, 'Expansiones y DLC <strong>', html=False)
+        self.assertContains(response, 'id="dlc" aria-labelledby="dlc-titulo"')
+        self.assertEqual([item["short"] for item in response.context["addons"]], ["Blood and Wine"])
+        self.assertNotContains(response, "Más datos")
+
+    def test_addons_show_their_price_and_lead_to_their_page(self):
+        """Las expansiones y los DLC que ya tienen ficha llevan a ella y enseñan su precio más barato de ahora."""
+        GamePrice.objects.create(
+            game=self.blood, shop_id=61, shop_name="Steam", price=Decimal("9.99"), regular_price=Decimal("19.99"),
+            currency="EUR", cut=50, url="https://store.test/blood-and-wine",
+        )
+        Game.objects.filter(pk=self.blood.pk).update(prices_updated_at=timezone.now())
+        response = self.client.get(self.witcher.get_absolute_url())
+        content = response.content.decode()
+        strip = content[content.index('id="dlc"'):content.index('id="versiones"')]
+        self.assertIn(f'href="{self.blood.get_absolute_url()}"', strip)
+        self.assertIn("9,99 €", strip)
+        self.assertIn("-50%", strip)
+        # Todos tienen ficha y precios buscados: no hay nada que pedir después.
+        self.assertFalse(response.context["load_addons"])
+        self.assertNotIn("hx-get", strip)
+
+    @override_settings(IGDB_CLIENT_ID="id", IGDB_CLIENT_SECRET="secret")
+    def test_addons_without_a_page_are_brought_from_igdb(self):
+        """Si alguno aún no está en el catálogo, la ficha pide la tira con HTMX, que lo trae de IGDB con su propia ficha
+        y busca sus precios."""
+        related = {**self.witcher.details["related"], "dlcs": [
+            {"id": 9001, "name": "The Witcher 3: Wild Hunt - New Quest", "cover": "", "year": 2015, "type": 1},
+        ]}
+        Game.objects.filter(pk=self.witcher.pk).update(details={**self.witcher.details, "related": related})
+        response = self.client.get(self.witcher.get_absolute_url())
+        url = reverse("games:addons", args=[self.witcher.slug])
+        self.assertTrue(response.context["load_addons"])
+        self.assertContains(response, f'hx-get="{url}"')
+        payload = [
+            {"id": 9001, "name": "The Witcher 3: Wild Hunt - New Quest", "slug": "witcher-new-quest", "game_type": 1},
+        ]
+        with mock.patch.object(igdb.IGDBClient, "games_by_ids", return_value=payload) as by_ids, \
+                mock.patch("games.prices.fetch_missing") as fetch_missing:
+            response = self.client.get(url)
+        by_ids.assert_called_once_with([9001])
+        new_quest = Game.objects.get(igdb_id=9001)
+        self.assertEqual(new_quest.game_type, GameType.DLC)
+        # Busca los precios de los que nunca se han buscado: la expansión que ya estaba y el DLC recién traído.
+        self.assertEqual({game.pk for game in fetch_missing.call_args.args[0]}, {self.blood.pk, new_quest.pk})
+        self.assertContains(response, f'href="{new_quest.get_absolute_url()}"')
+        self.assertContains(response, '<p class="version-name">New Quest</p>', html=False)
+        self.assertNotContains(response, "hx-get")
+
+    def test_addons_lose_the_name_of_their_game(self):
+        """Las expansiones y los DLC, sin el nombre del juego delante cuando lo llevan con un separador."""
+        for base, name, short in [
+            ("The Witcher 3: Wild Hunt", "The Witcher 3: Wild Hunt - Hearts of Stone", "Hearts of Stone"),
+            ("The Witcher 3: Wild Hunt", "The Witcher 3: Blood and Wine", "Blood and Wine"),
+            ("Elden Ring", "ELDEN RING: Shadow of the Erdtree", "Shadow of the Erdtree"),
+            ("Fallout 4", "Fallout 4 – Far Harbor", "Far Harbor"),
+            ("Grand Theft Auto V", "Grand Theft Auto Online", "Grand Theft Auto Online"),
+            ("Doom", "Doom Eternal", "Doom Eternal"),
+            ("Elden Ring", "Elden Ring:", "Elden Ring:"),
+        ]:
+            self.assertEqual(details.short_name(base, name), short)
+
+    def test_a_long_sheet_folds_what_is_least_looked_at(self):
+        """Con más de seis filas, la ficha técnica enseña las cinco que más se miran (con la edad) y pliega el resto."""
+        self.witcher.modes.add(GameMode.objects.create(igdb_id=1, name="Un jugador", slug="un-jugador"))
+        third_person = Perspective.objects.create(igdb_id=2, name="Tercera persona", slug="tercera-persona")
+        self.witcher.perspectives.add(third_person)
+        self.witcher.themes.add(Theme.objects.create(igdb_id=17, name="Fantasía", slug="fantasia"))
+        rows = [label for label, _ in details.sheet(self.witcher)]
+        self.assertEqual(rows, ["Estudio", "Editora", "Modos", "Edad", "Perspectiva", "Temas", "Saga", "Motor"])
+        content = self.client.get(self.witcher.get_absolute_url()).content.decode()
+        self.assertIn('Más datos <span class="muted">(3)</span>', content)
+        self.assertLess(content.index("PEGI 18"), content.index("Más datos"))
+        self.assertLess(content.index("Más datos"), content.index("REDengine"))
 
     def test_rough_and_endless_durations(self):
         Game.objects.filter(pk=self.witcher.pk).update(ttb_count=3)
@@ -1827,6 +1923,8 @@ class GamePageDetailsTests(TestCase):
         response = self.client.get(response["Location"])
         self.assertContains(response, "es una edición de este juego")
         self.assertContains(response, "Vienes de esta")
+        # Viniendo de una edición, «Ediciones y versiones» llega abierta para que se vea cuál era.
+        self.assertContains(response, '<details class="fold" open>', html=False)
         # Las ediciones no salen en el Catálogo.
         self.assertNotIn(goty, self.client.get(reverse("games:catalog")).context["page"].object_list)
 
@@ -1853,7 +1951,62 @@ class GamePageDetailsTests(TestCase):
         self.assertContains(response, 'id="ficha-tecnica"')
         self.assertContains(response, 'id="duracion" hx-swap-oob="true"')
         self.assertContains(response, 'id="versiones" aria-labelledby="versiones-titulo" hx-swap-oob="true"')
+        self.assertContains(response, 'id="dlc" aria-labelledby="dlc-titulo" hx-swap-oob="true"')
         self.assertFalse(details.missing(Game.objects.get(pk=self.witcher.pk)))
+        # The Witcher 3 no es remake ni DLC de nada: la cabecera se queda como estaba.
+        self.assertNotContains(response, 'id="game-hero"')
+
+    @override_settings(IGDB_CLIENT_ID="id", IGDB_CLIENT_SECRET="secret")
+    def test_a_dlc_page_says_whose_it_is_as_soon_as_its_sheet_arrives(self):
+        """La primera vez que se abre la ficha de un DLC, con su ficha técnica llega también la cabecera que dice de qué
+        juego es."""
+        dlc = Game.objects.create(
+            igdb_id=9002, name="Hearts of Stone", slug="hearts-of-stone", game_type=GameType.EXPANSION,
+        )
+        parent = {"id": 1942, "name": "The Witcher 3: Wild Hunt", "game_type": 0}
+        payload = {"id": 9002, "name": "Hearts of Stone", "game_type": 2, "parent_game": parent}
+        with mock.patch.object(igdb.IGDBClient, "games_with_details", return_value=[payload]), \
+                mock.patch.object(igdb.IGDBClient, "time_to_beat", return_value={}):
+            response = self.client.get(reverse("games:details", args=[dlc.slug]))
+        self.assertContains(response, 'id="game-hero" hx-swap-oob="true"')
+        witcher = f'<a href="{self.witcher.get_absolute_url()}">The Witcher 3: Wild Hunt</a>'
+        self.assertContains(response, f"Expansión de {witcher}")
+
+
+class ImportAddonsCommandTests(TestCase):
+    """El comando import_addons: trae de IGDB las expansiones y los DLC que aún no tienen ficha, con su ficha técnica, y
+    busca sus precios de PC."""
+
+    @override_settings(IGDB_CLIENT_ID="id", IGDB_CLIENT_SECRET="secret", ITAD_API_KEY="clave")
+    def test_brings_missing_addons_with_their_sheet_and_prices(self):
+        Game.objects.create(
+            igdb_id=1942, name="The Witcher 3: Wild Hunt", slug="the-witcher-3",
+            details=details._details(WITCHER_DETAILS), details_updated_at=timezone.now(),
+        )
+        blood_and_wine = {
+            "id": 12503, "name": "The Witcher 3: Blood and Wine", "slug": "blood-and-wine", "game_type": 2,
+        }
+        out = io.StringIO()
+        with mock.patch.object(igdb.IGDBClient, "games_by_ids") as by_ids:
+            call_command("import_addons", "--simular", stdout=out)
+        by_ids.assert_not_called()
+        self.assertIn("sin ella: 1.", out.getvalue())
+
+        with mock.patch.object(igdb.IGDBClient, "games_by_ids", return_value=[blood_and_wine]) as by_ids, \
+                mock.patch.object(igdb.IGDBClient, "games_with_details", return_value=[blood_and_wine]), \
+                mock.patch.object(igdb.IGDBClient, "time_to_beat", return_value={}), \
+                mock.patch("games.prices.update_prices", return_value=1) as update_prices:
+            call_command("import_addons", stdout=io.StringIO())
+        by_ids.assert_called_once_with([12503])
+        brought = Game.objects.get(igdb_id=12503)
+        self.assertEqual(brought.game_type, GameType.EXPANSION)
+        self.assertIsNotNone(brought.details_updated_at)
+        self.assertEqual([game.pk for game in update_prices.call_args.args[0]], [brought.pk])
+
+        # Ya no falta ninguno: no pide nada más a IGDB.
+        with mock.patch.object(igdb.IGDBClient, "games_by_ids") as by_ids, mock.patch("games.prices.update_prices"):
+            call_command("import_addons", stdout=io.StringIO())
+        by_ids.assert_not_called()
 
 
 class EditionMergeTests(TestCase):

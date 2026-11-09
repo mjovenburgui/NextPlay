@@ -1,10 +1,10 @@
-{# «Juegos parecidos» de la ficha (games.details.similar): los parecidos según IGDB que están en el catálogo, primero los de tu Pendiente. #}
-{# Con oob, HTMX la pone en su sitio cuando llega la ficha técnica. #}
+{# «Juegos parecidos» de la ficha (games.details.similar), en la columna de los datos: los parecidos según IGDB que están en #}
+{# el catálogo, primero los de tu Pendiente, en una rejilla de portadas pequeñas. Con oob, HTMX la pone en su sitio cuando llega #}
+{# la ficha técnica. #}
 {% if similar %}
-  <section class="similar" id="parecidos" aria-labelledby="parecidos-titulo"{% if oob %} hx-swap-oob="true"{% endif %}>
-    <h2 id="parecidos-titulo">Juegos parecidos</h2>
-    <p class="help">Según IGDB{% if user.is_authenticated %}; primero los que tienes en Pendiente{% endif %}.</p>
-    <div class="grid grid-compact">
+  <section class="widget similar" id="parecidos" aria-labelledby="parecidos-titulo"{% if oob %} hx-swap-oob="true"{% endif %}>
+    <h2 class="widget-label" id="parecidos-titulo">Juegos parecidos</h2>
+    <div class="similar-grid">
       {% for other in similar %}
         {% if other.in_backlog %}
           {% include "games/_card.html" with game=other status="Pendiente" status_key="backlog" entry=None %}
@@ -13,6 +13,7 @@
         {% endif %}
       {% endfor %}
     </div>
+    <p class="help">Según IGDB{% if user.is_authenticated %}; primero los que tienes en Pendiente{% endif %}.</p>
   </section>
 {% else %}
   <div id="parecidos"{% if oob %} hx-swap-oob="true"{% endif %}></div>

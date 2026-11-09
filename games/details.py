@@ -17,7 +17,8 @@ ficha si nunca se han pedido) guarda:
   «title» es el nombre de la edición («Game of the Year Edition»); «parent», el juego del que este es remake, DLC,
   port… (parent_game de IGDB), y «coop», None si IGDB no dice que tenga cooperativo.
 
-Pantallas: Ficha del juego (ficha técnica, Cuánto dura, «Ediciones y versiones» y «Si te gustó»), Catálogo (filtros).
+Pantallas: Ficha del juego (ficha técnica, Cuánto dura, «Expansiones y DLC», «Ediciones y versiones» y «Juegos
+parecidos»), Catálogo (filtros).
 """
 
 from datetime import datetime, timedelta
@@ -37,9 +38,12 @@ MAX_AGE = timedelta(days=30)
 # Grupos de «Ediciones y versiones» después de las ediciones: título y claves de Game.details["related"].
 VERSION_GROUPS = (
     ("Otras versiones", ("remakes", "remasters", "expanded_games", "ports")),
-    ("Expansiones y DLC", ("expansions", "standalone_expansions", "dlcs")),
     ("Recopilatorios en los que está", ("bundles",)),
 )
+# «Expansiones y DLC», que van aparte y a la vista: claves de Game.details["related"], primero las expansiones.
+ADDON_KEYS = ("expansions", "standalone_expansions", "dlcs")
+# Lo que separa el nombre del juego del de su DLC: «Elden Ring: Shadow of the Erdtree», «Fallout 4 - Far Harbor».
+NAME_SEPARATORS = ":-–—"
 SIMILAR_SHOWN = 6
 
 
@@ -61,9 +65,9 @@ def update_details(games, client=None, now=None, refs=None):
     catálogo. refs es la caché de etiquetas de igdb.known_refs (si no se da, se carga). Devuelve las ediciones que se
     han enlazado.
 
-    Pantallas: Ficha del juego (ficha técnica, Cuánto dura, «Ediciones y versiones» y «Si te gustó»; la de una edición
-    lleva a la de su juego), Catálogo (filtros de tipo, modo, tema, perspectiva, estudio, nota y duración, y etiqueta
-    de las tarjetas).
+    Pantallas: Ficha del juego (ficha técnica, Cuánto dura, «Ediciones y versiones» y «Juegos parecidos»; la de una
+    edición lleva a la de su juego), Catálogo (filtros de tipo, modo, tema, perspectiva, estudio, nota y duración, y
+    etiqueta de las tarjetas).
     """
     client = client or igdb.IGDBClient()
     now = now or timezone.now()
@@ -117,7 +121,7 @@ def _details(data):
     """Game.details a partir de lo que trae IGDB de un juego (formato arriba). De los recopilatorios se quitan sus
     ediciones, que IGDB marca a veces como recopilatorio y ya salen aparte.
 
-    Pantallas: Ficha del juego (ficha técnica, «Ediciones y versiones» y «Si te gustó»).
+    Pantallas: Ficha del juego (ficha técnica, «Ediciones y versiones» y «Juegos parecidos»).
     """
     editions = sorted(
         (item for item in data.get("editions") or [] if item.get("name")),
@@ -233,8 +237,10 @@ def coop_parts(coop):
 def sheet(game):
     """Filas de la ficha técnica de la ficha, [(etiqueta, [(texto, enlace o vacío)])], solo las que tienen algo.
 
-    El estudio, la editora (juntos si son los mismos), los modos, la perspectiva y los temas enlazan al Catálogo
-    filtrado por ellos.
+    Van primero las que más se miran (estudio, editora, modos, cooperativo y edad) y después perspectiva, temas,
+    saga, motor y estado: cuando hay más de seis filas, la ficha enseña las cinco primeras y pliega el resto en «Más
+    datos». El estudio, la editora (juntos si son los mismos), los modos, la perspectiva y los temas enlazan al
+    Catálogo filtrado por ellos.
 
     Pantallas: Ficha del juego (ficha técnica).
     """
@@ -253,11 +259,11 @@ def sheet(game):
     rows = companies + [
         ("Modos", links(game.modes.all(), "modo")),
         ("Cooperativo", [(part, "") for part in coop_parts(details.get("coop"))]),
+        ("Edad", [(f"PEGI {details['pegi']}", "")] if details.get("pegi") else []),
         ("Perspectiva", links(game.perspectives.all(), "perspectiva")),
         ("Temas", links(game.themes.all(), "tema")),
         ("Saga", [(name, "") for name in details.get("sagas") or []]),
         ("Motor", [(name, "") for name in details.get("engines") or []]),
-        ("Edad", [(f"PEGI {details['pegi']}", "")] if details.get("pegi") else []),
         ("Estado", [(game.status_label, "")] if game.status_label else []),
     ]
     return [(label, items) for label, items in rows if items]
@@ -266,7 +272,8 @@ def sheet(game):
 def _local_games(ids):
     """Juegos del catálogo con esos ids de IGDB que tienen ficha propia (sin ediciones): {id de IGDB: Game}.
 
-    Pantallas: Ficha del juego («Ediciones y versiones», de qué juego es remake o DLC y «Si te gustó»).
+    Pantallas: Ficha del juego («Expansiones y DLC», «Ediciones y versiones», de qué juego es remake o DLC y «Juegos
+    parecidos»).
     """
     ids = [game_id for game_id in ids if game_id]
     if not ids:
@@ -278,7 +285,8 @@ def _item(data, local):
     """Un juego relacionado listo para la ficha: nombre, portada, año, etiqueta de su tipo y enlace (su ficha si está
     en el catálogo; si no, su búsqueda en el Catálogo, desde donde se puede traer de IGDB).
 
-    Pantallas: Ficha del juego («Ediciones y versiones» y de qué juego es remake o DLC en la cabecera).
+    Pantallas: Ficha del juego («Expansiones y DLC», «Ediciones y versiones» y de qué juego es remake o DLC en la
+    cabecera).
     """
     game = local.get(data.get("id"))
     kind = data.get("type")
@@ -298,13 +306,13 @@ def _item(data, local):
 
 
 def versions(game, edition=None):
-    """Lo que enseña «Ediciones y versiones» de la ficha: {"editions": [...], "groups": [(título, [...])]} con los
-    juegos ya preparados por _item; vacío si no hay nada.
+    """Lo que enseña «Ediciones y versiones» de la ficha, que va plegada y cerrada enseña cuántos hay de cada grupo:
+    {"editions": [...], "groups": [(título, [...])]} con los juegos ya preparados por _item; vacío si no hay nada.
 
     Las ediciones son las de IGDB (las que tienen este juego como version_parent), con su portada y el nombre de la
     edición («title»); edition es la edición desde la que se ha llegado (?edicion=), que va marcada («current»).
-    Después, las otras versiones (remakes, remasters, ediciones ampliadas y ports), las expansiones y DLC y los
-    recopilatorios en los que está (VERSION_GROUPS).
+    Después, las otras versiones (remakes, remasters, ediciones ampliadas y ports) y los recopilatorios en los que
+    está (VERSION_GROUPS). Las expansiones y los DLC van aparte, a la vista (addons).
 
     Pantallas: Ficha del juego («Ediciones y versiones»).
     """
@@ -328,6 +336,83 @@ def versions(game, edition=None):
     return {"editions": editions, "groups": groups}
 
 
+def short_name(base, name):
+    """El nombre de una expansión o un DLC sin el del juego delante, que en una portada pequeña no deja ver lo que
+    importa: «Elden Ring: Shadow of the Erdtree» queda en «Shadow of the Erdtree».
+
+    Prueba con el nombre entero del juego (base) y con lo que va antes de sus dos puntos («The Witcher 3» de «The
+    Witcher 3: Wild Hunt»), sin mirar mayúsculas, y solo lo quita si detrás viene un separador (NAME_SEPARATORS). Si
+    no, deja el nombre como está: «Grand Theft Auto Online» no es «Grand Theft Auto V» con algo detrás.
+
+    Pantallas: Ficha del juego («Expansiones y DLC»).
+    """
+    prefixes = [base.strip()]
+    if ":" in base:
+        prefixes.append(base.split(":", 1)[0].strip())
+    for prefix in prefixes:
+        if not prefix or name[:len(prefix)].casefold() != prefix.casefold():
+            continue
+        rest = name[len(prefix):].lstrip()
+        if rest[:1] and rest[:1] in NAME_SEPARATORS:
+            short = rest.lstrip(NAME_SEPARATORS).strip()
+            if short:
+                return short
+    return name
+
+
+def addon_ids(game):
+    """Ids de IGDB de las expansiones y los DLC del juego (ADDON_KEYS de Game.details["related"]).
+
+    Pantallas: Ficha del juego («Expansiones y DLC»).
+    """
+    related = (game.details or {}).get("related") or {}
+    return [data["id"] for key in ADDON_KEYS for data in related.get(key) or [] if data.get("id")]
+
+
+def addons(game):
+    """Lo que enseña «Expansiones y DLC» de la ficha, a la vista y no plegado como «Ediciones y versiones»: primero
+    las expansiones (también las independientes, como Grand Theft Auto Online) y después los DLC, cada grupo por año,
+    preparados por _item y con su nombre corto («short», sin el del juego delante: short_name). Los que ya tienen
+    ficha en el catálogo llevan además su precio más barato de ahora («price», Game.best_price, o None) y si sus
+    precios se han buscado alguna vez («searched»). Lista vacía si no tiene.
+
+    Pantallas: Ficha del juego («Expansiones y DLC»).
+    """
+    related = (game.details or {}).get("related") or {}
+    found = [data for key in ADDON_KEYS for data in related.get(key) or []]
+    if not found:
+        return []
+    local = {
+        addon.igdb_id: addon
+        for addon in Game.objects.filter(igdb_id__in=addon_ids(game), parent__isnull=True).prefetch_related("prices")
+    }
+    items = []
+    for data in found:
+        addon = local.get(data.get("id"))
+        items.append({
+            **_item(data, local),
+            "short": short_name(game.name, data["name"]),
+            "price": addon.best_price if addon else None,
+            "searched": addon is not None and addon.prices_updated_at is not None,
+        })
+    return items
+
+
+def import_addons(game, client=None):
+    """Trae de IGDB las expansiones y los DLC del juego que aún no están en el catálogo y devuelve los juegos que ha
+    guardado (igdb.upsert_games). Así cada uno tiene su propia ficha, con sus precios, sus imágenes y su ficha técnica
+    como cualquier juego. Llegan con su tipo (DLC, expansión…), así que el Catálogo los esconde salvo que se pidan.
+
+    Pantallas: Ficha del juego («Expansiones y DLC» y la ficha de cada uno), Catálogo (con ?tipo=, los DLC y las
+    expansiones traídos).
+    """
+    ids = set(addon_ids(game))
+    missing = sorted(ids - set(Game.objects.filter(igdb_id__in=ids).values_list("igdb_id", flat=True)))
+    if not missing:
+        return []
+    return igdb.upsert_games((client or igdb.IGDBClient()).games_by_ids(missing))
+
+
 def origin(game):
     """De qué juego es este remake, remaster, DLC, port... («Remake de Resident Evil 4»), para la cabecera:
     {"text", "name", "url"}, o None si no es de ninguno.
@@ -345,7 +430,7 @@ def similar(game, user=None, limit=SIMILAR_SHOWN):
     """Juegos parecidos (similar_games de IGDB) que están en el catálogo, sin ediciones ni DLC: primero los que el
     usuario tiene en Pendiente (marcados con in_backlog) y después los más populares; como mucho limit.
 
-    Pantallas: Ficha del juego («Si te gustó»).
+    Pantallas: Ficha del juego («Juegos parecidos», en la columna de los datos).
     """
     ids = (game.details or {}).get("similar") or []
     if not ids:

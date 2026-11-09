@@ -14,7 +14,7 @@ import requests
 from django.conf import settings
 from django.db import transaction
 
-from .models import Game, GamePrice
+from .models import STORE_ADDON_TYPES, Game, GamePrice
 
 SEARCH_URL = "https://searching.nintendo-europe.com/{language}/select"
 PRICE_URL = "https://api.ec.nintendo.com/v1/price"
@@ -198,15 +198,20 @@ def update_nintendo_prices(games, sleep=time.sleep):
 
     Los juegos de Switch o Switch 2 sin NSUID (ni manual ni encontrado antes) lo buscan primero por su
     nombre y su nombre en España, salvo que otro juego del catálogo se llame igual; el que se encuentra se
-    guarda para no volver a buscarlo.
+    guarda para no volver a buscarlo. Los DLC y las expansiones (STORE_ADDON_TYPES) no se buscan: el
+    buscador de la eShop solo mira juegos y nunca los encontraría.
 
     Pantallas: Ficha del juego (Dónde comprarlo: el precio de Nintendo), Lista de deseos (mejor precio de hoy y mínimo
     histórico), Página de la lista (lo que cuesta lo que te falta).
     """
     games = [game for game in games if game.nintendo_lookup_nsuid or _systems(game)]
     for game in games:
-        # A title shared in the catalog (Resident Evil 4 of 2005 and 2023) can't pick its own product.
-        if game.nintendo_lookup_nsuid or Game.objects.filter(name__iexact=game.name).exclude(pk=game.pk).exists():
+        # A title shared in the catalog (Resident Evil 4 of 2005 and 2023) can't pick its own product. Los DLC y las
+        # expansiones tampoco se buscan: el buscador de la eShop solo mira juegos.
+        if (
+            game.nintendo_lookup_nsuid or game.game_type in STORE_ADDON_TYPES
+            or Game.objects.filter(name__iexact=game.name).exclude(pk=game.pk).exists()
+        ):
             continue
         sleep(0.1)
         nsuid = search_game(list(dict.fromkeys(name for name in (game.name, game.name_es) if name)), _systems(game))

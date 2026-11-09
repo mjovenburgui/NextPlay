@@ -147,14 +147,18 @@ DETAIL_PREFETCH = (
 
 
 def _details_context(request, game, entry, edition=None):
-    """Variables de lo que sale de la pasada a IGDB en la ficha (games.details): la ficha técnica, «Ediciones y
-    versiones» (con edition marcada), «Juegos parecidos», de qué juego es remake, DLC… (origin) y lo que le falta a
-    quien lo juega según Cuánto dura (remaining).
+    """Variables de lo que sale de la pasada a IGDB en la ficha (games.details): la ficha técnica, «Expansiones y
+    DLC» (addons), «Ediciones y versiones» (con edition marcada), «Juegos parecidos», de qué juego es remake, DLC…
+    (origin) y lo que le falta a quien lo juega según Cuánto dura (remaining).
 
-    Pantallas: Ficha del juego (ficha técnica, Cuánto dura, «Ediciones y versiones», «Juegos parecidos» y cabecera).
+    Pantallas: Ficha del juego (ficha técnica, Cuánto dura, «Expansiones y DLC», «Ediciones y versiones», «Juegos
+    parecidos» y cabecera).
     """
+    addons = details.addons(game)
     return {
         "sheet": details.sheet(game),
+        "addons": addons,
+        "load_addons": _addons_pending(addons),
         "versions": details.versions(game, edition),
         "similar": details.similar(game, request.user),
         "origin": details.origin(game),
@@ -163,11 +167,30 @@ def _details_context(request, game, entry, edition=None):
     }
 
 
+def _addons_pending(addons):
+    """Indica si a «Expansiones y DLC» le falta algo que la ficha puede traer ya con HTMX (game_addons): alguno sin
+    ficha en el catálogo, si hay claves de IGDB, o con ficha pero con sus precios sin buscar nunca, si hay clave de
+    IsThereAnyDeal.
+
+    Pantallas: Ficha del juego («Expansiones y DLC»: si se piden sus fichas y sus precios al abrirla).
+    """
+    missing = any(not item["in_catalog"] for item in addons)
+    unpriced = any(item["in_catalog"] and not item["searched"] for item in addons)
+    return (missing and igdb.is_configured()) or (unpriced and prices.is_configured())
+
+
 def detail(request, slug):
     """Ficha de un juego: cabecera con su arte, datos (y de qué juego es remake, DLC…), notas de la crítica y de los
     jugadores de IGDB, valoración de la comunidad, Cuánto dura, widget de biblioteca, botones de favoritos del perfil
     y de «Añadir a una lista», las listas en las que está (lists.views.game_page_context), ficha técnica, carrusel de
-    imágenes y vídeos, idiomas, «Ediciones y versiones», precios, «Juegos parecidos» y reseñas.
+    imágenes y vídeos, idiomas, precios, «Expansiones y DLC», «Ediciones y versiones», «Juegos parecidos» y reseñas.
+
+    En las pantallas anchas va en tres columnas (la carátula con las notas, Cuánto dura y tus logros; en medio tu
+    biblioteca, la sinopsis, las imágenes, los precios, las expansiones y DLC, las ediciones y las reseñas; y a la
+    derecha los datos: ficha técnica, idiomas, juegos parecidos y listas). Lo que menos se mira va plegado: los
+    idiomas, «Ediciones y versiones» (abierta si se llega desde una edición) y las filas de la ficha técnica a partir
+    de la sexta. Las expansiones y los DLC, en cambio, van a la vista, cada uno con su precio; si alguno aún no tiene
+    ficha o precio, la ficha los pide después con HTMX (game_addons).
 
     La ficha de una edición de otro juego («Game of the Year Edition») lleva a la de su juego, con ?edicion= para
     marcarla y decir de dónde se viene. La cabecera y el carrusel salen de games.media: si sus imágenes de IGDB
@@ -250,14 +273,15 @@ def game_media(request, slug):
 
 
 def game_details(request, slug):
-    """Ficha técnica de la ficha, con «Ediciones y versiones», «Juegos parecidos» y Cuánto dura en su sitio (fragmento
-    HTML que la ficha carga con HTMX cuando nunca se han pedido a IGDB).
+    """Ficha técnica de la ficha, con «Expansiones y DLC», «Ediciones y versiones», «Juegos parecidos» y Cuánto dura
+    en su sitio (fragmento HTML que la ficha carga con HTMX cuando nunca se han pedido a IGDB).
 
     Si siguen sin pedirse, antes los pide (details.update_details); si IGDB falla, la ficha se queda sin ellos y lo
-    vuelve a intentar la próxima vez que se abra.
+    vuelve a intentar la próxima vez que se abra. Si con ellos se sabe de qué juego es (la ficha de un DLC, un
+    remake…), manda también la cabecera, que ya lo dice («DLC de Borderlands 2»).
 
-    Pantallas: Ficha del juego (ficha técnica, Cuánto dura, «Ediciones y versiones» y «Juegos parecidos», cuando se
-    cargan con HTMX).
+    Pantallas: Ficha del juego (ficha técnica, Cuánto dura, «Expansiones y DLC», «Ediciones y versiones» y «Juegos
+    parecidos», cuando se cargan con HTMX; y la cabecera: de qué juego es).
     """
     game = get_object_or_404(Game, slug=slug)
     if details.missing(game) and igdb.is_configured():
@@ -269,11 +293,38 @@ def game_details(request, slug):
     entry = None
     if request.user.is_authenticated:
         entry = LibraryEntry.objects.filter(user=request.user, game=game).first()
+    context = _details_context(request, game, entry)
+    hero = media.hero(game) if context["origin"] else None
     return render(
         request,
         "games/_details.html",
-        {"game": game, "entry": entry, "oob": True, **_details_context(request, game, entry)},
+        {"game": game, "entry": entry, "oob": True, **context, "hero": hero},
     )
+
+
+def game_addons(request, slug):
+    """«Expansiones y DLC» de la ficha con la ficha y el precio de cada uno (fragmento HTML que la ficha carga con HTMX
+    cuando alguno aún no está en el catálogo o nunca se han buscado sus precios: _addons_pending).
+
+    Antes trae de IGDB los que faltan (details.import_addons) y busca los precios de los que nunca se han buscado
+    (prices.fetch_missing: los de PC a IsThereAnyDeal y, a los que se quedan sin ninguno, los de Xbox y Nintendo).
+    Si IGDB falla, enseña lo que haya; si falla IsThereAnyDeal, fetch_missing lo apunta y siguen sin buscar. En los
+    dos casos se vuelve a intentar la próxima vez que se abra la ficha.
+
+    Pantallas: Ficha del juego («Expansiones y DLC», cuando se carga con HTMX; y la ficha de cada expansión o DLC, que
+    ya llega con sus precios).
+    """
+    game = get_object_or_404(Game, slug=slug)
+    if igdb.is_configured():
+        try:
+            details.import_addons(game)
+        except igdb.IGDBError:
+            logger.exception("No se pudieron traer de IGDB las expansiones y los DLC de %s", game.slug)
+    unpriced = Game.objects.filter(
+        igdb_id__in=details.addon_ids(game), parent__isnull=True, prices_updated_at__isnull=True,
+    ).prefetch_related("platforms")
+    prices.fetch_missing(list(unpriced))
+    return render(request, "games/_addons.html", {"game": game, "addons": details.addons(game)})
 
 
 @require_POST

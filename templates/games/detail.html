@@ -2,6 +2,8 @@
 
 {% block title %}{{ game.name }} · NextPlay{% endblock %}
 {% block description %}{{ game.summary_es|default:game.summary|default:game.name|truncatechars:155 }}{% endblock %}
+{# La ficha usa el contenedor ancho para ir en tres columnas en las pantallas grandes. #}
+{% block container_class %} container-wide{% endblock %}
 
 {% block content %}
   <script>
@@ -33,6 +35,10 @@
     }, true);
   </script>
   {% include "games/_hero.html" %}
+  {# Tres bloques. En las pantallas grandes van en tres columnas: a la izquierda la carátula, las notas, Cuánto dura y tus #}
+  {# logros; en medio lo que se lee y se usa (tu biblioteca, sinopsis, imágenes, precios, expansiones y DLC, ediciones y #}
+  {# reseñas); y a la derecha los datos (ficha técnica, idiomas, juegos parecidos y listas). En las medianas los datos #}
+  {# bajan debajo de la carátula, y en el móvil todo va en una sola columna, en el orden que pone app.css. #}
   <article class="game">
     <aside class="game-side">
       <div class="cover cover-lg">
@@ -43,45 +49,52 @@
         {% endif %}
       </div>
 
-      {# Las dos notas de fuera: la media de la crítica y la de los usuarios de IGDB, cada una con cuántos la dan. #}
-      {% if game.critic_score is not None or game.igdb_score is not None %}
-        <section class="widget side-score">
+      {# Las tres notas en una caja: la media de la crítica y la de los jugadores de IGDB, cada una con cuántos la dan, #}
+      {# y la valoración de la comunidad de NextPlay. #}
+      <section class="widget side-scores" aria-labelledby="notas-titulo">
+        <h2 class="widget-label" id="notas-titulo">Notas</h2>
+        <div class="scores">
           {% if game.critic_score is not None %}
-            <p class="widget-label">Nota de la crítica</p>
-            <div class="critic">
+            <div class="score-row">
               <span class="score score-{{ game.critic_tier }}">{{ game.critic_score }}</span>
-              <p class="muted small">
-                Media de {{ game.critic_rating_count }} reseña{{ game.critic_rating_count|pluralize }}
-                profesional{{ game.critic_rating_count|pluralize:"es" }} · IGDB
-              </p>
+              <div>
+                <p class="score-name">Crítica</p>
+                <p class="muted small">
+                  {{ game.critic_rating_count }} reseña{{ game.critic_rating_count|pluralize }}
+                  profesional{{ game.critic_rating_count|pluralize:"es" }} · IGDB
+                </p>
+              </div>
             </div>
           {% endif %}
           {% if game.igdb_score is not None %}
-            <p class="widget-label{% if game.critic_score is not None %} score-next{% endif %}">Nota de los jugadores de IGDB</p>
-            <div class="critic">
+            <div class="score-row">
               <span class="score score-{{ game.igdb_tier }}">{{ game.igdb_score }}</span>
-              <p class="muted small">{{ game.igdb_rating_count }} voto{{ game.igdb_rating_count|pluralize }} en IGDB</p>
+              <div>
+                <p class="score-name">Jugadores de IGDB</p>
+                <p class="muted small">{{ game.igdb_rating_count }} voto{{ game.igdb_rating_count|pluralize }}</p>
+              </div>
             </div>
           {% endif %}
-        </section>
-      {% endif %}
+          {% include "games/_community.html" %}
+        </div>
+      </section>
 
-      {% include "games/_community.html" %}
       {% include "games/_duration.html" %}
       {% if entry %}{% include "accounts/_achievement_card.html" %}{% endif %}
-      {% include "lists/_game_box.html" %}
     </aside>
 
     <div class="game-body">
       {% if user.is_authenticated %}
-        {% include "library/_widget.html" %}
-        {# Favoritos del perfil y «Añadir a una lista», uno al lado del otro. #}
-        <div class="game-actions">
-          {% include "accounts/_favorite.html" %}
-          {% include "lists/_picker.html" %}
+        {# Tu biblioteca y, debajo, favoritos del perfil y «Añadir a una lista», uno al lado del otro. #}
+        <div class="game-mine">
+          {% include "library/_widget.html" %}
+          <div class="game-actions">
+            {% include "accounts/_favorite.html" %}
+            {% include "lists/_picker.html" %}
+          </div>
         </div>
       {% else %}
-        <p class="widget">
+        <p class="widget game-login">
           <a href="{% url 'login' %}?next={{ request.path|urlencode }}">Inicia sesión</a> para añadirlo a tu biblioteca.
         </p>
       {% endif %}
@@ -95,20 +108,53 @@
       {% endif %}
 
       {# Sinopsis en español de Steam o de la tienda de Xbox; si no hay, la de IGDB, que está en inglés. #}
-      {% if game.summary_es %}
-        <p class="summary">{{ game.summary_es }}</p>
-        <p class="help summary-source">Sinopsis de {% if game.summary_es_source == "xbox" %}la tienda de Xbox{% else %}Steam{% endif %}.</p>
-        {% if game.summary %}
-          <details class="summary-original">
-            <summary>Descripción de IGDB (en inglés)</summary>
+      {% if game.summary_es or game.summary %}
+        <div class="game-summary">
+          {% if game.summary_es %}
+            <p class="summary">{{ game.summary_es }}</p>
+            <p class="help summary-source">Sinopsis de {% if game.summary_es_source == "xbox" %}la tienda de Xbox{% else %}Steam{% endif %}.</p>
+            {% if game.summary %}
+              <details class="summary-original">
+                <summary>Descripción de IGDB (en inglés)</summary>
+                <p class="summary" lang="en">{{ game.summary }}</p>
+              </details>
+            {% endif %}
+          {% else %}
             <p class="summary" lang="en">{{ game.summary }}</p>
-          </details>
-        {% endif %}
-      {% elif game.summary %}
-        <p class="summary" lang="en">{{ game.summary }}</p>
-        <p class="help summary-source"><span class="pill pill-en">En inglés</span> Aún no tenemos su sinopsis en español.</p>
+            <p class="help summary-source"><span class="pill pill-en">En inglés</span> Aún no tenemos su sinopsis en español.</p>
+          {% endif %}
+        </div>
       {% endif %}
 
+      {# Carrusel de imágenes y vídeos: con las de IGDB al día va ya; si no, la ficha las pide después con HTMX. #}
+      {% if carousel %}
+        {% include "games/_media.html" %}
+      {% elif load_media %}
+        <div id="media" hx-get="{% url 'games:media' game.slug %}" hx-trigger="load" hx-swap="outerHTML">
+          <p class="help">Cargando imágenes y vídeos…</p>
+        </div>
+      {% endif %}
+
+      {# «Dónde comprarlo»: con los precios buscados alguna vez va ya; si nunca se han buscado, la ficha los pide con HTMX #}
+      {# (lleva la misma ?tiendas= y ?tienda= de la ficha) y mientras tanto avisa de que los está buscando. #}
+      {% if load_prices %}
+        <section class="widget" id="prices" aria-busy="true"
+                 hx-get="{% url 'games:prices' game.slug %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" hx-trigger="load" hx-swap="outerHTML">
+          <p class="widget-label">Dónde comprarlo</p>
+          <p class="help">Buscando precios…</p>
+        </section>
+      {% else %}
+        {% include "games/_prices.html" %}
+      {% endif %}
+
+      {# Las expansiones y los DLC, a la vista; las ediciones y las otras versiones, plegadas. #}
+      {% include "games/_addons.html" %}
+      {% include "games/_versions.html" %}
+
+      {% include "library/_reviews.html" %}
+    </div>
+
+    <aside class="game-facts" aria-label="Datos del juego">
       {# Ficha técnica de IGDB (games.details): si nunca se ha pedido, la ficha la pide con HTMX y mientras tanto lo dice; con ella #}
       {# llegan también Cuánto dura, «Ediciones y versiones» y «Juegos parecidos», que van a sus huecos. #}
       {% if load_details %}
@@ -121,18 +167,10 @@
         {% include "games/_sheet.html" %}
       {% endif %}
 
-      {# Carrusel de imágenes y vídeos: con las de IGDB al día va ya; si no, la ficha las pide después con HTMX. #}
-      {% if carousel %}
-        {% include "games/_media.html" %}
-      {% elif load_media %}
-        <div id="media" hx-get="{% url 'games:media' game.slug %}" hx-trigger="load" hx-swap="outerHTML">
-          <p class="help">Cargando imágenes y vídeos…</p>
-        </div>
-      {% endif %}
-
+      {# Idiomas, plegados: en la cabecera ya se ve si tiene voces y textos en castellano. #}
       {% with rows=game.language_rows %}{% if rows %}
-        <details class="languages">
-          <summary>Idiomas <span class="muted">({{ rows|length }})</span></summary>
+        <details class="widget fold languages">
+          <summary><span class="widget-label">Idiomas <span class="muted">({{ rows|length }})</span></span>{% include "_icon.html" with name="down" %}</summary>
           <table class="language-table">
             <thead><tr><th scope="col">Idioma</th><th scope="col">Voces</th><th scope="col">Textos</th></tr></thead>
             <tbody>
@@ -149,23 +187,8 @@
         </details>
       {% endif %}{% endwith %}
 
-      {% include "games/_versions.html" %}
-
-      {# «Dónde comprarlo»: con los precios buscados alguna vez va ya; si nunca se han buscado, la ficha los pide con HTMX #}
-      {# (lleva la misma ?tiendas= y ?tienda= de la ficha) y mientras tanto avisa de que los está buscando. #}
-      {% if load_prices %}
-        <section class="widget" id="prices" aria-busy="true"
-                 hx-get="{% url 'games:prices' game.slug %}{% if request.GET %}?{{ request.GET.urlencode }}{% endif %}" hx-trigger="load" hx-swap="outerHTML">
-          <p class="widget-label">Dónde comprarlo</p>
-          <p class="help">Buscando precios…</p>
-        </section>
-      {% else %}
-        {% include "games/_prices.html" %}
-      {% endif %}
-
       {% include "games/_similar.html" %}
-
-      {% include "library/_reviews.html" %}
-    </div>
+      {% include "lists/_game_box.html" %}
+    </aside>
   </article>
 {% endblock %}

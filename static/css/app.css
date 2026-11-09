@@ -342,8 +342,60 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .pager { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 2rem; }
 .import { display: flex; align-items: center; justify-content: center; gap: .75rem; flex-wrap: wrap; margin-top: 2rem; }
 
-/* Game page */
-.game { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 2rem; align-items: start; }
+/* Ficha del juego en columnas (templates/games/detail.html). Tres bloques: .game-side (carátula, notas, Cuánto dura y
+   tus logros), .game-body (tu biblioteca, sinopsis, imágenes, precios, expansiones y DLC, ediciones y reseñas) y
+   .game-facts (ficha técnica, idiomas, juegos parecidos y listas). En las pantallas medianas van en dos columnas y los datos bajan debajo de la
+   carátula: el bloque del medio ocupa las dos filas, y la segunda (1fr) se queda con lo que sobra, para que no quede
+   hueco entre la carátula y los datos. Desde 1280 px, tres columnas en el contenedor ancho. En el móvil, una sola. */
+.game {
+  position: relative; display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); grid-template-rows: auto 1fr;
+  gap: 1rem 2rem; align-items: start; margin-top: 1.5rem;
+}
+.game-side { grid-column: 1; grid-row: 1; }
+.game-facts { grid-column: 1; grid-row: 2; }
+.game-body { grid-column: 2; grid-row: 1 / span 2; }
+.game-side, .game-facts, .game-body { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+.game-body { gap: 1.5rem; }
+/* Cada bloque separa sus piezas con gap: fuera los márgenes de arriba y abajo de cada una, y fuera los huecos vacíos
+   que esperan a que HTMX los llene (Cuánto dura, la ficha técnica, las ediciones y los parecidos de un juego sin ellos). */
+.game :is(.game-side, .game-body, .game-facts) > * { margin-top: 0; margin-bottom: 0; }
+.game :is(.game-side, .game-body, .game-facts) > :empty { display: none; }
+.game-mine > .widget { margin: 0; }
+.game-summary > :first-child { margin-top: 0; }
+.game-summary > :last-child { margin-bottom: 0; }
+@media (min-width: 1280px) {
+  .game { grid-template-columns: 260px minmax(0, 1fr) 300px; grid-template-rows: auto; column-gap: 1.75rem; }
+  .game-facts { grid-column: 3; grid-row: 1; }
+  .game-body { grid-row: 1; }
+}
+@media (max-width: 900px) {
+  .game { grid-template-columns: minmax(0, 220px) minmax(0, 1fr); column-gap: 1.25rem; }
+}
+@media (max-width: 640px) {
+  /* En el móvil, una sola columna: los tres bloques se deshacen (display: contents) y sus piezas van en este orden: la
+     carátula, pequeña, al lado de las notas; tu biblioteca (y el aviso de la edición); Cuánto dura; la sinopsis; las
+     imágenes; los precios y las expansiones y DLC; la ficha técnica y los idiomas; las ediciones; los juegos parecidos;
+     las reseñas; y al final tus logros y las listas en las que está. */
+  .game { grid-template-columns: 104px minmax(0, 1fr); grid-template-rows: none; gap: 1rem .75rem; }
+  .game-side, .game-body, .game-facts { display: contents; }
+  .game :is(.game-side, .game-body, .game-facts) > * { grid-column: 1 / -1; order: 3; }
+  .game .cover-lg { grid-column: 1; order: 0; max-width: none; }
+  .game .side-scores { grid-column: 2; order: 0; padding: .75rem; }
+  /* Las notas, más apretadas, para que la caja no se alargue mucho más que la carátula de al lado. */
+  .side-scores .scores { gap: .6rem; }
+  .side-scores .scores > * + * { padding-top: .6rem; }
+  .side-scores .score { width: 2.6rem; height: 2.6rem; border-radius: 8px; font-size: 1.1rem; }
+  .side-scores .score-name { font-size: .86rem; }
+  .game :is(.game-mine, .game-login, .edition-note) { order: 1; }
+  .game #duracion { order: 2; }
+  .game #media { order: 4; }
+  .game :is(#prices, #dlc) { order: 5; }
+  .game :is(#ficha-tecnica, .languages) { order: 6; }
+  .game #versiones { order: 7; }
+  .game #parecidos { order: 8; }
+  .game #resenas { order: 9; }
+  .game :is(.side-achievements, .side-lists) { order: 10; }
+}
 .cover-lg .cover-fallback { font-size: 1.2rem; }
 .chips { display: flex; flex-wrap: wrap; gap: .4rem; margin: 1rem 0; }
 .chip { padding: .2rem .65rem; border: 1px solid var(--violet); border-radius: 999px; font-size: .8rem; color: var(--violet-text); }
@@ -513,17 +565,20 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .has-error input, .has-error textarea { border-color: var(--pink); }
 
 @media (max-width: 640px) {
-  .game { grid-template-columns: 1fr; }
-  .cover-lg { max-width: 200px; }
-  .game-side { max-width: 320px; }
   .nav { gap: .75rem; font-size: .95rem; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 1rem .75rem; }
 }
 
-/* Critic score and store prices on the game page */
-.game-side .side-score { margin: 1rem 0 0; }
-.critic { display: flex; align-items: center; gap: .85rem; }
-.critic p { margin: 0; }
+/* «Notas» de la ficha: una fila por nota (crítica, jugadores de IGDB y comunidad), con la cifra en su cuadrado, separadas
+   por una raya. */
+.scores { display: grid; gap: .8rem; }
+.scores > * + * { padding-top: .8rem; border-top: 1px solid var(--border); }
+.score-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .55rem .75rem; }
+.score-row p { margin: 0; }
+.score-name { color: var(--text); font-size: .92rem; font-weight: 700; }
+.score-row .stars, .score-row .stars-fill { font-size: 1.05rem; }
+/* La media de quienes tienen horas jugadas, debajo de la de la comunidad y a todo el ancho de la caja. */
+.score-row .community-verified { grid-column: 1 / -1; gap: .25rem; margin: 0; padding: 0; border: 0; font-size: .78rem; }
 .score {
   display: grid; place-items: center; flex: none;
   width: 3.25rem; height: 3.25rem; border-radius: 10px;
@@ -532,6 +587,12 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .score-high { background: var(--cyan); }
 .score-mid { background: var(--violet); color: #fff; }
 .score-low { background: var(--pink); color: #fff; }
+/* La de la comunidad va de 0 a 5 estrellas: en dorado y sin relleno, para no confundirla con las de 0 a 100. */
+.score-community {
+  background: color-mix(in srgb, var(--gold) 14%, transparent); border: 1px solid color-mix(in srgb, var(--gold) 55%, transparent);
+  color: var(--gold); font-size: 1.2rem;
+}
+/* Precios de la ficha */
 .prices { margin: 0; padding: 0; list-style: none; }
 .prices li { display: flex; align-items: center; gap: .6rem; padding: .5rem 0; border-top: 1px solid var(--border); }
 .prices li:first-child { border-top: 0; }
@@ -565,10 +626,7 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .free-badge { margin-left: .4rem; padding: .1rem .45rem; border-radius: 6px; background: var(--cyan); color: #04121a; letter-spacing: 0; text-transform: none; }
 .no-prices { margin: 0; }
 
-/* Community rating: stars painted as text, the gold layer clipped to the average */
-.community { display: flex; align-items: center; gap: .85rem; }
-.community p { margin: .15rem 0 0; }
-.community-average { font-size: 2rem; font-weight: 800; line-height: 1; color: var(--gold); min-width: 3.25rem; text-align: center; }
+/* Estrellas de la valoración de la comunidad: pintadas como texto, con la capa dorada recortada a la media. */
 .stars, .stars-fill { display: inline-block; font-size: 1.25rem; line-height: 1; letter-spacing: .1em; white-space: nowrap; }
 .stars { position: relative; color: var(--star-off); }
 .stars::before { content: "★★★★★"; }
@@ -578,9 +636,8 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 /* Your own rating in the library widget; buttons go 5→1 so hover lights the star and those before it */
 .rate { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
 .rate-label { font-size: .9rem; color: var(--muted); }
-/* Tarjeta «Tus logros» de la ficha, en la columna de la carátula como la valoración de la comunidad: una fila por
-   plataforma con lo que llevas y debajo la barra de progreso de las listas. */
-.game-side .side-achievements { margin: 1rem 0 0; }
+/* Tarjeta «Tus logros» de la ficha, en la columna de la carátula, debajo de Cuánto dura: una fila por plataforma con lo
+   que llevas y debajo la barra de progreso de las listas. */
 .achievement-list { display: grid; gap: .65rem; margin: 0; padding: 0; list-style: none; }
 .achievement { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .3rem .65rem; font-size: .88rem; }
 .achievement .progress-bar { grid-column: 1 / -1; grid-row: 2; margin: 0; }
@@ -850,9 +907,10 @@ button.chip-link { background: none; font-family: inherit; cursor: pointer; }
     linear-gradient(180deg, rgba(7, 9, 18, .3) 0%, rgba(7, 9, 18, 0) 30%, rgba(7, 9, 18, .35) 68%, var(--bg) 100%);
 }
 .game-hero.is-plain .game-hero-art::after { background: linear-gradient(180deg, rgba(7, 9, 18, .1), var(--bg) 95%); }
+/* El logo y los datos, alineados con la carátula de debajo: el mismo ancho que el contenedor ancho (.container-wide). */
 .game-hero-inner {
   position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: .6rem;
-  width: 100%; max-width: 1100px; margin: 0 auto; padding: 0 1rem 2rem;
+  width: 100%; max-width: 1440px; margin: 0 auto; padding: 0 1rem 2rem;
 }
 .game-title { margin: 0; font-size: 2.6rem; line-height: 1.1; text-shadow: 0 2px 18px rgba(0, 0, 0, .7); }
 .game-name { display: block; }
@@ -874,10 +932,9 @@ button.chip-link { background: none; font-family: inherit; cursor: pointer; }
 .game-hero .chip, .game-hero .lang-badge { background-color: rgba(7, 9, 18, .62); backdrop-filter: blur(6px); }
 .game-hero .spanish-badges { margin: 0; }
 .game-hero-credit {
-  position: absolute; right: max(1rem, calc(50% - 550px + 1rem)); bottom: .9rem; margin: 0; padding: .1rem .6rem;
+  position: absolute; right: max(1rem, calc(50% - 720px + 1rem)); bottom: .9rem; margin: 0; padding: .1rem .6rem;
   border-radius: 999px; background: rgba(7, 9, 18, .62); color: #c3c8e0; font-size: .75rem;
 }
-.game { position: relative; margin-top: 1.5rem; }
 .cover-lg { box-shadow: 0 18px 50px rgba(0, 0, 0, .6), 0 0 0 1px rgba(157, 92, 255, .25); }
 .widget { background: rgba(14, 18, 34, .88); }
 .status { border-radius: 999px; }
@@ -983,16 +1040,6 @@ html:has(.viewer[open]) { overflow: hidden; }
   .game-logo { width: min(240px, 70vw, calc(110px * var(--crop-ratio))); }
   .game-hero .chips, .game-hero .spanish-badges { justify-content: center; }
   .game-hero-credit { display: none; }
-  /* La carátula, pequeña, al lado de las notas. minmax(0, …): sin él, la columna se ensancha hasta lo que mide la línea más larga.
-     La columna lateral se deshace (display: contents) para que lo que se usa a diario, el estado en tu biblioteca, venga
-     justo después de las notas y «Tus logros» y «En N listas» bajen al final de la ficha. */
-  .game { grid-template-columns: 104px minmax(0, 1fr); gap: .75rem; }
-  .game-side { display: contents; }
-  .game-side .cover-lg { grid-row: span 2; max-width: none; margin: 0; }
-  .game-side .side-score { margin: 0; padding: .75rem; }
-  .game-body { grid-column: 1 / -1; order: 1; min-width: 0; }
-  .game-side .side-lists { order: 2; }
-  .game-side .side-achievements { grid-column: 1 / -1; order: 2; margin: 0; }
   /* Los cinco estados en dos filas que llenan el ancho, en vez de tres renglones desiguales. */
   .status-row { gap: .4rem; }
   .status-row .status { flex: 1 1 auto; justify-content: center; padding: .45rem .65rem; font-size: .92rem; }
@@ -1363,15 +1410,35 @@ html:has(> body.is-preview) { scrollbar-width: none; }
 .lang-muted { color: var(--muted); }
 .summary-source { margin-top: -.5rem; }
 .pill-en { margin: 0 .35rem 0 0; }
-.summary-original summary, .languages summary { color: var(--cyan); font-size: .9rem; cursor: pointer; }
-.summary-original { margin: .25rem 0 1rem; }
+.summary-original summary { color: var(--cyan); font-size: .9rem; cursor: pointer; }
+.summary-original { margin: .25rem 0 0; }
 .summary-original .summary { margin-top: .5rem; color: var(--text-2); }
-.languages { margin: 0 0 1.25rem; padding: .75rem 1rem; background: rgba(14, 18, 34, .88); border: 1px solid var(--border); border-radius: var(--radius); }
-.languages[open] summary { margin-bottom: .6rem; }
+/* Desplegables de la ficha con cabecera de tarjeta («Idiomas» y «Ediciones y versiones»): cerrados enseñan su título, lo
+   que llevan dentro y una flecha que gira al abrirlos. Los que son un enlace («Más datos», «Descripción de IGDB»…) van
+   en cian con su triángulo de siempre. */
+.fold > summary {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .45rem .75rem;
+  list-style: none; cursor: pointer;
+}
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary .widget-label { margin: 0; font-family: inherit; }
+.fold > summary > .icon { grid-column: -2; justify-self: end; color: var(--muted); transition: transform .2s; }
+.fold > summary:hover > .icon, .fold > summary:hover .widget-label { color: var(--text); }
+.fold > summary:focus-visible { outline: 2px solid var(--cyan); outline-offset: 4px; border-radius: 6px; }
+.fold[open] > summary { margin-bottom: .9rem; }
+.fold[open] > summary > .icon { transform: rotate(180deg); }
+.fold-counts { display: flex; flex-wrap: wrap; gap: .35rem; }
+.fold-count { padding: .1rem .55rem; border: 1px solid var(--border); border-radius: 999px; color: var(--text-2); font-size: .8rem; white-space: nowrap; }
+.fold-count strong { margin-left: .2rem; color: var(--violet-text); }
+@media (max-width: 640px) {
+  /* En el móvil, lo que llevan dentro baja debajo del título, a todo lo ancho. */
+  .fold > summary { grid-template-columns: minmax(0, 1fr) auto; }
+  .fold-counts { grid-column: 1 / -1; grid-row: 2; }
+}
 .language-table { width: 100%; max-width: 30rem; border-collapse: collapse; font-size: .9rem; }
 .language-table th, .language-table td { padding: .35rem .5rem; border-bottom: 1px solid var(--border); text-align: left; }
 .language-table thead th { color: var(--muted); font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
-.language-table thead th + th, .language-table td { width: 5rem; text-align: center; }
+.language-table thead th + th, .language-table td { width: 3.75rem; text-align: center; }
 .language-table tbody th { font-weight: 500; }
 .language-table .is-spanish { background: rgba(157, 92, 255, .1); }
 .language-table .is-spanish th { color: #fff; font-weight: 700; }
@@ -1863,8 +1930,9 @@ p.update-hint { display: flex; border-left-color: var(--gold); }
 .btn-danger { border-color: rgba(255, 79, 163, .55); color: var(--pink-text); }
 .btn-danger:hover { border-color: var(--pink); }
 
-/* En la ficha: «Añadir a mis favoritos» y «Añadir a una lista» en una fila, y el desplegable con las listas del usuario. */
-.game-actions { display: flex; align-items: flex-start; flex-wrap: wrap; gap: .75rem 1.25rem; margin: -.5rem 0 1.25rem; }
+/* En la ficha: «Añadir a mis favoritos» y «Añadir a una lista» en una fila debajo de tu biblioteca, y el desplegable con
+   las listas del usuario. */
+.game-actions { display: flex; align-items: flex-start; flex-wrap: wrap; gap: .75rem 1.25rem; margin: .75rem 0 0; }
 .game-actions .favorite { margin: 0; }
 .list-picker { position: relative; }
 .list-picker > summary { display: inline-flex; align-items: center; gap: .45rem; list-style: none; border-radius: 999px; }
@@ -1892,8 +1960,7 @@ p.update-hint { display: flex; border-left-color: var(--gold); }
 .list-picker-panel .errorlist { margin: .3rem .6rem; }
 .list-picker-new { display: flex; align-items: center; gap: .5rem; margin-top: .3rem; padding: .6rem .6rem .45rem; border-top: 1px solid var(--border); font-size: .92rem; font-weight: 600; }
 .list-picker-new .icon { width: 1rem; height: 1rem; }
-/* «En N listas», en la columna de la carátula. */
-.game-side .side-lists { margin: 1rem 0 0; }
+/* «En N listas», en la columna de los datos de la ficha. */
 .mini-lists { margin: 0; padding: 0; list-style: none; }
 .mini-lists li + li { margin-top: .55rem; }
 .mini-list { display: flex; align-items: center; gap: .7rem; color: var(--text); }
@@ -1909,8 +1976,6 @@ p.update-hint { display: flex; border-left-color: var(--gold); }
   .list-hero h1 { font-size: 1.55rem; }
   .lists-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1rem .75rem; }
   .list-games { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 1rem .75rem; }
-  /* En el móvil la columna de la carátula es una rejilla de dos: las listas ocupan las dos columnas. */
-  .game-side .side-lists { grid-column: 1 / -1; margin: 0; }
   .list-editor-item { flex-wrap: wrap; }
   .list-editor-main { flex-basis: calc(100% - 9rem); }
 }
@@ -2137,21 +2202,21 @@ form:has(input[name="mode"]:checked:not([value="tiers"])) .switch-row[data-field
 form:has(input[name="kind"][value="games"]:checked) .challenge-for-count { display: none; }
 form:has(input[name="kind"]:checked:not([value="games"])) .challenge-for-games { display: none; }
 
-/* Pasada a IGDB en la ficha. Ficha técnica: filas «etiqueta y valores», con enlace al Catálogo lo que se puede filtrar. */
-.tech-sheet .widget-label, .versions .widget-label, .side-duration .widget-label { font-family: inherit; }
-.sheet { display: grid; gap: .45rem; margin: 0; }
-.sheet-row { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr); gap: .25rem .9rem; }
-.sheet dt { color: var(--muted); font-size: .88rem; }
-.sheet dd { margin: 0; color: var(--text-2); overflow-wrap: anywhere; }
+/* Pasada a IGDB en la ficha. Ficha técnica, en la columna de los datos: filas «etiqueta y valores», con enlace al Catálogo
+   lo que se puede filtrar, y lo menos mirado plegado en «Más datos». */
+.tech-sheet .widget-label, .versions .widget-label, .side-duration .widget-label, .side-scores .widget-label,
+.similar .widget-label, .addons .widget-label { font-family: inherit; }
+/* La columna es estrecha: la etiqueta va encima de sus valores, y cada valor («Un jugador») no se parte por la mitad. */
+.sheet { display: grid; gap: .6rem; margin: 0; }
+.sheet dt { color: var(--muted); font-size: .8rem; }
+.sheet dd { margin: 0; color: var(--text-2); font-size: .92rem; overflow-wrap: anywhere; }
+.sheet dd a { white-space: nowrap; }
 .sheet-sep { margin: 0 .4rem; color: var(--muted); }
+.sheet-more { margin-top: .7rem; }
+.sheet-more > summary { color: var(--cyan); font-size: .9rem; cursor: pointer; }
+.sheet-more[open] > summary { margin-bottom: .6rem; }
 .tech-sheet .help { margin-top: .75rem; }
-@media (max-width: 480px) {
-  .sheet-row { grid-template-columns: minmax(0, 1fr); gap: 0; }
-}
-/* Las dos notas de fuera en la misma caja: la de los jugadores de IGDB, separada de la de la crítica. */
-.side-score .score-next { margin-top: 1rem; }
 /* Cuánto dura, en la columna de la carátula: la duración normal destacada y debajo lo que te falta. */
-.game-side .side-duration { margin: 1rem 0 0; }
 .duration { display: grid; gap: .3rem; margin: 0 0 .55rem; }
 .duration div { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; font-size: .9rem; }
 .duration dt { color: var(--muted); }
@@ -2180,10 +2245,21 @@ form:has(input[name="kind"]:checked:not([value="games"])) .challenge-for-games {
 .version .muted { margin: .1rem 0 0; font-size: .75rem; }
 .version.is-current .cover { border-color: var(--cyan); box-shadow: 0 0 0 2px color-mix(in srgb, var(--cyan) 35%, transparent); }
 .version-current { color: var(--cyan-text); font-weight: 600; }
-/* Juegos parecidos, entre los precios y las reseñas. */
-.similar { margin: 1.75rem 0; }
-.similar h2 { margin: 0; font-size: 1.3rem; }
-.similar .help { margin: .2rem 0 .9rem; }
+/* Expansiones y DLC: la misma tira de portadas, a la vista, con cuántos hay junto al título y, debajo de cada una, su
+   precio más barato de ahora y su rebaja. */
+.addons .widget-label .muted { margin-left: .2rem; font-weight: 500; letter-spacing: 0; }
+.addon-price { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin: .25rem 0 0; font-size: .85rem; }
+.addon-price strong { font-variant-numeric: tabular-nums; }
+.addon-price .cut { padding: 0 .3rem; border-radius: 5px; background: var(--pink); color: #fff; font-size: .72rem; font-weight: 700; }
+/* Juegos parecidos, en la columna de los datos: portadas pequeñas, tres por fila, con el nombre en dos líneas como mucho
+   para que las filas no crezcan con los nombres largos. */
+.similar-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .9rem .6rem; }
+.similar .card-title {
+  display: -webkit-box; margin-top: .35rem; overflow: hidden; font-size: .8rem; line-height: 1.25; overflow-wrap: anywhere;
+  -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+}
+.similar .card .muted { font-size: .75rem; }
+.similar .help { margin-top: .75rem; }
 /* Aviso de arriba cuando se llega desde la ficha de una edición. */
 .edition-note { margin: 0 0 1rem; padding: .65rem .9rem; background: var(--surface-2); border-left: 3px solid var(--violet); border-radius: 10px; font-size: .92rem; color: var(--text-2); }
 .edition-note strong { color: var(--text); }

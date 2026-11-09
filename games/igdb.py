@@ -326,8 +326,8 @@ class IGDBClient:
         """Lo que trae una pasada a IGDB de esos juegos, en lotes de MAX_PAGE_SIZE: su clasificación (CLASSIFY_FIELDS),
         su ficha técnica (DETAIL_FIELDS) y sus ediciones («editions»). Los que IGDB no conoce no vienen.
 
-        Pantallas: Ficha del juego (ficha técnica, «Ediciones y versiones» y «Si te gustó»), Catálogo (filtros de tipo,
-        modo, tema, perspectiva y estudio, y etiqueta de las tarjetas).
+        Pantallas: Ficha del juego (ficha técnica, «Ediciones y versiones» y «Juegos parecidos»), Catálogo (filtros de
+        tipo, modo, tema, perspectiva y estudio, y etiqueta de las tarjetas).
         """
         games = []
         for start in range(0, len(igdb_ids), MAX_PAGE_SIZE):

@@ -1,0 +1,9 @@
+{# Filas de la ficha técnica (games/_sheet.html): rows es una parte de games.details.sheet, [(etiqueta, [(texto, enlace o vacío)])]. #}
+<dl class="sheet">
+  {% for label, items in rows %}
+    <div class="sheet-row">
+      <dt>{{ label }}</dt>
+      <dd>{% for text, url in items %}{% if url %}<a href="{{ url }}">{{ text }}</a>{% else %}{{ text }}{% endif %}{% if not forloop.last %}<span class="sheet-sep" aria-hidden="true">·</span>{% endif %}{% endfor %}</dd>
+    </div>
+  {% endfor %}
+</dl>
