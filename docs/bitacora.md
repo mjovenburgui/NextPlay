@@ -13,11 +13,11 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-La primera está en local, a la espera de que la revises. Las demás están fusionadas con `main`, cada una con su PR. Las migraciones de las cuatro primeras fusionadas ya están en tu base de datos de verdad (comprobado el 08/11/2026). Justo después de fusionar `pasada-a-igdb`, en el mismo paso, toca aplicar su migración, `games.0010`, y hacer la pasada a IGDB, con una copia de seguridad antes. Lo que salga te lo digo al terminar la sesión.
+La primera está subida, con su PR, a la espera de que la fusiones. Las demás están fusionadas con `main`, cada una con su PR. Las migraciones de las cuatro primeras fusionadas ya están en tu base de datos de verdad (comprobado el 08/11/2026). Justo después de fusionar `pasada-a-igdb`, en el mismo paso, toca aplicar su migración, `games.0010`, y hacer la pasada a IGDB, con una copia de seguridad antes. Lo que salga te lo digo al terminar la sesión.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
-| `claude/game-card-layout-design-39a461` (worktree) | Ficha del juego más ligera: tres columnas, lo secundario plegado y cada DLC con su ficha y su precio | En local y sin commit. La puedes ver en el servidor de revisión del puerto 8001. Al subirla, irá en una rama con nombre propio y su PR. Sin migraciones; al fusionar, `manage.py import_addons` en tu base de datos. |
+| `ficha-ligera-y-dlc` | Ficha del juego más ligera: tres columnas, lo secundario plegado y cada DLC con su ficha y su precio | Subida: [PR #39](https://github.com/mjovenburgui/NextPlay/pull/39), sin fusionar. La puedes ver en el servidor de revisión del puerto 8001. Sin migraciones; al fusionar, `manage.py import_addons` en tu base de datos. |
 | `pasada-a-igdb` | Una pasada a IGDB: ficha técnica, duración, ediciones agrupadas, sin DLC en las búsquedas y catálogo con filtros | Fusionada con `main`: [PR #38](https://github.com/mjovenburgui/NextPlay/pull/38). Trae la migración `games.0010`. |
 | `avisos-en-un-solo-sitio` | Avisos en un solo sitio, con preferencias por tipo | Fusionada con `main`: [PR #34](https://github.com/mjovenburgui/NextPlay/pull/34). |
 | `retos-fase-2` | Retos: insignias, sección en el perfil, feed, avisos y cierre cada noche | Fusionada con `main`: [PR #35](https://github.com/mjovenburgui/NextPlay/pull/35). |
@@ -34,9 +34,9 @@ Si un servidor de `main` da error de columnas que no existen, es que a esa base 
 
 ---
 
-## 09/11/2026 · Ficha del juego más ligera: tres columnas y lo secundario plegado (en local)
+## 09/11/2026 · Ficha del juego más ligera: tres columnas, lo secundario plegado y cada DLC con su ficha y su precio (subida, sin fusionar)
 
-**Rama:** la del worktree `game-card-layout-design-39a461` (`claude/game-card-layout-design-39a461`), encima de `main`. Sin commit todavía.
+**Rama:** `ficha-ligera-y-dlc`, encima de `main`; en local es la del worktree `game-card-layout-design-39a461`. Commit `a99683e`, subido: [PR #39](https://github.com/mjovenburgui/NextPlay/pull/39).
 
 **Por qué:** me preguntaste «¿No crees que muestra demasiada información? Casi que debería verse en desplegables o aprovechar todo el ancho de la web». Sí. Después de la pasada a IGDB, la ficha de GTA V medía unos 4490 px de alto en una pantalla de 1440 px y solo usaba 1100 px de ancho. Además, la columna de la carátula se acababa a media página.
 
@@ -102,8 +102,7 @@ Si un servidor de `main` da error de columnas que no existen, es que a esa base 
 - Tests: los 570 pasan sin claves y también con claves falsas detrás de un proxy muerto.
 
 **Qué falta:**
-- Que lo revises en el servidor del puerto 8001.
-- Después: commit, rama con nombre propio y PR.
+- Que me digas si fusiono el [PR #39](https://github.com/mjovenburgui/NextPlay/pull/39).
 - Al fusionar: `manage.py import_addons` en tu base de datos de verdad, con copia de seguridad antes.
 
 ---
