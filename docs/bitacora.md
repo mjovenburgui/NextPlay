@@ -13,11 +13,11 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-La primera está subida, con su PR, a la espera de que la fusiones. Las demás están fusionadas con `main`, cada una con su PR. Las migraciones de las cuatro primeras fusionadas ya están en tu base de datos de verdad (comprobado el 08/11/2026). Justo después de fusionar `pasada-a-igdb`, en el mismo paso, toca aplicar su migración, `games.0010`, y hacer la pasada a IGDB, con una copia de seguridad antes. Lo que salga te lo digo al terminar la sesión.
+Todas las ramas de abajo están fusionadas con `main`, cada una con su PR. Las migraciones de las cuatro del 08/11 ya están en tu base de datos de verdad (comprobado el 08/11/2026). También está la de `pasada-a-igdb`, `games.0010`, con la pasada a IGDB hecha (comprobado el 09/11/2026: sin migraciones pendientes y con la ficha técnica de 2235 de sus 2236 juegos). `ficha-ligera-y-dlc` no trae migraciones. Justo después de fusionarla, en el mismo paso, traigo los DLC y las expansiones a tu base de datos con `import_addons`, con una copia de seguridad antes. Lo que salga te lo digo al terminar.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
-| `ficha-ligera-y-dlc` | Ficha del juego más ligera: tres columnas, lo secundario plegado y cada DLC con su ficha y su precio | Subida: [PR #39](https://github.com/mjovenburgui/NextPlay/pull/39), sin fusionar. La puedes ver en el servidor de revisión del puerto 8001. Sin migraciones; al fusionar, `manage.py import_addons` en tu base de datos. |
+| `ficha-ligera-y-dlc` | Ficha del juego más ligera: tres columnas, lo secundario plegado y cada DLC con su ficha y su precio | Fusionada con `main`: [PR #39](https://github.com/mjovenburgui/NextPlay/pull/39). Sin migraciones; los DLC llegan a tu base de datos con `import_addons`. |
 | `pasada-a-igdb` | Una pasada a IGDB: ficha técnica, duración, ediciones agrupadas, sin DLC en las búsquedas y catálogo con filtros | Fusionada con `main`: [PR #38](https://github.com/mjovenburgui/NextPlay/pull/38). Trae la migración `games.0010`. |
 | `avisos-en-un-solo-sitio` | Avisos en un solo sitio, con preferencias por tipo | Fusionada con `main`: [PR #34](https://github.com/mjovenburgui/NextPlay/pull/34). |
 | `retos-fase-2` | Retos: insignias, sección en el perfil, feed, avisos y cierre cada noche | Fusionada con `main`: [PR #35](https://github.com/mjovenburgui/NextPlay/pull/35). |
@@ -34,9 +34,9 @@ Si un servidor de `main` da error de columnas que no existen, es que a esa base 
 
 ---
 
-## 09/11/2026 · Ficha del juego más ligera: tres columnas, lo secundario plegado y cada DLC con su ficha y su precio (subida, sin fusionar)
+## 09/11/2026 · Ficha del juego más ligera: tres columnas, lo secundario plegado y cada DLC con su ficha y su precio (fusionado con main)
 
-**Rama:** `ficha-ligera-y-dlc`, encima de `main`; en local es la del worktree `game-card-layout-design-39a461`. Commit `a99683e`, subido: [PR #39](https://github.com/mjovenburgui/NextPlay/pull/39).
+**Rama:** `ficha-ligera-y-dlc`, encima de `main`; en local era la del worktree `game-card-layout-design-39a461`. Fusionada con `main` el 09/11/2026: [PR #39](https://github.com/mjovenburgui/NextPlay/pull/39).
 
 **Por qué:** me preguntaste «¿No crees que muestra demasiada información? Casi que debería verse en desplegables o aprovechar todo el ancho de la web». Sí. Después de la pasada a IGDB, la ficha de GTA V medía unos 4490 px de alto en una pantalla de 1440 px y solo usaba 1100 px de ancho. Además, la columna de la carátula se acababa a media página.
 
@@ -101,9 +101,7 @@ Si un servidor de `main` da error de columnas que no existen, es que a esa base 
 - `import_addons` ha traído a la copia todos los que faltaban; antes guardé una copia de seguridad de la base de datos de revisión en el scratchpad. Fallout 4 enseña sus 6 DLC con precio y rebaja.
 - Tests: los 570 pasan sin claves y también con claves falsas detrás de un proxy muerto.
 
-**Qué falta:**
-- Que me digas si fusiono el [PR #39](https://github.com/mjovenburgui/NextPlay/pull/39).
-- Al fusionar: `manage.py import_addons` en tu base de datos de verdad, con copia de seguridad antes.
+**Qué falta:** nada tuyo. Justo después de fusionar traigo los DLC a tu base de datos de verdad con `import_addons`, con una copia de seguridad antes. Lo que salga te lo digo al terminar.
 
 ---
 
