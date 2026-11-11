@@ -369,6 +369,35 @@ class SteamImportTests(TestCase):
         # La partida más reciente es la de la segunda cuenta, de ayer: entra como «Jugando».
         self.assertEqual(portal.status, LibraryEntry.Status.PLAYING)
 
+    def test_linking_another_account_is_not_a_session(self):
+        now = int(time.time())
+        with self.owned_by_account({self.account.steam_id: [
+            {"appid": 620, "playtime_forever": 600, "rtime_last_played": now - 3 * 86400},
+            {"appid": 1145360, "playtime_forever": 0},
+        ]}):
+            steam.import_library(self.user, include_unplayed=True)
+        second = SteamAccount.objects.create(user=self.user, steam_id="76561190000000002")
+        with self.owned_by_account({
+            self.account.steam_id: [
+                {"appid": 620, "playtime_forever": 630, "rtime_last_played": now - 3600},
+                {"appid": 1145360, "playtime_forever": 0},
+            ],
+            second.steam_id: [{"appid": 620, "playtime_forever": 326}, {"appid": 1145360, "playtime_forever": 2150}],
+        }):
+            steam.import_library(self.user)
+        # Lo que trae la cuenta nueva es de antes: de Portal 2 solo cuentan los 30 min jugados en la primera, y de
+        # Hades, que en la primera estaba sin abrir, nada.
+        self.assertEqual(list(PlaySession.objects.values_list("game", "minutes")), [(self.portal.pk, 30)])
+        hours = dict(LibraryEntry.objects.filter(user=self.user).values_list("game", "steam_playtime_minutes"))
+        self.assertEqual(hours, {self.portal.pk: 956, self.hades.pk: 2150})
+        # En la siguiente importación la segunda cuenta ya no es nueva: lo que suba en ella sí es una sesión.
+        with self.owned_by_account({
+            self.account.steam_id: [{"appid": 620, "playtime_forever": 630, "rtime_last_played": now - 3600}],
+            second.steam_id: [{"appid": 620, "playtime_forever": 326}, {"appid": 1145360, "playtime_forever": 2210}],
+        }):
+            steam.import_library(self.user)
+        self.assertEqual(PlaySession.objects.get(game=self.hades).minutes, 60)
+
     def test_private_accounts_are_skipped_and_reported(self):
         second = SteamAccount.objects.create(user=self.user, steam_id="76561190000000002", persona="Secreta")
         with self.owned_by_account({

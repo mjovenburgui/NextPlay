@@ -13,10 +13,11 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Todas las ramas de abajo están fusionadas con `main`, cada una con su PR. Las migraciones de las cuatro del 08/11 ya están en tu base de datos de verdad (comprobado el 08/11/2026). También está la de `pasada-a-igdb`, `games.0010`, con la pasada a IGDB hecha (comprobado el 09/11/2026: sin migraciones pendientes y con la ficha técnica de 2235 de sus 2236 juegos). `ficha-ligera-y-dlc` no trae migraciones. Justo después de fusionarla, en el mismo paso, traigo los DLC y las expansiones a tu base de datos con `import_addons`, con una copia de seguridad antes. Lo que salga te lo digo al terminar.
+Todas las ramas de abajo están fusionadas con `main`, cada una con su PR, menos `sesiones-segunda-cuenta`, que espera tu revisión. Las migraciones de las cuatro del 08/11 ya están en tu base de datos de verdad (comprobado el 08/11/2026). También está la de `pasada-a-igdb`, `games.0010`, con la pasada a IGDB hecha (comprobado el 09/11/2026: sin migraciones pendientes y con la ficha técnica de 2235 de sus 2236 juegos). `ficha-ligera-y-dlc` no trae migraciones. Justo después de fusionarla, en el mismo paso, traigo los DLC y las expansiones a tu base de datos con `import_addons`, con una copia de seguridad antes. Lo que salga te lo digo al terminar.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
+| `sesiones-segunda-cuenta` | Las cuentas de Steam recién vinculadas ya no cuentan como sesiones de juego | Commit local, sin subir: espera tu revisión. Sin migraciones; las sesiones de `tester_steam` ya están corregidas en tu base de datos. |
 | `ficha-ligera-y-dlc` | Ficha del juego más ligera: tres columnas, lo secundario plegado y cada DLC con su ficha y su precio | Fusionada con `main`: [PR #39](https://github.com/mjovenburgui/NextPlay/pull/39). Sin migraciones; los DLC llegan a tu base de datos con `import_addons`. |
 | `pasada-a-igdb` | Una pasada a IGDB: ficha técnica, duración, ediciones agrupadas, sin DLC en las búsquedas y catálogo con filtros | Fusionada con `main`: [PR #38](https://github.com/mjovenburgui/NextPlay/pull/38). Trae la migración `games.0010`. |
 | `avisos-en-un-solo-sitio` | Avisos en un solo sitio, con preferencias por tipo | Fusionada con `main`: [PR #34](https://github.com/mjovenburgui/NextPlay/pull/34). |
@@ -31,6 +32,34 @@ Todas las ramas de abajo están fusionadas con `main`, cada una con su PR. Las m
 - `library.0014`.
 
 Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan estas migraciones: `manage.py migrate`.
+
+---
+
+## 10/11/2026 · Las cuentas de Steam recién vinculadas ya no cuentan como sesiones de juego
+
+**Rama:** `sesiones-segunda-cuenta`, encima de `main`. Commit local, sin subir.
+
+**Por qué:** me preguntaste «¿se puede traer de Steam la última sesión del usuario?». Al mirarlo salió que, al vincular tu segunda cuenta de Steam el 02/11, la importación apuntó su historial entero como si lo hubieras jugado esos días. Elegiste «Arreglar las sesiones».
+
+**Qué cambia para ti:**
+- Al vincular otra cuenta de Steam, sus horas se suman a tu biblioteca como siempre, pero ya no cuentan como sesiones de juego: son de antes de vincularla. Las sesiones son lo que miden los retos de horas y las plantillas «Jugados en…» de las tier lists, y serán la base del diario de partidas.
+- Desde la siguiente importación, lo que juegues en esa cuenta sí cuenta.
+- En tu base de datos, `tester_steam` tenía 7 sesiones infladas por la segunda cuenta, no 2: 25.252 min (420,9 h) de 27.679. La peor, 19.841 min de 7 Days to Die en un solo día. He borrado 6 y he dejado la de Diablo IV del 01/11 en sus 57 min reales. Se queda con 10 sesiones y 2427 min. No estaba en ningún reto, así que no se ha dado ninguno por conseguido.
+
+**Qué he tocado:**
+- `accounts/steam.py`: `import_library` junta los minutos de las cuentas que se importan por primera vez (sin `synced_at`) y se los pasa a `update_library`.
+- `accounts/matching.py`: `update_library(prior_minutes=…)` los descuenta de lo que ha subido cada juego antes de apuntar la sesión.
+- `library/models.py`: el docstring de `PlaySession`.
+- `accounts/tests.py`: un test con dos cuentas. Lo que trae la nueva no es sesión; en la importación siguiente, lo que sube en ella sí.
+- `docs/propuestas.json`: notas y revisión de «Diario de partidas que se escribe solo», también con lo comprobado de la API de Steam. Los dos PDF, regenerados.
+
+**Cómo lo he comprobado:**
+- La batería completa, sin claves y con claves falsas y un proxy muerto: 571 tests en cada pasada, todos bien.
+- La corrección de datos, primero en seco y con dos comprobaciones: que la segunda cuenta no hubiera jugado esos juegos después y que ninguna sesión anterior del mismo juego y día hubiera recibido la suma. Antes, una copia de seguridad de la base de datos (`db-antes-de-corregir-sesiones.sqlite3`, en el scratchpad de la sesión).
+
+**Qué falta:**
+- Que lo revises. Después: subirla, abrir el PR y fusionarla.
+- Lo pendiente de las sesiones sigue en la propuesta: el día de cada sesión, porque todo va al de la última partida, y confirmar si Steam solo da la última partida a la cuenta dueña de la clave.
 
 ---
 

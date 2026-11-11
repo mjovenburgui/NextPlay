@@ -210,8 +210,8 @@ class PlaySession(models.Model):
     sincronizaciones, apuntado el día de su última partida (varias el mismo día se suman).
 
     Lo apunta la importación (accounts.matching.update_library) solo si ya se conocían las horas de esa plataforma:
-    lo que trae la primera importación es de antes y no se sabe cuándo se jugó. Es lo que miden los retos de horas y,
-    más adelante, el diario de partidas.
+    lo que trae la primera importación, o una cuenta de Steam recién vinculada, es de antes y no se sabe cuándo se
+    jugó. Es lo que miden los retos de horas y, más adelante, el diario de partidas.
     """
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="play_sessions")

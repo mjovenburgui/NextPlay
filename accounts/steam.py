@@ -249,6 +249,9 @@ def import_library(user, include_unplayed=False):
     pueden emparejar a mano. Las cuentas que no dejan ver sus juegos se saltan; si no deja ninguna,
     lanza SteamPrivateError.
 
+    Lo que ha subido el tiempo de los que ya tenía se apunta como sesiones de juego (update_library), salvo lo que
+    trae una cuenta que se importa por primera vez (sin synced_at): es de antes de vincularla, no algo jugado ahora.
+
     Después lee los logros de los juegos jugados hace menos (import_achievements).
 
     Devuelve un dict con cuántos juegos se han añadido («added»), actualizado («updated») y no se han
@@ -261,11 +264,20 @@ def import_library(user, include_unplayed=False):
     """
     accounts = list(user.steam_accounts.all())
     owned, private = [], []
+    # Minutos de cada app en las cuentas que se importan por primera vez: son de antes de vincularlas, no sesiones.
+    prior = {}
     for account in accounts:
         try:
-            owned += owned_games(account.steam_id)
+            games = owned_games(account.steam_id)
         except SteamPrivateError:
             private.append(account)
+            continue
+        owned += games
+        if account.synced_at is None:
+            for data in games:
+                if data.get("appid"):
+                    key = str(data["appid"])
+                    prior[key] = prior.get(key, 0) + (data.get("playtime_forever") or 0)
     if accounts and len(private) == len(accounts):
         raise SteamPrivateError("Ninguna cuenta de Steam deja ver sus juegos.")
     if not include_unplayed:
@@ -287,7 +299,7 @@ def import_library(user, include_unplayed=False):
 
     games = save_titles(user, ExternalTitle.Platform.STEAM, titles, auto_match)
     with transaction.atomic():
-        added, updated = update_library(user, ExternalTitle.Platform.STEAM, record_activity=True)
+        added, updated = update_library(user, ExternalTitle.Platform.STEAM, record_activity=True, prior_minutes=prior)
         user.steam_accounts.exclude(pk__in=[account.pk for account in private]).update(synced_at=timezone.now())
     return {
         "added": added,

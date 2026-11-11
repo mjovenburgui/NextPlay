@@ -349,7 +349,7 @@ def save_titles(user, platform, titles, auto_match):
     return {i: saved[i].game for i in ids}
 
 
-def update_library(user, platform, opened_only=False, record_activity=False):
+def update_library(user, platform, opened_only=False, record_activity=False, prior_minutes=None):
     """Pasa a la biblioteca las horas de una plataforma a partir de todos los títulos importados del usuario.
 
     Por juego suma los minutos de sus títulos (puede venir de varias cuentas o de la versión de PS4 y
@@ -363,20 +363,25 @@ def update_library(user, platform, opened_only=False, record_activity=False):
     emparejamiento), los juegos nuevos se apuntan en su actividad como una sola importación
     (social.activity.games_imported) y lo que ha subido el tiempo de los que ya tenían horas de esta plataforma se
     apunta como sesiones de juego (library.models.PlaySession), con las que se mira si ha conseguido algún reto de
-    horas (challenges.progress.check). Devuelve (juegos añadidos, juegos actualizados).
+    horas (challenges.progress.check). De esa subida se descuenta prior_minutes ({ID externo: minutos}), lo que trae
+    una cuenta en su primera importación: es de antes de vincularla, no algo que se acabe de jugar. Devuelve (juegos
+    añadidos, juegos actualizados).
 
     Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
     Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
     (progreso), Página del reto (progreso), Panel de administración (al corregir un título importado).
     """
     rows = list(ImportedTitle.objects.filter(user=user, title__platform=platform).select_related("title"))
-    totals = {}
+    prior_minutes = prior_minutes or {}
+    # Por juego: (minutos, última partida) y, aparte, cuántos de esos minutos son de antes (prior_minutes).
+    totals, prior = {}, defaultdict(int)
     for row in rows:
         if row.title.game_id is None:
             continue
         old_minutes, old_last = totals.get(row.title.game_id, (0, None))
         newest = max((d for d in (old_last, row.last_played) if d), default=None)
         totals[row.title.game_id] = (old_minutes + row.minutes, newest)
+        prior[row.title.game_id] += prior_minutes.get(row.title.external_id, 0)
     moved = [row for row in rows if row.game_id != row.title.game_id]
     stale = {row.game_id for row in moved if row.game_id is not None} - set(totals)
 
@@ -386,7 +391,8 @@ def update_library(user, platform, opened_only=False, record_activity=False):
         for entry in LibraryEntry.objects.filter(user=user, game_id__in=list(totals) + list(stale))
     }
     new, updated = [], 0
-    # (juego, última partida, minutos) de lo que ha subido el tiempo de los juegos que ya tenían horas de esta plataforma.
+    # (juego, última partida, minutos) de lo jugado ahora en los juegos que ya tenían horas de esta plataforma: lo que
+    # ha subido su tiempo, sin lo que es de antes (prior).
     played = []
     with transaction.atomic():
         for game_id, (minutes, last_played) in totals.items():
@@ -402,8 +408,9 @@ def update_library(user, platform, opened_only=False, record_activity=False):
             before = getattr(entry, minutes_field)
             if entry.update_import(platform, minutes, last_played):
                 updated += 1
-                if before is not None and minutes > before:
-                    played.append((game_id, last_played, minutes - before))
+                gained = minutes - before - prior[game_id] if before is not None else 0
+                if gained > 0:
+                    played.append((game_id, last_played, gained))
         for game_id in stale:
             entry = existing.get(game_id)
             if entry is not None and entry.update_import(platform, None, None):
