@@ -13,7 +13,7 @@ from django.db import transaction
 from accounts.matching import update_library
 from accounts.models import ExternalTitle, FavoriteGame, ImportedTitle, Notification, Profile
 from challenges.models import Challenge
-from library.models import LibraryEntry, PlaySession, Review, WishlistItem
+from library.models import HOURS_SOURCES, LibraryEntry, PlaySession, Review, WishlistItem
 from lists.models import ListItem
 from social.models import Activity, Post
 
@@ -172,11 +172,8 @@ def _combine(target, entry):
     if target.reviewed_at is None and entry.reviewed_at is not None:
         target.reviewed_at = entry.reviewed_at
         fields.append("reviewed_at")
-    for platform in ("steam", "psn", "xbox"):
-        minutes, last = f"{platform}_playtime_minutes", f"{platform}_last_played"
-        if getattr(target, minutes) is None and getattr(entry, minutes) is not None:
-            setattr(target, minutes, getattr(entry, minutes))
-            setattr(target, last, getattr(entry, last))
-            fields += [minutes, last]
+    for platform in HOURS_SOURCES:
+        if target.minutes_on(platform) is None and entry.minutes_on(platform) is not None:
+            fields += target.set_platform(platform, entry.minutes_on(platform), entry.last_played_on(platform))
     if fields:
         target.save(update_fields=fields + ["updated_at"])

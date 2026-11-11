@@ -17,6 +17,7 @@ Todas las ramas de abajo están fusionadas con `main`, cada una con su PR, menos
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
+| `horas-por-plataforma` | Horas totales y última partida en la base de datos, y cualquier plataforma nueva sin migraciones | Commit local, sin subir, encima de `logros-fase-2`. Trae la migración `library.0016`, que rellena los totales. |
 | `logros-fase-2` | Logros: trofeos de PlayStation uno a uno, logros en el feed y «Jugados en» el año pasado | Commit local, sin subir, encima de `gente-que-sigues`. Trae la migración `social.0010`. |
 | `gente-que-sigues` | La gente que sigues en la ficha y en los perfiles: su recuadro y sus reseñas delante, «En común», «A quién seguir» y un aviso nuevo | Commit local, sin subir, encima de `diario-de-partidas`. Trae la migración `accounts.0027`. |
 | `diario-de-partidas` | Diario de partidas: pestaña Diario del perfil con el calendario de cada año, línea en la ficha y juegos en «Jugando» sin jugar en el repaso | Commit local, sin subir, encima de `sesiones-segunda-cuenta`. Trae las migraciones `library.0015` y `accounts.0026`. |
@@ -35,6 +36,33 @@ Todas las ramas de abajo están fusionadas con `main`, cada una con su PR, menos
 - `library.0014`.
 
 Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan estas migraciones: `manage.py migrate`.
+
+---
+
+## 11/11/2026 · Horas por plataforma sin una columna por tienda
+
+**Rama:** `horas-por-plataforma`, encima de `logros-fase-2`. Commit local, sin subir.
+
+**Por qué:** es la base de lo que viene después: importar Playnite (Epic, GOG, EA, Battle.net…) y Nintendo sin añadir dos columnas por tienda cada vez.
+
+**Qué cambia para ti:** a la vista, nada; es por dentro.
+- Cada juego de la biblioteca guarda sus horas totales y su última partida de cualquier plataforma en la base de datos, con un índice. La migración `library.0016` las rellena: en la copia, 403 juegos y 13.324 h de `tester_steam`.
+- Las horas de una plataforma nueva van en un campo aparte, `extra_hours`. Todo lo que leía las tres columnas de Steam, PlayStation y Xbox pasa ahora por un mismo sitio: el perfil, la ficha, las plantillas de tier lists, el repaso, el diario, el feed y la media «con horas jugadas».
+- Las tres columnas se quedan de momento. Quitarlas es un paso aparte.
+
+**Qué he tocado:**
+- `library/models.py`: `extra_hours`, `total_minutes` y `last_played`, y los métodos `minutes_on`, `last_played_on`, `set_platform` y `refresh_totals`, que llama `save`.
+- La migración `library.0016`, que rellena los totales de lo que ya había.
+- Los que leían las columnas: `accounts/matching.py`, `games/models.py` (la media «con horas jugadas»), `games/editions.py`, `social/activity.py`, `accounts/views/perfil.py`, `library/backlog.py`, `library/diary.py` y `lists/presets.py`.
+
+**Cómo lo he comprobado:**
+- 2 tests nuevos: los totales al día y una plataforma inventada que funciona sin tocar nada más, también al importarla.
+- La batería completa en las dos variantes.
+- La migración aplicada a la copia de tu base de datos.
+
+**Qué falta:**
+- Que lo revises. Al fusionar, tu base de datos necesita `migrate` (`library.0016`).
+- Pasar Steam, PlayStation y Xbox también al campo genérico y quitar sus seis columnas, cuando no las lea nada.
 
 ---
 

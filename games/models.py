@@ -697,10 +697,8 @@ class Game(models.Model):
 
         Pantallas: Ficha del juego (valoración de la comunidad).
         """
-        played = (
-            models.Q(steam_playtime_minutes__gt=0) | models.Q(psn_playtime_minutes__gt=0)
-            | models.Q(xbox_playtime_minutes__gt=0)
-        )
+        # Con horas de cualquier plataforma (LibraryEntry.total_minutes las suma todas).
+        played = models.Q(total_minutes__gt=0)
         result = self.library_entries.filter(rating__isnull=False).aggregate(
             average=models.Avg("rating"),
             count=models.Count("id"),

@@ -385,7 +385,6 @@ def update_library(user, platform, opened_only=False, record_activity=False, pri
     moved = [row for row in rows if row.game_id != row.title.game_id]
     stale = {row.game_id for row in moved if row.game_id is not None} - set(totals)
 
-    minutes_field, last_field = f"{platform}_playtime_minutes", f"{platform}_last_played"
     existing = {
         entry.game_id: entry
         for entry in LibraryEntry.objects.filter(user=user, game_id__in=list(totals) + list(stale))
@@ -401,11 +400,13 @@ def update_library(user, platform, opened_only=False, record_activity=False, pri
                 status = LibraryEntry.imported_status(minutes, last_played)
                 if opened_only and status == LibraryEntry.Status.BACKLOG:
                     status = LibraryEntry.Status.PLAYED
-                new.append(LibraryEntry(
-                    user=user, game_id=game_id, status=status, **{minutes_field: minutes, last_field: last_played}
-                ))
+                created = LibraryEntry(user=user, game_id=game_id, status=status)
+                created.set_platform(platform, minutes, last_played)
+                # bulk_create no pasa por save: las horas totales se calculan aquí.
+                created.refresh_totals()
+                new.append(created)
                 continue
-            before, before_last = getattr(entry, minutes_field), getattr(entry, last_field)
+            before, before_last = entry.minutes_on(platform), entry.last_played_on(platform)
             if entry.update_import(platform, minutes, last_played):
                 updated += 1
                 gained = minutes - before - prior[game_id] if before is not None else 0

@@ -220,18 +220,17 @@ def last_session(user):
 
     Pantallas: Perfil (pestaña Diario: tu última partida).
     """
-    best = None
-    for key, name in HOURS_SOURCES.items():
-        field = f"{key}_last_played"
-        entry = (
-            LibraryEntry.objects.filter(user=user, **{f"{field}__isnull": False})
-            .select_related("game").order_by(f"-{field}").first()
-        )
-        if entry is not None and (best is None or getattr(entry, field) > best[1]):
-            best = (entry, getattr(entry, field), key, name)
-    if best is None:
+    # La entrada con la partida más reciente de cualquier plataforma (LibraryEntry.last_played) y, en ella, de cuál es.
+    entry = (
+        LibraryEntry.objects.filter(user=user, last_played__isnull=False).select_related("game")
+        .order_by("-last_played", "-pk").first()
+    )
+    if entry is None:
         return None
-    entry, when, key, name = best
+    key = max((key for key in HOURS_SOURCES if entry.last_played_on(key)), key=entry.last_played_on, default=None)
+    if key is None:
+        return None
+    when, name = entry.last_played_on(key), HOURS_SOURCES[key]
     session = PlaySession.objects.filter(
         user=user, game=entry.game, platform=key, day=timezone.localdate(when),
     ).first()

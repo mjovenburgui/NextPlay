@@ -14,6 +14,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.utils.functional import cached_property
 
 from accounts.achievements import progress_by_game
@@ -70,6 +71,13 @@ class LibraryEntry(models.Model):
     # Los rellena la importación de Xbox; nulos si el juego no viene de Xbox.
     xbox_playtime_minutes = models.PositiveIntegerField("minutos jugados en Xbox", null=True, blank=True)
     xbox_last_played = models.DateTimeField(null=True, blank=True)
+    # Las horas de las plataformas sin columna propia (las de HOURS_SOURCES que no están en COLUMN_SOURCES), como
+    # {clave: {"minutes": minutos o None, "last_played": fecha ISO o None}}: añadir una plataforma no necesita migración.
+    extra_hours = models.JSONField("horas de otras plataformas", default=dict, blank=True)
+    # Las horas de todas las plataformas sumadas y la partida más reciente de cualquiera, para ordenar y filtrar en la
+    # base de datos. Las pone save (refresh_totals); nulas si el juego no tiene horas de ninguna.
+    total_minutes = models.PositiveIntegerField("minutos jugados en total", null=True, blank=True)
+    last_played = models.DateTimeField("última partida", null=True, blank=True)
     # Cuándo lo pasó a «Completado» (lo pone library.views.set_status y se vacía si cambia de estado). Las
     # importaciones nunca lo completan, así que siempre es una fecha que puso el jugador; desde el repaso de la
     # biblioteca puede ser aproximada: la de su último logro o su última partida (library.backlog). Lo miden los retos.
@@ -83,7 +91,10 @@ class LibraryEntry(models.Model):
         constraints = [
             models.UniqueConstraint(fields=["user", "game"], name="unique_library_entry_per_user_game"),
         ]
-        indexes = [models.Index(fields=["user", "status"])]
+        indexes = [
+            models.Index(fields=["user", "status"]),
+            models.Index(fields=["user", "-total_minutes"], name="entry_user_total_minutes"),
+        ]
         verbose_name_plural = "library entries"
 
     def __str__(self):
@@ -111,7 +122,7 @@ class LibraryEntry(models.Model):
         return cls.Status.PLAYED
 
     def update_import(self, platform, minutes, last_played):
-        """Guarda los minutos y la última partida de una plataforma ("steam", "psn" o "xbox") en una entrada existente.
+        """Guarda los minutos y la última partida de una plataforma (clave de HOURS_SOURCES) en una entrada existente.
 
         Conserva el estado que puso el usuario, salvo «Pendiente» cuando ya hay horas jugadas: entonces
         lo cambia a «Jugando» o «Jugado». Devuelve True si ha cambiado algo.
@@ -120,13 +131,7 @@ class LibraryEntry(models.Model):
         horas), Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la
         importación), Retos (progreso), Página del reto (progreso).
         """
-        fields = []
-        if getattr(self, f"{platform}_playtime_minutes") != minutes:
-            setattr(self, f"{platform}_playtime_minutes", minutes)
-            fields.append(f"{platform}_playtime_minutes")
-        if getattr(self, f"{platform}_last_played") != last_played:
-            setattr(self, f"{platform}_last_played", last_played)
-            fields.append(f"{platform}_last_played")
+        fields = self.set_platform(platform, minutes, last_played)
         if self.status == self.Status.BACKLOG and minutes:
             self.status = self.imported_status(minutes, last_played)
             fields.append("status")
@@ -134,14 +139,85 @@ class LibraryEntry(models.Model):
             self.save(update_fields=fields + ["updated_at"])
         return bool(fields)
 
+    def minutes_on(self, platform):
+        """Minutos jugados en platform (clave de HOURS_SOURCES), de su columna o de extra_hours, o None si no vienen
+        de ella.
+
+        Pantallas: Perfil (horas de cada plataforma), Ficha del juego (tus horas en cada plataforma), Catálogo, Inicio,
+        Página de la lista, Página del reto (horas en las portadas), Nueva tier list (plantillas por plataforma).
+        """
+        if platform in COLUMN_SOURCES:
+            return getattr(self, f"{platform}_playtime_minutes")
+        return (self.extra_hours.get(platform) or {}).get("minutes")
+
+    def last_played_on(self, platform):
+        """La última partida en platform (clave de HOURS_SOURCES), de su columna o de extra_hours, o None.
+
+        Pantallas: Ficha del juego (tus horas: la última partida en cada plataforma), Perfil (pestaña Diario: tu
+        última partida), Repasar la biblioteca (tu última partida), Nueva tier list (lo jugado este año).
+        """
+        if platform in COLUMN_SOURCES:
+            return getattr(self, f"{platform}_last_played")
+        value = (self.extra_hours.get(platform) or {}).get("last_played")
+        return parse_datetime(value) if value else None
+
+    def set_platform(self, platform, minutes, last_played):
+        """Pone en la entrada, sin guardarla, los minutos y la última partida de platform: en su columna si la tiene y,
+        si no, en extra_hours, de donde se quita si las dos cosas vienen vacías. Devuelve los campos que ha cambiado.
+
+        Pantallas: Editar perfil (Cuentas vinculadas: al importar), Perfil (biblioteca y horas), Ficha del juego (tus
+        horas).
+        """
+        if platform in COLUMN_SOURCES:
+            changed = []
+            for field, value in ((f"{platform}_playtime_minutes", minutes), (f"{platform}_last_played", last_played)):
+                if getattr(self, field) != value:
+                    setattr(self, field, value)
+                    changed.append(field)
+            return changed
+        wanted = None
+        if minutes is not None or last_played is not None:
+            wanted = {"minutes": minutes, "last_played": last_played.isoformat() if last_played else None}
+        if self.extra_hours.get(platform) == wanted:
+            return []
+        extra = {key: value for key, value in self.extra_hours.items() if key != platform}
+        if wanted is not None:
+            extra[platform] = wanted
+        self.extra_hours = extra
+        return ["extra_hours"]
+
+    def refresh_totals(self):
+        """Recalcula, sin guardar, las horas de todas las plataformas sumadas (total_minutes) y la partida más reciente
+        (last_played). Lo hace save; quien crea entradas con bulk_create, que no pasa por save, lo llama antes.
+
+        Pantallas: Perfil (biblioteca: horas y orden por horas), Nueva tier list (plantillas por horas), Ficha del juego
+        (la media de quienes tienen horas jugadas).
+        """
+        minutes = [self.minutes_on(key) for key in HOURS_SOURCES]
+        self.total_minutes = None if all(value is None for value in minutes) else sum(value or 0 for value in minutes)
+        self.last_played = max((day for day in (self.last_played_on(key) for key in HOURS_SOURCES) if day), default=None)
+
+    def save(self, *args, **kwargs):
+        """Guarda la entrada con sus horas totales y su última partida al día (refresh_totals): si solo se guardan unos
+        campos y entre ellos hay horas de alguna plataforma, también esos dos.
+
+        Pantallas: Perfil (biblioteca: horas y orden por horas), Ficha del juego (tu biblioteca y tus horas), Nueva tier
+        list (plantillas por horas), Editar perfil (Cuentas vinculadas: al importar).
+        """
+        self.refresh_totals()
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None and HOURS_FIELDS & set(update_fields):
+            kwargs["update_fields"] = list(dict.fromkeys([*update_fields, "total_minutes", "last_played"]))
+        super().save(*args, **kwargs)
+
     @property
     def playtime_minutes(self):
-        """Minutos jugados sumando Steam, PlayStation y Xbox, o None si no viene de ninguna.
+        """Minutos jugados sumando todas las plataformas de HOURS_SOURCES, o None si no viene de ninguna.
 
         Pantallas: Perfil (horas de la biblioteca), Ficha del juego (tus horas), Escribir reseña (horas de la
         partida), Catálogo, Inicio, Página de la lista, Página del reto (horas en las portadas).
         """
-        values = [self.steam_playtime_minutes, self.psn_playtime_minutes, self.xbox_playtime_minutes]
+        values = [self.minutes_on(key) for key in HOURS_SOURCES]
         if all(value is None for value in values):
             return None
         return sum(value or 0 for value in values)
@@ -167,9 +243,9 @@ class LibraryEntry(models.Model):
         """
         found = []
         for key, name in HOURS_SOURCES.items():
-            hours = round((getattr(self, f"{key}_playtime_minutes") or 0) / 60, 1)
+            hours = round((self.minutes_on(key) or 0) / 60, 1)
             if hours:
-                found.append({"key": key, "name": name, "hours": hours, "last_played": getattr(self, f"{key}_last_played")})
+                found.append({"key": key, "name": name, "hours": hours, "last_played": self.last_played_on(key)})
         return sorted(found, key=lambda item: -item["hours"])
 
     @property
@@ -179,7 +255,7 @@ class LibraryEntry(models.Model):
         Pantallas: Escribir reseña (de dónde salen las horas al publicarla), Página de la reseña (sello de horas
         verificadas).
         """
-        return [key for key in HOURS_SOURCES if getattr(self, f"{key}_playtime_minutes") is not None]
+        return [key for key in HOURS_SOURCES if self.minutes_on(key) is not None]
 
     @cached_property
     def achievements(self):
@@ -211,8 +287,15 @@ class LibraryEntry(models.Model):
         return self.rating / 2 if self.rating else None
 
 
-# Plataformas de las que se importan horas jugadas: clave del campo *_playtime_minutes → nombre.
+# Plataformas de las que se importan horas jugadas: clave → nombre. Las de COLUMN_SOURCES tienen sus columnas en
+# LibraryEntry (<clave>_playtime_minutes y <clave>_last_played); cualquier otra va en LibraryEntry.extra_hours, así que
+# añadir una plataforma no necesita migración.
 HOURS_SOURCES = {"steam": "Steam", "psn": "PlayStation", "xbox": "Xbox"}
+COLUMN_SOURCES = ("steam", "psn", "xbox")
+# Los campos de LibraryEntry que guardan horas: si se guardan, también las horas totales (LibraryEntry.save).
+HOURS_FIELDS = {
+    f"{key}_{part}" for key in COLUMN_SOURCES for part in ("playtime_minutes", "last_played")
+} | {"extra_hours"}
 # Logo de cada una, para el sello de horas verificadas de las reseñas.
 HOURS_LOGOS = {
     "steam": "games/shop_icons/steam.svg", "psn": "games/shop_icons/playstation.svg", "xbox": "games/shop_icons/xbox.svg",

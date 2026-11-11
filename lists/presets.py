@@ -18,7 +18,7 @@ from django.utils import timezone
 
 from accounts.achievements import progress_by_game
 from accounts.models import UnlockedAchievement
-from library.models import HOURS_SOURCES, LibraryEntry, PlaySession, Review
+from library.models import COLUMN_SOURCES, HOURS_SOURCES, LibraryEntry, PlaySession, Review
 
 from .models import DEFAULT_TIERS, LIST_MAX_GAMES, MOSAIC_COVERS, GameList
 
@@ -33,15 +33,14 @@ RATING_TIERS = {10: 0, 9: 1, 8: 1, 7: 2, 6: 2, 5: 3, 4: 3, 3: 4, 2: 4, 1: 5}
 
 
 def library(user):
-    """La biblioteca de user (LibraryEntry, con su juego) con los minutos jugados en todas las plataformas (minutes):
-    de más a menos horas y, a igualdad, de lo añadido hace menos a lo que más.
+    """La biblioteca de user (LibraryEntry, con su juego) con los minutos jugados en todas las plataformas (minutes, de
+    LibraryEntry.total_minutes): de más a menos horas y, a igualdad, de lo añadido hace menos a lo que más.
 
     Pantallas: Nueva tier list (plantillas «Desde tu biblioteca»).
     """
-    minutes = sum((Coalesce(f"{key}_playtime_minutes", Value(0)) for key in HOURS_SOURCES), Value(0))
     return (
         LibraryEntry.objects.filter(user=user).select_related("game")
-        .annotate(minutes=minutes).order_by("-minutes", "-created_at", "-id")
+        .annotate(minutes=Coalesce("total_minutes", Value(0))).order_by("-minutes", "-created_at", "-id")
     )
 
 
@@ -62,8 +61,14 @@ def played_in(user, year):
     """
     start, end = year_bounds(year)
     played = Q(completed_at__gte=start, completed_at__lt=end)
-    for key in HOURS_SOURCES:
+    for key in COLUMN_SOURCES:
         played |= Q(**{f"{key}_last_played__gte": start, f"{key}_last_played__lt": end})
+    # Las plataformas sin columna guardan la fecha como texto en extra_hours: se miran aquí.
+    extra = LibraryEntry.objects.filter(user=user).exclude(extra_hours={})
+    played |= Q(pk__in=[
+        entry.pk for entry in extra
+        if any(start <= day < end for day in (entry.last_played_on(key) for key in entry.extra_hours) if day)
+    ])
     played |= Q(game__in=PlaySession.objects.filter(user=user, day__year=year).values("game"))
     unlocks = UnlockedAchievement.objects.filter(imported__user=user, unlocked_at__year=year)
     played |= Q(game__in=unlocks.values("imported__title__game"))
@@ -114,8 +119,12 @@ def played_on(platform):
     field = f"{platform}_playtime_minutes"
 
     def entries(user, year):
-        """Lo jugado en la plataforma de la plantilla, de más a menos horas en ella."""
-        return library(user).filter(**{f"{field}__gt": 0}).order_by(F(field).desc(), "-id")
+        """Lo jugado en la plataforma de la plantilla, de más a menos horas en ella (las que no tienen columna, en
+        Python: sus horas van en extra_hours)."""
+        if platform in COLUMN_SOURCES:
+            return library(user).filter(**{f"{field}__gt": 0}).order_by(F(field).desc(), "-id")
+        found = [entry for entry in library(user).exclude(extra_hours={}) if (entry.minutes_on(platform) or 0) > 0]
+        return sorted(found, key=lambda entry: (-entry.minutes_on(platform), -entry.pk))
 
     return entries
 

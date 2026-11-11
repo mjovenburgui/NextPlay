@@ -52,7 +52,7 @@ def last_played(entry):
 
     Pantallas: Repasar la biblioteca (cuándo lo jugaste por última vez y la fecha con la que se apunta terminado).
     """
-    dates = [getattr(entry, f"{key}_last_played") for key in HOURS_SOURCES]
+    dates = [entry.last_played_on(key) for key in HOURS_SOURCES]
     dates = [day for day in dates if day]
     return max(dates) if dates else None
 

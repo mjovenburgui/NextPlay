@@ -23,7 +23,9 @@ from games.models import STEAM_DECK_SLUG, Game, GameMode, GamePrice, Platform
 from social.models import Activity
 
 from . import backlog, diary, markup, reminders, wishlist
-from .models import LibraryEntry, PlaySession, Report, Review, ReviewComment, ReviewImage, ReviewLike, WishlistItem
+from .models import (
+    HOURS_SOURCES, LibraryEntry, PlaySession, Report, Review, ReviewComment, ReviewImage, ReviewLike, WishlistItem,
+)
 from .views import comment_thread
 
 User = get_user_model()
@@ -1063,6 +1065,49 @@ class TidyTests(TestCase):
         self.assertEqual(self.answer(entry, "terminado").status_code, 404)
         self.client.logout()
         self.assertEqual(self.client.get(reverse("library:tidy")).status_code, 302)
+
+
+class HoursByPlatformTests(TestCase):
+    """Las horas de cada plataforma: las de Steam, PlayStation y Xbox en sus columnas y las demás en extra_hours, con
+    el total y la última partida al día."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.hades = Game.objects.create(name="Hades", slug="hades")
+        cls.celeste = Game.objects.create(name="Celeste", slug="celeste")
+
+    def test_totals_follow_every_platform(self):
+        played = timezone.make_aware(datetime(2026, 3, 1, 20))
+        entry = LibraryEntry.objects.create(user=self.ana, game=self.hades, steam_playtime_minutes=60, psn_last_played=played)
+        self.assertEqual((entry.total_minutes, entry.last_played), (60, played))
+        # Guardar solo unas horas también pone al día el total.
+        entry.steam_playtime_minutes = 90
+        entry.save(update_fields=["steam_playtime_minutes"])
+        entry.refresh_from_db()
+        self.assertEqual(entry.total_minutes, 90)
+        self.assertIsNone(LibraryEntry.objects.create(user=self.ana, game=self.celeste).total_minutes)
+
+    def test_a_new_platform_needs_no_migration(self):
+        played = timezone.make_aware(datetime(2026, 3, 1, 20))
+        with mock.patch.dict(HOURS_SOURCES, {"retro": "Consola retro"}):
+            entry = LibraryEntry.objects.create(user=self.ana, game=self.hades, steam_playtime_minutes=60)
+            self.assertTrue(entry.update_import("retro", 120, played))
+            entry.refresh_from_db()
+            self.assertEqual((entry.minutes_on("retro"), entry.last_played_on("retro")), (120, played))
+            self.assertEqual((entry.total_minutes, entry.playtime_minutes, entry.last_played), (180, 180, played))
+            self.assertEqual([(item["key"], item["hours"]) for item in entry.hours_by_platform], [("retro", 2.0), ("steam", 1.0)])
+            self.assertEqual(entry.playtime_sources, ["steam", "retro"])
+            # Por la importación de siempre, también una entrada nueva.
+            title = ExternalTitle.objects.create(platform="retro", external_id="R-1", name="Celeste", game=self.celeste)
+            ImportedTitle.objects.create(user=self.ana, title=title, minutes=45, last_played=played)
+            matching.update_library(self.ana, "retro")
+            new = LibraryEntry.objects.get(user=self.ana, game=self.celeste)
+            self.assertEqual((new.minutes_on("retro"), new.total_minutes, new.status), (45, 45, LibraryEntry.Status.PLAYED))
+            # Sin horas ni partida, se quita.
+            entry.update_import("retro", None, None)
+            entry.refresh_from_db()
+            self.assertEqual((entry.extra_hours, entry.total_minutes), ({}, 60))
 
 
 class DiaryTests(TestCase):

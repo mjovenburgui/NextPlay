@@ -928,7 +928,7 @@
   {
     "titulo": "Horas por plataforma sin una columna por tienda",
     "fecha": "2026-11-01",
-    "estado": "pendiente",
+    "estado": "en curso",
     "prioridad": "media",
     "tipo": "Infraestructura",
     "resumen": "Guardar en cada juego de la biblioteca las horas totales y la última partida en columnas propias, y las de cada plataforma en un solo campo, para poder ordenar y filtrar en la base de datos y añadir plataformas sin migraciones.",
@@ -939,10 +939,14 @@
       "Quitar las seis columnas en otro PR, cuando nada las lea. HOURS_SOURCES pasa a ser la única lista de plataformas, con su nombre y su logo.",
       "Un test con una plataforma inventada: si pasa sin tocar nada más, el trabajo está hecho."
     ],
-    "notas": "Sale de la revisión del 01/11/2026. El primer paso se puede hacer ya, por separado. Va antes de «Importar Nintendo Switch con capturas de la app Nintendo Store» y de «Importar Epic, GOG, EA y Battle.net con Playnite, y CSV de otros trackers».",
+    "notas": "Sale de la revisión del 01/11/2026. El primer paso se puede hacer ya, por separado. Va antes de «Importar Nintendo Switch con capturas de la app Nintendo Store» y de «Importar Epic, GOG, EA y Battle.net con Playnite, y CSV de otros trackers». 11/11/2026: pasos 1, 2 y 4 en la rama horas-por-plataforma, sin fusionar. LibraryEntry tiene total_minutes y last_played, con índice, que pone save (refresh_totals) y rellena la migración library.0016: en la copia, 403 entradas y 13.324 h de tester_steam. Las plataformas sin columna van en extra_hours ({clave: minutos y última partida}), y todo lo que leía las tres columnas pasa por minutes_on, last_played_on y set_platform (update_import, update_library, las ediciones, el perfil, las plantillas de tier lists, el repaso, el diario, la importación del feed y la media «con horas jugadas», que ya filtra por total_minutes). Un test con una plataforma inventada pasa sin tocar nada más. Las seis columnas de Steam, PlayStation y Xbox se quedan: quitarlas es el paso 3, en otro PR.",
     "revision": {
-      "fecha": "2026-11-01",
-      "hoy": "Propuesta nueva. update_library ya recibe la plataforma como texto y compone el nombre de la columna, así que es casi genérica; lo que no lo es son los modelos.",
+      "fecha": "2026-11-11",
+      "hoy": "Pasos 1, 2 y 4 hechos en la rama horas-por-plataforma, sin fusionar: horas totales y última partida en la base de datos, y cualquier plataforma nueva en extra_hours sin migraciones. Falta el paso 3: pasar Steam, PlayStation y Xbox también a extra_hours y quitar sus seis columnas.",
+      "plan": [
+        "Paso 3: una migración que copie las tres columnas a extra_hours, leer solo de ahí y quitarlas. Antes, cambiar las 75 referencias de los tests, que crean entradas con steam_playtime_minutes=…, por un ayudante.",
+        "Usar total_minutes donde aún se ordena en Python: el orden «Más horas» del perfil y «Biblioteca del perfil por tandas en vez de entera», que con esto ya puede paginar en la base de datos."
+      ],
       "profundizar": [
         "LibraryEntry como resumen recalculable: ImportedTitle ya tiene los minutos por título, de modo que un comando recalc_hours puede rehacer las horas de cualquiera tras una corrección o un error.",
         "Horas declaradas: dejar apuntarlas a mano para juegos sin plataforma (físico o retro), marcadas como no verificadas y fuera de la media «con horas jugadas».",

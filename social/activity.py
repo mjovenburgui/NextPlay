@@ -135,8 +135,9 @@ def games_imported(user, platform, entries):
     """
     if not entries:
         return None
-    minutes = f"{platform}_playtime_minutes"
-    top = [entry.game_id for entry in sorted(entries, key=lambda entry: -(getattr(entry, minutes) or 0))[:IMPORT_COVERS]]
+    top = [
+        entry.game_id for entry in sorted(entries, key=lambda entry: -(entry.minutes_on(platform) or 0))[:IMPORT_COVERS]
+    ]
     now = timezone.now()
     activity = _recent(user)
     if activity and activity.kind == Activity.Kind.IMPORT and activity.data.get("platform") == platform:

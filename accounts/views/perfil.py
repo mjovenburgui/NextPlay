@@ -223,7 +223,7 @@ def _profile_stats(owner, entries, counts, reviews):
     """
     ratings = [e.stars for e in entries if e.rating]
     minutes = sum(e.playtime_minutes or 0 for e in entries)
-    by_platform = {key: sum(getattr(e, f"{key}_playtime_minutes") or 0 for e in entries) for key in HOURS_SOURCES}
+    by_platform = {key: sum(e.minutes_on(key) or 0 for e in entries) for key in HOURS_SOURCES}
     # Una fila por (género, juego de la biblioteca), así que cada género cuenta una vez por juego.
     genres = Counter(Genre.objects.filter(games__library_entries__user=owner).values_list("name", flat=True))
     return {
