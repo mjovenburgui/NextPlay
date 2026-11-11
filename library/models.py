@@ -223,6 +223,18 @@ class LibraryEntry(models.Model):
         return sum(value or 0 for value in values)
 
     @property
+    def verified_minutes(self):
+        """Minutos jugados en las plataformas de VERIFIED_SOURCES (las que se leen de la cuenta), o None si de ninguna.
+
+        Pantallas: Escribir reseña (horas de la partida), Página de la reseña, Ficha del juego (reseñas: sello de horas
+        verificadas), Avisos (reseñas que se han quedado atrás).
+        """
+        values = [self.minutes_on(key) for key in VERIFIED_SOURCES]
+        if all(value is None for value in values):
+            return None
+        return sum(value or 0 for value in values)
+
+    @property
     def playtime_hours(self):
         """Horas jugadas (Steam + PlayStation + Xbox) redondeadas a una décima, o None si no hay datos.
 
@@ -290,8 +302,15 @@ class LibraryEntry(models.Model):
 # Plataformas de las que se importan horas jugadas: clave → nombre. Las de COLUMN_SOURCES tienen sus columnas en
 # LibraryEntry (<clave>_playtime_minutes y <clave>_last_played); cualquier otra va en LibraryEntry.extra_hours, así que
 # añadir una plataforma no necesita migración.
-HOURS_SOURCES = {"steam": "Steam", "psn": "PlayStation", "xbox": "Xbox"}
+HOURS_SOURCES = {
+    "steam": "Steam", "psn": "PlayStation", "xbox": "Xbox", "epic": "Epic Games", "gog": "GOG", "ea": "EA app",
+    "ubisoft": "Ubisoft Connect", "battlenet": "Battle.net", "amazon": "Amazon Games", "otras": "Otras tiendas",
+}
 COLUMN_SOURCES = ("steam", "psn", "xbox")
+# Las horas que nadie puede tocar: las que se leen de la cuenta de cada plataforma. Las de un archivo (Playnite u otro
+# tracker) son tus horas, pero no cuentan para el sello de horas verificadas de las reseñas ni para la media «con
+# horas jugadas» de la ficha.
+VERIFIED_SOURCES = ("steam", "psn", "xbox")
 # Los campos de LibraryEntry que guardan horas: si se guardan, también las horas totales (LibraryEntry.save).
 HOURS_FIELDS = {
     f"{key}_{part}" for key in COLUMN_SOURCES for part in ("playtime_minutes", "last_played")
@@ -494,7 +513,7 @@ class Review(models.Model):
 
         Pantallas: Ficha del juego, Perfil, Página de la reseña (sello de horas verificadas).
         """
-        return [(HOURS_SOURCES[key], HOURS_LOGOS[key]) for key in self.hours_sources.split(",") if key in HOURS_SOURCES]
+        return [(HOURS_SOURCES[key], HOURS_LOGOS.get(key, "")) for key in self.hours_sources.split(",") if key in HOURS_SOURCES]
 
     def hours_since(self, entry):
         """Horas que ha jugado el autor desde que la publicó, si son bastantes para proponerle actualizarla; si no, None.
@@ -505,22 +524,28 @@ class Review(models.Model):
 
         Pantallas: Página de la reseña (propuesta de actualizarla), Avisos (reseñas que se han quedado atrás).
         """
-        if self.is_draft or self.hours is None or entry is None or entry.playtime_hours is None:
+        # Se compara con las mismas horas con las que se escribió: las verificadas (snapshot).
+        minutes = entry.verified_minutes if entry is not None else None
+        if self.is_draft or self.hours is None or minutes is None:
             return None
         written = float(self.hours)
-        extra = entry.playtime_hours - written
+        extra = round(minutes / 60, 1) - written
         return round(extra) if extra >= max(UPDATE_MIN_EXTRA_HOURS, written) else None
 
     def snapshot(self, entry):
-        """Apunta el estado y las horas que tiene ahora la entrada de biblioteca entry (o nada si no hay).
+        """Apunta el estado y las horas que tiene ahora la entrada de biblioteca entry (o nada si no hay): solo las
+        verificadas, las de VERIFIED_SOURCES, que son las del sello de la reseña.
 
         Pantallas: Escribir reseña (al publicar se guardan el estado y las horas), Página de la reseña,
         Ficha del juego, Perfil (datos de la partida).
         """
         self.status = entry.status if entry else ""
-        hours = entry.playtime_hours if entry else None
+        minutes = entry.verified_minutes if entry else None
+        hours = None if minutes is None else round(minutes / 60, 1)
         self.hours = None if hours is None else Decimal(str(hours))
-        self.hours_sources = ",".join(entry.playtime_sources) if entry and hours is not None else ""
+        self.hours_sources = (
+            ",".join(key for key in VERIFIED_SOURCES if entry.minutes_on(key) is not None) if hours is not None else ""
+        )
 
 
 class ReviewLike(models.Model):

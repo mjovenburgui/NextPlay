@@ -795,6 +795,14 @@ class ExternalTitle(models.Model):
         STEAM = "steam", "Steam"
         PSN = "psn", "PlayStation"
         XBOX = "xbox", "Xbox"
+        # Las que llegan en un archivo (accounts.csv_import), sin ID de la tienda: se emparejan por nombre.
+        EPIC = "epic", "Epic Games"
+        GOG = "gog", "GOG"
+        EA = "ea", "EA app"
+        UBISOFT = "ubisoft", "Ubisoft Connect"
+        BATTLENET = "battlenet", "Battle.net"
+        AMAZON = "amazon", "Amazon Games"
+        OTHER = "otras", "Otras tiendas"
 
     class Source(models.TextChoices):
         AUTO = "auto", "Automático"

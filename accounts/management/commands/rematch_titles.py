@@ -10,7 +10,7 @@ from ...matching import clean_name, match_by_name, update_library
 from ...models import ExternalTitle, ImportedTitle
 
 # Las que se emparejan por el nombre; Steam va por su ID de app.
-PLATFORMS = (ExternalTitle.Platform.PSN, ExternalTitle.Platform.XBOX)
+PLATFORMS = tuple(value for value in ExternalTitle.Platform.values if value != ExternalTitle.Platform.STEAM)
 
 
 class Command(BaseCommand):

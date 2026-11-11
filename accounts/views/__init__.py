@@ -7,6 +7,7 @@
 - cuentas_vinculadas.py: vincular, importar y desvincular Steam, PlayStation y Xbox y las cuentas de otras plataformas
   (Editar perfil › Cuentas vinculadas y el modal «Vincular cuentas» del Perfil).
 - juegos_importados.py: Juegos importados.
+- importar_archivo.py: Importar desde un archivo (el CSV de Playnite o de otro tracker).
 - avisos.py: Avisos.
 - ficha_del_juego.py: los botones de las cuentas en la Ficha del juego (favoritos, «Tus logros» y poner de cabecera).
 - resumen_anual.py: Resumen del año (y su imagen para compartir).
@@ -22,6 +23,7 @@ from .cuentas_vinculadas import (
 )
 from .editar_perfil import banner_arts, edit_profile, profile_preview, shops_update
 from .ficha_del_juego import banner_from_game, favorite_context, favorite_toggle, game_achievements
+from .importar_archivo import import_file
 from .juegos_importados import imported_title_assign, imported_title_hide, imported_titles
 from .perfil import profile
 from .registro import signup

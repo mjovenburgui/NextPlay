@@ -27,6 +27,11 @@
       "que_es": "La página de cada jugador (/u/<usuario>/): cabecera personalizada (foto, fondo, color, redes, cuentas, seguidores), escaparate (favoritos, jugando ahora, reseña destacada, estadísticas, logros, listas...) y las pestañas Biblioteca, Reseñas, Listas, Tier lists, Actividad, Diario (el diario de partidas: la última partida, el calendario de cada año con lo jugado y los días con logro, y las últimas sesiones), Estadísticas (las cifras de siempre en barras: plataformas, estados, géneros, notas, décadas y años, con enlaces al resumen de cada año) y, en el perfil de otro, En común (los juegos de los dos y lo compatibles que sois). También se ve dentro de Editar perfil, en su vista previa."
     },
     {
+      "nombre": "Importar desde un archivo",
+      "urls": ["import_file"],
+      "que_es": "Desde Editar perfil › Cuentas vinculadas: subir el CSV que exporta Playnite (con los juegos y las horas de Epic, GOG, EA, Ubisoft, Battle.net o Amazon) o el de otro tracker, decir qué columna es cada cosa (las conocidas se eligen solas) con una vista previa de las primeras filas, e importarlo. Steam, PlayStation y Xbox se importan desde su cuenta, no desde aquí."
+    },
+    {
       "nombre": "Qué jugar después",
       "urls": ["library:next", "library:not_interested"],
       "que_es": "Desde el menú de Inicio y la pestaña Pendiente de tu perfil: juegos de tu pendiente y del catálogo que te pueden gustar según cómo juegas (tus horas respecto a lo que dura cada juego, tus notas, lo que terminas y lo que dejas), cada uno con su porqué («Parecido a Hades, al que has jugado 80 h»), en tandas con «Ver otros» y con un botón «No me interesa»."

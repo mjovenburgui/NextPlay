@@ -661,3 +661,9 @@ Si un servidor de `main` da error de columnas que no existen, es que a esa base 
 1. Que lo revises en el servidor del puerto 8001.
 2. Después: subir la rama, abrir el PR y fusionarlo.
 3. Aplicar la migración `accounts.0022` a tu base de datos de verdad. Antes haré una copia de seguridad.
+
+## playnite-y-csv (a medias, sin commit)
+
+11/11/2026: cortado por el límite de uso. En el worktree, sin commit: accounts/csv_import.py (leer el CSV, adivinar las columnas, interpretar cada fila e importar por tienda), accounts/views/importar_archivo.py, las tiendas nuevas en ExternalTitle.Platform y HOURS_SOURCES, las horas verificadas solo de Steam, PlayStation y Xbox (Review.snapshot, Review.hours_since y la media de la ficha) y la pantalla nueva en pantallas.json. `manage.py check` pasa.
+
+Falta: la plantilla accounts/import_file.html, la URL y el enlace desde Otras plataformas, los símbolos de las tiendas nuevas en library/_platform_symbols.html, las migraciones (choices de ExternalTitle.platform y PlaySession.platform), los tests, la propuesta, los dos PDF y el commit. Después: Tareas en segundo plano y Nintendo Switch con capturas.
