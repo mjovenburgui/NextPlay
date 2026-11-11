@@ -491,7 +491,7 @@
   {
     "titulo": "La gente que sigues en la ficha y en los perfiles",
     "fecha": "2026-10-25",
-    "estado": "pendiente",
+    "estado": "en curso",
     "prioridad": "alta",
     "tipo": "Funcionalidad",
     "resumen": "Que seguir a alguien sirva en toda la web: en la ficha, qué han hecho con el juego las personas que sigues (estado, nota, horas verificadas y su reseña primero); en un perfil ajeno, los juegos que tenéis en común y lo compatibles que son vuestros gustos; y sugerencias de a quién seguir según esa compatibilidad.",
@@ -504,23 +504,19 @@
       "Aviso cuando alguien que sigues reseña un juego que tienes en «Lo quiero» o en Pendiente (uno por juego, sin repetir).",
       "Respetar los perfiles privados y, cuando existan, los bloqueos."
     ],
-    "notas": "Depende de «Seguir a otros jugadores y feed de actividad». Va antes que «¿A qué jugamos?» y «Encontrar a tus amigos de Steam y Xbox en NextPlay», que se apoyan en lo mismo.",
+    "notas": "Depende de «Seguir a otros jugadores y feed de actividad». Va antes que «¿A qué jugamos?» y «Encontrar a tus amigos de Steam y Xbox en NextPlay», que se apoyan en lo mismo. 11/11/2026: hecho en la rama gente-que-sigues, encima de diario-de-partidas y sin fusionar, con social/affinity.py. En la ficha, «Gente que sigues» debajo de Notas: el estado, la nota, las horas importadas y la reseña de cada uno, con la media de sus notas; y sus reseñas van delante de las demás, con la etiqueta «Siguiendo». En el perfil de otro, la pestaña «En común»: los juegos de los dos con las horas y la nota de cada uno, una frase que dice con qué se compara (las notas si hay 5 valoradas por los dos; si no, los juegos y los géneros), los géneros que os gustan a los dos y dónde más discrepáis. En Inicio, «A quién seguir» en la columna derecha, por juegos en común (suggested_people), salvo si el feed ya propone gente. Y el aviso Notification.Kind.FOLLOWED_REVIEW («Laura ha reseñado Hades, que tienes en «Lo quiero»»), con su grupo en Editar perfil › Avisos. En la copia, con tester_steam: demo1 sale en la ficha de The Witcher 3 y tenéis 3 juegos en común.",
     "revision": {
-      "fecha": "2026-11-01",
-      "hoy": "Sin empezar. Seguir ya funciona y suggested_people ya cuenta juegos en común con subconsultas. Dato clave: solo 2 de los 348 juegos de tester_steam y 7 de los 259 de tester tienen nota, así que una compatibilidad basada solo en notas saldría vacía casi siempre.",
+      "fecha": "2026-11-11",
+      "hoy": "Hecho en la rama gente-que-sigues, sin fusionar: el recuadro de la ficha, las reseñas de la gente que sigues delante, la pestaña En común, «A quién seguir» en Inicio y el aviso de reseñas de juegos que quieres. Faltan los bloqueos, que aún no existen, y ordenar «A quién seguir» por algo más que los juegos en común cuando haya más notas.",
       "plan": [
-        "social/affinity.py, con friends_on_game(viewer, game): LibraryEntry de la gente que sigue, con perfil visible, y la media de sus notas. Recuadro en games/_community.html, que ya se actualiza por HTMX al cambiar el estado o la nota.",
-        "En library.views.review_context, primero las reseñas de la gente que sigues: anotar con Exists y ordenar por eso antes que por la fecha, con la etiqueta «Sigues a Laura».",
-        "«En común» como ?vista=comun en un perfil ajeno: los juegos de los dos, en portadas, con las horas de cada uno.",
-        "Compatibilidad con varias señales: las notas si hay 5 o más en común; si no, horas en juegos comunes y géneros más jugados. Diciendo con qué se ha calculado («coincidís en 42 juegos y en rol y terror») en vez de un porcentaje que aparenta más de lo que sabe.",
-        "«A quién seguir» en la columna derecha de la portada, usando suggested_people también cuando ya sigues a alguien, ordenado por esa compatibilidad.",
-        "Aviso cuando alguien que sigues reseña algo de tu «Lo quiero» o tu Pendiente, uno por juego, y respetar los bloqueos cuando existan."
+        "Cuando existan los bloqueos («Bloquear, silenciar y quitar seguidores»), quitar a los bloqueados en affinity.following_ids, en suggested_people y en notify_followers; los avisos ya pasan todos por notices.notify.",
+        "«A quién seguir» por compatibilidad de verdad cuando haya notas: la distancia de affinity.in_common para quien tenga 5 o más juegos valorados en común con quien mira, precalculada en nightly si hay muchos usuarios."
       ],
       "profundizar": [
         "«Lo que ha jugado tu gente y tú no»: recomendación con nombres («tres personas que sigues lo terminaron, con un 4,5 de media»). Es la primera versión del filtrado colaborativo, sin algoritmo.",
-        "Discrepancias: «Le puso 5 y tú 2» como tarjeta en el perfil común; invita a comentar más que cualquier coincidencia.",
+        "«Te lo recomiendo»: en En común, los juegos que el otro valoró con 4,5 o más y tú no tienes, para añadirlos a Lo quiero de un toque.",
         "Junto al precio: en la lista de deseos y en «Dónde comprarlo», «Dos personas que sigues lo tienen y le dan un 4,5». Es justo el momento en el que esa opinión decide.",
-        "Comparar el avance: «Tú 12 h, Laura 62 h». Con el diario y los logros se puede saber si vais por el mismo sitio y plegar lo que os destriparía."
+        "Comparar el avance: «Tú 12 h, Laura 62 h» en Gente que sigues y, con el diario y los logros, si vais por el mismo sitio, para plegar lo que os destriparía."
       ]
     }
   },

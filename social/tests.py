@@ -15,12 +15,12 @@ from django.utils import timezone
 from PIL import Image
 
 from accounts import matching
-from accounts.models import ExternalTitle, ImportedTitle, Notification
-from games.models import Game
-from library.models import LibraryEntry, Report, Review
+from accounts.models import ExternalTitle, ImportedTitle, Notification, Profile
+from games.models import Game, Genre
+from library.models import LibraryEntry, Report, Review, WishlistItem
 from lists.models import GameList
 
-from . import activity
+from . import activity, affinity
 from .models import Activity, Follow, Post, PostComment, PostLike
 
 User = get_user_model()
@@ -765,3 +765,135 @@ class SeedTests(TestCase):
         tiers = GameList.objects.get(user=tester, title="Mis juegos, por niveles")
         self.assertTrue(tiers.is_open)
         self.assertEqual(sorted(tiers.versions.values_list("user__username", flat=True)), ["demo1", "demo2"])
+
+
+class AffinityTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.luis = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.eva = User.objects.create_user("eva", "eva@example.com", "x")
+        cls.zoe = User.objects.create_user("zoe", "zoe@example.com", "x")
+        cls.hades = Game.objects.create(name="Hades", slug="hades")
+        cls.games = [Game.objects.create(name=f"Juego {n}", slug=f"juego-{n}") for n in range(6)]
+        Follow.objects.create(follower=cls.ana, followed=cls.luis)
+        Follow.objects.create(follower=cls.ana, followed=cls.eva)
+
+    def review(self, user, game, rating=None, days_ago=0):
+        """Una reseña publicada de user sobre game hace days_ago días."""
+        return Review.objects.create(
+            user=user, game=game, text="Lo que me ha parecido.", rating=rating,
+            published_at=timezone.now() - timedelta(days=days_ago),
+        )
+
+    def test_people_you_follow_on_the_game_page(self):
+        LibraryEntry.objects.create(
+            user=self.luis, game=self.hades, status="completed", rating=9, steam_playtime_minutes=62 * 60,
+        )
+        LibraryEntry.objects.create(user=self.eva, game=self.hades, status="playing", rating=6)
+        self.review(self.eva, self.hades, rating=6)
+        # zoe no es de la gente que sigue ana: no cuenta.
+        LibraryEntry.objects.create(user=self.zoe, game=self.hades, status="completed", rating=2)
+        friends = affinity.friends_on_game(self.ana, self.hades)
+        # Primero quien tiene reseña; la media es de sus notas en estrellas: (4,5 + 3) / 2.
+        self.assertEqual([entry.user for entry in friends["people"]], [self.eva, self.luis])
+        self.assertEqual((friends["count"], friends["rated"], friends["average"]), (2, 2, 3.75))
+        self.assertIsNotNone(friends["people"][0].review)
+        self.client.force_login(self.ana)
+        response = self.client.get(self.hades.get_absolute_url())
+        self.assertContains(response, "Gente que sigues")
+        self.assertContains(response, "Leer su reseña")
+        self.assertContains(response, "62 h")
+        # De un perfil privado no sale nada; quien no sigue a nadie no tiene recuadro.
+        Profile.objects.filter(user=self.eva).update(is_public=False)
+        self.assertEqual([entry.user for entry in affinity.friends_on_game(self.ana, self.hades)["people"]], [self.luis])
+        self.assertIsNone(affinity.friends_on_game(self.luis, self.hades))
+        self.client.force_login(self.luis)
+        self.assertNotContains(self.client.get(self.hades.get_absolute_url()), "Gente que sigues")
+
+    def test_reviews_of_people_you_follow_go_first(self):
+        followed = self.review(self.luis, self.hades, days_ago=5)
+        other = self.review(self.zoe, self.hades)
+        self.client.force_login(self.ana)
+        response = self.client.get(self.hades.get_absolute_url())
+        self.assertEqual([review.pk for review in response.context["reviews"]], [followed.pk, other.pk])
+        self.assertContains(response, '<span class="own-tag follow-tag">Siguiendo</span>', html=True)
+        # Ordenadas por «me gusta», también delante.
+        response = self.client.get(self.hades.get_absolute_url() + "?resenas=gustadas")
+        self.assertEqual([review.pk for review in response.context["reviews"]], [followed.pk, other.pk])
+        self.client.logout()
+        response = self.client.get(self.hades.get_absolute_url())
+        self.assertEqual([review.pk for review in response.context["reviews"]], [other.pk, followed.pk])
+
+    def test_in_common_compares_ratings_when_there_are_enough(self):
+        for game, (mine, theirs) in zip(self.games, [(10, 9), (8, 8), (6, 7), (4, 5), (2, 2), (10, 3)]):
+            LibraryEntry.objects.create(user=self.ana, game=game, status="played", rating=mine)
+            LibraryEntry.objects.create(user=self.luis, game=game, status="played", rating=theirs, steam_playtime_minutes=600)
+        LibraryEntry.objects.create(user=self.luis, game=self.hades, status="playing")
+        common = affinity.in_common(self.ana, self.luis)
+        self.assertEqual((common["count"], common["rated"]), (6, 6))
+        # Diferencias en estrellas: 0,5 + 0 + 0,5 + 0,5 + 0 + 3,5 = 5, entre 6.
+        self.assertAlmostEqual(common["distance"], 5 / 6)
+        self.assertEqual(common["discrepancy"]["game"], self.games[5])
+        self.assertEqual(
+            common["summary"],
+            "Puntuáis parecido: de media os separan 0,8 estrellas en los 6 juegos que habéis valorado los dos.",
+        )
+        self.client.force_login(self.ana)
+        response = self.client.get(reverse("profile", args=["luis"]) + "?vista=comun")
+        self.assertContains(response, 'href="?vista=comun">En común <span>6</span></a>')
+        self.assertContains(response, "Donde más discrepáis")
+        self.assertContains(response, "Juego 5")
+        # En tu propio perfil no hay pestaña En común, y sin sesión tampoco.
+        self.assertNotContains(self.client.get(reverse("profile", args=["ana"])), "?vista=comun")
+        self.client.logout()
+        self.assertNotContains(self.client.get(reverse("profile", args=["luis"]) + "?vista=comun"), "En común")
+
+    def test_in_common_without_enough_ratings_talks_about_games_and_genres(self):
+        rpg = Genre.objects.create(name="Rol", slug="rol")
+        for game in self.games[:3]:
+            game.genres.add(rpg)
+            LibraryEntry.objects.create(user=self.ana, game=game, status="played")
+            LibraryEntry.objects.create(user=self.luis, game=game, status="played")
+        common = affinity.in_common(self.ana, self.luis)
+        self.assertIsNone(common["distance"])
+        self.assertEqual(
+            common["summary"],
+            "Tenéis 3 juegos en común y os van los mismos géneros. Para comparar vuestras notas hacen falta 5 juegos "
+            "valorados por los dos (lleváis 0).",
+        )
+        self.assertEqual([genre.name for genre in common["genres"]], ["Rol"])
+        self.assertEqual(affinity.in_common(self.ana, self.zoe)["summary"], "Aún no tenéis ningún juego en común.")
+
+    def test_a_review_from_someone_you_follow_of_a_game_you_want(self):
+        WishlistItem.objects.create(user=self.ana, game=self.hades)
+        Follow.objects.create(follower=self.zoe, followed=self.luis)
+        LibraryEntry.objects.create(user=self.zoe, game=self.hades, status="backlog")
+        # eva no sigue a luis: aunque lo quiera, no se le avisa.
+        WishlistItem.objects.create(user=self.eva, game=self.hades)
+        review = self.review(self.luis, self.hades, rating=9)
+        affinity.notify_followers(review)
+        affinity.notify_followers(review)
+        notes = Notification.objects.filter(kind=Notification.Kind.FOLLOWED_REVIEW).select_related("user")
+        self.assertEqual(sorted((note.user.username, note.text) for note in notes), [
+            ("ana", "luis ha reseñado Hades, que tienes en «Lo quiero»."),
+            ("zoe", "luis ha reseñado Hades, que tienes en tu pendiente."),
+        ])
+        # De un perfil privado no avisa a nadie: nadie más puede leer la reseña.
+        Notification.objects.all().delete()
+        Profile.objects.filter(user=self.luis).update(is_public=False)
+        affinity.notify_followers(Review.objects.select_related("user__profile").get(pk=review.pk))
+        self.assertFalse(Notification.objects.exists())
+
+    def test_who_to_follow_on_home(self):
+        LibraryEntry.objects.create(user=self.ana, game=self.hades, status="played")
+        LibraryEntry.objects.create(user=self.zoe, game=self.hades, status="played")
+        self.client.force_login(self.ana)
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, "A quién seguir")
+        self.assertEqual([person.username for person in response.context["who_to_follow"]], ["zoe"])
+        # Quien no sigue a nadie ya tiene las sugerencias en el feed: la columna no las repite.
+        self.client.force_login(self.zoe)
+        response = self.client.get(reverse("home"))
+        self.assertEqual(response.context["who_to_follow"], [])
+        self.assertNotContains(response, "A quién seguir")

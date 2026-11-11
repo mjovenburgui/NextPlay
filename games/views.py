@@ -20,7 +20,8 @@ from accounts.views import favorite_context
 from library.models import LibraryEntry, Review, WishlistItem
 from library.views import review_context
 from lists.views import game_page_context
-from social.views import composer_context, feed_context
+from social import affinity
+from social.views import composer_context, feed_context, suggested_people
 
 from . import details, history, igdb, media, prices
 from .filters import CatalogFilters
@@ -50,6 +51,10 @@ def trending_games(limit=5):
     return trending
 
 
+# Gente que propone «A quién seguir» en la columna derecha de Inicio.
+WHO_TO_FOLLOW = 4
+
+
 def home(request):
     """Portada: tu resumen (con tus seguidores y seguidos) y tu menú a la izquierda; en el centro la caja para
     publicar (social.views.composer_context, con los juegos que estás jugando para elegir de cuál hablas) y el
@@ -58,7 +63,8 @@ def home(request):
     El feed tiene dos pestañas (?ver=, ver social.views.feed_context): «siguiendo», lo tuyo y lo de la gente
     que sigues, con sugerencias de gente a la que seguir si no sigues a nadie, y «descubrir», lo de toda la
     comunidad; ?antes= es el cursor de «Cargar más» para quien no tiene JavaScript. Sin sesión, en el centro
-    van los juegos populares y lo último de la comunidad.
+    van los juegos populares y lo último de la comunidad. Con sesión, si el feed no trae ya sugerencias, la
+    columna derecha lleva «A quién seguir»: gente con tus mismos juegos (social.views.suggested_people).
 
     Pantallas: Inicio.
     """
@@ -76,6 +82,12 @@ def home(request):
         composer = composer_context(request.user)
     else:
         popular = list(Game.objects.order_by("-popularity", "name")[:12])
+    feed = feed_context(request.user, request.GET.get("ver", ""), request.GET.get("antes", ""))
+    # Si el feed ya propone gente (porque no sigue a nadie), la columna no lo repite.
+    who_to_follow = (
+        suggested_people(request.user, limit=WHO_TO_FOLLOW)
+        if request.user.is_authenticated and "suggestions" not in feed else []
+    )
     return render(
         request,
         "games/home.html",
@@ -83,7 +95,8 @@ def home(request):
             "summary": summary,
             **composer,
             "popular": popular,
-            **feed_context(request.user, request.GET.get("ver", ""), request.GET.get("antes", "")),
+            **feed,
+            "who_to_follow": who_to_follow,
             "trending": trending_games(),
             "genres": Genre.objects.annotate(n=Count("games")).filter(n__gt=0).order_by("-n")[:10],
         },
@@ -233,6 +246,8 @@ def detail(request, slug):
             **({} if load_prices else _prices_context(request, game)),
             "wish": wish,
             "community": game.community_rating(),
+            # Lo que ha hecho con el juego la gente que sigue quien mira (None si nadie o sin sesión).
+            "friends": affinity.friends_on_game(request.user, game),
             **review_context(request, game, entry),
             **(favorite_context(request.user, game) if request.user.is_authenticated else {}),
             **game_page_context(request, game),

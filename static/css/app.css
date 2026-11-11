@@ -736,6 +736,31 @@ button.chip-link { background: none; font-family: inherit; cursor: pointer; }
 .diary-list .muted { grid-column: 1; }
 .diary-time { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-variant-numeric: tabular-nums; }
 
+/* Gente que sigues en la ficha (games/_friends.html): cada persona con su estado, su nota, sus horas y su reseña. */
+.friends-average { margin: .2rem 0 .4rem; color: var(--text-2); }
+.friends-average strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.friends-list { margin: 0; padding: 0; list-style: none; }
+.friend { display: flex; align-items: flex-start; gap: .6rem; padding: .55rem 0; border-top: 1px solid var(--border); }
+.friend:first-child { border-top: 0; }
+.friend-info { min-width: 0; }
+.friend-name { font-weight: 700; color: var(--text); }
+.friend-info p { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin: .15rem 0; }
+.friend .pill { margin-left: 0; }
+/* En las reseñas de la ficha, la etiqueta de las de la gente que sigues. */
+.follow-tag { border: 1px solid var(--violet); background: transparent; color: var(--violet-text); }
+/* «A quién seguir» en la columna derecha de Inicio. */
+.people-tight .person { padding: .55rem 0; }
+
+/* Pestaña En común del perfil (social/_in_common.html): la frase de compatibilidad y los juegos de los dos. */
+.common-summary { margin-bottom: 1rem; }
+.common-lead { margin: 0 0 .5rem; color: var(--text); font-size: 1.05rem; }
+.common-discrepancy { margin: .6rem 0 0; color: var(--text-2); }
+.common-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem; }
+.common-game { display: flex; flex-direction: column; gap: .15rem; color: var(--text); }
+.common-game:hover { text-decoration: none; }
+.common-game .cover { margin-bottom: .3rem; }
+.common-row { color: var(--text-2); }
+
 /* Juegos importados sin emparejar */
 .panel-wide { max-width: 760px; }
 .btn-small { padding: .3rem .7rem; font-size: .85rem; }

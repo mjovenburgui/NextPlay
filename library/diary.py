@@ -276,8 +276,8 @@ def synced_at(user):
 
 def page(owner, year=None, today=None):
     """Lo que enseña la pestaña Diario del perfil de owner: el año que se ve (year si tiene algo o es el actual; si no,
-    el más reciente), los años que se pueden elegir, su calendario, la última partida, las últimas sesiones y hasta
-    cuándo llegan sus datos (synced_at).
+    el más reciente), si es el año en curso (current: en el móvil, el calendario empieza por el final), los años que se
+    pueden elegir, su calendario, la última partida, las últimas sesiones y hasta cuándo llegan sus datos (synced_at).
 
     Pantallas: Perfil (pestaña Diario).
     """
@@ -287,6 +287,7 @@ def page(owner, year=None, today=None):
         year = available[0]
     return {
         "year": year,
+        "current": year == today.year,
         "years": available,
         "calendar": calendar(owner, year, today),
         "last": last_session(owner),

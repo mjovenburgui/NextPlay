@@ -11,7 +11,7 @@ from django.views.decorators.http import require_POST
 from accounts import images
 from games import media
 from games.models import Game
-from social import activity
+from social import activity, affinity
 
 from .. import points
 from ..autofill import play_details
@@ -60,7 +60,7 @@ def _review_editor(request, review, entry):
     publica se apunta en la actividad del autor (social.activity); al editarla, no.
 
     Pantallas: Escribir reseña (publicar o guardar el borrador), Ficha del juego (reseñas), Perfil (pestaña Reseñas y
-    reseña destacada), Página de la reseña, Inicio (feed).
+    reseña destacada), Página de la reseña, Inicio (feed), Avisos (a quien sigue al autor y quiere el juego).
     """
     game = review.game
     # En una reseña nueva, la plataforma y las fechas se rellenan solas con lo que dejaron las importaciones.
@@ -86,6 +86,8 @@ def _review_editor(request, review, entry):
             entry.save(update_fields=["rating", "updated_at"])
         if publish and not was_published:
             activity.review_published(review)
+            # A quien sigue al autor y quiere el juego o lo tiene pendiente: su opinión llega justo cuando decide.
+            affinity.notify_followers(review)
         if not publish:
             messages.success(request, "Borrador guardado. Solo lo ves tú.")
             return redirect("library:review_edit", review.pk)

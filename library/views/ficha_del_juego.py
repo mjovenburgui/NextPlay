@@ -10,9 +10,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from django.db.models import Exists, OuterRef
+
 from challenges import progress as challenge_progress
 from games.models import Game
 from social import activity
+from social.models import Follow
 
 from .. import points
 from ..models import LibraryEntry, Review, ReviewLike
@@ -48,8 +51,9 @@ def review_context(request, game, entry):
     (las de quien lo ha terminado o las escritas con más de LONG_PLAY_HOURS horas); las suyas del juego,
     borradores incluidos, con las horas que lleva de más desde la última (extra_hours, ver
     Review.hours_since) para proponerle actualizarla; lo mejor y lo peor que más se repite (consensus, ver
-    library.points); y en cada reseña si le ha dado «me gusta» (liked) y si va más adelante que él en el
-    juego (ahead, ver AHEAD_HOURS) para plegarla.
+    library.points); y en cada reseña si le ha dado «me gusta» (liked), si va más adelante que él en el
+    juego (ahead, ver AHEAD_HOURS) para plegarla y si es de alguien a quien sigue (followed): esas van delante, en el
+    mismo orden.
 
     Pantallas: Ficha del juego (reseñas).
     """
@@ -62,8 +66,12 @@ def review_context(request, game, entry):
     chosen = request.GET.get("filtro", "")
     if chosen not in REVIEW_FILTERS:
         chosen = ""
-    if sort == "gustadas":
-        reviews = reviews.order_by("-like_count", "-published_at", "-id")
+    order = ("-like_count", "-published_at", "-id") if sort == "gustadas" else ("-published_at", "-id")
+    if viewer.is_authenticated:
+        # Primero las de la gente que sigue: su opinión es la que más le sirve.
+        reviews = reviews.annotate(followed=Exists(Follow.objects.filter(follower=viewer, followed=OuterRef("user"))))
+        order = ("-followed", *order)
+    reviews = reviews.order_by(*order)
     if chosen == "terminado":
         reviews = reviews.filter(status=LibraryEntry.Status.COMPLETED)
     elif chosen == "horas":

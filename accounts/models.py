@@ -1008,6 +1008,7 @@ class Notification(models.Model):
         CHALLENGE_JOINED = "challenge_join", "Alguien se une a tu reto"
         CHALLENGE_ENDING = "challenge_ending", "A un reto le quedan pocos días"
         CHALLENGE_RESULT = "challenge_result", "Un reto ha terminado"
+        FOLLOWED_REVIEW = "followed_review", "Reseña de alguien a quien sigues"
         # Solo para los administradores.
         REPORT = "report", "Denuncia"
 

@@ -1,7 +1,8 @@
 """Un solo sitio para crear los avisos de la campana (accounts.models.Notification) y decidir si llegan.
 
 Todo lo que avisa a alguien en NextPlay pasa por notify(): las bajadas de precio, los nuevos seguidores, los «me
-gusta», los comentarios, las invitaciones a editar listas, las reseñas que se han quedado atrás y las denuncias.
+gusta», los comentarios, las invitaciones a editar listas, las reseñas que se han quedado atrás, las de la gente que
+sigues de juegos que quieres y las denuncias.
 notify() decide lo mismo para todos: nadie recibe avisos de lo que hace él mismo, no se repiten (cada tipo tiene su
 regla en REPEAT) y solo llega lo que cada uno ha dejado encendido en la sección «Avisos» de Editar perfil (GROUPS y
 wants()). Un tipo de aviso nuevo necesita su regla y su grupo: los tests lo comprueban.
@@ -62,6 +63,8 @@ REPEAT = {
     Kind.CHALLENGE_RESULT: Repeat(("url",)),
     # A quien lo creó, una vez por cada persona que se une, aunque lo deje y vuelva.
     Kind.CHALLENGE_JOINED: ONCE_PER_PERSON,
+    # Una vez por persona y reseña, aunque la vuelva a dejar en borrador y la publique otra vez.
+    Kind.FOLLOWED_REVIEW: ONCE_PER_PERSON,
     # Una por denuncia mientras el administrador no haya leído la anterior.
     Kind.REPORT: Repeat(("url",), unread=True),
 }
@@ -108,6 +111,11 @@ GROUPS = {
         "Reseñas que se han quedado atrás",
         "Cuando llevas muchas más horas en un juego que al escribir su reseña, por si quieres actualizarla.",
         (Kind.REVIEW_UPDATE,),
+    ),
+    "seguidos": Group(
+        "Reseñas de la gente que sigues",
+        "Cuando alguien a quien sigues reseña un juego que tienes en «Lo quiero» o en tu pendiente.",
+        (Kind.FOLLOWED_REVIEW,),
     ),
     "retos": Group(
         "Retos",

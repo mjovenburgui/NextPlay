@@ -1,0 +1,35 @@
+{# Pestaña En común del perfil de otro jugador (social.affinity.in_common): lo compatibles que sois, dicho con lo que se ha mirado, y los juegos que tenéis los dos con las horas y la nota de cada uno. #}
+<section class="card-box common-summary">
+  <p class="common-lead">{{ common.summary }}</p>
+  {% if common.genres %}
+    <div class="chips chips-tight">
+      {% for genre in common.genres %}<a class="chip" href="{% url 'games:catalog' %}?genero={{ genre.slug }}">{{ genre.name }}</a>{% endfor %}
+    </div>
+  {% endif %}
+  {% if common.discrepancy %}
+    {% with pair=common.discrepancy %}
+      <p class="common-discrepancy small">
+        Donde más discrepáis: <a href="{{ pair.game.get_absolute_url }}">{{ pair.game.name }}</a>.
+        Tú, {% include "library/_stars.html" with rating=pair.mine.rating %} · {{ profile.name }}, {% include "library/_stars.html" with rating=pair.theirs.rating %}
+      </p>
+    {% endwith %}
+  {% endif %}
+</section>
+
+{% if common.games %}
+  <div class="common-grid">
+    {% for pair in common.games %}
+      <a class="common-game" href="{{ pair.game.get_absolute_url }}">
+        <span class="cover">
+          {% if pair.game.cover_url %}<img src="{{ pair.game.cover_url }}" alt="" loading="lazy">{% else %}<span class="cover-fallback">{{ pair.game.name }}</span>{% endif %}
+        </span>
+        <span class="card-title">{{ pair.game.name }}</span>
+        {# Las horas o, si no hay, el estado de cada uno; y su nota, si la tiene. #}
+        <span class="common-row small"><span class="muted">Tú</span> {% if pair.mine.playtime_hours %}{{ pair.mine.playtime_hours|floatformat:"-1" }} h{% else %}{{ pair.mine.get_status_display }}{% endif %}{% if pair.mine.rating %} · {{ pair.mine.stars|floatformat:"-1" }} ★{% endif %}</span>
+        <span class="common-row small"><span class="muted">{{ profile.name }}</span> {% if pair.theirs.playtime_hours %}{{ pair.theirs.playtime_hours|floatformat:"-1" }} h{% else %}{{ pair.theirs.get_status_display }}{% endif %}{% if pair.theirs.rating %} · {{ pair.theirs.stars|floatformat:"-1" }} ★{% endif %}</span>
+      </a>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="empty">Cuando tengáis algún juego en los dos, saldrá aquí con las horas y la nota de cada uno.</p>
+{% endif %}

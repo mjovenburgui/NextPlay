@@ -16,6 +16,7 @@ from library import backlog, diary
 from library.models import HOURS_SOURCES, LibraryEntry, Review
 from library.views import mark_liked
 from lists.views import SHOWCASE_LISTS, SHOWCASE_TIER_LISTS, mark_boards, profile_lists
+from social import affinity
 from social.views import activity_context, follow_context
 
 from .. import achievements
@@ -33,8 +34,9 @@ def profile(request, username):
     Completado...) con su contador y se filtra con ?estado= y por idioma con ?idioma= (voces o textos en
     castellano); se ordena con ?orden= (recientes, nota, horas o nombre). Con ?vista=resenas muestra sus
     reseñas en vez de la biblioteca, con ?vista=listas sus listas, con ?vista=tier-lists sus tier lists, con
-    ?vista=actividad lo que ha hecho (desde ?antes=, el cursor de «Cargar más») y con ?vista=diario su diario de
-    partidas del año ?anio= (si no lo ha ocultado). Un perfil privado da 404 a cualquiera que no sea su dueño.
+    ?vista=actividad lo que ha hecho (desde ?antes=, el cursor de «Cargar más»), con ?vista=diario su diario de
+    partidas del año ?anio= (si no lo ha ocultado) y con ?vista=comun, a quien mira con sesión, lo que tiene en común
+    con él. Un perfil privado da 404 a cualquiera que no sea su dueño.
 
     Pantallas: Perfil.
     """
@@ -71,7 +73,9 @@ def _profile_context(request, owner, favorites=None, preview=False):
     (challenges.progress.showcase). A su dueño le dice cuántos juegos le quedan por repasar (library.backlog.pending,
     para el aviso que lleva a Repasar la biblioteca) y, en la pestaña Pendiente, lo que cuesta hoy (backlog.value).
     La pestaña Diario solo sale si quien mira puede verla (library.diary.can_see; en la vista previa, como la verían
-    los demás) y lleva el calendario del año de ?anio=, la última partida y las últimas sesiones (diary.page).
+    los demás) y lleva el calendario del año de ?anio=, la última partida y las últimas sesiones (diary.page). La
+    pestaña En común solo sale a quien mira con sesión un perfil que no es el suyo, con cuántos juegos tienen los dos
+    (social.affinity.common_count) y, en ella, lo compatibles que son y esos juegos (affinity.in_common).
 
     Pantallas: Perfil (cabecera, escaparate y pestañas), Editar perfil (vista previa).
     """
@@ -115,7 +119,10 @@ def _profile_context(request, owner, favorites=None, preview=False):
     view = request.GET.get("vista", "")
     # En la vista previa, el diario como lo verían los demás: sin él si lo ha ocultado.
     show_diary = diary.can_see(owner, AnonymousUser() if preview else request.user)
-    if view not in ("resenas", "listas", "tier-lists", "actividad", "diario") or (view == "diario" and not show_diary):
+    # «En común» solo tiene sentido para alguien con sesión que mira el perfil de otro.
+    show_common = request.user.is_authenticated and request.user != owner and not preview
+    tabs_allowed = ("resenas", "listas", "tier-lists", "actividad", "diario", "comun")
+    if view not in tabs_allowed or (view == "diario" and not show_diary) or (view == "comun" and not show_common):
         view = ""
     # La actividad solo se pide en su pestaña.
     activity_tab = activity_context(owner, request.user, request.GET.get("antes", "")) if view == "actividad" else {}
@@ -153,6 +160,9 @@ def _profile_context(request, owner, favorites=None, preview=False):
         **activity_tab,
         "show_diary": show_diary,
         "diary": diary.page(owner, _year(request.GET.get("anio", ""))) if view == "diario" else None,
+        "show_common": show_common,
+        "common_count": affinity.common_count(request.user, owner) if show_common else 0,
+        "common": affinity.in_common(request.user, owner) if view == "comun" else None,
         "show_showcase": show_showcase,
         "achievement_showcase": (
             achievements.showcase(owner) if show_showcase and "logros" in owner.profile.visible_sections else None

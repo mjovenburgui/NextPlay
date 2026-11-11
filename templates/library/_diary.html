@@ -33,7 +33,7 @@
       {% if cal.sessions %}<span><strong>{{ cal.sessions }}</strong> {% if cal.sessions == 1 %}sesión{% else %}sesiones{% endif %}</span>{% endif %}
     </p>
     {# Una casilla por día, por semanas de lunes a domingo; el tono dice cuánto se jugó y el borde dorado, que se consiguió algún logro. Al pasar por encima, el detalle. #}
-    <div class="diary-calendar">
+    <div class="diary-calendar"{% if diary.current %} data-diary-end{% endif %}>
       <svg viewBox="0 0 {{ cal.width }} {{ cal.height }}" role="img" aria-label="Calendario de {{ diary.year|stringformat:'d' }}: {{ cal.days }} días con partida o logro">
         {% for month in cal.months %}<text class="cal-label" x="{{ month.x }}" y="9">{{ month.label }}</text>{% endfor %}
         {% for weekday in cal.weekdays %}<text class="cal-label" x="0" y="{{ weekday.y }}">{{ weekday.label }}</text>{% endfor %}
@@ -74,3 +74,11 @@
     {% endif %}
   </section>
 {% endwith %}
+<script>
+  // En el móvil el calendario se desplaza de lado: el del año en curso empieza por el final, que es lo último jugado.
+  // Pantallas: Perfil (pestaña Diario).
+  (function () {
+    var box = document.querySelector("[data-diary-end]");
+    if (box) box.scrollLeft = box.scrollWidth;
+  })();
+</script>

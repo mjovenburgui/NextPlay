@@ -17,6 +17,7 @@ Todas las ramas de abajo están fusionadas con `main`, cada una con su PR, menos
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
+| `gente-que-sigues` | La gente que sigues en la ficha y en los perfiles: su recuadro y sus reseñas delante, «En común», «A quién seguir» y un aviso nuevo | Commit local, sin subir, encima de `diario-de-partidas`. Trae la migración `accounts.0027`. |
 | `diario-de-partidas` | Diario de partidas: pestaña Diario del perfil con el calendario de cada año, línea en la ficha y juegos en «Jugando» sin jugar en el repaso | Commit local, sin subir, encima de `sesiones-segunda-cuenta`. Trae las migraciones `library.0015` y `accounts.0026`. |
 | `sesiones-segunda-cuenta` | Las cuentas de Steam recién vinculadas ya no cuentan como sesiones de juego | Commit local, sin subir: espera tu revisión. Sin migraciones; las sesiones de `tester_steam` ya están corregidas en tu base de datos. |
 | `ficha-ligera-y-dlc` | Ficha del juego más ligera: tres columnas, lo secundario plegado y cada DLC con su ficha y su precio | Fusionada con `main`: [PR #39](https://github.com/mjovenburgui/NextPlay/pull/39). Sin migraciones; los DLC llegan a tu base de datos con `import_addons`. |
@@ -33,6 +34,46 @@ Todas las ramas de abajo están fusionadas con `main`, cada una con su PR, menos
 - `library.0014`.
 
 Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan estas migraciones: `manage.py migrate`.
+
+---
+
+## 11/11/2026 · La gente que sigues, en la ficha y en los perfiles
+
+**Rama:** `gente-que-sigues`, encima de `diario-de-partidas`. Commit local, sin subir.
+
+**Por qué:** era la dos de tu «ve haciendo la uno y la dos». Seguir a alguien solo servía para el feed; ahora su opinión sale justo donde decides qué jugar.
+
+**Qué cambia para ti:**
+- **En la ficha de un juego**, debajo de «Notas», un recuadro «Gente que sigues»: quién lo tiene, en qué estado, con qué nota y cuántas horas importadas, un enlace a su reseña y la media de sus notas. Con `tester_steam` en la copia, demo1 sale en la de The Witcher 3.
+- **Las reseñas de la gente que sigues van delante** de las demás, con la etiqueta «Siguiendo», tanto en «Recientes» como en «Más gustadas».
+- **En el perfil de otro**, una pestaña nueva, «En común»:
+  - los juegos que tenéis los dos, con las horas y la nota de cada uno;
+  - una frase que dice con qué se compara: con 5 o más juegos valorados por los dos, cuánto se parecen vuestras notas («de media os separan 0,8 estrellas»); si no, los juegos en común y si os van los mismos géneros, que salen como etiquetas;
+  - el juego en el que más discrepáis, si vuestras notas se separan dos estrellas o más.
+  - No sale ni en tu propio perfil ni sin sesión.
+- **En Inicio**, «A quién seguir» en la columna derecha: gente con tus mismos juegos a la que aún no sigues. Si no sigues a nadie, el feed ya te la propone y la columna no la repite.
+- **Un aviso nuevo**: cuando alguien a quien sigues reseña un juego que tienes en «Lo quiero» o en tu pendiente («Laura ha reseñado Hades, que tienes en «Lo quiero»»). Se apaga en Editar perfil › Avisos, en «Reseñas de la gente que sigues». Llega una vez por persona y reseña. Si el perfil del autor es privado, no llega a nadie.
+- De un perfil privado no sale nada en ninguno de estos sitios.
+- **Y en el diario:** en el móvil, el calendario del año en curso empieza por el final, que es lo último jugado.
+
+**Qué he tocado:**
+- `social/affinity.py`, nuevo: la gente que sigues en un juego, lo que tenéis en común, la frase de compatibilidad y el aviso.
+- `games/views.py`, `templates/games/detail.html` y el nuevo `templates/games/_friends.html`: el recuadro de la ficha.
+- `library/views/ficha_del_juego.py` y `templates/library/_review.html`: las reseñas de la gente que sigues delante.
+- `accounts/views/perfil.py`, `templates/accounts/profile.html` y el nuevo `templates/social/_in_common.html`: la pestaña En común.
+- `templates/games/home.html`: «A quién seguir».
+- `accounts/models.py` y `accounts/notices.py`: el tipo de aviso, su regla y su grupo (migración `accounts.0027`). `library/views/escribir_resena.py` lo lanza al publicar.
+- `library/diary.py` y `templates/library/_diary.html`: el calendario del año en curso empieza por el final.
+- `static/css/app.css`, `docs/pantallas.json`, la propuesta y los dos PDF.
+
+**Cómo lo he comprobado:**
+- 6 tests nuevos: el recuadro y quién sale en él, el orden de las reseñas, En común con notas y sin ellas, el aviso y «A quién seguir».
+- La batería completa, sin claves y con claves falsas y un proxy muerto: 584 tests en cada pasada, todos bien.
+- Capturas en la copia con `tester_steam`: la ficha de The Witcher 3, En común con demo1 e Inicio.
+
+**Qué falta:**
+- Que lo revises. Al fusionar, tu base de datos necesita `migrate` (`accounts.0027`).
+- Cuando existan los bloqueos, respetarlos aquí también, y ordenar «A quién seguir» por las notas cuando haya más.
 
 ---
 

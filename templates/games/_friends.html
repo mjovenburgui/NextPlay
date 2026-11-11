@@ -1,0 +1,31 @@
+{# Lo que ha hecho con este juego la gente que sigues (social.affinity.friends_on_game): su estado, su nota, sus horas importadas y, si la tiene, su reseña. Va debajo de «Notas». #}
+{% if friends %}
+  <section class="widget friends" aria-labelledby="gente-titulo">
+    <h2 class="widget-label" id="gente-titulo">Gente que sigues</h2>
+    {% if friends.average %}
+      <p class="friends-average small">
+        Les gusta: <strong>{{ friends.average|floatformat:1 }}</strong> de media
+        <span class="muted">· {{ friends.rated }} nota{{ friends.rated|pluralize }}</span>
+      </p>
+    {% endif %}
+    <ul class="friends-list">
+      {% for entry in friends.people %}
+        <li class="friend">
+          {% include "accounts/_avatar.html" with profile=entry.user.profile size="sm" %}
+          <div class="friend-info">
+            <a class="friend-name" href="{{ entry.user.profile.get_absolute_url }}">{{ entry.user.profile.name }}</a>
+            <p class="muted small">
+              <span class="pill pill-status st-{{ entry.status }}">{{ entry.get_status_display }}</span>
+              {% if entry.rating %}{% include "library/_stars.html" with rating=entry.rating %}{% endif %}
+              {% if entry.playtime_hours %}<span title="Horas importadas de Steam, PlayStation o Xbox">{{ entry.playtime_hours|floatformat:"-1" }} h</span>{% endif %}
+            </p>
+            {% if entry.review %}<a class="small" href="{{ entry.review.get_absolute_url }}">Leer su reseña</a>{% endif %}
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+    {% if friends.count > friends.people|length %}
+      <p class="muted small">Y {{ friends.count }} en total entre la gente que sigues.</p>
+    {% endif %}
+  </section>
+{% endif %}

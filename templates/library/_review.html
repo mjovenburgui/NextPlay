@@ -15,6 +15,8 @@
       <div class="review-meta">
         <a class="review-author" href="{{ review.user.profile.get_absolute_url }}">{{ review.user.profile.name }}</a>
         {% if review.user == user and not preview %}<span class="own-tag">Tu reseña</span>{% endif %}
+        {# En la ficha, las de la gente que sigues van delante y lo dicen (library.views.review_context). #}
+        {% if review.followed %}<span class="own-tag follow-tag">Siguiendo</span>{% endif %}
     {% endif %}
         <p class="review-line">
           {% if review.rating %}{% include "library/_stars.html" with rating=review.rating %}{% endif %}

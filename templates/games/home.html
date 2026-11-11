@@ -105,6 +105,14 @@
 
     <aside class="col-right">
       {% include "games/_trending.html" %}
+      {# Gente con tus mismos juegos a la que aún no sigues (social.views.suggested_people); si el feed ya la propone, no sale. #}
+      {% if who_to_follow %}
+        <section class="card-box">
+          <header class="box-head"><h2>{% include "_icon.html" with name="user" %} A quién seguir</h2></header>
+          <ul class="people people-tight">{% for person in who_to_follow %}{% include "social/_person.html" %}{% endfor %}</ul>
+          <p class="small"><a href="?ver=descubrir">Descubre a más gente en el feed {% include "_icon.html" with name="arrow" %}</a></p>
+        </section>
+      {% endif %}
       {% if genres %}
         <section class="card-box">
           <header class="box-head"><h2>{% include "_icon.html" with name="tag" %} Géneros</h2></header>

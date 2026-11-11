@@ -4,7 +4,7 @@
     {
       "nombre": "Inicio",
       "urls": ["home", "social:feed"],
-      "que_es": "La portada (/). Con sesión: tu resumen y tu menú a la izquierda, la caja para publicar y el feed (pestañas «Siguiendo» y «Descubrir», con «Cargar más») en el centro y los juegos en tendencia y los géneros a la derecha. Sin sesión: la bienvenida, los juegos populares y lo último de la comunidad."
+      "que_es": "La portada (/). Con sesión: tu resumen y tu menú a la izquierda, la caja para publicar y el feed (pestañas «Siguiendo» y «Descubrir», con «Cargar más») en el centro y los juegos en tendencia, «A quién seguir» y los géneros a la derecha. Sin sesión: la bienvenida, los juegos populares y lo último de la comunidad."
     },
     {
       "nombre": "Catálogo",
@@ -14,7 +14,7 @@
     {
       "nombre": "Ficha del juego",
       "urls": ["games:detail", "games:prices", "games:price_history", "games:media", "games:details", "games:addons", "game_achievements"],
-      "que_es": "La página de cada juego: cabecera con su arte, datos (y de qué juego es remake, DLC…) y notas (crítica, jugadores de IGDB y comunidad), cuánto dura, tu biblioteca (estado, nota, reseña, lista de deseos), favoritos y «Añadir a una lista», tus horas y tus logros, la ficha técnica (estudio, editora, modos, temas, saga, PEGI…), el carrusel de imágenes y vídeos, «Dónde comprarlo» con su historial de precios, «Expansiones y DLC» (cada uno con su precio y su propia ficha), «Ediciones y versiones» (ediciones, remakes, ports y recopilatorios), juegos parecidos, las reseñas y las listas en las que sale. La ficha de una edición lleva a la de su juego."
+      "que_es": "La página de cada juego: cabecera con su arte, datos (y de qué juego es remake, DLC…) y notas (crítica, jugadores de IGDB y comunidad), lo que ha hecho con el juego la gente que sigues, cuánto dura, tu biblioteca (estado, nota, reseña, lista de deseos, tu primera partida y tus sesiones), favoritos y «Añadir a una lista», tus horas y tus logros, la ficha técnica (estudio, editora, modos, temas, saga, PEGI…), el carrusel de imágenes y vídeos, «Dónde comprarlo» con su historial de precios, «Expansiones y DLC» (cada uno con su precio y su propia ficha), «Ediciones y versiones» (ediciones, remakes, ports y recopilatorios), juegos parecidos, las reseñas (las de la gente que sigues, primero) y las listas en las que sale. La ficha de una edición lleva a la de su juego."
     },
     {
       "nombre": "Listas del juego",
@@ -24,7 +24,7 @@
     {
       "nombre": "Perfil",
       "urls": ["profile", "social:activity"],
-      "que_es": "La página de cada jugador (/u/<usuario>/): cabecera personalizada (foto, fondo, color, redes, cuentas, seguidores), escaparate (favoritos, jugando ahora, reseña destacada, estadísticas, logros, listas...) y las pestañas Biblioteca, Reseñas, Listas, Tier lists, Actividad y Diario (el diario de partidas: la última partida, el calendario de cada año con lo jugado y los días con logro, y las últimas sesiones). También se ve dentro de Editar perfil, en su vista previa."
+      "que_es": "La página de cada jugador (/u/<usuario>/): cabecera personalizada (foto, fondo, color, redes, cuentas, seguidores), escaparate (favoritos, jugando ahora, reseña destacada, estadísticas, logros, listas...) y las pestañas Biblioteca, Reseñas, Listas, Tier lists, Actividad, Diario (el diario de partidas: la última partida, el calendario de cada año con lo jugado y los días con logro, y las últimas sesiones) y, en el perfil de otro, En común (los juegos de los dos y lo compatibles que sois). También se ve dentro de Editar perfil, en su vista previa."
     },
     {
       "nombre": "Seguidores y seguidos",
