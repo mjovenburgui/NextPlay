@@ -793,6 +793,18 @@ button.chip-link { background: none; font-family: inherit; cursor: pointer; }
   .year-share { position: static; max-width: 360px; }
 }
 
+/* Qué jugar después (library/next.html y _next_card.html): tarjetas con la portada, el porqué y «No me interesa». */
+.next-heading { margin: 1.4rem 0 .7rem; font-size: 1.15rem; }
+.next-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); gap: .9rem; }
+.next-card { display: grid; grid-template-columns: 72px 1fr; gap: .8rem; padding: .75rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.next-cover { aspect-ratio: 3 / 4; overflow: hidden; border-radius: 8px; background: var(--surface-2); }
+.next-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.next-info { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
+.next-name { font-weight: 700; color: var(--text); }
+.next-why { margin: .15rem 0 .3rem; color: var(--text-2); }
+.next-info form { margin-top: auto; }
+.next-more { margin: .8rem 0 0; }
+
 /* Logros en el feed (social/_activity.html): los rarísimos, con su trofeo dorado. */
 .activity-achievements { display: grid; gap: .2rem; margin: .35rem 0 0; padding: 0; list-style: none; font-size: .9rem; }
 .activity-achievements .icon { width: 1em; height: 1em; color: var(--gold); vertical-align: -.12em; }

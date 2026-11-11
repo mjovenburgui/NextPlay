@@ -1541,7 +1541,7 @@
   {
     "titulo": "Recomendaciones «Qué jugar después»",
     "fecha": "2026-10-17",
-    "estado": "pendiente",
+    "estado": "en curso",
     "prioridad": "media",
     "tipo": "Funcionalidad",
     "resumen": "Sugerir juegos del catálogo y de la propia lista de pendientes según lo que el usuario ha valorado alto y más horas ha jugado.",
@@ -1552,16 +1552,14 @@
       "Más adelante, filtrado colaborativo: «a quien le gustó X también le gustó Y» con las valoraciones de la comunidad.",
       "Excluir los que ya están completados o abandonados."
     ],
-    "notas": "IGDB también devuelve similar_games para cada juego; importarlo daría recomendaciones decentes sin algoritmo propio. Ya estaba planeada antes de proponerla.",
+    "notas": "IGDB también devuelve similar_games para cada juego; importarlo daría recomendaciones decentes sin algoritmo propio. Ya estaba planeada antes de proponerla. 11/11/2026: hecho en la rama que-jugar-despues, sin fusionar, con library/taste.py y una pantalla nueva, Qué jugar después (biblioteca/que-jugar/), enlazada desde el menú de Inicio y la pestaña Pendiente del perfil. El peso de cada juego en tus gustos sale de tus horas respecto a lo que dura (sin duración, respecto a 20 h, con un tope), más la nota si la hay, más medio punto si lo terminaste y menos uno si lo dejaste. De ahí, puntos para cada género, tema, perspectiva y modo. Se recomienda de tu pendiente y del catálogo (sin lo que ya tienes ni lo que quieres), con 1,5 puntos más si sale entre los «juegos parecidos» de IGDB de tus 12 que más pesan, y cada uno dice por qué («Parecido a Dying Light, al que has jugado 112 h» o «Como Destiny 2: aventura y disparos»). Como mucho dos parecidos al mismo juego por tanda. «No me interesa» se guarda en Profile.not_interested (migración accounts.0028). Con tester_steam tarda medio segundo.",
     "revision": {
-      "fecha": "2026-11-01",
-      "hoy": "Sin empezar. similar_games está en 2196 de 2206 juegos, temas en 2180 y perspectivas en 2178, pero no se guarda ninguno. Con 2 notas en 348 juegos, la señal fuerte tienen que ser las horas, no las estrellas.",
+      "fecha": "2026-11-11",
+      "hoy": "Hecha la primera versión en la rama que-jugar-despues, sin fusionar: «De tu pendiente» y «Para descubrir», cada uno con su porqué y «No me interesa». Faltan el momento justo (al completar un juego) y el filtrado colaborativo cuando haya gente.",
       "plan": [
-        "Guardar similar_games, themes y player_perspectives con fill_game_fields.",
-        "library/taste.py: un perfil de gustos con peso por juego según horas relativas a su duración (40 h en uno de 10 h dice más que 40 h en uno de 100 h), más la nota si la hay; lo abandonado resta.",
-        "Candidatos: similar_games de tus más jugados y el resto del catálogo, puntuados por coincidencia, nota y popularidad; fuera lo que ya has jugado.",
-        "Dos bloques: «Elige de tu pendiente», con un botón «otro» por HTMX, y «Para descubrir». Cada uno dice por qué («porque jugaste 80 h a Hades»).",
-        "Guardar el resultado un día por usuario y recalcular tras sincronizar. «No me interesa» se guarda y no vuelve a salir."
+        "«¿Y ahora?» al pasar un juego a Completado: tres de tu pendiente parecidos, cargados con HTMX en Tu biblioteca de la ficha.",
+        "Guardar el resultado un rato por usuario (la caché de Django) y rehacerlo al sincronizar o al cambiar tu biblioteca, si con más usuarios el medio segundo pesa.",
+        "Filtros del momento: menos de 3 h, en castellano o en Game Pass, con lo que ya guardan el catálogo y las plantillas."
       ],
       "profundizar": [
         "En el momento justo: al pasar un juego a Completado, «¿Y ahora?» con tres de tu pendiente parecidos. Es lo que da nombre a NextPlay, y es cuando de verdad se decide.",

@@ -384,6 +384,8 @@
         {# Lo que cuesta hoy su pendiente (library.backlog.value), solo con lo que tiene precio: el resto no se inventa. #}
         <p class="muted small backlog-value">
           {% if backlog_value.priced %}Al precio de hoy, {{ backlog_value.priced }} de los {{ backlog_value.count }} juegos del pendiente suman <strong>{{ backlog_value.total_text }}</strong>{% if backlog_value.priced < backlog_value.count %}; el resto no tiene precio hoy{% endif %}.{% else %}Ninguno de los {{ backlog_value.count }} juegos del pendiente tiene precio hoy.{% endif %}
+          {# Para elegir por cuál empezar, según cómo juega (library.taste): solo para su dueño. #}
+          {% if is_owner %}<a href="{% url 'library:next' %}">¿Por cuál empiezas? Qué jugar después {% include "_icon.html" with name="arrow" %}</a>{% endif %}
         </p>
       {% endif %}
       {% if entries %}

@@ -1,5 +1,6 @@
 """Direcciones de la biblioteca. Pantallas: Escribir reseña (<juego>/resenas/nueva/ y resenas/<id>/editar/, con su vista
-previa) y Lista de deseos (lista-de-deseos/). El resto son acciones de botones de la Ficha del juego (estado, quitar,
+previa), Lista de deseos (lista-de-deseos/), Repasar la biblioteca (repasar/) y Qué jugar después (que-jugar/, con su
+botón «No me interesa»). El resto son acciones de botones de la Ficha del juego (estado, quitar,
 nota, «Lo quiero» y su precio) y de las reseñas y sus comentarios (borrar, «me gusta», comentar y denunciar). La
 Página de la reseña está en config/urls.py.
 """
@@ -28,4 +29,6 @@ urlpatterns = [
     path("lista-de-deseos/", views.wishlist, name="wishlist"),
     path("repasar/", views.tidy, name="tidy"),
     path("repasar/<int:entry_id>/", views.tidy_answer, name="tidy_answer"),
+    path("que-jugar/", views.next_games, name="next"),
+    path("que-jugar/<int:game_id>/no-me-interesa/", views.not_interested, name="not_interested"),
 ]

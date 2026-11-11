@@ -22,7 +22,7 @@ from challenges.models import Challenge, Participation
 from games.models import STEAM_DECK_SLUG, Game, GameMode, GamePrice, Genre, Platform
 from social.models import Activity
 
-from . import backlog, diary, markup, reminders, stats, wishlist
+from . import backlog, diary, markup, reminders, stats, taste, wishlist
 from .models import (
     HOURS_SOURCES, LibraryEntry, PlaySession, Report, Review, ReviewComment, ReviewImage, ReviewLike, WishlistItem,
 )
@@ -1065,6 +1065,56 @@ class TidyTests(TestCase):
         self.assertEqual(self.answer(entry, "terminado").status_code, 404)
         self.client.logout()
         self.assertEqual(self.client.get(reverse("library:tidy")).status_code, 302)
+
+
+class NextGamesTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        rpg = Genre.objects.create(name="Rol", slug="rol")
+        horror = Genre.objects.create(name="Terror", slug="terror")
+        # Hades, terminado con 80 h, tiene a Bastion entre sus parecidos de IGDB.
+        cls.hades = Game.objects.create(name="Hades", slug="hades", igdb_id=1, details={"similar": [3]}, popularity=10)
+        cls.pyre = Game.objects.create(name="Pyre", slug="pyre", popularity=5)
+        cls.outlast = Game.objects.create(name="Outlast", slug="outlast", popularity=50)
+        cls.bastion = Game.objects.create(name="Bastion", slug="bastion", igdb_id=3, popularity=1)
+        cls.fifa = Game.objects.create(name="FIFA", slug="fifa", popularity=100)
+        cls.hades.genres.add(rpg)
+        cls.pyre.genres.add(rpg)
+        cls.outlast.genres.add(horror)
+        LibraryEntry.objects.create(user=cls.ana, game=cls.hades, status="completed", steam_playtime_minutes=80 * 60)
+        LibraryEntry.objects.create(user=cls.ana, game=cls.pyre, status="backlog")
+        LibraryEntry.objects.create(user=cls.ana, game=cls.outlast, status="backlog")
+
+    def test_weight_comes_from_hours_rating_and_status(self):
+        # Sin duración de IGDB, 80 h cuentan respecto a 20 h, con el tope de 3; terminado, medio punto más.
+        self.assertEqual(taste.weight(LibraryEntry.objects.get(user=self.ana, game=self.hades)), 3.5)
+        dropped = LibraryEntry(game=self.pyre, status="dropped", rating=2, steam_playtime_minutes=60)
+        self.assertAlmostEqual(taste.weight(dropped), 1 / 20 - 0.9 - 1)
+
+    def test_suggestions_with_their_reason(self):
+        found = taste.suggestions(self.ana)
+        # Pyre comparte el rol con Hades; Outlast, nada.
+        self.assertEqual([(game.name, game.why) for game in found["backlog"]], [
+            ("Pyre", "Como Hades: rol."), ("Outlast", "Encaja con lo que más juegas."),
+        ])
+        # Del catálogo, sin lo que ya tiene: Bastion, por ser parecido a Hades, delante de FIFA, que es más popular.
+        self.assertEqual([game.name for game in found["discover"]], ["Bastion", "FIFA"])
+        self.assertEqual(found["discover"][0].why, "Parecido a Hades, al que has jugado 80 h.")
+        # De un mismo juego tuyo, solo dos «parecido a…» seguidos.
+        sources = [mock.Mock(source=None)] + [mock.Mock(source=mock.Mock(pk=7)) for _ in range(3)]
+        self.assertEqual(taste._diversify(sources[1:] + sources[:1]), [sources[1], sources[2], sources[0], sources[3]])
+        self.client.force_login(self.ana)
+        response = self.client.get(reverse("library:next"))
+        self.assertContains(response, "Parecido a Hades, al que has jugado 80 h.")
+        # «No me interesa» lo quita para siempre.
+        response = self.client.post(
+            reverse("library:not_interested", args=[self.pyre.pk]), headers={"HX-Request": "true"},
+        )
+        self.assertEqual(response.content, b"")
+        self.assertEqual([game.name for game in taste.suggestions(User.objects.get(pk=self.ana.pk))["backlog"]], ["Outlast"])
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse("library:next")).status_code, 302)
 
 
 class StatsTests(TestCase):

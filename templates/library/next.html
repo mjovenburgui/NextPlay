@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Qué jugar después · NextPlay{% endblock %}
+
+{% block content %}
+  {# Qué jugar después (library.taste.suggestions): de tu pendiente y del catálogo, lo que te puede gustar según cómo juegas, cada juego con su porqué. #}
+  <section class="panel panel-wide next-page">
+    <header class="page-head">
+      <div>
+        <h1>{% include "_icon.html" with name="play" %} Qué jugar después</h1>
+        <p class="muted">Según cómo juegas: tus horas respecto a lo que dura cada juego, tus notas, lo que terminas y lo que dejas.{% if seeds %} Lo que más pesa: {% for entry in seeds %}<a href="{{ entry.game.get_absolute_url }}">{{ entry.game.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %}</p>
+      </div>
+      <a class="btn" href="{% url 'profile' user.username %}?estado=backlog">Tu pendiente</a>
+    </header>
+
+    <h2 class="next-heading">De tu pendiente</h2>
+    {% if backlog %}
+      <div class="next-grid">{% for game in backlog %}{% include "library/_next_card.html" %}{% endfor %}</div>
+      {% if backlog_more %}<p class="next-more"><a class="btn" href="?pendiente={{ backlog_page|add:1 }}&amp;descubrir={{ discover_page }}">Ver otros de tu pendiente</a></p>{% endif %}
+    {% else %}
+      <p class="muted box-empty">{% if backlog_page > 1 %}No hay más.{% else %}Tu pendiente está vacío o ya lo has descartado todo. Añade juegos como «Pendiente» y saldrán aquí, ordenados por lo que te pueden gustar.{% endif %}</p>
+    {% endif %}
+
+    <h2 class="next-heading">Para descubrir</h2>
+    {% if discover %}
+      <div class="next-grid">{% for game in discover %}{% include "library/_next_card.html" %}{% endfor %}</div>
+      {% if discover_more %}<p class="next-more"><a class="btn" href="?pendiente={{ backlog_page }}&amp;descubrir={{ discover_page|add:1 }}">Ver otros para descubrir</a></p>{% endif %}
+    {% else %}
+      <p class="muted box-empty">{% if discover_page > 1 %}No hay más.{% else %}Cuando tengas juegos con horas o con nota, aquí saldrán otros del catálogo que se les parecen.{% endif %}</p>
+    {% endif %}
+  </section>
+{% endblock %}

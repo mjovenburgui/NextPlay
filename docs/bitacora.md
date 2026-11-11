@@ -17,6 +17,7 @@ Todas las ramas de abajo están fusionadas con `main`, cada una con su PR, menos
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
+| `que-jugar-despues` | Qué jugar después: de tu pendiente y del catálogo, según cómo juegas, con su porqué | Commit local, sin subir, encima de `estadisticas-y-resumen`. Trae la migración `accounts.0028`. |
 | `estadisticas-y-resumen` | Pestaña Estadísticas del perfil y Resumen del año con su imagen para compartir | Commit local, sin subir, encima de `horas-por-plataforma`. Sin migraciones. |
 | `horas-por-plataforma` | Horas totales y última partida en la base de datos, y cualquier plataforma nueva sin migraciones | Commit local, sin subir, encima de `logros-fase-2`. Trae la migración `library.0016`, que rellena los totales. |
 | `logros-fase-2` | Logros: trofeos de PlayStation uno a uno, logros en el feed y «Jugados en» el año pasado | Commit local, sin subir, encima de `gente-que-sigues`. Trae la migración `social.0010`. |
@@ -37,6 +38,43 @@ Todas las ramas de abajo están fusionadas con `main`, cada una con su PR, menos
 - `library.0014`.
 
 Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan estas migraciones: `manage.py migrate`.
+
+---
+
+## 11/11/2026 · Qué jugar después
+
+**Rama:** `que-jugar-despues`, encima de `estadisticas-y-resumen`. Commit local, sin subir.
+
+**Por qué:** era la siguiente de la lista. Es lo que da nombre a NextPlay, y tu pendiente tiene más de cien juegos.
+
+**Qué cambia para ti:**
+- **Pantalla nueva, «Qué jugar después»**, en el menú de Inicio y en la pestaña Pendiente de tu perfil:
+  - «De tu pendiente»: por cuál empezar;
+  - «Para descubrir»: del catálogo, sin lo que ya tienes ni lo que está en Lo quiero.
+- **Cada juego dice por qué**: «Parecido a Dying Light, al que has jugado 112 h» si sale entre los juegos parecidos de IGDB de los tuyos que más pesan, o «Como Destiny 2: aventura y disparos» si comparte con ellos géneros y temas.
+- **Tus gustos salen de cómo juegas**, porque notas casi no hay:
+  - tus horas respecto a lo que dura cada juego (40 h en uno de 10 h dicen más que en uno de 100 h);
+  - tu nota, si la hay;
+  - medio punto más si lo terminaste y uno menos si lo dejaste.
+- **En tandas de seis**, con «Ver otros». De un mismo juego tuyo solo salen dos parecidos seguidos, para que haya variedad.
+- **«No me interesa»** lo quita para siempre.
+- Con `tester_steam`, lo que más pesa es Final Fantasy XVI, The Witcher 3 y Apex Legends. Te propone, por ejemplo, State of Decay, Halo Infinite y Saints Row IV, y de tu pendiente, Ark y Final Fantasy XV. Tarda medio segundo.
+
+**Qué he tocado:**
+- `library/taste.py`, nuevo: el perfil de gustos, el porqué y las recomendaciones.
+- `library/views/que_jugar_despues.py`, nuevo, con sus direcciones en `library/urls.py`.
+- `Profile.not_interested` (migración `accounts.0028`).
+- Las plantillas nuevas `library/next.html` y `_next_card.html`, el menú de `games/home.html` y la pestaña Pendiente de `profile.html`.
+- `static/css/app.css` y `docs/pantallas.json`, con la pantalla nueva.
+
+**Cómo lo he comprobado:**
+- 2 tests nuevos: el peso de cada juego y las recomendaciones con su porqué, la variedad y «No me interesa».
+- La batería completa en las dos variantes.
+- Capturas y tiempos en la copia con `tester_steam`.
+
+**Qué falta:**
+- Que lo revises. Al fusionar, tu base de datos necesita `migrate` (`accounts.0028`).
+- «¿Y ahora?» al completar un juego, y el filtrado colaborativo cuando haya más gente.
 
 ---
 

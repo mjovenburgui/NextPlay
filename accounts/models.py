@@ -150,6 +150,8 @@ class Profile(models.Model):
     # que lo desactive. Los juegos de esa lista que quitó a mano de «Lo quiero» no se vuelven a traer (ids de Game).
     steam_wishlist = models.BooleanField("traer la lista de deseos de Steam", default=True)
     steam_wishlist_skip = models.JSONField("deseados de Steam que no traer", default=list, blank=True)
+    # Ids de los juegos que marcó «No me interesa» en Qué jugar después (library.taste): no se le vuelven a proponer.
+    not_interested = models.JSONField("juegos que no le interesan", default=list, blank=True)
     # Ids de las tiendas en las que compra (los de GamePrice.shop_id; 0 es Xbox). Vacía = todas.
     shops = models.JSONField("tiendas en las que compro", default=list, blank=True)
     # Lo que ha elegido en la sección «Avisos» de Editar perfil, por grupos de accounts.notices.GROUPS, como
