@@ -16,13 +16,14 @@ from django.urls import reverse
 from django.utils import timezone
 from PIL import Image
 
-from accounts.models import Achievement, ExternalTitle, ImportedTitle, Notification, UnlockedAchievement
+from accounts import matching
+from accounts.models import Achievement, ExternalTitle, ImportedTitle, Notification, Profile, UnlockedAchievement
 from challenges.models import Challenge, Participation
 from games.models import STEAM_DECK_SLUG, Game, GameMode, GamePrice, Platform
 from social.models import Activity
 
-from . import backlog, markup, reminders, wishlist
-from .models import LibraryEntry, Report, Review, ReviewComment, ReviewImage, ReviewLike, WishlistItem
+from . import backlog, diary, markup, reminders, wishlist
+from .models import LibraryEntry, PlaySession, Report, Review, ReviewComment, ReviewImage, ReviewLike, WishlistItem
 from .views import comment_thread
 
 User = get_user_model()
@@ -950,6 +951,21 @@ class TidyTests(TestCase):
         LibraryEntry.objects.filter(pk=many.pk).update(reviewed_at=timezone.now())
         self.assertEqual(backlog.queue(self.user), [stale, few])
 
+    def test_imported_games_in_playing_are_asked_after_a_month_without_playing(self):
+        month_ago = timezone.now() - timedelta(days=40)
+        idle = self.entry(self.doom, LibraryEntry.Status.PLAYING, hours=3, played=month_ago)
+        recent = self.entry(self.portal, LibraryEntry.Status.PLAYING, hours=1, played=timezone.now() - timedelta(days=10))
+        # Sin horas importadas no se sabe cuándo se jugó: siguen valiendo los STALE_DAYS sin tocarlo.
+        manual = self.entry(self.celeste, LibraryEntry.Status.PLAYING)
+        LibraryEntry.objects.filter(pk__in=[idle.pk, recent.pk, manual.pk]).update(updated_at=month_ago)
+        self.assertEqual(backlog.queue(self.user), [idle])
+        lines = backlog.hint(LibraryEntry.objects.get(pk=idle.pk))["lines"]
+        # timesince separa el número y la unidad con un espacio que no se parte.
+        self.assertEqual(lines[:2], ["Está en «Jugando», pero no lo juegas desde hace 1\xa0mes.", "Llevas 3 h."])
+        # Tocarlo a mano (o repasarlo) lo quita de la cola otro mes.
+        LibraryEntry.objects.filter(pk=idle.pk).update(updated_at=timezone.now())
+        self.assertEqual(backlog.queue(self.user), [])
+
     def test_what_it_usually_lasts_and_endless_games_go_last(self):
         old = timezone.now() - timedelta(days=400)
         Game.objects.filter(pk=self.hades.pk).update(ttb_normal=20 * 60, ttb_count=10)
@@ -1047,3 +1063,132 @@ class TidyTests(TestCase):
         self.assertEqual(self.answer(entry, "terminado").status_code, 404)
         self.client.logout()
         self.assertEqual(self.client.get(reverse("library:tidy")).status_code, 302)
+
+
+class DiaryTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.luis = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.hades = Game.objects.create(name="Hades", slug="hades")
+        cls.celeste = Game.objects.create(name="Celeste", slug="celeste")
+
+    def unlock(self, game, when):
+        """Da a ana un logro de Steam de game conseguido en when."""
+        title, _ = ExternalTitle.objects.get_or_create(
+            platform="steam", external_id=str(game.pk), defaults={"name": game.name, "game": game},
+        )
+        imported, _ = ImportedTitle.objects.get_or_create(user=self.ana, title=title, defaults={"minutes": 60})
+        achievement = Achievement.objects.create(title=title, api_name=f"A{Achievement.objects.count()}", name="Logro")
+        UnlockedAchievement.objects.create(imported=imported, achievement=achievement, unlocked_at=when)
+
+    def test_calendar_counts_sessions_and_days_with_achievements(self):
+        PlaySession.add(self.ana, self.hades.pk, "steam", date(2026, 3, 2), 45, since=date(2026, 3, 2))
+        PlaySession.add(self.ana, self.celeste.pk, "steam", date(2026, 3, 3), 200, since=date(2026, 2, 27))
+        PlaySession.add(self.ana, self.hades.pk, "steam", date(2025, 12, 31), 30)
+        self.unlock(self.hades, timezone.make_aware(datetime(2026, 3, 4, 23, 30)))
+        cal = diary.calendar(self.ana, 2026, today=date(2026, 6, 1))
+
+        def cell(day):
+            """La casilla de day en el calendario de 2026."""
+            return cal["cells"][(day - date(2026, 1, 1)).days]
+
+        self.assertEqual(len(cal["cells"]), 365)
+        self.assertEqual([cell(date(2026, 3, day))["level"] for day in (1, 2, 3, 4)], [0, 2, 4, 0])
+        # La de Celeste viene de su partida anterior, del 27 de febrero: es aproximada.
+        self.assertIn("aproximado", cell(date(2026, 3, 3))["title"])
+        self.assertNotIn("aproximado", cell(date(2026, 3, 2))["title"])
+        # El logro es del 4 a las 23:30 en España, aunque en UTC ya sea otro día.
+        self.assertTrue(cell(date(2026, 3, 4))["achievement"])
+        self.assertIn("1 logro en Hades", cell(date(2026, 3, 4))["title"])
+        self.assertTrue(cell(date(2026, 6, 2))["future"])
+        # Semanas de lunes a domingo: el 2 de marzo de 2026 es lunes y va en la primera fila.
+        self.assertEqual(cell(date(2026, 3, 2))["y"], str(diary.TOP))
+        totals = (cal["minutes"], cal["played"], cal["days"], cal["achievement_days"], cal["sessions"], cal["streak"])
+        self.assertEqual(totals, (245, "4 h 5 min", 3, 1, 2, 3))
+        self.assertEqual([item["game"] for item in cal["top_games"]], [self.celeste, self.hades])
+        self.assertEqual(diary.years(self.ana, today=date(2026, 6, 1)), [2026, 2025])
+
+    def test_sessions_of_the_same_day_keep_the_earliest_start(self):
+        day = date(2026, 3, 5)
+        PlaySession.add(self.ana, self.hades.pk, "steam", day, 30, since=day)
+        PlaySession.add(self.ana, self.hades.pk, "steam", day, 20, since=date(2026, 3, 1))
+        session = PlaySession.objects.get()
+        self.assertEqual((session.minutes, session.since), (50, date(2026, 3, 1)))
+        # Si una no sabe desde cuándo, la suma tampoco.
+        PlaySession.add(self.ana, self.hades.pk, "steam", day, 10)
+        self.assertIsNone(PlaySession.objects.get().since)
+
+    def test_imports_say_since_when(self):
+        title = ExternalTitle.objects.create(platform="steam", external_id="1145360", name="Hades", game=self.hades)
+        imported = ImportedTitle.objects.create(
+            user=self.ana, title=title, minutes=100, last_played=timezone.make_aware(datetime(2026, 3, 1, 22)),
+        )
+        matching.update_library(self.ana, "steam", record_activity=True)
+        for minutes, hour in ((160, 21), (200, 23)):
+            ImportedTitle.objects.filter(pk=imported.pk).update(
+                minutes=minutes, last_played=timezone.make_aware(datetime(2026, 3, 4, hour)),
+            )
+            matching.update_library(self.ana, "steam", record_activity=True)
+        # Las dos subidas caen el 4 de marzo; la primera venía de la partida del 1, así que la sesión empieza ese día.
+        session = PlaySession.objects.get()
+        self.assertEqual((session.day, session.since, session.minutes), (date(2026, 3, 4), date(2026, 3, 1), 100))
+
+    def test_last_game_and_recent_sessions(self):
+        now = timezone.now()
+        LibraryEntry.objects.create(
+            user=self.ana, game=self.hades, status="played", steam_playtime_minutes=600,
+            steam_last_played=now - timedelta(days=3),
+        )
+        LibraryEntry.objects.create(
+            user=self.ana, game=self.celeste, status="playing", psn_playtime_minutes=90, psn_last_played=now,
+        )
+        today = timezone.localdate(now)
+        PlaySession.add(self.ana, self.celeste.pk, "psn", today, 90, since=today)
+        last = diary.last_session(self.ana)
+        self.assertEqual((last["game"], last["platform"], last["label"], last["exact"]), (self.celeste, "PlayStation", "1 h 30 min", True))
+        self.assertEqual([(s.game, s.label, s.platform_name) for s in diary.recent(self.ana)], [(self.celeste, "1 h 30 min", "PlayStation")])
+        self.assertIsNone(diary.last_session(self.luis))
+
+    def test_profile_tab_and_who_sees_it(self):
+        today = timezone.localdate()
+        LibraryEntry.objects.create(
+            user=self.ana, game=self.hades, status="playing", steam_playtime_minutes=600, steam_last_played=timezone.now(),
+        )
+        PlaySession.add(self.ana, self.hades.pk, "steam", today, 90, since=today)
+        url = reverse("profile", args=["ana"]) + "?vista=diario"
+        self.client.force_login(self.luis)
+        response = self.client.get(url)
+        self.assertContains(response, 'href="?vista=diario">Diario</a>')
+        self.assertContains(response, "Última partida")
+        self.assertContains(response, "Últimas sesiones")
+        self.assertContains(response, "Lo que más ha jugado este año")
+        self.assertContains(response, "1 h 30 min")
+        # Si lo oculta, los demás no tienen pestaña y ?vista=diario les enseña la biblioteca; ella lo sigue viendo.
+        Profile.objects.filter(user=self.ana).update(diary_visible=False)
+        response = self.client.get(url)
+        self.assertNotContains(response, 'href="?vista=diario">Diario</a>')
+        self.assertNotContains(response, "Últimas sesiones")
+        self.client.force_login(self.ana)
+        response = self.client.get(url + "&anio=2019")
+        self.assertContains(response, "Lo que más has jugado este año")
+        self.assertContains(response, f'<h2 class="diary-year">{today.year}</h2>', html=True)
+
+    def test_game_page_line(self):
+        LibraryEntry.objects.create(user=self.ana, game=self.hades, status="playing", psn_playtime_minutes=600)
+        title = ExternalTitle.objects.create(platform="psn", external_id="CUSA00001_00", name="Hades", game=self.hades)
+        ImportedTitle.objects.create(
+            user=self.ana, title=title, minutes=600, first_played=timezone.make_aware(datetime(2025, 5, 3, 20)),
+        )
+        PlaySession.add(self.ana, self.hades.pk, "psn", date(2026, 3, 5), 75, since=date(2026, 3, 1))
+        PlaySession.add(self.ana, self.hades.pk, "psn", date(2026, 3, 9), 40, since=date(2026, 3, 9))
+        self.client.force_login(self.ana)
+        response = self.client.get(self.hades.get_absolute_url())
+        self.assertContains(response, "Empezado el 3")
+        self.assertContains(response, "2 sesiones, la última el 9")
+        self.assertContains(response, "(40 min)")
+        self.assertContains(response, "?vista=diario")
+        # Sin nada que contar no sale la línea.
+        PlaySession.objects.all().delete()
+        ImportedTitle.objects.all().delete()
+        self.assertNotContains(self.client.get(self.hades.get_absolute_url()), "Tu diario")

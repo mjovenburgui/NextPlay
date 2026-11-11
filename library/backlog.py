@@ -30,6 +30,9 @@ Status = LibraryEntry.Status
 
 # Un juego en «Jugando» que no se toca en estos días (ni se juega ni se cambia) se pregunta en el repaso.
 STALE_DAYS = 180
+# Si sus horas vienen de una importación, que dice cuándo se jugó por última vez, basta con estos días sin jugarlo (y
+# sin tocarlo): es el «lleva semanas sin sesiones» del diario de partidas.
+IDLE_DAYS = 30
 # Con multijugador y más de estas veces lo que suele durar, es de los que se juegan sin parar (Rocket League,
 # Counter-Strike…): IGDB les da modo de un jugador y una duración, pero las horas no dicen si se terminó.
 SERVICE_FACTOR = 4
@@ -55,13 +58,21 @@ def last_played(entry):
 
 
 def is_stale(entry, now=None):
-    """Indica si entry está en «Jugando» y no se toca desde hace STALE_DAYS días: ni se juega (las importaciones lo
-    cambiarían) ni se cambia a mano ni se repasa (todo eso mueve updated_at).
+    """Indica si entry está en «Jugando» pero parece que ya no se juega. Si alguna importación dice cuándo fue su
+    última partida, cuando es de hace más de IDLE_DAYS días y desde entonces tampoco se ha tocado; si no, cuando no se
+    toca desde hace STALE_DAYS días: ni se juega (las importaciones lo cambiarían) ni se cambia a mano ni se repasa
+    (todo eso mueve updated_at).
 
     Pantallas: Repasar la biblioteca (los de «Jugando» que se preguntan), Perfil (aviso de lo que queda por repasar).
     """
+    if entry.status != Status.PLAYING:
+        return False
     now = now or timezone.now()
-    return entry.status == Status.PLAYING and entry.updated_at < now - timedelta(days=STALE_DAYS)
+    played_on = last_played(entry)
+    if played_on is not None:
+        cutoff = now - timedelta(days=IDLE_DAYS)
+        return played_on < cutoff and entry.updated_at < cutoff
+    return entry.updated_at < now - timedelta(days=STALE_DAYS)
 
 
 def pending(entries):
@@ -129,11 +140,18 @@ def hint(entry):
     Pantallas: Repasar la biblioteca (la tarjeta de cada juego).
     """
     lines = []
-    if entry.status == Status.PLAYING and is_stale(entry):
-        lines.append(f"Está en «Jugando», pero no se mueve desde hace {timesince(entry.updated_at, depth=1)}.")
     hours = entry.playtime_hours
     played_on = last_played(entry)
-    if hours and played_on:
+    stale = entry.status == Status.PLAYING and is_stale(entry)
+    if stale and played_on:
+        lines.append(f"Está en «Jugando», pero no lo juegas desde hace {timesince(played_on, depth=1)}.")
+    elif stale:
+        lines.append(f"Está en «Jugando», pero no se mueve desde hace {timesince(entry.updated_at, depth=1)}.")
+    if stale and played_on:
+        # La última partida ya está dicha: aquí solo van las horas.
+        if hours:
+            lines.append(f"Llevas {_number(hours)} h.")
+    elif hours and played_on:
         lines.append(f"Llevas {_number(hours)} h; la última partida fue hace {timesince(played_on, depth=1)}.")
     elif hours:
         lines.append(f"Llevas {_number(hours)} h.")

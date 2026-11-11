@@ -1,0 +1,76 @@
+{# Pestaña Diario del perfil (library.diary.page): la última partida, el calendario de un año con sus cifras y las últimas sesiones. Todo sale de las importaciones y de los logros con fecha: nadie apunta nada. #}
+{% with cal=diary.calendar %}
+  {% if diary.last %}
+    {% with last=diary.last %}
+      <section class="card-box diary-last">
+        <a class="diary-last-cover" href="{{ last.game.get_absolute_url }}" tabindex="-1" aria-hidden="true">
+          {% if last.game.cover_url %}<img src="{{ last.game.cover_url }}" alt="" loading="lazy">{% endif %}
+        </a>
+        <div>
+          <p class="widget-label">Última partida</p>
+          <p class="diary-last-game"><a href="{{ last.game.get_absolute_url }}">{{ last.game.name }}</a></p>
+          <p class="muted small">
+            {{ last.when|date:"l j \d\e F, H:i" }} en {{ last.platform }} · hace {{ last.when|timesince }}{% if last.minutes %} · {{ last.label }} ese día{% if not last.exact %} (aproximado){% endif %}{% endif %}
+          </p>
+        </div>
+      </section>
+    {% endwith %}
+  {% endif %}
+
+  <section class="card-box diary">
+    <div class="diary-head">
+      <h2 class="diary-year">{{ diary.year|stringformat:"d" }}</h2>
+      {% if diary.years|length > 1 %}
+        <nav class="diary-years" aria-label="Años del diario">
+          {% for year in diary.years %}<a class="chip{% if year == diary.year %} is-active{% endif %}" href="?vista=diario&amp;anio={{ year|stringformat:'d' }}"{% if year == diary.year %} aria-current="page"{% endif %}>{{ year|stringformat:"d" }}</a>{% endfor %}
+        </nav>
+      {% endif %}
+    </div>
+    <p class="diary-stats">
+      {% if cal.minutes %}<span><strong>{{ cal.played }}</strong> en sesiones</span>{% endif %}
+      <span><strong>{{ cal.days }}</strong> {% if cal.days == 1 %}día{% else %}días{% endif %} con partida o logro</span>
+      {% if cal.streak > 1 %}<span>Racha más larga: <strong>{{ cal.streak }}</strong> días seguidos</span>{% endif %}
+      {% if cal.sessions %}<span><strong>{{ cal.sessions }}</strong> {% if cal.sessions == 1 %}sesión{% else %}sesiones{% endif %}</span>{% endif %}
+    </p>
+    {# Una casilla por día, por semanas de lunes a domingo; el tono dice cuánto se jugó y el borde dorado, que se consiguió algún logro. Al pasar por encima, el detalle. #}
+    <div class="diary-calendar">
+      <svg viewBox="0 0 {{ cal.width }} {{ cal.height }}" role="img" aria-label="Calendario de {{ diary.year|stringformat:'d' }}: {{ cal.days }} días con partida o logro">
+        {% for month in cal.months %}<text class="cal-label" x="{{ month.x }}" y="9">{{ month.label }}</text>{% endfor %}
+        {% for weekday in cal.weekdays %}<text class="cal-label" x="0" y="{{ weekday.y }}">{{ weekday.label }}</text>{% endfor %}
+        {% for cell in cal.cells %}<rect class="cal-day lv-{{ cell.level }}{% if cell.achievement %} has-achievement{% endif %}{% if cell.future %} is-future{% endif %}" x="{{ cell.x }}" y="{{ cell.y }}" width="{{ cal.cell }}" height="{{ cal.cell }}" rx="2"><title>{{ cell.title }}</title></rect>{% endfor %}
+      </svg>
+    </div>
+    <div class="diary-legend muted small" aria-hidden="true">
+      <span>Menos</span>
+      {% for level in "01234" %}<span class="cal-swatch lv-{{ level }}"></span>{% endfor %}
+      <span>Más</span>
+      <span class="cal-swatch has-achievement"></span><span>Día con logro</span>
+    </div>
+    {% if cal.top_games %}
+      <p class="diary-top small">
+        <span class="muted">Lo que más {% if is_owner %}has{% else %}ha{% endif %} jugado este año:</span>
+        {% for item in cal.top_games %}<a href="{{ item.game.get_absolute_url }}">{{ item.game.name }}</a> <span class="muted">({{ item.label }})</span>{% if not forloop.last %} · {% endif %}{% endfor %}
+      </p>
+    {% endif %}
+    <p class="muted small diary-note">
+      Sale de lo que sube {% if is_owner %}tu{% else %}su{% endif %} tiempo de juego en cada sincronización de Steam, PlayStation o Xbox y de los logros con fecha. Si no se sincroniza a diario, lo jugado entre dos sincronizaciones va al día de la última partida y sale como aproximado.{% if diary.synced_at %} Última sincronización: {{ diary.synced_at|date:"j M Y" }}.{% endif %}
+    </p>
+  </section>
+
+  <section class="card-box diary-sessions">
+    <h3 class="widget-label">Últimas sesiones</h3>
+    {% if diary.recent %}
+      <ol class="diary-list">
+        {% for session in diary.recent %}
+          <li>
+            <a href="{{ session.game.get_absolute_url }}">{{ session.game.name }}</a>
+            <span class="muted small">{% if session.exact %}{{ session.day|date:"j M Y" }}{% elif session.since %}Entre el {{ session.since|date:"j M" }} y el {{ session.day|date:"j M Y" }}{% else %}{{ session.day|date:"j M Y" }}, desde la sincronización anterior{% endif %} · {{ session.platform_name }}</span>
+            <strong class="diary-time">{{ session.label }}</strong>
+          </li>
+        {% endfor %}
+      </ol>
+    {% else %}
+      <p class="muted small box-empty">{% if is_owner %}Aún no hay sesiones. Se apuntan solas cuando sincronizas y ha subido el tiempo de algún juego.{% else %}{{ profile.name }} aún no tiene sesiones apuntadas.{% endif %}</p>
+    {% endif %}
+  </section>
+{% endwith %}

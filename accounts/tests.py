@@ -1713,7 +1713,8 @@ class ProfileCustomizationTests(TestCase):
         # Las casillas de «Entera» no se cuelan entre los interruptores de privacidad ni entre los de los avisos.
         page = response.content.decode()
         privacy = page.split('id="privacidad"')[1].split("</section>")[0]
-        self.assertEqual(privacy.count('class="switch-row"'), 1)
+        # Solo los dos de privacidad: el perfil público y el diario de partidas visible.
+        self.assertEqual(privacy.count('class="switch-row"'), 2)
         notice_section = page.split('id="avisos"')[1].split("</section>")[0]
         self.assertEqual(notice_section.count('class="switch-row'), len(notices.GROUPS) + 1)  # y el del correo
 

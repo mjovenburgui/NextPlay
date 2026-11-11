@@ -694,6 +694,47 @@ button.chip-link { background: none; font-family: inherit; cursor: pointer; }
 .hours-when { grid-column: 1 / -1; color: var(--muted); font-size: .8rem; }
 .hours-total { margin: 0; color: var(--muted); font-size: .85rem; }
 .hours-total strong { color: var(--text); font-variant-numeric: tabular-nums; }
+/* La línea del diario de partidas en Tu biblioteca: primera partida, sesiones y enlace al diario. */
+.hours-diary { margin: .5rem 0 0; color: var(--muted); }
+.hours-diary a { white-space: nowrap; }
+
+/* Pestaña Diario del perfil (library/_diary.html): la última partida, el calendario del año y las últimas sesiones. */
+.diary-last { display: flex; gap: .9rem; align-items: center; margin-bottom: 1rem; }
+.diary-last-cover { flex: 0 0 auto; width: 56px; aspect-ratio: 3 / 4; border-radius: 8px; overflow: hidden; background: var(--surface-2); }
+.diary-last-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.diary-last-game { margin: .1rem 0 .15rem; font-size: 1.05rem; font-weight: 700; }
+.diary-last p.muted { margin: 0; }
+.diary { margin-bottom: 1rem; }
+.diary-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
+.diary-year { margin: 0; font-size: 1.25rem; }
+.diary-years { display: flex; flex-wrap: wrap; gap: .35rem; }
+.diary-years .chip.is-active { background: var(--violet); color: #fff; }
+.diary-stats { display: flex; flex-wrap: wrap; gap: .35rem 1.1rem; margin: .6rem 0 .8rem; color: var(--muted); font-size: .9rem; }
+.diary-stats strong { color: var(--text); font-variant-numeric: tabular-nums; }
+/* El calendario se desplaza dentro de su caja en el móvil: así las casillas no se quedan diminutas. */
+.diary-calendar { overflow-x: auto; }
+.diary-calendar svg { display: block; width: 100%; min-width: 560px; height: auto; }
+.cal-label { fill: var(--muted); font-size: 8px; }
+/* Tono de cada día según lo jugado: del fondo al color del perfil (--violet cambia con él). */
+.cal-day, .cal-swatch { --cal: var(--surface-3); }
+.cal-day.lv-1, .cal-swatch.lv-1 { --cal: color-mix(in srgb, var(--violet) 32%, var(--surface-3)); }
+.cal-day.lv-2, .cal-swatch.lv-2 { --cal: color-mix(in srgb, var(--violet) 55%, var(--surface-3)); }
+.cal-day.lv-3, .cal-swatch.lv-3 { --cal: color-mix(in srgb, var(--violet) 78%, var(--surface-3)); }
+.cal-day.lv-4, .cal-swatch.lv-4 { --cal: var(--violet); }
+/* Un día solo con logros (se jugó, pero no se sabe cuánto) va en dorado suave; con sesión y logro, con un borde dorado. */
+.cal-day.lv-0.has-achievement, .cal-swatch.has-achievement { --cal: color-mix(in srgb, var(--gold) 42%, var(--surface-3)); }
+.cal-day { fill: var(--cal); }
+.cal-day.has-achievement:not(.lv-0) { stroke: var(--gold); stroke-width: 1.2; }
+.cal-day.is-future { opacity: .3; }
+.diary-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin-top: .5rem; }
+.cal-swatch { display: inline-block; width: 11px; height: 11px; border-radius: 2px; background: var(--cal); }
+.cal-swatch.has-achievement { margin-left: .7rem; }
+.diary-top, .diary-note { margin: .7rem 0 0; }
+.diary-list { margin: .4rem 0 0; padding: 0; list-style: none; }
+.diary-list li { display: grid; grid-template-columns: 1fr auto; gap: .1rem .8rem; padding: .55rem 0; border-top: 1px solid var(--border); }
+.diary-list li:first-child { border-top: 0; }
+.diary-list .muted { grid-column: 1; }
+.diary-time { grid-row: 1 / span 2; grid-column: 2; align-self: center; font-variant-numeric: tabular-nums; }
 
 /* Juegos importados sin emparejar */
 .panel-wide { max-width: 760px; }

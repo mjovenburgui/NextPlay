@@ -24,7 +24,7 @@
     {
       "nombre": "Perfil",
       "urls": ["profile", "social:activity"],
-      "que_es": "La página de cada jugador (/u/<usuario>/): cabecera personalizada (foto, fondo, color, redes, cuentas, seguidores), escaparate (favoritos, jugando ahora, reseña destacada, estadísticas, logros, listas...) y las pestañas Biblioteca, Reseñas, Listas, Tier lists y Actividad. También se ve dentro de Editar perfil, en su vista previa."
+      "que_es": "La página de cada jugador (/u/<usuario>/): cabecera personalizada (foto, fondo, color, redes, cuentas, seguidores), escaparate (favoritos, jugando ahora, reseña destacada, estadísticas, logros, listas...) y las pestañas Biblioteca, Reseñas, Listas, Tier lists, Actividad y Diario (el diario de partidas: la última partida, el calendario de cada año con lo jugado y los días con logro, y las últimas sesiones). También se ve dentro de Editar perfil, en su vista previa."
     },
     {
       "nombre": "Seguidores y seguidos",
@@ -59,7 +59,7 @@
     {
       "nombre": "Repasar la biblioteca",
       "urls": ["library:tidy"],
-      "que_es": "Desde el aviso de tu perfil: los juegos que las importaciones no saben si terminaste (los de «Jugado» que nunca has repasado y los de «Jugando» que llevan meses sin tocarse), de uno en uno, con tus horas, tu última partida y tus logros, para contestar con un botón: lo terminé, lo dejé, sigo jugando, al pendiente o saltar. Al acabar, lo que has repasado hoy."
+      "que_es": "Desde el aviso de tu perfil: los juegos que las importaciones no saben si terminaste (los de «Jugado» que nunca has repasado y los de «Jugando» que llevan un mes sin jugarse o meses sin tocarse), de uno en uno, con tus horas, tu última partida y tus logros, para contestar con un botón: lo terminé, lo dejé, sigo jugando, al pendiente o saltar. Al acabar, lo que has repasado hoy."
     },
     {
       "nombre": "Página de la lista",

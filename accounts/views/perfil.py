@@ -12,7 +12,7 @@ from django.shortcuts import get_object_or_404, render
 
 from challenges import progress as challenge_progress
 from games.models import LANGUAGE_FILTERS, Game, Genre, language_filter
-from library import backlog
+from library import backlog, diary
 from library.models import HOURS_SOURCES, LibraryEntry, Review
 from library.views import mark_liked
 from lists.views import SHOWCASE_LISTS, SHOWCASE_TIER_LISTS, mark_boards, profile_lists
@@ -32,9 +32,9 @@ def profile(request, username):
     orden y con las secciones que haya elegido. La biblioteca tiene pestañas por estado (Jugando,
     Completado...) con su contador y se filtra con ?estado= y por idioma con ?idioma= (voces o textos en
     castellano); se ordena con ?orden= (recientes, nota, horas o nombre). Con ?vista=resenas muestra sus
-    reseñas en vez de la biblioteca, con ?vista=listas sus listas, con ?vista=tier-lists sus tier lists y con
-    ?vista=actividad lo que ha hecho (desde ?antes=, el cursor de «Cargar más»). Un perfil privado da 404 a
-    cualquiera que no sea su dueño.
+    reseñas en vez de la biblioteca, con ?vista=listas sus listas, con ?vista=tier-lists sus tier lists, con
+    ?vista=actividad lo que ha hecho (desde ?antes=, el cursor de «Cargar más») y con ?vista=diario su diario de
+    partidas del año ?anio= (si no lo ha ocultado). Un perfil privado da 404 a cualquiera que no sea su dueño.
 
     Pantallas: Perfil.
     """
@@ -70,6 +70,8 @@ def _profile_context(request, owner, favorites=None, preview=False):
     sección «Retos», sus insignias y los retos que lleva en marcha, solo los que quien mira puede ver
     (challenges.progress.showcase). A su dueño le dice cuántos juegos le quedan por repasar (library.backlog.pending,
     para el aviso que lleva a Repasar la biblioteca) y, en la pestaña Pendiente, lo que cuesta hoy (backlog.value).
+    La pestaña Diario solo sale si quien mira puede verla (library.diary.can_see; en la vista previa, como la verían
+    los demás) y lleva el calendario del año de ?anio=, la última partida y las últimas sesiones (diary.page).
 
     Pantallas: Perfil (cabecera, escaparate y pestañas), Editar perfil (vista previa).
     """
@@ -111,7 +113,9 @@ def _profile_context(request, owner, favorites=None, preview=False):
     reviews = mark_liked(list(Review.objects.filter(user=owner).visible_to(request.user)), request.user)
     drafts = list(Review.objects.filter(user=owner, is_draft=True).select_related("game")) if is_owner else []
     view = request.GET.get("vista", "")
-    if view not in ("resenas", "listas", "tier-lists", "actividad"):
+    # En la vista previa, el diario como lo verían los demás: sin él si lo ha ocultado.
+    show_diary = diary.can_see(owner, AnonymousUser() if preview else request.user)
+    if view not in ("resenas", "listas", "tier-lists", "actividad", "diario") or (view == "diario" and not show_diary):
         view = ""
     # La actividad solo se pide en su pestaña.
     activity_tab = activity_context(owner, request.user, request.GET.get("antes", "")) if view == "actividad" else {}
@@ -147,6 +151,8 @@ def _profile_context(request, owner, favorites=None, preview=False):
         "activities": [],
         "next_cursor": "",
         **activity_tab,
+        "show_diary": show_diary,
+        "diary": diary.page(owner, _year(request.GET.get("anio", ""))) if view == "diario" else None,
         "show_showcase": show_showcase,
         "achievement_showcase": (
             achievements.showcase(owner) if show_showcase and "logros" in owner.profile.visible_sections else None
@@ -186,6 +192,14 @@ PROFILE_SORTS = {
     "horas": ("Más horas", lambda e: -(e.playtime_minutes or 0)),
     "nombre": ("Nombre", lambda e: e.game.name.casefold()),
 }
+
+
+def _year(value):
+    """El año de ?anio= como número, o None si no es un año.
+
+    Pantallas: Perfil (pestaña Diario: el año que se ve).
+    """
+    return int(value) if value.isdigit() and len(value) == 4 else None
 
 
 def _profile_stats(owner, entries, counts, reviews):

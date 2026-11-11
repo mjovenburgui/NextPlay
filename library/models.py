@@ -190,6 +190,18 @@ class LibraryEntry(models.Model):
         """
         return progress_by_game(self.user_id, [self.game_id]).get(self.game_id, [])
 
+    @cached_property
+    def timeline(self):
+        """Lo que dice el diario de partidas de este juego (library.diary.timeline): su primera partida o su primer
+        logro, cuántas sesiones hay y la última, o None si no hay nada.
+
+        Pantallas: Ficha del juego (Tu biblioteca: tu primera partida y tus sesiones).
+        """
+        # Se importa aquí: library.diary importa estos modelos.
+        from . import diary
+
+        return diary.timeline(self.user_id, self.game_id)
+
     @property
     def stars(self):
         """Nota en estrellas (de 0,5 a 5), o None sin nota.
@@ -207,7 +219,9 @@ HOURS_LOGOS = {
 }
 class PlaySession(models.Model):
     """Lo que ha jugado un usuario a un juego en una plataforma un día: lo que ha subido su tiempo entre dos
-    sincronizaciones, apuntado el día de su última partida (varias el mismo día se suman).
+    sincronizaciones, apuntado el día de su última partida (varias el mismo día se suman). since es el día de la
+    partida anterior: si es el mismo, todo se jugó ese día; si es antes, en algún momento entre los dos; vacío si no se
+    sabe (las de antes del diario de partidas y las de cuentas que no dan la última partida).
 
     Lo apunta la importación (accounts.matching.update_library) solo si ya se conocían las horas de esa plataforma:
     lo que trae la primera importación, o una cuenta de Steam recién vinculada, es de antes y no se sabe cuándo se
@@ -218,6 +232,7 @@ class PlaySession(models.Model):
     game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="play_sessions", verbose_name="juego")
     platform = models.CharField("plataforma", max_length=10, choices=list(HOURS_SOURCES.items()))
     day = models.DateField("día")
+    since = models.DateField("desde", null=True, blank=True)
     minutes = models.PositiveIntegerField("minutos")
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -238,17 +253,22 @@ class PlaySession(models.Model):
         return f"{self.user} · {self.game} · {self.day} · {self.minutes} min"
 
     @classmethod
-    def add(cls, user, game_id, platform, day, minutes):
-        """Suma minutes a lo que user ha jugado a game_id en platform el día day (la crea si es la primera de ese día).
+    def add(cls, user, game_id, platform, day, minutes, since=None):
+        """Suma minutes a lo que user ha jugado a game_id en platform el día day, jugados desde since (el día de la
+        partida anterior; None si no se sabe). La crea si es la primera de ese día; si ya había una, se queda con el
+        principio más temprano, o sin principio si alguna de las dos no lo sabe.
 
         Pantallas: Editar perfil (Cuentas vinculadas: al importar horas), Perfil (modal «Vincular cuentas» de su
-        dueño), Retos (progreso de los de horas), Página del reto (progreso), Nueva tier list (plantillas por horas
-        jugadas).
+        dueño; pestaña Diario), Retos (progreso de los de horas), Página del reto (progreso), Nueva tier list
+        (plantillas por horas jugadas), Ficha del juego (Tu biblioteca: tus sesiones).
         """
-        if not cls.objects.filter(user=user, game_id=game_id, platform=platform, day=day).update(
-            minutes=models.F("minutes") + minutes,
-        ):
-            cls.objects.create(user=user, game_id=game_id, platform=platform, day=day, minutes=minutes)
+        rows = cls.objects.filter(user=user, game_id=game_id, platform=platform, day=day)
+        existing = rows.first()
+        if existing is None:
+            cls.objects.create(user=user, game_id=game_id, platform=platform, day=day, minutes=minutes, since=since)
+            return
+        start = min(existing.since, since) if existing.since and since else None
+        rows.update(minutes=models.F("minutes") + minutes, since=start)
 
 
 # Estado de la biblioteca al publicar una reseña → cómo se cuenta en ella (Pendiente no dice nada).

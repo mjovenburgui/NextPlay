@@ -66,7 +66,7 @@ class ProfileForm(forms.ModelForm):
         *(name for name in FRAMING_FIELDS if not name.endswith("_fit")),
     )
     # Interruptores de «Privacidad».
-    PRIVACY = ("is_public",)
+    PRIVACY = ("is_public", "diary_visible")
 
     favoritos = forms.TypedMultipleChoiceField(coerce=int, required=False)
     quitar_favoritos = forms.TypedMultipleChoiceField(coerce=int, required=False)
@@ -79,7 +79,7 @@ class ProfileForm(forms.ModelForm):
             "display_name", "bio", "status_emoji", "status_text", "pronouns", "location",
             "avatar", "avatar_source", "avatar_shape", "banner_mode", "banner", "banner_game", "banner_art",
             "background_mode", "background", "background_dim", "accent_color", "layout", "pinned_review",
-            "is_public", *FRAMING_FIELDS,
+            "is_public", "diary_visible", *FRAMING_FIELDS,
         )
         widgets = {
             **{f"{name}_{part}": forms.HiddenInput for name in IMAGE_FIELDS for part in ("x", "y")},

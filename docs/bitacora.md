@@ -13,10 +13,11 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Todas las ramas de abajo están fusionadas con `main`, cada una con su PR, menos `sesiones-segunda-cuenta`, que espera tu revisión. Las migraciones de las cuatro del 08/11 ya están en tu base de datos de verdad (comprobado el 08/11/2026). También está la de `pasada-a-igdb`, `games.0010`, con la pasada a IGDB hecha (comprobado el 09/11/2026: sin migraciones pendientes y con la ficha técnica de 2235 de sus 2236 juegos). `ficha-ligera-y-dlc` no trae migraciones. Justo después de fusionarla, en el mismo paso, traigo los DLC y las expansiones a tu base de datos con `import_addons`, con una copia de seguridad antes. Lo que salga te lo digo al terminar.
+Todas las ramas de abajo están fusionadas con `main`, cada una con su PR, menos las de arriba del todo (`sesiones-segunda-cuenta` y las que van encima), que esperan tu revisión. Las migraciones de las cuatro del 08/11 ya están en tu base de datos de verdad (comprobado el 08/11/2026). También está la de `pasada-a-igdb`, `games.0010`, con la pasada a IGDB hecha (comprobado el 09/11/2026: sin migraciones pendientes y con la ficha técnica de 2235 de sus 2236 juegos). `ficha-ligera-y-dlc` no trae migraciones. Justo después de fusionarla, en el mismo paso, traigo los DLC y las expansiones a tu base de datos con `import_addons`, con una copia de seguridad antes. Lo que salga te lo digo al terminar.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
+| `diario-de-partidas` | Diario de partidas: pestaña Diario del perfil con el calendario de cada año, línea en la ficha y juegos en «Jugando» sin jugar en el repaso | Commit local, sin subir, encima de `sesiones-segunda-cuenta`. Trae las migraciones `library.0015` y `accounts.0026`. |
 | `sesiones-segunda-cuenta` | Las cuentas de Steam recién vinculadas ya no cuentan como sesiones de juego | Commit local, sin subir: espera tu revisión. Sin migraciones; las sesiones de `tester_steam` ya están corregidas en tu base de datos. |
 | `ficha-ligera-y-dlc` | Ficha del juego más ligera: tres columnas, lo secundario plegado y cada DLC con su ficha y su precio | Fusionada con `main`: [PR #39](https://github.com/mjovenburgui/NextPlay/pull/39). Sin migraciones; los DLC llegan a tu base de datos con `import_addons`. |
 | `pasada-a-igdb` | Una pasada a IGDB: ficha técnica, duración, ediciones agrupadas, sin DLC en las búsquedas y catálogo con filtros | Fusionada con `main`: [PR #38](https://github.com/mjovenburgui/NextPlay/pull/38). Trae la migración `games.0010`. |
@@ -32,6 +33,45 @@ Todas las ramas de abajo están fusionadas con `main`, cada una con su PR, menos
 - `library.0014`.
 
 Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan estas migraciones: `manage.py migrate`.
+
+---
+
+## 11/11/2026 · Diario de partidas: lo que juegas y cuándo, sin apuntar nada
+
+**Rama:** `diario-de-partidas`, encima de `sesiones-segunda-cuenta`. Commit local, sin subir.
+
+**Por qué:** me pediste «ve haciendo la uno y la dos», y la uno era «Diario de partidas que se escribe solo», la más gorda del núcleo.
+
+**Qué cambia para ti:**
+- **Pestaña Diario en el perfil:**
+  - arriba, tu última partida: el juego, el día y la hora, la plataforma y lo que jugaste ese día si hay sesión;
+  - el calendario del año, una casilla por día: el tono, en el color del perfil, dice cuánto jugaste, y en dorado salen los días en que conseguiste algún logro, aunque no haya sesión;
+  - el año se cambia arriba, con todos los que tienen algo;
+  - las cifras del año: horas en sesiones, días con partida o logro, la racha más larga y lo que más has jugado;
+  - las últimas sesiones, con su día exacto o «entre el 1 y el 4 nov» si vienen de una sincronización tardía.
+- **Con tus datos**, en la copia: 167 días con algo en 2026 aunque solo haya 10 sesiones, gracias a los logros, y años desde 2022.
+- **En la ficha**, debajo de tus horas: «Primer logro el 25 oct 2026 · 2 sesiones, la última el 31 oct (5 h 47 min, aproximado) · Tu diario». Con PlayStation dice «Empezado el …», porque PlayStation da la primera partida.
+- **Privacidad:** un interruptor nuevo en Editar perfil, «Diario de partidas visible». Apagado, la pestaña solo la ves tú.
+- **Repasar la biblioteca** pregunta también por los juegos en «Jugando» cuya última partida importada es de hace más de un mes, si no los has tocado desde entonces. Antes hacían falta seis meses sin tocarlos. Es lo que la propuesta llamaba «estados sugeridos», pero en el repaso, que ya tiene sus botones, en vez de en un aviso nuevo.
+
+**Qué he tocado:**
+- `library/models.py`: `PlaySession.since` (el día de la partida anterior) y `LibraryEntry.timeline`. Migración `library.0015`.
+- `accounts/matching.py`: al apuntar una sesión, desde qué día viene.
+- `library/diary.py`, nuevo: el calendario, la última partida, las últimas sesiones y la línea de la ficha.
+- `accounts/views/perfil.py`, `templates/accounts/profile.html` y el nuevo `templates/library/_diary.html`: la pestaña.
+- `templates/library/_widget.html`: la línea de la ficha.
+- `accounts/models.py` y `accounts/forms.py`: `Profile.diary_visible`. Migración `accounts.0026`.
+- `library/backlog.py`: `IDLE_DAYS` para el repaso.
+- `static/css/app.css`, la semilla (`seed_test_profile`: sus sesiones son de un solo día), `docs/pantallas.json`, la propuesta y los dos PDF.
+
+**Cómo lo he comprobado:**
+- 7 tests nuevos: el calendario y sus cifras, las sesiones del mismo día, desde cuándo viene cada sesión al importar, la última partida, la pestaña y quién la ve, la línea de la ficha y el repaso.
+- La batería completa, sin claves y con claves falsas y un proxy muerto: 578 tests. Fallaba uno, que contaba un solo interruptor en Privacidad; ya está ajustado.
+- Capturas de la pestaña y de la ficha con `tester_steam`, en una copia de tu base de datos con las migraciones.
+
+**Qué falta:**
+- Que lo revises. Al fusionar, tu base de datos necesita `migrate` por las dos migraciones.
+- Lo pendiente de la propuesta: las horas de la semana en el feed y repartir las sesiones aproximadas en los retos de horas.
 
 ---
 

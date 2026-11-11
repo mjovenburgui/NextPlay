@@ -270,6 +270,8 @@
       <a class="tab{% if view == 'listas' %} is-active{% endif %}" href="?vista=listas">Listas <span>{{ lists|length }}</span></a>
       <a class="tab{% if view == 'tier-lists' %} is-active{% endif %}" href="?vista=tier-lists">Tier lists <span>{{ tier_lists|length }}</span></a>
       <a class="tab{% if view == 'actividad' %} is-active{% endif %}" href="?vista=actividad">Actividad</a>
+      {# El diario de partidas, si quien mira puede verlo (library.diary.can_see). #}
+      {% if show_diary %}<a class="tab{% if view == 'diario' %} is-active{% endif %}" href="?vista=diario">Diario</a>{% endif %}
     </nav>
 
     {% if view == "listas" %}
@@ -313,6 +315,8 @@
           {% if is_owner %}Aún no hay actividad. Cuando cambies el estado de un juego, le pongas nota, publiques una reseña o importes tus juegos, saldrá aquí.{% else %}{{ profile.name }} aún no tiene actividad.{% endif %}
         </p>
       {% endif %}
+    {% elif view == "diario" %}
+      {% include "library/_diary.html" %}
     {% elif view == "resenas" %}
       {% if drafts %}
         {# Sus borradores, que solo ve él. #}

@@ -401,7 +401,9 @@ class Command(BaseCommand):
         PlaySession.objects.filter(user=user).delete()
         for index, days, minutes in SESSIONS:
             if index < len(games):
-                PlaySession.add(user, games[index].pk, "steam", today - timedelta(days=days), minutes)
+                # Las de la semilla son de un solo día, como si se sincronizara cada noche.
+                day = today - timedelta(days=days)
+                PlaySession.add(user, games[index].pk, "steam", day, minutes, since=day)
 
     def activity(self, user, game, when, status, rating, review):
         """Apunta en la actividad de user lo que hizo con game en el momento when: su estado, su nota y su reseña (o None).

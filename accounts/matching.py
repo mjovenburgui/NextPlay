@@ -391,8 +391,8 @@ def update_library(user, platform, opened_only=False, record_activity=False, pri
         for entry in LibraryEntry.objects.filter(user=user, game_id__in=list(totals) + list(stale))
     }
     new, updated = [], 0
-    # (juego, última partida, minutos) de lo jugado ahora en los juegos que ya tenían horas de esta plataforma: lo que
-    # ha subido su tiempo, sin lo que es de antes (prior).
+    # (juego, última partida, minutos, partida anterior) de lo jugado ahora en los juegos que ya tenían horas de esta
+    # plataforma: lo que ha subido su tiempo, sin lo que es de antes (prior).
     played = []
     with transaction.atomic():
         for game_id, (minutes, last_played) in totals.items():
@@ -405,12 +405,12 @@ def update_library(user, platform, opened_only=False, record_activity=False, pri
                     user=user, game_id=game_id, status=status, **{minutes_field: minutes, last_field: last_played}
                 ))
                 continue
-            before = getattr(entry, minutes_field)
+            before, before_last = getattr(entry, minutes_field), getattr(entry, last_field)
             if entry.update_import(platform, minutes, last_played):
                 updated += 1
                 gained = minutes - before - prior[game_id] if before is not None else 0
                 if gained > 0:
-                    played.append((game_id, last_played, gained))
+                    played.append((game_id, last_played, gained, before_last))
         for game_id in stale:
             entry = existing.get(game_id)
             if entry is not None and entry.update_import(platform, None, None):
@@ -420,9 +420,11 @@ def update_library(user, platform, opened_only=False, record_activity=False, pri
             row.game_id = row.title.game_id
         ImportedTitle.objects.bulk_update(moved, ["game"])
         if record_activity:
-            for game_id, last_played, minutes in played:
+            for game_id, last_played, minutes, before_last in played:
                 day = timezone.localdate(last_played) if last_played and timezone.is_aware(last_played) else timezone.localdate()
-                PlaySession.add(user, game_id, platform, day, minutes)
+                # Desde el día de la partida anterior: si es el mismo, la sesión es de ese día; si no se sabe, vacío.
+                since = timezone.localdate(before_last) if before_last and timezone.is_aware(before_last) else None
+                PlaySession.add(user, game_id, platform, day, minutes, since=min(since, day) if since else None)
     if record_activity:
         games_imported(user, platform, new)
         if played:

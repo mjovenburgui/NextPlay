@@ -46,6 +46,15 @@
         </div>
       {% endif %}
     {% endwith %}
+    {# Lo que dice el diario de partidas de este juego (LibraryEntry.timeline): su primera partida o su primer logro, cuántas sesiones hay y la última. #}
+    {% with diary=entry.timeline %}
+      {% if diary %}
+        <p class="hours-diary small">
+          {% if diary.started %}Empezado el {{ diary.started|date:"j M Y" }}{% elif diary.first_achievement %}Primer logro el {{ diary.first_achievement|date:"j M Y" }}{% endif %}{% if diary.sessions %}{% if diary.started or diary.first_achievement %} · {% endif %}{% if diary.sessions == 1 %}1 sesión{% else %}{{ diary.sessions }} sesiones{% endif %}, la última el {{ diary.last.day|date:"j M" }} ({{ diary.last.label }}{% if not diary.last.exact %}, aproximado{% endif %}){% endif %}
+          · <a href="{% url 'profile' user.username %}?vista=diario">Tu diario</a>
+        </p>
+      {% endif %}
+    {% endwith %}
     <form action="{% url 'library:remove' game.id %}" method="post"
           hx-post="{% url 'library:remove' game.id %}" hx-target="#library-widget" hx-swap="outerHTML">
       {% csrf_token %}

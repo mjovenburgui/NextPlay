@@ -137,6 +137,12 @@ class Profile(models.Model):
         default=True,
         help_text="Si lo desactivas, solo tú podrás ver tu perfil y tu biblioteca.",
     )
+    # La pestaña Diario del perfil (qué días juega y a qué) la ven los demás salvo que la oculte; su dueño, siempre.
+    diary_visible = models.BooleanField(
+        "diario de partidas visible",
+        default=True,
+        help_text="Si lo desactivas, la pestaña Diario de tu perfil (qué días juegas y a qué) solo la verás tú.",
+    )
     # La biblioteca de Steam se vuelve a importar sola cada noche (comando sync_libraries) salvo que lo desactive.
     auto_sync = models.BooleanField("sincronizar Steam cada noche", default=True)
     auto_synced_at = models.DateTimeField("última sincronización automática", null=True, blank=True)
