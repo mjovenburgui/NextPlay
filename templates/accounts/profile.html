@@ -272,6 +272,7 @@
       <a class="tab{% if view == 'actividad' %} is-active{% endif %}" href="?vista=actividad">Actividad</a>
       {# El diario de partidas, si quien mira puede verlo (library.diary.can_see). #}
       {% if show_diary %}<a class="tab{% if view == 'diario' %} is-active{% endif %}" href="?vista=diario">Diario</a>{% endif %}
+      <a class="tab{% if view == 'estadisticas' %} is-active{% endif %}" href="?vista=estadisticas">Estadísticas</a>
       {# Lo que tienes en común con este jugador: solo en el perfil de otro y con sesión (social.affinity). #}
       {% if show_common %}<a class="tab{% if view == 'comun' %} is-active{% endif %}" href="?vista=comun">En común <span>{{ common_count }}</span></a>{% endif %}
     </nav>
@@ -321,6 +322,8 @@
       {% include "library/_diary.html" %}
     {% elif view == "comun" %}
       {% include "social/_in_common.html" %}
+    {% elif view == "estadisticas" %}
+      {% include "accounts/_stats.html" %}
     {% elif view == "resenas" %}
       {% if drafts %}
         {# Sus borradores, que solo ve él. #}

@@ -12,7 +12,7 @@ from django.shortcuts import get_object_or_404, render
 
 from challenges import progress as challenge_progress
 from games.models import LANGUAGE_FILTERS, Game, Genre, language_filter
-from library import backlog, diary
+from library import backlog, diary, stats as library_stats
 from library.models import HOURS_SOURCES, LibraryEntry, Review
 from library.views import mark_liked
 from lists.views import SHOWCASE_LISTS, SHOWCASE_TIER_LISTS, mark_boards, profile_lists
@@ -35,8 +35,8 @@ def profile(request, username):
     castellano); se ordena con ?orden= (recientes, nota, horas o nombre). Con ?vista=resenas muestra sus
     reseñas en vez de la biblioteca, con ?vista=listas sus listas, con ?vista=tier-lists sus tier lists, con
     ?vista=actividad lo que ha hecho (desde ?antes=, el cursor de «Cargar más»), con ?vista=diario su diario de
-    partidas del año ?anio= (si no lo ha ocultado) y con ?vista=comun, a quien mira con sesión, lo que tiene en común
-    con él. Un perfil privado da 404 a cualquiera que no sea su dueño.
+    partidas del año ?anio= (si no lo ha ocultado), con ?vista=estadisticas sus estadísticas y con ?vista=comun, a quien
+    mira con sesión, lo que tiene en común con él. Un perfil privado da 404 a cualquiera que no sea su dueño.
 
     Pantallas: Perfil.
     """
@@ -121,7 +121,7 @@ def _profile_context(request, owner, favorites=None, preview=False):
     show_diary = diary.can_see(owner, AnonymousUser() if preview else request.user)
     # «En común» solo tiene sentido para alguien con sesión que mira el perfil de otro.
     show_common = request.user.is_authenticated and request.user != owner and not preview
-    tabs_allowed = ("resenas", "listas", "tier-lists", "actividad", "diario", "comun")
+    tabs_allowed = ("resenas", "listas", "tier-lists", "actividad", "diario", "estadisticas", "comun")
     if view not in tabs_allowed or (view == "diario" and not show_diary) or (view == "comun" and not show_common):
         view = ""
     # La actividad solo se pide en su pestaña.
@@ -160,6 +160,8 @@ def _profile_context(request, owner, favorites=None, preview=False):
         **activity_tab,
         "show_diary": show_diary,
         "diary": diary.page(owner, _year(request.GET.get("anio", ""))) if view == "diario" else None,
+        # La pestaña Estadísticas, con sus barras y los años que tienen resumen (library.stats.overview).
+        "full_stats": library_stats.overview(owner) if view == "estadisticas" else None,
         "show_common": show_common,
         "common_count": affinity.common_count(request.user, owner) if show_common else 0,
         "common": affinity.in_common(request.user, owner) if view == "comun" else None,

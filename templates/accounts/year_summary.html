@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}El {{ summary.year|stringformat:"d" }} de {{ profile.name }} · NextPlay{% endblock %}
+
+{% block content %}
+  {# Resumen del año (library.stats.year_summary): lo que jugó, terminó y consiguió un jugador ese año, con la imagen para compartirlo (accounts.views.year_summary_image). #}
+  {% with s=summary %}
+    <section class="panel panel-wide year-summary">
+      <header class="page-head">
+        <div>
+          <p class="widget-label">Resumen del año</p>
+          <h1>El {{ s.year|stringformat:"d" }} de <a href="{% url 'profile' owner.username %}">{{ profile.name }}</a></h1>
+          {% if years|length > 1 %}
+            <nav class="diary-years" aria-label="Otros años">
+              {% for year in years %}<a class="chip{% if year == s.year %} is-active{% endif %}" href="{% url 'year_summary' owner.username year %}"{% if year == s.year %} aria-current="page"{% endif %}>{{ year|stringformat:"d" }}</a>{% endfor %}
+            </nav>
+          {% endif %}
+        </div>
+        <a class="btn" href="{% url 'profile' owner.username %}?vista=estadisticas">Sus estadísticas</a>
+      </header>
+
+      <dl class="stats">
+        <div><dt>Juegos jugados</dt><dd>{{ s.played|length }}</dd></div>
+        <div><dt>Terminados</dt><dd>{{ s.completed|length }}</dd></div>
+        {% if s.minutes %}<div><dt>En sesiones</dt><dd>{{ s.played_text }}</dd></div>{% endif %}
+        <div><dt>Logros</dt><dd>{{ s.unlocked }}</dd></div>
+        <div><dt>Reseñas</dt><dd>{{ s.reviews }}</dd></div>
+      </dl>
+
+      <div class="year-summary-grid">
+        <div>
+          {% if s.top %}
+            <section class="card-box">
+              <h2 class="widget-label">A lo que más {% if is_owner %}jugaste{% else %}jugó{% endif %}{% if not s.top_by_sessions %} <span class="muted">(por logros)</span>{% endif %}</h2>
+              <ol class="year-top">
+                {% for item in s.top %}
+                  <li>
+                    <a class="year-top-cover" href="{{ item.game.get_absolute_url }}" tabindex="-1" aria-hidden="true">{% if item.game.cover_url %}<img src="{{ item.game.cover_url }}" alt="" loading="lazy">{% endif %}</a>
+                    <a href="{{ item.game.get_absolute_url }}">{{ item.game.name }}</a>
+                    <span class="muted small">{{ item.text }}</span>
+                  </li>
+                {% endfor %}
+              </ol>
+            </section>
+          {% endif %}
+          {% if s.completed %}
+            <section class="card-box">
+              <h2 class="widget-label">Lo que {% if is_owner %}terminaste{% else %}terminó{% endif %}</h2>
+              <p class="year-list">{% for entry in s.completed %}<a href="{{ entry.game.get_absolute_url }}">{{ entry.game.name }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</p>
+            </section>
+          {% endif %}
+          <section class="card-box year-facts">
+            {% if s.busiest %}<p>El mes con más actividad: <strong>{{ s.busiest }}</strong>.</p>{% endif %}
+            {% if s.genres %}<p>Los géneros {% if is_owner %}a los que más jugaste{% else %}a los que más jugó{% endif %}: <strong>{{ s.genres|join:", " }}</strong>.</p>{% endif %}
+            {% if s.rarest %}<p>{% include "_icon.html" with name="trophy" %} El logro más raro: <strong>{% if s.rarest.achievement.hidden and not is_owner %}un logro oculto{% else %}{{ s.rarest.achievement.name }}{% endif %}</strong> <span class="muted">· lo tiene el {{ s.rarest.achievement.percent|floatformat:"-1" }} %</span></p>{% endif %}
+            {% if not s.played and not s.unlocked %}<p class="muted">Aún no hay nada de este año.</p>{% endif %}
+            <p class="muted small">Sale de las últimas partidas, las sesiones y los logros con fecha de las importaciones, de lo marcado como terminado y de las reseñas.</p>
+          </section>
+        </div>
+        <aside class="year-share">
+          <img src="{% url 'year_summary_image' owner.username s.year %}" alt="La imagen del {{ s.year|stringformat:'d' }} de {{ profile.name }}: sus cifras y a lo que más jugó." loading="lazy">
+          <a class="btn btn-primary" href="{% url 'year_summary_image' owner.username s.year %}" download="nextplay-{{ owner.username }}-{{ s.year|stringformat:'d' }}.png">{% include "_icon.html" with name="image" %} Descargar la imagen</a>
+        </aside>
+      </div>
+    </section>
+  {% endwith %}
+{% endblock %}

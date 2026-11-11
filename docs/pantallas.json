@@ -24,7 +24,12 @@
     {
       "nombre": "Perfil",
       "urls": ["profile", "social:activity"],
-      "que_es": "La página de cada jugador (/u/<usuario>/): cabecera personalizada (foto, fondo, color, redes, cuentas, seguidores), escaparate (favoritos, jugando ahora, reseña destacada, estadísticas, logros, listas...) y las pestañas Biblioteca, Reseñas, Listas, Tier lists, Actividad, Diario (el diario de partidas: la última partida, el calendario de cada año con lo jugado y los días con logro, y las últimas sesiones) y, en el perfil de otro, En común (los juegos de los dos y lo compatibles que sois). También se ve dentro de Editar perfil, en su vista previa."
+      "que_es": "La página de cada jugador (/u/<usuario>/): cabecera personalizada (foto, fondo, color, redes, cuentas, seguidores), escaparate (favoritos, jugando ahora, reseña destacada, estadísticas, logros, listas...) y las pestañas Biblioteca, Reseñas, Listas, Tier lists, Actividad, Diario (el diario de partidas: la última partida, el calendario de cada año con lo jugado y los días con logro, y las últimas sesiones), Estadísticas (las cifras de siempre en barras: plataformas, estados, géneros, notas, décadas y años, con enlaces al resumen de cada año) y, en el perfil de otro, En común (los juegos de los dos y lo compatibles que sois). También se ve dentro de Editar perfil, en su vista previa."
+    },
+    {
+      "nombre": "Resumen del año",
+      "urls": ["year_summary", "year_summary_image"],
+      "que_es": "El año de cada jugador (/u/<usuario>/resumen/<año>/): los juegos que jugó y terminó, lo jugado en sesiones, a lo que más jugó, sus logros de ese año y el más raro, sus reseñas, sus géneros y su mes con más actividad, con los demás años y una imagen vertical para compartir o descargar."
     },
     {
       "nombre": "Seguidores y seguidos",

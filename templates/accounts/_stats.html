@@ -1,0 +1,69 @@
+{# Pestaña Estadísticas del perfil (library.stats.overview): las cifras de siempre y, en barras, de dónde salen las horas, cómo está la biblioteca, los géneros, las notas, las décadas y los años, con enlaces al resumen de cada año. #}
+{% with s=full_stats %}
+  <section class="card-box stats-page">
+    <dl class="stats">
+      <div><dt>Juegos</dt><dd>{{ s.totals.games }}</dd></div>
+      <div><dt>Horas</dt><dd>{{ s.totals.hours }}</dd></div>
+      <div><dt>Completados</dt><dd>{{ s.totals.completed }}</dd></div>
+      <div><dt>Nota media</dt><dd>{% if s.totals.average %}<span class="gold">★</span> {{ s.totals.average|floatformat:1 }}{% else %}–{% endif %}</dd></div>
+      <div><dt>Reseñas</dt><dd>{{ s.totals.reviews }}</dd></div>
+      {% if s.totals.unlocked %}<div><dt>Logros</dt><dd>{{ s.totals.unlocked }}</dd></div>{% endif %}
+      {% if s.totals.platinums %}<div><dt>Platinos</dt><dd>{{ s.totals.platinums }}</dd></div>{% endif %}
+      {% if s.totals.complete %}<div><dt>Al 100 %</dt><dd>{{ s.totals.complete }}</dd></div>{% endif %}
+    </dl>
+    {% if s.years %}
+      <p class="stats-years">
+        <span class="muted">Resumen del año:</span>
+        {% for year in s.years %}<a class="chip" href="{% url 'year_summary' owner.username year %}">{{ year|stringformat:"d" }}</a>{% endfor %}
+      </p>
+    {% endif %}
+  </section>
+
+  <div class="stats-grid">
+    {% if s.platforms %}
+      <section class="card-box">
+        <h3 class="widget-label">Horas por plataforma</h3>
+        {% include "accounts/_stat_bars.html" with items=s.platforms %}
+      </section>
+    {% endif %}
+    {% if s.statuses %}
+      <section class="card-box">
+        <h3 class="widget-label">La biblioteca</h3>
+        {% include "accounts/_stat_bars.html" with items=s.statuses %}
+      </section>
+    {% endif %}
+    {% if s.genres %}
+      <section class="card-box">
+        <h3 class="widget-label">Géneros {% if s.genres_by_hours %}por horas{% else %}por juegos{% endif %}</h3>
+        {% include "accounts/_stat_bars.html" with items=s.genres %}
+      </section>
+    {% endif %}
+    {% if s.most_played %}
+      <section class="card-box">
+        <h3 class="widget-label">Lo más jugado</h3>
+        <ol class="stats-top">
+          {% for item in s.most_played %}<li><a href="{{ item.game.get_absolute_url }}">{{ item.game.name }}</a> <span class="muted">{{ item.text }}</span></li>{% endfor %}
+        </ol>
+      </section>
+    {% endif %}
+    {% if s.by_year %}
+      <section class="card-box">
+        <h3 class="widget-label">Juegos jugados cada año</h3>
+        {% include "accounts/_stat_bars.html" with items=s.by_year %}
+        <p class="muted small">Según la última partida de cada juego, las sesiones y los logros con fecha; los completados, según cuándo los marcaste.</p>
+      </section>
+    {% endif %}
+    {% if s.stars %}
+      <section class="card-box">
+        <h3 class="widget-label">Las notas que pones</h3>
+        {% include "accounts/_stat_bars.html" with items=s.stars %}
+      </section>
+    {% endif %}
+    {% if s.decades %}
+      <section class="card-box">
+        <h3 class="widget-label">De qué época son</h3>
+        {% include "accounts/_stat_bars.html" with items=s.decades %}
+      </section>
+    {% endif %}
+  </div>
+{% endwith %}

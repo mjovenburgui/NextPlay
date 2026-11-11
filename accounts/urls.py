@@ -38,4 +38,6 @@ urlpatterns = [
     # login, logout and the password reset flow
     path("cuenta/", include("django.contrib.auth.urls")),
     path("u/<str:username>/", views.profile, name="profile"),
+    path("u/<str:username>/resumen/<int:year>/", views.year_summary, name="year_summary"),
+    path("u/<str:username>/resumen/<int:year>/imagen.png", views.year_summary_image, name="year_summary_image"),
 ]

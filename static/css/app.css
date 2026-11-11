@@ -761,6 +761,38 @@ button.chip-link { background: none; font-family: inherit; cursor: pointer; }
 .common-game .cover { margin-bottom: .3rem; }
 .common-row { color: var(--text-2); }
 
+/* Pestaña Estadísticas del perfil (accounts/_stats.html) y sus barras (accounts/_stat_bars.html). */
+.stats-page { margin-bottom: 1rem; }
+.stats-page .stats { margin-top: 0; }
+.stats-years { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin: .9rem 0 0; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 1rem; }
+.stats-grid .card-box { min-width: 0; }
+.stat-bars { display: grid; gap: .45rem; margin: .5rem 0 0; padding: 0; list-style: none; }
+.stat-bar { display: grid; grid-template-columns: minmax(6rem, 10rem) 1fr auto; align-items: center; gap: .6rem; font-size: .9rem; }
+.stat-bar-label { display: inline-flex; align-items: center; gap: .35rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stat-bar-track { height: .6rem; overflow: hidden; border-radius: 999px; background: var(--surface-3); }
+.stat-bar-track span { display: block; height: 100%; min-width: .3rem; border-radius: inherit; background: linear-gradient(90deg, var(--violet), var(--cyan)); }
+.stat-bar-value { color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stats-top { display: grid; gap: .35rem; margin: .5rem 0 0; padding-left: 1.2rem; }
+
+/* Resumen del año (accounts/year_summary.html): las cifras, a lo que más jugó y la imagen para compartir. */
+.year-summary .page-head h1 { margin: .1rem 0 .4rem; }
+.year-summary .stats { margin-bottom: 1rem; }
+.year-summary-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 1rem; align-items: start; }
+.year-summary-grid .card-box { margin-bottom: 1rem; }
+.year-top { display: grid; gap: .55rem; margin: .5rem 0 0; padding: 0; list-style: none; }
+.year-top li { display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: .7rem; }
+.year-top-cover { width: 40px; aspect-ratio: 3 / 4; overflow: hidden; border-radius: 6px; background: var(--surface-2); }
+.year-top-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.year-list { margin: .4rem 0 0; line-height: 1.7; }
+.year-facts p { margin: 0 0 .5rem; }
+.year-share { display: grid; gap: .7rem; position: sticky; top: 5rem; }
+.year-share img { display: block; width: 100%; height: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+@media (max-width: 860px) {
+  .year-summary-grid { grid-template-columns: 1fr; }
+  .year-share { position: static; max-width: 360px; }
+}
+
 /* Logros en el feed (social/_activity.html): los rarísimos, con su trofeo dorado. */
 .activity-achievements { display: grid; gap: .2rem; margin: .35rem 0 0; padding: 0; list-style: none; font-size: .9rem; }
 .activity-achievements .icon { width: 1em; height: 1em; color: var(--gold); vertical-align: -.12em; }

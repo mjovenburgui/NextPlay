@@ -1574,7 +1574,7 @@
   {
     "titulo": "Estadísticas del perfil y resumen anual",
     "fecha": "2026-10-17",
-    "estado": "pendiente",
+    "estado": "en curso",
     "prioridad": "media",
     "tipo": "Funcionalidad",
     "resumen": "Una pestaña de estadísticas en el perfil (horas totales por plataforma, géneros favoritos, juegos completados por año, nota media) y un «Wrapped» anual compartible.",
@@ -1585,16 +1585,13 @@
       "Página de resumen del año con los juegos más jugados y una imagen para compartir.",
       "Respetar el perfil privado."
     ],
-    "notas": "Para «completados por año» haría falta guardar la fecha en que un juego pasa a Completado; ahora solo hay updated_at. Ya estaba planeada antes de proponerla.",
+    "notas": "Para «completados por año» haría falta guardar la fecha en que un juego pasa a Completado; ahora solo hay updated_at. Ya estaba planeada antes de proponerla. 11/11/2026: hecho en la rama estadisticas-y-resumen, sin fusionar, con library/stats.py. Pestaña Estadísticas en el perfil: las cifras (juegos, horas, completados, nota media, reseñas, logros, platinos y al 100 %) y, en barras hechas con CSS, las horas por plataforma, los estados, los géneros por horas, las notas, las décadas y los juegos jugados y completados cada año (con la última partida, las sesiones y los logros con fecha), lo más jugado y un enlace al resumen de cada año. Resumen del año en /u/<usuario>/resumen/<año>/ (pantalla nueva): juegos jugados y terminados, horas en sesiones, a lo que más jugó (por sesiones o, si no hay, por logros de ese año), el mes con más actividad, los géneros, el logro más raro y las reseñas, con una imagen vertical de 1080 × 1350 para compartir o descargar, hecha con Pillow y el color del perfil. Con tester_steam salen 11 años, de 2016 a 2026, y su 2025 tiene 62 juegos y 686 logros. Respeta el perfil privado.",
     "revision": {
-      "fecha": "2026-11-01",
-      "hoy": "Hay cifras en la cabecera (_profile_stats) y los géneros más jugados, sin pestaña ni resumen. Su nota está vieja: completed_at existe desde el 26/10. Los datos dan para mucho: tester_steam lleva 3905 h en Steam y 6975 h en PlayStation, con 37 juegos en las dos.",
+      "fecha": "2026-11-11",
+      "hoy": "Hecho en la rama estadisticas-y-resumen, sin fusionar: la pestaña Estadísticas y el Resumen del año con su imagen. Falta dejar ocultar cifras concretas y compartir la imagen sin descargarla.",
       "plan": [
-        "Pestaña ?vista=estadisticas con library/stats.py y agregados SQL: horas por plataforma y por género, estados, juegos por año de lanzamiento y por año jugado.",
-        "Gráficas SVG desde el servidor, como history.chart, con texto alternativo y sin librerías.",
-        "Resumen anual en /u/<usuario>/resumen/2026/: más jugados, horas, géneros, logros y reseñas, a partir de PlaySession y, para lo anterior, de los logros y la última partida.",
-        "Imagen para compartir con la misma pieza de «Vistas previas al compartir y tarjeta para incrustar», en 1080 × 1920 para historias y en apaisado.",
-        "Respetar el perfil privado y dejar ocultar cifras concretas."
+        "Ocultar cifras concretas en Privacidad (las horas, por ejemplo) y respetarlo en la pestaña, el resumen y la imagen.",
+        "Compartir sin descargar: el botón de compartir del móvil (Web Share con archivos) y, al pegar el enlace del resumen, la imagen como vista previa (og:image), que es la pieza de «Vistas previas al compartir y tarjeta para incrustar»."
       ],
       "profundizar": [
         "Cifras que solo salen de tener precios y horas juntos: cuánto vale tu pendiente, cuánto te sale la hora y cuánto has ahorrado comprando en rebajas si apuntas lo pagado.",

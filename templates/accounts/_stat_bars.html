@@ -1,0 +1,10 @@
+{# Una lista de barras horizontales de las estadísticas (library.stats): cada elemento con su nombre (label), su ancho respecto al mayor (percent) y su cifra (text); los estados llevan su color (key) y las plataformas, su logo (platform). #}
+<ul class="stat-bars">
+  {% for item in items %}
+    <li class="stat-bar">
+      <span class="stat-bar-label">{% if item.key %}<span class="status-dot st-{{ item.key }}"></span>{% elif item.platform %}{% include "library/_platform_mark.html" with key=item.platform %}{% endif %}{{ item.label }}</span>
+      <span class="stat-bar-track" aria-hidden="true"><span style="width: {{ item.percent }}%"></span></span>
+      <span class="stat-bar-value">{{ item.text }}</span>
+    </li>
+  {% endfor %}
+</ul>

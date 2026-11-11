@@ -19,10 +19,10 @@ from PIL import Image
 from accounts import matching
 from accounts.models import Achievement, ExternalTitle, ImportedTitle, Notification, Profile, UnlockedAchievement
 from challenges.models import Challenge, Participation
-from games.models import STEAM_DECK_SLUG, Game, GameMode, GamePrice, Platform
+from games.models import STEAM_DECK_SLUG, Game, GameMode, GamePrice, Genre, Platform
 from social.models import Activity
 
-from . import backlog, diary, markup, reminders, wishlist
+from . import backlog, diary, markup, reminders, stats, wishlist
 from .models import (
     HOURS_SOURCES, LibraryEntry, PlaySession, Report, Review, ReviewComment, ReviewImage, ReviewLike, WishlistItem,
 )
@@ -1065,6 +1065,64 @@ class TidyTests(TestCase):
         self.assertEqual(self.answer(entry, "terminado").status_code, 404)
         self.client.logout()
         self.assertEqual(self.client.get(reverse("library:tidy")).status_code, 302)
+
+
+class StatsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        rpg = Genre.objects.create(name="Rol", slug="rol")
+        cls.hades = Game.objects.create(name="Hades", slug="hades", first_release_date=date(2020, 9, 17))
+        cls.celeste = Game.objects.create(name="Celeste", slug="celeste", first_release_date=date(2018, 1, 25))
+        cls.hades.genres.add(rpg)
+        played = timezone.make_aware(datetime(2025, 6, 1, 20))
+        LibraryEntry.objects.create(
+            user=cls.ana, game=cls.hades, status="completed", rating=9, steam_playtime_minutes=600,
+            steam_last_played=played, completed_at=timezone.make_aware(datetime(2025, 7, 1, 12)),
+        )
+        LibraryEntry.objects.create(
+            user=cls.ana, game=cls.celeste, status="playing", rating=7, psn_playtime_minutes=120, psn_last_played=played,
+        )
+
+    def test_overview(self):
+        s = stats.overview(self.ana)
+        totals = s["totals"]
+        self.assertEqual((totals["games"], totals["hours"], totals["completed"], totals["average"]), (2, 12, 1, 4.0))
+        self.assertEqual(
+            [(item["label"], item["text"], item["percent"]) for item in s["platforms"]],
+            [("Steam", "10 h", 100), ("PlayStation", "2 h", 20)],
+        )
+        self.assertEqual([(item["label"], item["text"]) for item in s["genres"]], [("Rol", "10 h")])
+        self.assertEqual([item["label"] for item in s["decades"]], ["Años 2010", "Años 2020"])
+        self.assertEqual([(item["label"], item["value"], item["completed"]) for item in s["by_year"]], [("2025", 2, 1)])
+        self.assertEqual(s["years"], [2025])
+        response = self.client.get(reverse("profile", args=["ana"]) + "?vista=estadisticas")
+        self.assertContains(response, "Horas por plataforma")
+        self.assertContains(response, reverse("year_summary", args=["ana", 2025]))
+
+    def test_year_summary_and_its_image(self):
+        PlaySession.add(self.ana, self.hades.pk, "steam", date(2025, 3, 3), 90, since=date(2025, 3, 3))
+        url = reverse("year_summary", args=["ana", 2025])
+        response = self.client.get(url)
+        self.assertContains(response, "El 2025 de")
+        summary = response.context["summary"]
+        self.assertEqual(
+            (len(summary["played"]), len(summary["completed"]), summary["minutes"], summary["busiest"]), (2, 1, 90, "marzo"),
+        )
+        self.assertEqual([item["game"] for item in summary["top"]], [self.hades])
+        image = self.client.get(reverse("year_summary_image", args=["ana", 2025]))
+        self.assertEqual(image["Content-Type"], "image/png")
+        self.assertEqual(Image.open(io.BytesIO(image.content)).size, stats.IMAGE_SIZE)
+        # Sin letras con tildes en el servidor, la de Pillow no las tiene: se quitan para que no salgan cuadros.
+        with mock.patch.object(stats, "_font_files", return_value=None):
+            self.assertEqual(stats._text("A lo que más jugué · reseñas"), "A lo que mas jugue · resenas")
+            self.assertEqual(Image.open(io.BytesIO(stats.year_image(self.ana, summary))).size, stats.IMAGE_SIZE)
+        # Ni años sin sentido ni perfiles privados, salvo para su dueño.
+        self.assertEqual(self.client.get(reverse("year_summary", args=["ana", 1990])).status_code, 404)
+        Profile.objects.filter(user=self.ana).update(is_public=False)
+        self.assertEqual(self.client.get(url).status_code, 404)
+        self.client.force_login(self.ana)
+        self.assertEqual(self.client.get(url).status_code, 200)
 
 
 class HoursByPlatformTests(TestCase):

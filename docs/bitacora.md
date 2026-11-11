@@ -17,6 +17,7 @@ Todas las ramas de abajo están fusionadas con `main`, cada una con su PR, menos
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
+| `estadisticas-y-resumen` | Pestaña Estadísticas del perfil y Resumen del año con su imagen para compartir | Commit local, sin subir, encima de `horas-por-plataforma`. Sin migraciones. |
 | `horas-por-plataforma` | Horas totales y última partida en la base de datos, y cualquier plataforma nueva sin migraciones | Commit local, sin subir, encima de `logros-fase-2`. Trae la migración `library.0016`, que rellena los totales. |
 | `logros-fase-2` | Logros: trofeos de PlayStation uno a uno, logros en el feed y «Jugados en» el año pasado | Commit local, sin subir, encima de `gente-que-sigues`. Trae la migración `social.0010`. |
 | `gente-que-sigues` | La gente que sigues en la ficha y en los perfiles: su recuadro y sus reseñas delante, «En común», «A quién seguir» y un aviso nuevo | Commit local, sin subir, encima de `diario-de-partidas`. Trae la migración `accounts.0027`. |
@@ -36,6 +37,41 @@ Todas las ramas de abajo están fusionadas con `main`, cada una con su PR, menos
 - `library.0014`.
 
 Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan estas migraciones: `manage.py migrate`.
+
+---
+
+## 11/11/2026 · Estadísticas del perfil y resumen del año
+
+**Rama:** `estadisticas-y-resumen`, encima de `horas-por-plataforma`. Commit local, sin subir.
+
+**Por qué:** era la siguiente de la lista y se apoya en lo de antes: las horas totales, el diario y los logros con fecha.
+
+**Qué cambia para ti:**
+- **Pestaña Estadísticas en el perfil:**
+  - arriba, las cifras: juegos, horas, completados, nota media, reseñas, logros, platinos y juegos al 100 %, con enlaces al resumen de cada año que tiene algo;
+  - en barras, las horas por plataforma, cómo está tu biblioteca, los géneros por horas, las notas que pones, de qué época son tus juegos y cuántos jugaste y completaste cada año;
+  - lo más jugado.
+  - Con `tester_steam`: 13.324 h, 2612 logros y años de 2016 a 2026.
+- **Resumen del año** (`/u/tester_steam/resumen/2025/`, pantalla nueva):
+  - los juegos que jugaste y terminaste, las horas en sesiones, a lo que más jugaste (por sesiones o, si ese año no hay, por logros), el mes con más actividad, tus géneros, tu logro más raro y tus reseñas;
+  - al lado, una imagen vertical para compartir o descargar, con el color de tu perfil.
+  - Tu 2025: 62 juegos y 686 logros; a lo que más jugaste, Warframe, Dead by Daylight y Yakuza: Like a Dragon.
+- Respeta el perfil privado: los demás reciben un 404.
+
+**Qué he tocado:**
+- `library/stats.py`, nuevo: las estadísticas, el resumen del año y la imagen. La imagen usa la DejaVu del servidor, o Segoe o Arial en Windows; sin ninguna, quita las tildes para que no salgan cuadros.
+- `accounts/views/resumen_anual.py`, nuevo, con sus dos direcciones en `accounts/urls.py`, y `accounts/views/perfil.py` (la pestaña).
+- Las plantillas nuevas `accounts/_stats.html`, `_stat_bars.html` y `year_summary.html`, y `profile.html`.
+- `static/css/app.css` y `docs/pantallas.json`, con la pantalla nueva.
+
+**Cómo lo he comprobado:**
+- 2 tests nuevos: las cifras y las barras, y el resumen con su imagen, su letra de reserva, los años sin sentido y el perfil privado.
+- La batería completa en las dos variantes.
+- Capturas en la copia con `tester_steam`.
+
+**Qué falta:**
+- Que lo revises.
+- Dejar ocultar cifras concretas y compartir la imagen sin descargarla. Esto último va con «Vistas previas al compartir».
 
 ---
 

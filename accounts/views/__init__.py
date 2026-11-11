@@ -9,6 +9,7 @@
 - juegos_importados.py: Juegos importados.
 - avisos.py: Avisos.
 - ficha_del_juego.py: los botones de las cuentas en la Ficha del juego (favoritos, «Tus logros» y poner de cabecera).
+- resumen_anual.py: Resumen del año (y su imagen para compartir).
 - comun.py: lo que comparten varias (volver a la página desde la que se envió un formulario).
 
 Aquí se reexportan las vistas y lo que usan otras apps, para que urls.py y quien importa de accounts.views no cambien.
@@ -24,3 +25,4 @@ from .ficha_del_juego import banner_from_game, favorite_context, favorite_toggle
 from .juegos_importados import imported_title_assign, imported_title_hide, imported_titles
 from .perfil import profile
 from .registro import signup
+from .resumen_anual import year_summary, year_summary_image
