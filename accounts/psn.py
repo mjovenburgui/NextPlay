@@ -16,6 +16,9 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
+from social import activity
+
+from . import achievements
 from .matching import YEAR_OR_REGION, add_title, clean_name, match_by_name, name_key, normalize, save_titles, update_library
 from .models import ExternalTitle, ImportedTitle, PSNAccount
 
@@ -35,6 +38,11 @@ TROPHY_GRADES = ("bronze", "silver", "gold", "platinum")
 # mucho TITLE_IDS_PER_REQUEST juegos por petición y TROPHY_WORKERS peticiones a la vez.
 GAME_TROPHIES_URL = "https://m.np.playstation.com/api/trophy/v1/users/me/titles/trophyTitles"
 TITLE_ID = re.compile(r"^[A-Z]{4}\d{5}_\d{2}$")
+# Los trofeos de una lista uno a uno: los que tiene (nombre, descripción, icono y si es oculto) y cuáles ha conseguido la
+# cuenta, con su fecha y lo raros que son. Se piden en castellano.
+TROPHY_LIST_URL = "https://m.np.playstation.com/api/trophy/v1/npCommunicationIds/{}/trophyGroups/all/trophies"
+EARNED_TROPHIES_URL = "https://m.np.playstation.com/api/trophy/v1/users/me/npCommunicationIds/{}/trophyGroups/all/trophies"
+TROPHY_LANGUAGE = "es-ES"
 TITLE_IDS_PER_REQUEST = 5
 TROPHY_WORKERS = 6
 NPSSO_URL = "https://ca.account.sony.com/api/v1/ssocookie"
@@ -242,6 +250,98 @@ def trophies_by_title_id(token, title_ids):
         return {title_id: lists for found in pool.map(read, batches) for title_id, lists in found}
 
 
+def _trophy_rows(url, token, service):
+    """Los trofeos («trophies») de una lista, pedidos en castellano (TROPHY_LANGUAGE) y con su servicio (npServiceName:
+    «trophy» en PS4 y antes, «trophy2» en PS5). Lanza PSNError si PlayStation no los da.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; sección «Logros»),
+    Ficha del juego (tus logros: los trofeos uno a uno).
+    """
+    try:
+        response = requests.get(
+            url, params={"npServiceName": service} if service else {},
+            headers={"Authorization": f"Bearer {token}", "Accept-Language": TROPHY_LANGUAGE}, timeout=TIMEOUT,
+        )
+        response.raise_for_status()
+        return response.json().get("trophies") or []
+    except (requests.RequestException, ValueError, AttributeError) as exc:
+        raise PSNError(f"Error consultando los trofeos de PlayStation: {exc}") from exc
+
+
+def _rate(value):
+    """El porcentaje de jugadores que tiene un trofeo, que PlayStation da como texto («12.3»), con un decimal, o None.
+
+    Pantallas: Ficha del juego (tus logros: lo raro que es cada trofeo), Perfil (sección «Logros»: el más raro).
+    """
+    try:
+        return round(float(value), 1)
+    except (TypeError, ValueError):
+        return None
+
+
+def trophy_details(token, lists):
+    """Los trofeos uno a uno de las listas de un título (las de trophy_titles o trophies_by_title_id, con su
+    npCommunicationId y su npServiceName): (los trofeos del juego como los guarda achievements.save_info, lo raro que es
+    cada uno, [(clave, conseguido, fecha o None)] como achievements.save_unlocked), o None si alguna lista no se puede
+    leer. La clave de cada trofeo es «lista:número», para que no choquen los de las listas de una colección. PlayStation
+    no da un icono distinto para los que faltan: se enseñan en gris.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; sección «Logros»),
+    Ficha del juego (tus logros: los trofeos uno a uno).
+    """
+    items, percentages, unlocked = [], {}, []
+    for trophy_list in lists:
+        list_id, service = trophy_list.get("npCommunicationId"), trophy_list.get("npServiceName") or ""
+        if not list_id:
+            return None
+        try:
+            defined = _trophy_rows(TROPHY_LIST_URL.format(list_id), token, service)
+            earned = {row.get("trophyId"): row for row in _trophy_rows(EARNED_TROPHIES_URL.format(list_id), token, service)}
+        except PSNError:
+            return None
+        for trophy in defined:
+            key = f"{list_id}:{trophy.get('trophyId')}"
+            mine = earned.get(trophy.get("trophyId")) or {}
+            items.append({
+                "api_name": key,
+                "name": (trophy.get("trophyName") or key)[:255],
+                "description": (trophy.get("trophyDetail") or "")[:500],
+                "icon": trophy.get("trophyIconUrl") or "",
+                "icon_locked": "",
+                "hidden": bool(trophy.get("trophyHidden")),
+            })
+            rate = _rate(mine.get("trophyEarnedRate"))
+            if rate is not None:
+                percentages[key] = rate
+            got = bool(mine.get("earned"))
+            unlocked.append((key, got, parse_datetime(mine.get("earnedDateTime") or "") if got else None))
+    return items, percentages, unlocked
+
+
+def read_trophies(user, token, matched):
+    """Lee uno a uno los trofeos de los títulos de matched ([(ImportedTitle, listas, cómo iba antes)], los que
+    save_trophies ha visto cambiar o nunca se habían leído así), TROPHY_WORKERS a la vez, y los guarda como los logros de
+    Steam (achievements.save_info y save_unlocked); lo que merece salir en el feed pasa a la actividad
+    (social.activity.achievements_read). Lo que no se puede leer se queda con su recuento y se intenta la próxima vez.
+    Devuelve de cuántos títulos se han leído.
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; sección «Logros» y
+    pestaña Actividad), Ficha del juego (tus logros: los trofeos uno a uno), Inicio (feed: logros).
+    """
+    if not matched:
+        return 0
+    with ThreadPoolExecutor(max_workers=TROPHY_WORKERS) as pool:
+        details = list(pool.map(lambda item: trophy_details(token, item[1]), matched))
+    found = [(row, before, read) for (row, _, before), read in zip(matched, details) if read is not None]
+    now = timezone.now()
+    with transaction.atomic():
+        for row, _, (items, percentages, _) in found:
+            achievements.save_info(row.title, items, percentages, at=now)
+        new = achievements.save_unlocked([(row, unlocked) for row, _, (_, _, unlocked) in found])
+    activity.achievements_read(user, [row for row, _, _ in found], new, {row.pk: before for row, before, _ in found})
+    return len(found)
+
+
 def trophy_key(name):
     """Clave para emparejar un juego con su lista de trofeos por el nombre: sin coletillas de plataforma y sin fijarse en
     cómo está escrito (name_key), para que «Tom Clancy’s» y «Tom Clancy's» o «Ghostrunner2» y «Ghostrunner 2» sean el mismo.
@@ -266,7 +366,7 @@ def trophy_count(lists):
     return min(earned, defined), defined, any((item.get("earnedTrophies") or {}).get("platinum") for item in lists)
 
 
-def save_trophies(user, trophies, by_title=None):
+def save_trophies(user, trophies, by_title=None, matched=None):
     """Apunta en los títulos de PlayStation importados del usuario sus trofeos y devuelve en cuántos.
 
     Primero, los de su ID de juego (by_title, de trophies_by_title_id): una colección suma las listas de sus juegos y
@@ -274,30 +374,37 @@ def save_trophies(user, trophies, by_title=None):
     de la cuenta (trophies, de trophy_titles): el del título o el del juego del catálogo que tiene y, si con ellos no
     aparece, sin el año o la región del final (YEAR_OR_REGION). Si un juego tiene trofeos aparte en PS4 y en PS5, por
     nombre cuenta la versión que más lleva (primero el platino). Los títulos sin trofeos leídos se quedan como estaban.
+    Si se da la lista matched, se le añaden los que hay que leer uno a uno (read_trophies): los que han cambiado y los
+    que nunca se habían leído así, como (título importado, sus listas, (conseguidos, totales, platino) de antes).
 
     Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; insignias de las
     portadas, cifras y sección «Logros»), Ficha del juego (tus logros).
     """
     by_title = by_title or {}
+    # Clave del nombre → (conseguidos, totales, platino), [su lista].
     by_name = {}
     for trophy in trophies:
         key, result = trophy_key(trophy.get("trophyTitleName")), trophy_count([trophy])
         if not key or result is None:
             continue
         old = by_name.get(key)
-        if old is None or (result[2], result[0] / result[1]) > (old[2], old[0] / old[1]):
-            by_name[key] = result
+        if old is None or (result[2], result[0] / result[1]) > (old[0][2], old[0][0] / old[0][1]):
+            by_name[key] = (result, [trophy])
     now = timezone.now()
     rows = []
     for row in ImportedTitle.objects.filter(user=user, title__platform=ExternalTitle.Platform.PSN).select_related("title__game"):
-        result = trophy_count(by_title.get(row.title.external_id) or [])
+        lists = by_title.get(row.title.external_id) or []
+        result = trophy_count(lists)
         if result is None:
             names = [row.title.name] + ([row.title.game.name] if row.title.game else [])
             # El año o la región solo se quitan si con ellos no aparece: «DOOM (1993)» no se lleva los de DOOM.
             keys = [trophy_key(name) for name in names] + [trophy_key(YEAR_OR_REGION.sub("", name)) for name in names]
-            result = next((by_name[key] for key in keys if key in by_name), None)
+            result, lists = next((by_name[key] for key in keys if key in by_name), (None, []))
         if result is not None:
-            row.set_achievements(*result, at=now)
+            before = (row.achievements_unlocked, row.achievements_total, row.platinum)
+            changed = row.set_achievements(*result, at=now)
+            if matched is not None and (changed or row.title.achievements_read_at is None):
+                matched.append((row, lists, before))
             rows.append(row)
     ImportedTitle.objects.bulk_update(rows, ["achievements_unlocked", "achievements_total", "platinum", "achievements_at"])
     return len(rows)
@@ -329,8 +436,9 @@ def import_library(user, npsso):
     PS4 y la de PS5 de un juego se suman. Lanza PSNAuthError si el código no vale y ValueError si esa
     cuenta de PSN ya es de otro usuario.
 
-    Con el mismo token lee después los trofeos de cada juego (trophies_by_title_id, trophy_titles y save_trophies);
-    si fallan, la importación de los juegos sigue valiendo.
+    Con el mismo token lee después los trofeos de cada juego (trophies_by_title_id, trophy_titles y save_trophies) y,
+    de los que han cambiado, cada trofeo con su fecha y su rareza (read_trophies); si fallan, la importación de los
+    juegos sigue valiendo.
 
     Devuelve un dict con la cuenta («account»), cuántos juegos se han añadido («added»), actualizado
     («updated») y no se han encontrado en el catálogo («unmatched»), y de cuántos se han leído los trofeos
@@ -384,5 +492,8 @@ def import_library(user, npsso):
         # Sin la lista de trofeos de la cuenta solo se apuntan los que salen por ID: lo importado de los juegos sigue
         # valiendo y el resto se intenta en la próxima sincronización.
         listed = []
-    trophies = save_trophies(user, listed, trophies_by_title_id(token, titles))
+    matched = []
+    trophies = save_trophies(user, listed, trophies_by_title_id(token, titles), matched=matched)
+    # Uno a uno, solo los títulos cuyos trofeos han cambiado o nunca se habían leído así.
+    read_trophies(user, token, matched)
     return {"account": account, "added": added, "updated": updated, "unmatched": unmatched, "trophies": trophies}

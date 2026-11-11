@@ -229,6 +229,10 @@ class Activity(models.Model):
     - TIDY: lo que ha ordenado al repasar su biblioteca (library.backlog): cuántos juegos ha marcado como terminados
       («completed» en data) y como abandonados («dropped») y los ids de los primeros terminados («games»), para sus
       portadas; todo junto si va seguido (MERGE_WINDOW), y no una entrada por juego.
+    - TROPHY: logros de un juego (game) que merecen salir, recién leídos de Steam o PlayStation
+      (social.activity.achievements_read): en data, la plataforma («platform»), si ya los tiene todos («complete») o el
+      platino («platinum»), cuántos ha conseguido («count») y los rarísimos («rare», con «name», «percent» y «hidden»,
+      y cuántos son en «rare_count»).
 
     updated_at es la hora de lo último que se ha juntado: la que se enseña y por la que se ordena.
     """
@@ -240,6 +244,7 @@ class Activity(models.Model):
         LIST = "list", "Lista"
         CHALLENGE = "challenge", "Reto"
         TIDY = "tidy", "Repaso de la biblioteca"
+        TROPHY = "trophy", "Logros"
 
     # Estado al que pasa el juego → lo que dice la actividad, en minúscula y partido en lo que va antes del
     # nombre del juego y lo que va después: «terminó Hades», «añadió Hades a Pendiente».
@@ -318,6 +323,8 @@ class Activity(models.Model):
             return self.challenge is not None
         if self.kind == self.Kind.TIDY:
             return bool(self.data.get("completed") or self.data.get("dropped"))
+        if self.kind == self.Kind.TROPHY:
+            return self.game_id is not None
         if self.kind == self.Kind.LIST:
             game_list = self.game_list
             if game_list is None:
@@ -354,6 +361,22 @@ class Activity(models.Model):
         if self.data.get("created"):
             return "creó el reto"
         return "se unió al reto"
+
+    @property
+    def trophy_verb(self):
+        """Qué consiguió en el juego, en minúscula y con lo que va antes de su nombre: «consiguió el platino de»,
+        «consiguió todos los logros de», «consiguió un logro rarísimo en» o «consiguió 3 logros rarísimos en» (trofeos
+        en PlayStation).
+
+        Pantallas: Inicio (feed: logros), Perfil (pestaña Actividad).
+        """
+        noun, one = ("trofeos", "trofeo") if self.data.get("platform") == "psn" else ("logros", "logro")
+        if self.data.get("platinum"):
+            return "consiguió el platino de"
+        if self.data.get("complete"):
+            return f"consiguió todos los {noun} de"
+        count = self.data.get("rare_count", 0)
+        return f"consiguió un {one} rarísimo en" if count == 1 else f"consiguió {count} {noun} rarísimos en"
 
     @property
     def verb(self):
@@ -415,5 +438,7 @@ class Activity(models.Model):
                 f"ordenó su biblioteca: {self.data.get('completed', 0)} terminados y "
                 f"{self.data.get('dropped', 0)} abandonados"
             )
+        if self.kind == self.Kind.TROPHY:
+            return f"{self.trophy_verb} {self.game}"
         before, after = self.verb
         return " ".join(part for part in (before, str(self.game), after) if part)

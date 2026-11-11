@@ -1,5 +1,5 @@
-{# «Tus logros» uno a uno (accounts.views.game_achievements): resumen, órdenes y los que tienes y los que te faltan, cada grupo con los primeros a la vista y el resto plegado. Al cambiar de orden, HTMX cambia solo este bloque. #}
-<div class="achievement-panel" id="achievement-panel">
+{# «Tus logros» uno a uno de una plataforma (accounts.views.game_achievements): resumen, órdenes y los que tienes y los que te faltan, cada grupo con los primeros a la vista y el resto plegado. Al cambiar de orden, HTMX cambia solo este bloque; cada plataforma tiene el suyo. #}
+<div class="achievement-panel" id="achievement-panel-{{ platform }}">
   <p class="achievement-summary">
     <strong>{{ unlocked }} de {{ total }}</strong>
     {% if first %}
@@ -7,12 +7,12 @@
     {% endif %}
   </p>
   {% if rarest %}
-    <p class="achievement-rarest">{% include "_icon.html" with name="trophy" %} Tu logro más raro: <strong>{{ rarest.name }}</strong> <span class="muted">· lo tiene el {{ rarest.percent|floatformat:"-1" }} % de los jugadores de {{ label }}</span></p>
+    <p class="achievement-rarest">{% include "_icon.html" with name="trophy" %} Tu {{ singular }} más raro: <strong>{{ rarest.name }}</strong> <span class="muted">· lo tiene el {{ rarest.percent|floatformat:"-1" }} % de los jugadores de {{ label }}</span></p>
   {% endif %}
-  <nav class="chip-links" aria-label="Orden de los logros">
+  <nav class="chip-links" aria-label="Orden de los {{ noun }}">
     {% for value, name in orders %}
       <button class="chip-link{% if value == order %} is-active{% endif %}" type="button"{% if value == order %} aria-current="true"{% endif %}
-              hx-get="{% url 'game_achievements' game.pk %}{% if value %}?orden={{ value }}{% endif %}" hx-target="#achievement-panel" hx-swap="outerHTML">{{ name }}</button>
+              hx-get="{% url 'game_achievements' game.pk %}?plataforma={{ platform }}{% if value %}&amp;orden={{ value }}{% endif %}" hx-target="#achievement-panel-{{ platform }}" hx-swap="outerHTML">{{ name }}</button>
     {% endfor %}
   </nav>
   {% if unlocked %}
@@ -37,5 +37,5 @@
   {% else %}
     <p class="help">Los tienes todos.</p>
   {% endif %}
-  <p class="help">Datos de {{ label }}. El porcentaje es el de sus jugadores que tienen cada logro.</p>
+  <p class="help">Datos de {{ label }}. El porcentaje es el de sus jugadores que tienen cada {{ singular }}.</p>
 </div>

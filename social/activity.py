@@ -1,5 +1,5 @@
-"""La actividad de cada jugador: lo que hace con los juegos de su biblioteca, lo que importa, lo que publica, sus listas
-y sus retos.
+"""La actividad de cada jugador: lo que hace con los juegos de su biblioteca, lo que importa, lo que publica, sus listas,
+sus retos y los logros que merecen salir (todos los de un juego, el platino o alguno rarísimo).
 
 Se apunta desde lo que hace el jugador (cambiar el estado de un juego, valorarlo, publicar una reseña, quitarlo
 de la biblioteca, crear una lista o añadirle juegos) y desde las importaciones de Steam, PlayStation y Xbox, nunca
@@ -11,10 +11,12 @@ reseña debajo), y cada importación es una sola aunque traiga cientos de juegos
 es privada, y no se enseña en ningún otro sitio.
 """
 
+from collections import defaultdict
 from datetime import timedelta
 
 from django.utils import timezone
 
+from accounts.models import Achievement
 from library.models import LibraryEntry
 
 from .models import Activity
@@ -23,6 +25,12 @@ from .models import Activity
 MERGE_WINDOW = timedelta(hours=1)
 # Portadas que se enseñan de una importación: las de los juegos más jugados.
 IMPORT_COVERS = 4
+# Logros rarísimos: los que tiene menos de este porcentaje de los jugadores (como en accounts.models.RARITY_TIERS).
+RARE_PERCENT = 5
+# Solo salen los logros conseguidos en estos días: la primera lectura de una cuenta trae años de logros.
+RECENT_UNLOCK_DAYS = 7
+# Logros rarísimos que se nombran en cada actividad.
+RARE_SHOWN = 3
 
 
 def _recent(user):
@@ -263,6 +271,57 @@ def library_tidied(user, game, status):
     activity.updated_at = now
     activity.save()
     return activity
+
+
+def achievements_read(user, rows, new, before):
+    """Apunta en la actividad de user lo que merece salir de unos logros recién leídos de Steam o PlayStation: rows son
+    los títulos importados que se acaban de leer (ya con sus contadores nuevos), new los logros recién conseguidos (lo
+    que devuelve accounts.achievements.save_unlocked) y before, {id del título importado: (conseguidos, totales,
+    platino) de antes de leerlos}.
+
+    Solo cuentan los conseguidos en los últimos RECENT_UNLOCK_DAYS días, y de ellos solo sale algo si con ellos los
+    tiene ya todos o el platino (y antes no) o si alguno es rarísimo (menos del RARE_PERCENT % de los jugadores): lo
+    normal no llena el feed. Una actividad por juego y lectura, a la hora del último logro. Devuelve las creadas.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: al sincronizar), Inicio (feed: logros), Perfil (pestaña Actividad).
+    """
+    since = timezone.now() - timedelta(days=RECENT_UNLOCK_DAYS)
+    recent = defaultdict(list)
+    for unlock in new:
+        if unlock.unlocked_at and unlock.unlocked_at >= since:
+            recent[unlock.imported_id].append(unlock)
+    if not recent:
+        return []
+    found = Achievement.objects.in_bulk({unlock.achievement_id for unlocks in recent.values() for unlock in unlocks})
+    created = []
+    for row in rows:
+        unlocks, game = recent.get(row.pk), row.title.game
+        if not unlocks or game is None:
+            continue
+        old_unlocked, old_total, old_platinum = before.get(row.pk, (None, None, False))
+        was_complete = bool(old_total) and (old_unlocked or 0) >= old_total
+        complete = bool(row.achievements_total) and row.achievements_unlocked >= row.achievements_total and not was_complete
+        platinum = bool(row.platinum and not old_platinum)
+        rare = sorted(
+            (found[unlock.achievement_id] for unlock in unlocks
+             if found[unlock.achievement_id].percent is not None and found[unlock.achievement_id].percent < RARE_PERCENT),
+            key=lambda achievement: achievement.percent,
+        )
+        if not (complete or platinum or rare):
+            continue
+        when = max(unlock.unlocked_at for unlock in unlocks)
+        created.append(Activity.objects.create(
+            user=user, kind=Activity.Kind.TROPHY, game=game, created_at=when, updated_at=when,
+            data={
+                "platform": row.title.platform, "complete": complete, "platinum": platinum, "count": len(unlocks),
+                "rare": [
+                    {"name": achievement.name, "percent": achievement.percent, "hidden": achievement.hidden}
+                    for achievement in rare[:RARE_SHOWN]
+                ],
+                "rare_count": len(rare),
+            },
+        ))
+    return created
 
 
 def challenge_left(user, challenge):

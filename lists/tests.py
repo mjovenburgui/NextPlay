@@ -8,7 +8,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from accounts.models import ExternalTitle, ImportedTitle, Notification
+from accounts.models import Achievement, ExternalTitle, ImportedTitle, Notification, UnlockedAchievement
 from games.models import Game, GamePrice
 from library.models import LibraryEntry, Report, Review, WishlistItem
 from social.models import Activity, Follow
@@ -1141,6 +1141,17 @@ class LibraryPresetTests(TestCase):
     def create(self, key):
         """Crea como ana la tier list de la plantilla key."""
         return self.client.post(reverse("lists:from_library"), {"plantilla": key})
+
+    def test_last_year_also_counts_the_achievements(self):
+        # Hades se jugó por última vez este año, pero tiene un logro del año pasado: también entra en el año pasado.
+        title = ExternalTitle.objects.create(platform="steam", external_id="hades", name="Hades", game=self.hades)
+        row = ImportedTitle.objects.create(user=self.ana, title=title, game=self.hades, minutes=600)
+        achievement = Achievement.objects.create(title=title, api_name="A", name="Logro")
+        UnlockedAchievement.objects.create(
+            imported=row, achievement=achievement, unlocked_at=timezone.make_aware(datetime(self.year - 1, 3, 3, 12)),
+        )
+        self.assertEqual(self.chosen("jugados-anterior"), ["Celeste", "Hades", "Tunic"])
+        self.assertEqual(presets.PRESETS["jugados-anterior"].title_for(self.year), f"Jugados en {self.year - 1}")
 
     def test_each_preset_chooses_from_the_library(self):
         # De más a menos horas y, sin horas, de lo añadido hace menos a lo que más. Tunic es del año pasado.

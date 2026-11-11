@@ -15,7 +15,7 @@ from django.utils import timezone
 from PIL import Image
 
 from accounts import matching
-from accounts.models import ExternalTitle, ImportedTitle, Notification, Profile
+from accounts.models import Achievement, ExternalTitle, ImportedTitle, Notification, Profile, UnlockedAchievement
 from games.models import Game, Genre
 from library.models import LibraryEntry, Report, Review, WishlistItem
 from lists.models import GameList
@@ -765,6 +765,44 @@ class SeedTests(TestCase):
         tiers = GameList.objects.get(user=tester, title="Mis juegos, por niveles")
         self.assertTrue(tiers.is_open)
         self.assertEqual(sorted(tiers.versions.values_list("user__username", flat=True)), ["demo1", "demo2"])
+
+
+class AchievementActivityTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.hades = Game.objects.create(name="Hades", slug="hades")
+        cls.title = ExternalTitle.objects.create(platform="steam", external_id="1145360", name="Hades", game=cls.hades)
+
+    def test_only_what_deserves_the_feed(self):
+        row = ImportedTitle.objects.create(user=self.ana, title=self.title, minutes=600)
+        common = Achievement.objects.create(title=self.title, api_name="A", name="Empezar", percent=80)
+        rare = Achievement.objects.create(title=self.title, api_name="B", name="Sin morir", percent=1.5)
+        hidden = Achievement.objects.create(title=self.title, api_name="C", name="El final", percent=2.0, hidden=True)
+        now = timezone.now()
+
+        def unlock(achievement, days_ago=0):
+            """El logro achievement conseguido por ana hace days_ago días, como lo devuelve save_unlocked."""
+            return UnlockedAchievement(imported=row, achievement=achievement, unlocked_at=now - timedelta(days=days_ago))
+
+        # Uno común no sale.
+        row.set_achievements(1, 3)
+        self.assertEqual(activity.achievements_read(self.ana, [row], [unlock(common)], {row.pk: (0, 3, False)}), [])
+        # Con los dos que faltaban, rarísimos, los tiene todos: sale, con los rarísimos del más raro al menos.
+        row.set_achievements(3, 3)
+        made = activity.achievements_read(self.ana, [row], [unlock(rare), unlock(hidden, 1)], {row.pk: (1, 3, False)})
+        self.assertEqual(len(made), 1)
+        self.assertEqual(made[0].trophy_verb, "consiguió todos los logros de")
+        self.assertEqual([item["name"] for item in made[0].data["rare"]], ["Sin morir", "El final"])
+        # Los de hace semanas (los de una primera importación) no salen.
+        self.assertEqual(activity.achievements_read(self.ana, [row], [unlock(rare, 30)], {row.pk: (2, 3, False)}), [])
+        # En su pestaña Actividad, el oculto va sin nombre.
+        self.client.force_login(self.ana)
+        response = self.client.get(reverse("profile", args=["ana"]) + "?vista=actividad")
+        self.assertContains(response, "onsiguió todos los logros de")
+        self.assertContains(response, "Sin morir")
+        self.assertContains(response, "Un logro oculto")
+        self.assertNotContains(response, "El final")
 
 
 class AffinityTests(TestCase):

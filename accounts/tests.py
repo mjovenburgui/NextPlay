@@ -24,7 +24,7 @@ from games.models import Game, GamePrice, Platform
 from library.models import LibraryEntry, PlaySession, Review, WishlistItem
 from social.models import Activity
 
-from . import images, matching, notices, psn, steam, xbox
+from . import achievements, images, matching, notices, psn, steam, xbox
 from .views import perfil
 from .models import (
     Achievement, ExternalTitle, FavoriteGame, ImportedTitle, Notification, PlatformAccount, Profile, PSNAccount,
@@ -36,7 +36,7 @@ User = get_user_model()
 # Las importaciones de Steam y de PlayStation también leen los logros y los trofeos, que serían llamadas de verdad: en
 # todo el módulo no leen nada, salvo en AchievementsTests, que dice qué contestan (y prueba las funciones de verdad).
 REAL_PLAYER_ACHIEVEMENTS, REAL_TROPHY_TITLES = steam.player_achievements, psn.trophy_titles
-REAL_TROPHIES_BY_TITLE_ID = psn.trophies_by_title_id
+REAL_TROPHIES_BY_TITLE_ID, REAL_TROPHY_DETAILS = psn.trophies_by_title_id, psn.trophy_details
 REAL_ACHIEVEMENT_SCHEMA, REAL_GLOBAL_PERCENTAGES = steam.achievement_schema, steam.global_percentages
 NETWORK_PATCHES = [
     mock.patch.object(steam, "player_achievements", return_value=None),
@@ -44,6 +44,7 @@ NETWORK_PATCHES = [
     mock.patch.object(steam, "global_percentages", return_value=None),
     mock.patch.object(psn, "trophy_titles", return_value=[]),
     mock.patch.object(psn, "trophies_by_title_id", return_value={}),
+    mock.patch.object(psn, "trophy_details", return_value=None),
     # Después de importar se piden los precios de los juegos que nunca los han tenido: tampoco, salvo en las pruebas
     # que lo miran (con REAL_FETCH_MISSING y las tiendas simuladas).
     mock.patch.object(prices, "fetch_missing", return_value=0),
@@ -2158,6 +2159,52 @@ class AchievementsTests(TestCase):
         self.assertEqual(result["trophies"], 2)
         self.assertEqual(self.achievements_of(self.hades), (46, 46, True))
         self.assertEqual(self.achievements_of(gow), (26, 36, False))
+
+    def test_psn_trophies_one_by_one(self):
+        trophy_list = {
+            **trophy_title("Hades", (2, 1, 0, 0), (1, 0, 0, 0)), "npCommunicationId": "NPWR00001_00", "npServiceName": "trophy",
+        }
+        _, fake = self.fake_psn([], by_title={"CUSA00001_00": [trophy_list], "PPSA00002_00": []})
+        now = timezone.now()
+        defined = [
+            {
+                "trophyId": n, "trophyName": f"Trofeo {n}", "trophyDetail": f"Haz {n} cosas",
+                "trophyIconUrl": f"https://psn.example.com/{n}.png", "trophyHidden": n == 2,
+            }
+            for n in range(3)
+        ]
+        earned = [
+            {"trophyId": 0, "earned": True, "earnedDateTime": (now - timedelta(days=1)).isoformat(), "trophyEarnedRate": "3.2"},
+            {"trophyId": 1, "earned": False, "trophyEarnedRate": "40.0"},
+            {"trophyId": 2, "earned": False, "trophyEarnedRate": "1.5"},
+        ]
+
+        def rows(url, token, service):
+            """Lo que da PlayStation: los trofeos de la lista o, en la dirección de la cuenta, los conseguidos."""
+            self.assertEqual(service, "trophy")
+            return earned if "/users/me/" in url else defined
+
+        with fake, mock.patch.object(psn, "trophy_details", side_effect=REAL_TROPHY_DETAILS), \
+                mock.patch.object(psn, "_trophy_rows", side_effect=rows):
+            psn.import_library(self.user, NPSSO)
+        detail = achievements.detail(self.user, self.hades, platform="psn")
+        self.assertEqual(
+            (detail["label"], detail["noun"], detail["unlocked"], detail["total"]), ("PlayStation", "trofeos", 1, 3),
+        )
+        self.assertEqual((detail["rarest"].name, detail["rarest"].percent), ("Trofeo 0", 3.2))
+        self.assertEqual([a.api_name for a in detail["locked_shown"]], ["NPWR00001_00:1", "NPWR00001_00:2"])
+        # El rarísimo recién conseguido sale en la actividad.
+        trophy = Activity.objects.get(kind=Activity.Kind.TROPHY)
+        self.assertEqual((trophy.trophy_verb, trophy.data["rare"][0]["name"]), ("consiguió un trofeo rarísimo en", "Trofeo 0"))
+        # Sin cambios, la siguiente sincronización no los vuelve a pedir.
+        with fake, mock.patch.object(psn, "trophy_details", side_effect=REAL_TROPHY_DETAILS) as read:
+            psn.import_library(self.user, NPSSO)
+        read.assert_not_called()
+        # En la ficha, cada plataforma despliega los suyos.
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("game_achievements", args=[self.hades.pk]) + "?plataforma=psn")
+        self.assertContains(response, "Tu trofeo más raro")
+        self.assertContains(response, 'id="achievement-panel-psn"')
 
     def test_psn_games_still_import_if_trophies_fail(self):
         _, fake = self.fake_psn(psn.PSNError("caído"))

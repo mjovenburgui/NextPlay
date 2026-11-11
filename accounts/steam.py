@@ -14,6 +14,7 @@ from django.utils import timezone
 from games import igdb
 from games.models import Game
 from library.models import LibraryEntry, WishlistItem
+from social import activity
 
 from . import achievements
 from .matching import add_title, save_titles, update_library
@@ -432,12 +433,13 @@ def import_achievements(user, limit=ACHIEVEMENTS_PER_IMPORT):
     De los juegos cuyos logros aún no se conocen (o con más de ACHIEVEMENTS_INFO_DAYS días, o si el jugador trae uno
     nuevo) lee también cuáles tienen, con sus textos en castellano y su rareza (achievement_info). Lo que no se puede
     leer se intenta la próxima vez: también los logros de un jugador si no se sabe aún cuáles son los de su juego. Van
-    ACHIEVEMENTS_WORKERS peticiones a la vez.
+    ACHIEVEMENTS_WORKERS peticiones a la vez. De los recién conseguidos, lo que merece salir en el feed (todos los de
+    un juego o alguno rarísimo, si son de estos días) pasa a su actividad (social.activity.achievements_read).
 
     Devuelve de cuántos juegos se han leído.
 
     Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; insignias de las
-    portadas, cifras y sección «Logros»), Ficha del juego (tus logros).
+    portadas, cifras, sección «Logros» y pestaña Actividad), Ficha del juego (tus logros), Inicio (feed: logros).
     """
     steam_ids = list(user.steam_accounts.values_list("steam_id", flat=True))
     if not steam_ids or not is_configured():
@@ -481,12 +483,15 @@ def import_achievements(user, limit=ACHIEVEMENTS_PER_IMPORT):
             if info is not None:
                 achievements.save_info(titles[title_id], *info, at=now)
         saved = [(row, result) for row, result in found if ready(row, result)]
-        achievements.save_unlocked(saved)
+        new = achievements.save_unlocked(saved)
+        # Cómo iba cada uno antes de esta lectura, para saber si acaba de conseguirlos todos.
+        before = {row.pk: (row.achievements_unlocked, row.achievements_total, row.platinum) for row, _ in saved}
         for row, result in saved:
             row.set_achievements(sum(1 for _, achieved, _ in result if achieved), len(result), at=now)
         ImportedTitle.objects.bulk_update(
             [row for row, _ in saved], ["achievements_unlocked", "achievements_total", "platinum", "achievements_at"],
         )
+    activity.achievements_read(user, [row for row, _ in saved], new, before)
     return len(saved)
 
 

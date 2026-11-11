@@ -17,6 +17,7 @@ Todas las ramas de abajo están fusionadas con `main`, cada una con su PR, menos
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
+| `logros-fase-2` | Logros: trofeos de PlayStation uno a uno, logros en el feed y «Jugados en» el año pasado | Commit local, sin subir, encima de `gente-que-sigues`. Trae la migración `social.0010`. |
 | `gente-que-sigues` | La gente que sigues en la ficha y en los perfiles: su recuadro y sus reseñas delante, «En común», «A quién seguir» y un aviso nuevo | Commit local, sin subir, encima de `diario-de-partidas`. Trae la migración `accounts.0027`. |
 | `diario-de-partidas` | Diario de partidas: pestaña Diario del perfil con el calendario de cada año, línea en la ficha y juegos en «Jugando» sin jugar en el repaso | Commit local, sin subir, encima de `sesiones-segunda-cuenta`. Trae las migraciones `library.0015` y `accounts.0026`. |
 | `sesiones-segunda-cuenta` | Las cuentas de Steam recién vinculadas ya no cuentan como sesiones de juego | Commit local, sin subir: espera tu revisión. Sin migraciones; las sesiones de `tester_steam` ya están corregidas en tu base de datos. |
@@ -34,6 +35,38 @@ Todas las ramas de abajo están fusionadas con `main`, cada una con su PR, menos
 - `library.0014`.
 
 Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan estas migraciones: `manage.py migrate`.
+
+---
+
+## 11/11/2026 · Logros, fase 2: trofeos de PlayStation uno a uno, logros en el feed y el año pasado
+
+**Rama:** `logros-fase-2`, encima de `gente-que-sigues`. Commit local, sin subir.
+
+**Por qué:** me dijiste «ahora sigue con las demás», y la siguiente de la lista era «Logros uno a uno», que tenía hecha solo la fase de Steam.
+
+**Qué cambia para ti:**
+- **Trofeos de PlayStation uno a uno.** Al sincronizar PlayStation, de cada lista de trofeos que ha cambiado (o que nunca se había leído así) se piden sus trofeos en castellano y cuáles tienes, con su fecha y lo raros que son. Se guardan igual que los logros de Steam. En la ficha, cada plataforma despliega los suyos: «Ver tus trofeos de PlayStation», con «Tu trofeo más raro».
+- **Logros en el feed**, solo los que merecen salir y son de la última semana: «consiguió todos los logros de Hades en Steam», «consiguió el platino de…» o «consiguió un logro rarísimo en…», con los rarísimos nombrados (menos del 5 % de los jugadores). Los ocultos salen como «Un logro oculto», para no destripar nada. Una primera importación, que trae años de logros, no llena el feed.
+- **«Jugados en 2025»** en Nueva tier list, además de la del año en curso. Cuenta tus últimas partidas, tus sesiones y los días en que conseguiste logros, así que entran los juegos que volviste a jugar después. Con `tester_steam` salen 62 juegos. La del año en curso también cuenta ya los logros.
+
+**Qué he tocado:**
+- `accounts/psn.py`: `trophy_details` y `read_trophies`. `save_trophies` dice qué títulos hay que leer.
+- `accounts/achievements.py`: `save_unlocked` devuelve los recién conseguidos y `detail` elige la plataforma.
+- `accounts/steam.py`: al leer los logros, pasa a la actividad lo que merece salir.
+- `social/activity.py` (`achievements_read`) y `social/models.py` (`Activity.Kind.TROPHY` y `trophy_verb`). Migración `social.0010`.
+- `lists/presets.py`: los logros en «Jugados en» y la plantilla del año pasado.
+- `accounts/views/ficha_del_juego.py` y las plantillas `_achievements.html`, `_achievement_card.html` y `social/_activity.html`.
+
+**Cómo lo he comprobado:**
+- 3 tests nuevos:
+  - los trofeos uno a uno con las respuestas de Sony simuladas, que no se vuelven a pedir sin cambios;
+  - lo que sale y lo que no en el feed;
+  - el año pasado con un logro.
+- La batería completa en las dos variantes.
+
+**Qué falta:**
+- **Probar los trofeos con tu cuenta.** Necesita tu NPSSO, como cada sincronización de PlayStation: es lo primero que conviene mirar al revisarlo.
+- Xbox uno a uno, cuando se pueda probar Xbox de verdad.
 
 ---
 

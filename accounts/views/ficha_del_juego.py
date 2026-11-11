@@ -61,14 +61,17 @@ def favorite_toggle(request, game_id):
 
 @login_required
 def game_achievements(request, game_id):
-    """«Tus logros» de un juego, uno a uno (fragmento HTML que la ficha pide con HTMX al desplegarlos y al cambiar de
-    orden con ?orden=): los que tiene quien mira, con cuándo los consiguió, y los que le faltan, con su rareza
-    (accounts.achievements.detail). Da 404 si no tiene logros de ese juego leídos uno a uno.
+    """«Tus logros» de un juego, uno a uno, en la plataforma de ?plataforma= (Steam o PlayStation; fragmento HTML que
+    la ficha pide con HTMX al desplegarlos y al cambiar de orden con ?orden=): los que tiene quien mira, con cuándo los
+    consiguió, y los que le faltan, con su rareza (accounts.achievements.detail). Da 404 si no tiene logros de ese juego
+    leídos uno a uno.
 
     Pantallas: Ficha del juego («Tus logros», al desplegarlos y al cambiar el orden).
     """
     game = get_object_or_404(Game, pk=game_id)
-    found = achievements.detail(request.user, game, request.GET.get("orden", ""))
+    found = achievements.detail(
+        request.user, game, request.GET.get("orden", ""), request.GET.get("plataforma", ""),
+    )
     if found is None:
         raise Http404
     return render(request, "accounts/_achievements.html", {"game": game, **found})

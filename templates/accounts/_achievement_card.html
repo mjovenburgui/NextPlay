@@ -15,9 +15,9 @@
       {% endfor %}
     </ul>
     {% for item in achievements %}{% if item.detailed %}
-      <details class="achievement-details" hx-get="{% url 'game_achievements' game.id %}" hx-trigger="toggle once"
+      <details class="achievement-details" hx-get="{% url 'game_achievements' game.id %}?plataforma={{ item.platform }}" hx-trigger="toggle once"
                hx-target="find .achievement-panel" hx-swap="outerHTML">
-        <summary>Ver tus logros de {{ item.label }}</summary>
+        <summary>Ver tus {{ item.noun }} de {{ item.label }}</summary>
         <div class="achievement-panel"><p class="help">Cargando tus logros…</p></div>
       </details>
     {% endif %}{% endfor %}

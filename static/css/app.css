@@ -761,6 +761,10 @@ button.chip-link { background: none; font-family: inherit; cursor: pointer; }
 .common-game .cover { margin-bottom: .3rem; }
 .common-row { color: var(--text-2); }
 
+/* Logros en el feed (social/_activity.html): los rarísimos, con su trofeo dorado. */
+.activity-achievements { display: grid; gap: .2rem; margin: .35rem 0 0; padding: 0; list-style: none; font-size: .9rem; }
+.activity-achievements .icon { width: 1em; height: 1em; color: var(--gold); vertical-align: -.12em; }
+
 /* Juegos importados sin emparejar */
 .panel-wide { max-width: 760px; }
 .btn-small { padding: .3rem .7rem; font-size: .85rem; }

@@ -46,6 +46,19 @@
           {% endfor %}
         </ul>
       {% endif %}
+    {% elif activity.kind == "trophy" %}
+      {# Logros de un juego que merecen salir (social.activity.achievements_read): todos los de una plataforma, el platino o alguno rarísimo, nombrados salvo los ocultos. #}
+      <p class="activity-line">
+        {% if show_user %}<a class="activity-author" href="{{ activity.user.profile.get_absolute_url }}">{{ activity.user.profile.name }}</a> {{ activity.trophy_verb }}{% else %}{{ activity.trophy_verb|capfirst }}{% endif %}
+        <a class="activity-game" href="{{ activity.game.get_absolute_url }}">{{ activity.game.name }}</a>{% if activity.platform_name %} en {{ activity.platform_name }}{% endif %}
+      </p>
+      {% if activity.data.rare %}
+        <ul class="activity-achievements">
+          {% for item in activity.data.rare %}
+            <li>{% include "_icon.html" with name="trophy" %} {% if item.hidden %}<span class="muted">Un {% if activity.data.platform == "psn" %}trofeo{% else %}logro{% endif %} oculto</span>{% else %}<strong>{{ item.name }}</strong>{% endif %} <span class="muted">· lo tiene el {{ item.percent|floatformat:"-1" }} %</span></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
     {% elif activity.kind == "challenge" %}
       {% with challenge=activity.challenge %}
         <p class="activity-line">

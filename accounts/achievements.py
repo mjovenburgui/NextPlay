@@ -5,9 +5,10 @@ lee juego a juego (steam.import_achievements), PlayStation con su lista de trofe
 historial de juegos (xbox.save_achievements). Aquí se juntan por juego para la ficha, las portadas y las cifras del
 perfil.
 
-De Steam se guardan además uno a uno: los logros de cada juego (models.Achievement, con save_info) y cuáles tiene cada
-usuario y cuándo los consiguió (models.UnlockedAchievement, con save_unlocked). De ahí salen «Tus logros» de la ficha
-(detail) y la sección «Logros» del perfil (showcase).
+De Steam y de PlayStation (sus trofeos, con psn.read_trophies) se guardan además uno a uno: los logros de cada juego
+(models.Achievement, con save_info) y cuáles tiene cada usuario y cuándo los consiguió (models.UnlockedAchievement, con
+save_unlocked). De ahí salen «Tus logros» de la ficha (detail), la sección «Logros» del perfil (showcase) y, de los
+recién conseguidos, lo que merece salir en el feed (social.activity.achievements_read).
 """
 from .models import Achievement, ExternalTitle, ImportedTitle, UnlockedAchievement
 
@@ -119,16 +120,18 @@ def save_info(title, items, percentages, at):
 
 def save_unlocked(found):
     """Apunta uno a uno los logros conseguidos en unos títulos importados: found es [(ImportedTitle, logros)], con todos
-    los logros de su juego como [(clave, conseguido, fecha o None)], que es lo que da steam.player_achievements.
+    los logros de su juego como [(clave, conseguido, fecha o None)], que es lo que da steam.player_achievements (y
+    psn.trophy_details con los trofeos).
 
     Los que no salían en los logros del juego (save_info) se añaden con su clave por nombre, para no perderlos; de los
-    que ya estaban apuntados se borran los que ya no tiene y se corrige la fecha si ha cambiado.
+    que ya estaban apuntados se borran los que ya no tiene y se corrige la fecha si ha cambiado. Devuelve los recién
+    conseguidos (los UnlockedAchievement que no estaban), para la actividad.
 
     Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; insignias de las
-    portadas, cifras y sección «Logros»), Ficha del juego (tus logros).
+    portadas, cifras y sección «Logros»), Ficha del juego (tus logros), Inicio (feed: logros).
     """
     if not found:
-        return
+        return []
     title_ids = {row.title_id for row, _ in found}
 
     def known():
@@ -171,10 +174,12 @@ def save_unlocked(found):
             unlock.unlocked_at = wanted[key]
             changed.append(unlock)
     UnlockedAchievement.objects.bulk_update(changed, ["unlocked_at"])
-    UnlockedAchievement.objects.bulk_create([
+    new = [
         UnlockedAchievement(imported_id=imported_id, achievement_id=achievement_id, unlocked_at=unlocked_at)
         for (imported_id, achievement_id), unlocked_at in wanted.items() if (imported_id, achievement_id) not in current
-    ])
+    ]
+    UnlockedAchievement.objects.bulk_create(new)
+    return new
 
 
 def _by_rarity(achievement):
@@ -185,11 +190,12 @@ def _by_rarity(achievement):
     return achievement.percent is None, achievement.percent or 0
 
 
-def detail(user, game, order=""):
-    """«Tus logros» de user en game, uno a uno, de la plataforma en que se conocen así (de momento, Steam; con varias
-    versiones, la que más lleva), o None si no hay ninguna.
+def detail(user, game, order="", platform=""):
+    """«Tus logros» de user en game, uno a uno, de una plataforma en que se conocen así (platform, Steam o PlayStation;
+    si no se da o no la hay, la primera; con varias versiones, la que más lleva), o None si no hay ninguna.
 
-    Devuelve un dict con la plataforma («label»), los que tiene («unlocked», cada logro con su «unlocked_at») y los que
+    Devuelve un dict con la plataforma («platform», su nombre en «label» y cómo llama a sus logros en «noun» y en
+    singular en «singular»: trofeos en PlayStation), los que tiene («unlocked», cada logro con su «unlocked_at») y los que
     le faltan («locked»), cada grupo cortado en DETAIL_SHOWN («…_shown») y el resto aparte («…_more»), cuántos hay
     («total»), el más raro de los que tiene («rarest»), las fechas del primero y del último («first» y «last») y los
     órdenes (ORDERS) con el elegido («order»). Con order «raros» los dos grupos van del más raro al más común y con
@@ -198,7 +204,8 @@ def detail(user, game, order=""):
 
     Pantallas: Ficha del juego («Tus logros», uno a uno).
     """
-    item = next((item for item in progress_by_game(user, [game.pk]).get(game.pk, []) if item["detailed"]), None)
+    items = [item for item in progress_by_game(user, [game.pk]).get(game.pk, []) if item["detailed"]]
+    item = next((item for item in items if item["platform"] == platform), items[0] if items else None)
     if item is None:
         return None
     if order not in ORDERS:
@@ -219,7 +226,10 @@ def detail(user, game, order=""):
         locked.sort(key=lambda a: (a.percent is None, -(a.percent or 0)))
     known_dates = [achievement.unlocked_at for achievement in unlocked if achievement.unlocked_at]
     return {
+        "platform": item["platform"],
         "label": item["label"],
+        "noun": item["noun"],
+        "singular": "trofeo" if item["platform"] == ExternalTitle.Platform.PSN else "logro",
         "unlocked_shown": unlocked[:DETAIL_SHOWN],
         "unlocked_more": unlocked[DETAIL_SHOWN:],
         "locked_shown": locked[:DETAIL_SHOWN],

@@ -3,9 +3,9 @@ pendiente…
 
 Cada plantilla (PRESETS) elige juegos de la biblioteca en un orden y da el título y los niveles de la tier list;
 lists.views.from_library la crea con esos juegos en «Sin clasificar», o ya colocados por la nota que les ha puesto
-(RATING_TIERS), para que solo haya que arrastrarlos. Las de un año son del año en curso: Steam solo da la última
-partida y el historial de partidas (library.models.PlaySession) es reciente, así que en un año pasado faltarían los
-juegos que se han vuelto a jugar después.
+(RATING_TIERS), para que solo haya que arrastrarlos. Las de un año son del año en curso, salvo «Jugados» del año
+pasado: Steam solo da la última partida y el historial de partidas (library.models.PlaySession) es reciente, pero los
+logros con fecha dicen qué se jugó cada año aunque se haya vuelto a jugar después.
 """
 
 from dataclasses import dataclass
@@ -17,6 +17,7 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from accounts.achievements import progress_by_game
+from accounts.models import UnlockedAchievement
 from library.models import HOURS_SOURCES, LibraryEntry, PlaySession, Review
 
 from .models import DEFAULT_TIERS, LIST_MAX_GAMES, MOSAIC_COVERS, GameList
@@ -54,8 +55,8 @@ def year_bounds(year):
 
 def played_in(user, year):
     """Lo jugado en year: lo que tiene ese año su última partida de Steam, PlayStation o Xbox, partidas apuntadas
-    (PlaySession) o una reseña empezada o terminada; lo completado ese año; y, si es el año en curso, lo que está
-    jugando.
+    (PlaySession), logros conseguidos (los de Steam y PlayStation uno a uno) o una reseña empezada o terminada; lo
+    completado ese año; y, si es el año en curso, lo que está jugando.
 
     Pantallas: Nueva tier list (plantillas «Desde tu biblioteca»: lo jugado este año).
     """
@@ -64,6 +65,8 @@ def played_in(user, year):
     for key in HOURS_SOURCES:
         played |= Q(**{f"{key}_last_played__gte": start, f"{key}_last_played__lt": end})
     played |= Q(game__in=PlaySession.objects.filter(user=user, day__year=year).values("game"))
+    unlocks = UnlockedAchievement.objects.filter(imported__user=user, unlocked_at__year=year)
+    played |= Q(game__in=unlocks.values("imported__title__game"))
     reviews = Review.objects.filter(Q(started_on__year=year) | Q(finished_on__year=year), user=user)
     played |= Q(game__in=reviews.values("game"))
     if year == timezone.localdate().year:
@@ -129,8 +132,9 @@ def backlog(user, year):
 class Preset:
     """Una plantilla: su clave (la que manda el formulario), su nombre y su explicación en «Nueva lista» (label y help),
     el título de la tier list que crea (label y title pueden llevar {year}), cómo elige los juegos (entries: del usuario
-    y el año a sus LibraryEntry, en orden), sus niveles ([(nombre, color)], de mejor a peor) y si coloca de entrada los
-    juegos que tienen nota (by_rating, solo con los niveles de serie)."""
+    y el año a sus LibraryEntry, en orden), sus niveles ([(nombre, color)], de mejor a peor), si coloca de entrada los
+    juegos que tienen nota (by_rating, solo con los niveles de serie) y de qué año es respecto al actual (year_offset:
+    -1, el pasado)."""
 
     key: str
     label: str
@@ -139,28 +143,30 @@ class Preset:
     entries: Callable
     tiers: tuple = tuple(DEFAULT_TIERS)
     by_rating: bool = True
+    year_offset: int = 0
 
     def label_for(self, year):
-        """Su nombre en «Nueva lista» en year.
+        """Su nombre en «Nueva lista» si el año en curso es year (con year_offset, el de la plantilla).
 
         Pantallas: Nueva tier list (plantillas «Desde tu biblioteca»: nombre de cada plantilla).
         """
-        return self.label.format(year=year)
+        return self.label.format(year=year + self.year_offset)
 
     def title_for(self, year):
-        """Título de la tier list que crea en year.
+        """Título de la tier list que crea si el año en curso es year (con year_offset, el de la plantilla).
 
         Pantallas: Nueva tier list (plantillas «Desde tu biblioteca»: título de la tier list que crea),
         Página de la lista.
         """
-        return self.title.format(year=year)
+        return self.title.format(year=year + self.year_offset)
 
     def choose(self, user, year):
-        """Los juegos de la biblioteca de user que entran en year, en su orden (LibraryEntry), como mucho LIST_MAX_GAMES.
+        """Los juegos de la biblioteca de user que entran en su año (year, el actual, más year_offset), en su orden
+        (LibraryEntry), como mucho LIST_MAX_GAMES.
 
         Pantallas: Nueva tier list (plantillas «Desde tu biblioteca»: los juegos que entran).
         """
-        return list(self.entries(user, year)[:LIST_MAX_GAMES])
+        return list(self.entries(user, year + self.year_offset)[:LIST_MAX_GAMES])
 
     def tier_list(self):
         """Sus niveles como los guarda GameList.tiers: [{"id", "label", "color"}].
@@ -184,6 +190,11 @@ PRESETS = {
         Preset(
             "jugados", "Jugados en {year}", "Lo que has jugado este año, según tus importaciones y tus fechas.",
             "Jugados en {year}", played_in,
+        ),
+        Preset(
+            "jugados-anterior", "Jugados en {year}",
+            "Lo que jugaste el año pasado: tus últimas partidas, tus sesiones y los días en que conseguiste logros.",
+            "Jugados en {year}", played_in, year_offset=-1,
         ),
         Preset("terminados", "Terminados en {year}", "Lo que has completado este año.", "Terminados en {year}", completed_in),
         Preset(
