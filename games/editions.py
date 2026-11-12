@@ -10,7 +10,7 @@ merge_editions, también cada noche.
 from django.contrib.auth import get_user_model
 from django.db import transaction
 
-from accounts.matching import update_library
+from accounts.matching import OPENED_ONLY, update_library
 from accounts.models import ExternalTitle, FavoriteGame, ImportedTitle, Notification, Profile
 from challenges.models import Challenge
 from library.models import HOURS_SOURCES, LibraryEntry, PlaySession, Review, WishlistItem
@@ -151,7 +151,7 @@ def merge(edition):
 
     users = get_user_model().objects.in_bulk({user_id for user_id, _ in imports})
     for user_id, platform in sorted(imports):
-        update_library(users[user_id], platform, opened_only=platform != ExternalTitle.Platform.STEAM)
+        update_library(users[user_id], platform, opened_only=platform in OPENED_ONLY)
     return counts
 
 

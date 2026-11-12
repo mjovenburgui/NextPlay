@@ -5,7 +5,7 @@ otras plataformas), títulos importados (donde se corrige a mano el juego de cad
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .matching import update_library
+from .matching import OPENED_ONLY, update_library
 from .models import (
     Achievement, ExternalTitle, FavoriteGame, Notification, PlatformAccount, Profile, PSNAccount, SteamAccount, User,
     XboxAccount,
@@ -92,7 +92,7 @@ class ExternalTitleAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         if "game" in form.changed_data:
             for imported in obj.imports.select_related("user"):
-                update_library(imported.user, obj.platform, opened_only=obj.platform != ExternalTitle.Platform.STEAM)
+                update_library(imported.user, obj.platform, opened_only=obj.platform in OPENED_ONLY)
 
     @admin.action(description="Bloquear: los usuarios ya no podrán cambiarlos")
     def lock(self, request, queryset):

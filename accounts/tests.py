@@ -24,8 +24,8 @@ from games.models import Game, GamePrice, Platform
 from library.models import LibraryEntry, PlaySession, Review, WishlistItem
 from social.models import Activity
 
-from . import achievements, images, matching, notices, psn, steam, xbox
-from .views import perfil
+from . import achievements, csv_import, images, matching, notices, psn, steam, xbox
+from .views import importar_archivo, perfil
 from .models import (
     Achievement, ExternalTitle, FavoriteGame, ImportedTitle, Notification, PlatformAccount, Profile, PSNAccount,
     SteamAccount, UnlockedAchievement, XboxAccount,
@@ -2525,3 +2525,189 @@ class NoticePrefsTests(TestCase):
         self.assertContains(response, '<span class="unsaved" data-unsaved role="status" hidden>Cambios sin guardar</span>')
         self.assertContains(response, '<button class="btn" type="button" data-discard hidden>Descartar</button>')
         self.assertContains(response, 'window.addEventListener("beforeunload"')
+
+
+# Lo que exporta Playnite (Library Exporter Advanced) con Windows y Playnite en castellano: el tiempo en segundos, las
+# fechas con el día delante y la nota sobre 100. La descripción, con celdas larguísimas, no puede ser ningún campo.
+PLAYNITE_CSV = (
+    "﻿Nombre,Fuentes,Tiempo jugado,Jugado por última vez,Estado de finalización,Puntuación del usuario,Descripción\n"
+    'Hades,Epic,36000,01/03/2026 18:54:03,Completado,85,"' + "Un roguelike de dioses griegos. " * 20 + '"\n'
+    "Control,GOG,0,,,,\n"
+    "Celeste,Epic,7200,15/02/2026 10:00:00,Completado,70,\n"
+    "Juego Raro,Epic,3600,,,,\n"
+    "Portal 2,Steam,18000,,Completado,,\n"
+    ",,,,,,\n"
+    ",Epic,60,,,,\n"
+)
+
+
+@override_settings(IGDB_CLIENT_ID="", IGDB_CLIENT_SECRET="")
+class FileImportTests(TestCase):
+    """Importar desde un archivo (accounts.csv_import y su pantalla): el CSV de Playnite y el de otros trackers."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("ana", "ana@example.com", "x")
+        pc = Platform.objects.create(name="PC (Microsoft Windows)", slug="win")
+        cls.hades = Game.objects.create(name="Hades", slug="hades")
+        cls.control = Game.objects.create(name="Control", slug="control")
+        cls.celeste = Game.objects.create(name="Celeste", slug="celeste")
+        for game in (cls.hades, cls.control, cls.celeste):
+            game.platforms.set([pc])
+
+    def items(self, text=PLAYNITE_CSV):
+        """Las filas de text como las lee NextPlay con las columnas que reconoce solo."""
+        headers, rows = csv_import.read(text.encode("utf-8"))
+        mapping = csv_import.guess(headers)
+        unit = csv_import.guess_unit(rows, mapping["time"])
+        return csv_import.interpret(rows, mapping, unit, csv_import.guess_scale(rows, mapping["rating"]))
+
+    def test_reads_playnite_in_spanish_and_recognizes_every_column(self):
+        headers, rows = csv_import.read(PLAYNITE_CSV.encode("utf-8"))
+        self.assertNotIn("Descripción", headers)
+        self.assertEqual(len(rows), 6)  # la fila vacía del todo no cuenta
+        mapping = csv_import.guess(headers)
+        self.assertEqual(mapping, {
+            "name": "Nombre", "store": "Fuentes", "time": "Tiempo jugado", "last": "Jugado por última vez",
+            "status": "Estado de finalización", "rating": "Puntuación del usuario",
+        })
+        self.assertEqual(csv_import.guess_unit(rows, mapping["time"]), "segundos")
+        self.assertEqual(csv_import.guess_scale(rows, mapping["rating"]), "100")
+        hades, control, _, _, portal, nameless = self.items()
+        self.assertEqual((hades["platform"], hades["minutes"], hades["hours"]), ("epic", 600, 10.0))
+        self.assertEqual(hades["last_played"], timezone.make_aware(datetime(2026, 3, 1, 18, 54, 3)))
+        # Completado, y 85 sobre 100 son cuatro estrellas y media.
+        self.assertEqual((hades["status"], hades["rating"], hades["stars"]), ("completed", 9, 4.5))
+        self.assertEqual((control["platform_label"], control["minutes"], control["status"]), ("GOG", 0, None))
+        self.assertEqual(portal["skip"], "Steam: se importa desde tu cuenta")
+        self.assertEqual(nameless["skip"], "Sin nombre")
+
+    def test_english_playnite_and_other_trackers(self):
+        headers = ["Name", "Sources", "Platforms", "Time Played", "Last Played", "Completion Status", "User Score"]
+        self.assertEqual(csv_import.guess(headers), {
+            "name": "Name", "store": "Sources", "time": "Time Played", "last": "Last Played",
+            "status": "Completion Status", "rating": "User Score",
+        })
+        # Punto y coma, Latin-1 y horas con coma decimal, como lo guarda Excel en España.
+        headers, rows = csv_import.read("Título;Plataforma;Horas;Nota\nCañón;GOG;12,5;4\n".encode("latin-1"))
+        mapping = csv_import.guess(headers)
+        self.assertEqual(
+            (mapping["name"], mapping["store"], mapping["time"], mapping["rating"]), ("Título", "Plataforma", "Horas", "Nota"),
+        )
+        self.assertEqual(rows[0]["Título"], "Cañón")
+        self.assertEqual((csv_import.guess_unit(rows, "Horas"), csv_import.parse_time("12,5", "horas")), ("horas", 750))
+        self.assertEqual(csv_import.guess_scale(rows, "Nota"), "5")
+        # Otras formas del tiempo: «horas:minutos:segundos», minutos dichos en la cabecera y segundos sin decirlo.
+        self.assertEqual(csv_import.guess_unit([{"t": "12:30:00"}], "t"), "hms")
+        self.assertEqual(csv_import.parse_time("12:30:00", "hms"), 750)
+        self.assertEqual(csv_import.guess_unit([{"Minutes played": "90"}], "Minutes played"), "minutos")
+        self.assertEqual(csv_import.guess_unit([{"Playtime": "93600"}], "Playtime"), "segundos")
+        for bad in (b"", b"   \n", b",,\n1,2\n"):
+            with self.assertRaises(csv_import.CSVError):
+                csv_import.read(bad)
+
+    def test_states_stores_and_dates(self):
+        self.assertEqual(csv_import.status_of("Not Played"), LibraryEntry.Status.BACKLOG)
+        self.assertEqual(csv_import.status_of("Sin jugar"), LibraryEntry.Status.BACKLOG)
+        self.assertEqual(csv_import.status_of("Beaten"), LibraryEntry.Status.COMPLETED)
+        self.assertEqual(csv_import.status_of("Abandoned"), LibraryEntry.Status.DROPPED)
+        self.assertEqual(csv_import.status_of("Played"), LibraryEntry.Status.PLAYED)
+        self.assertIsNone(csv_import.status_of("Wishlist"))
+        self.assertEqual(csv_import.store_of("EA app"), "ea")
+        self.assertEqual(csv_import.store_of("Ubisoft Connect"), "ubisoft")
+        self.assertEqual(csv_import.store_of("itch.io"), "otras")
+        self.assertEqual(csv_import.store_of("", "gog"), "gog")
+        # Con el mes delante lo dice el AM/PM o un número de más de 12; si no hay pistas, el día va delante.
+        self.assertTrue(csv_import.month_first(["11/12/2025 6:54:03 PM"]))
+        self.assertTrue(csv_import.month_first(["03/25/2025"]))
+        self.assertFalse(csv_import.month_first(["25/03/2025", "05/03/2025"]))
+        self.assertEqual(
+            csv_import.parse_when("11/12/2025 6:54:03 PM", True), timezone.make_aware(datetime(2025, 11, 12, 18, 54, 3)),
+        )
+        self.assertEqual(csv_import.parse_when("2025-11-12"), timezone.make_aware(datetime(2025, 11, 12, 12)))
+        # Sin pistas, una fecha que con el día delante saldría en el futuro se lee con el mes delante.
+        now = timezone.make_aware(datetime(2026, 11, 20))
+        with mock.patch.object(csv_import.timezone, "now", return_value=now):
+            self.assertTrue(csv_import.month_first(["11/12/2026 10:00"]))
+            self.assertFalse(csv_import.month_first(["11/10/2026 10:00"]))
+
+    def test_import_adds_games_with_hours_and_keeps_what_you_had(self):
+        celeste = LibraryEntry.objects.create(user=self.user, game=self.celeste, status=LibraryEntry.Status.PLAYING)
+        result = csv_import.import_items(self.user, self.items())
+        self.assertEqual(
+            (result["added"], result["updated"], result["unmatched"], result["skipped"]), (2, 1, 1, 2),
+        )
+        self.assertEqual(sorted(result["platforms"]), ["Epic Games", "GOG"])
+        hades = LibraryEntry.objects.get(user=self.user, game=self.hades)
+        # Las horas, en su plataforma; el estado y la nota del archivo, porque es nuevo; la fecha de completado, la de
+        # su última partida.
+        self.assertEqual((hades.minutes_on("epic"), hades.playtime_minutes, hades.total_minutes), (600, 600, 600))
+        self.assertEqual((hades.status, hades.rating), (LibraryEntry.Status.COMPLETED, 9))
+        self.assertEqual(hades.completed_at, timezone.make_aware(datetime(2026, 3, 1, 18, 54, 3)))
+        self.assertEqual(hades.hours_by_platform[0]["name"], "Epic Games")
+        # Sin horas ni partida entra como «Pendiente»: Playnite lista también lo que nunca se ha abierto.
+        self.assertEqual(LibraryEntry.objects.get(user=self.user, game=self.control).status, LibraryEntry.Status.BACKLOG)
+        # Lo que ya tenías se queda como estaba, con las horas de la tienda sumadas.
+        celeste.refresh_from_db()
+        self.assertEqual((celeste.status, celeste.rating, celeste.minutes_on("epic")), ("playing", None, 120))
+        # Lo que no se encuentra queda para emparejarlo a mano, como lo de PlayStation.
+        rare = ImportedTitle.objects.get(user=self.user, title__game__isnull=True)
+        self.assertEqual((rare.title.platform, rare.title.external_id, rare.minutes), ("epic", "name:juego raro", 60))
+        self.assertTrue(Activity.objects.filter(user=self.user, kind=Activity.Kind.IMPORT, data__platform="epic").exists())
+
+        # Al volver a importarlo con más horas, la subida es una sesión de juego de esa tienda.
+        csv_import.import_items(self.user, self.items(PLAYNITE_CSV.replace("Hades,Epic,36000", "Hades,Epic,39600")))
+        session = PlaySession.objects.get(user=self.user, game=self.hades)
+        self.assertEqual((session.platform, session.minutes), ("epic", 60))
+
+    def test_file_hours_are_not_verified(self):
+        csv_import.import_items(self.user, self.items())
+        entry = LibraryEntry.objects.get(user=self.user, game=self.hades)
+        review = Review(user=self.user, game=self.hades, text="Muy bueno")
+        review.snapshot(entry)
+        self.assertEqual((review.status, review.hours, review.hours_sources), ("completed", None, ""))
+        self.assertEqual(self.hades.community_rating()["verified_count"], 0)
+        LibraryEntry.objects.filter(pk=entry.pk).update(steam_playtime_minutes=120)
+        entry.refresh_from_db()
+        review.snapshot(entry)
+        self.assertEqual((review.hours, review.hours_sources), (Decimal("2.0"), "steam"))
+        self.assertEqual(self.hades.community_rating()["verified_count"], 1)
+
+    def test_page_upload_review_and_import(self):
+        self.assertRedirects(
+            self.client.get(reverse("import_file")), f"{reverse('login')}?next={reverse('import_file')}",
+        )
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("import_file"))
+        self.assertContains(response, "Library Exporter Advanced")
+        response = self.client.post(reverse("import_file"), {"paso": "subir", "archivo": SimpleUploadedFile("vacio.csv", b"  \n")})
+        self.assertContains(response, "El archivo está vacío.")
+
+        upload = SimpleUploadedFile("playnite.csv", PLAYNITE_CSV.encode("utf-8"), content_type="text/csv")
+        response = self.client.post(reverse("import_file"), {"paso": "subir", "archivo": upload})
+        self.assertContains(response, '<option value="Tiempo jugado" selected>Tiempo jugado</option>', html=True)
+        self.assertContains(response, '<option value="segundos" selected>En segundos (Playnite)</option>', html=True)
+        self.assertContains(response, "Se importarán <strong>4</strong> juegos")
+        self.assertContains(response, "Steam: se importa desde tu cuenta")
+        self.assertNotContains(response, "Descripción")
+        stored = self.client.session[importar_archivo.SESSION_KEY]
+        self.assertEqual(stored["mapping"]["store"], "Fuentes")
+
+        # Sin la columna de la tienda, las filas van a la que se elija para ellas.
+        data = {f"col_{field}": header for field, header in stored["mapping"].items()}
+        response = self.client.post(reverse("import_file"), {**data, "col_store": "", "tienda": "gog", "paso": "revisar"})
+        self.assertContains(response, "GOG · 5")
+        response = self.client.post(reverse("import_file"), {**data, "col_name": "", "paso": "importar"})
+        self.assertContains(response, "Elige qué columna tiene el nombre de cada juego.")
+
+        response = self.client.post(reverse("import_file"), {**data, "paso": "importar"}, follow=True)
+        self.assertRedirects(response, reverse("profile", args=["ana"]))
+        self.assertContains(response, "playnite.csv: 3 juegos añadidos y 2 filas sin importar. 1 no se encontró en el catálogo")
+        self.assertContains(response, reverse("imported_titles"))
+        self.assertNotIn(importar_archivo.SESSION_KEY, self.client.session)
+        self.assertEqual(LibraryEntry.objects.filter(user=self.user).count(), 3)
+
+    def test_linked_accounts_lead_to_the_page(self):
+        self.client.force_login(self.user)
+        for page in (reverse("edit_profile"), reverse("profile", args=["ana"])):
+            self.assertContains(self.client.get(page), f'href="{reverse("import_file")}"')

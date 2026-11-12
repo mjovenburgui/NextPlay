@@ -323,7 +323,7 @@
 
       <section class="settings-card" id="cuentas">
         <h2>Cuentas vinculadas</h2>
-        <p class="help">Importa tus juegos y horas desde Steam, Xbox y PlayStation, o muestra en tu perfil tus cuentas de otras plataformas.</p>
+        <p class="help">Importa tus juegos y horas desde Steam, Xbox y PlayStation o desde un archivo de Playnite, y muestra en tu perfil tus cuentas de otras plataformas.</p>
 
         <div class="platform-cards">
           <section class="link-block platform-card platform-steam" id="steam">
@@ -355,6 +355,13 @@
               <span class="link-status">{% with n=profile.platforms|length %}{% if n %}{{ n }} añadida{{ n|pluralize }}{% else %}Ninguna{% endif %}{% endwith %}</span>
             </h3>
             {% include "accounts/linking/_platforms.html" %}
+          </section>
+
+          <section class="link-block platform-card platform-file" id="archivo">
+            <h3>{% include "_icon.html" with name="list" %} Desde un archivo
+              <span class="link-status">Playnite o CSV</span>
+            </h3>
+            {% include "accounts/linking/_file.html" %}
           </section>
         </div>
       </section>

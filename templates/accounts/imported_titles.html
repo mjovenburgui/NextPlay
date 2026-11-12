@@ -9,7 +9,7 @@
       <p class="muted">Estos títulos importados han llevado a <a href="{{ game.get_absolute_url }}">{{ game.name }}</a>. Si no es el juego que jugaste (pasa con remakes que se llaman igual), busca el correcto: tus horas pasarán a él y la corrección servirá para todos.</p>
     {% else %}
       <h1>{% if hidden %}Títulos ocultos{% else %}Juegos sin emparejar{% endif %}</h1>
-      <p class="muted">{% if hidden %}Títulos que quitaste de la lista: vuelve a mostrarlos si alguno sí era un juego.{% else %}Juegos importados de Steam, PlayStation o Xbox que no encontramos en el catálogo. Busca cada uno para añadirlo a tu biblioteca con sus horas; la corrección servirá también a los demás jugadores. Oculta los que no sean juegos (herramientas, demos, apps).{% endif %}</p>
+      <p class="muted">{% if hidden %}Títulos que quitaste de la lista: vuelve a mostrarlos si alguno sí era un juego.{% else %}Juegos importados de Steam, PlayStation, Xbox o de un archivo que no encontramos en el catálogo. Busca cada uno para añadirlo a tu biblioteca con sus horas; la corrección servirá también a los demás jugadores. Oculta los que no sean juegos (herramientas, demos, apps).{% endif %}</p>
       <nav class="tabs tabs-sub" aria-label="Títulos">
         <a class="tab{% if not hidden %} is-active{% endif %}" href="{% url 'imported_titles' %}">Sin emparejar</a>
         <a class="tab{% if hidden %} is-active{% endif %}" href="?ocultos=1">Ocultos <span>{{ hidden_count }}</span></a>

@@ -101,6 +101,11 @@ def _with_unmatched(text, unmatched):
     """
     if not unmatched:
         return f"{text}."
+    if unmatched == 1:
+        return format_html(
+            '{}. 1 no se encontró en el catálogo: <a href="{}">emparéjalo a mano</a> si es un juego.',
+            text, reverse("imported_titles"),
+        )
     return format_html(
         '{}. {} no se encontraron en el catálogo: <a href="{}">empareja a mano los que sean juegos</a>.',
         text, unmatched, reverse("imported_titles"),

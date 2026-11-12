@@ -4,7 +4,7 @@
     <h2 id="link-dialog-title">Vincular cuentas</h2>
     <button class="link-dialog-close" type="button" data-close-dialog aria-label="Cerrar">×</button>
   </header>
-  <p class="muted small">Importa tus juegos y horas desde Steam, Xbox y PlayStation, o muestra en tu perfil tus cuentas de otras plataformas.</p>
+  <p class="muted small">Importa tus juegos y horas desde Steam, Xbox y PlayStation o desde un archivo de Playnite, y muestra en tu perfil tus cuentas de otras plataformas.</p>
 
   <section class="link-block">
     <h3>{% include "games/shop_icons/steam.svg" %} Steam
@@ -35,6 +35,13 @@
       <span class="link-status">{% with n=profile.platforms|length %}{% if n %}{{ n }} añadida{{ n|pluralize }}{% else %}Ninguna{% endif %}{% endwith %}</span>
     </h3>
     {% include "accounts/linking/_platforms.html" %}
+  </section>
+
+  <section class="link-block">
+    <h3>{% include "_icon.html" with name="list" %} Desde un archivo
+      <span class="link-status">Playnite o CSV</span>
+    </h3>
+    {% include "accounts/linking/_file.html" %}
   </section>
 </dialog>
 <script>
