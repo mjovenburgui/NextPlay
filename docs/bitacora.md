@@ -169,6 +169,8 @@ Todo está en `main` menos tres ramas de hoy, una encima de otra, que esperan tu
 **Qué cambia para ti:**
 - **Una tarjeta nueva en Editar perfil › Cuentas vinculadas: «Desde un archivo»**, con la franja dorada, y lo mismo en el modal «Vincular cuentas» de tu perfil. Lleva a la pantalla nueva, **Importar desde un archivo** (`/cuenta/importar-archivo/`).
 - **Sirve para las tiendas sin API.** Subes el CSV que exporta Playnite con su complemento Library Exporter Advanced y te traes los juegos y las horas de Epic, GOG, EA, Ubisoft, Battle.net y Amazon. La página explica cómo sacarlo.
+  - **Ojo (corregido por la tarde):** el complemento trae sin marcar el tiempo jugado, la última partida, el estado y la nota, y la página decía «deja marcados». Ahora dice que hay que marcarlos; sin ellos, el archivo llega sin horas.
+  - No exporta solo: para que se actualice cada día haría falta una extensión de Playnite propia. Está apuntado en la propuesta, con cómo la haría.
 - **Las columnas de Playnite se eligen solas**, lo tengas en castellano o en inglés: nombre, tienda, tiempo jugado, última partida, estado y nota. Lo he sacado del código del complemento. Las cabeceras salen en el idioma de Playnite, el tiempo va en segundos, las fechas con el formato de Windows (día o mes delante: se adivina) y la nota sobre 100.
 - **Vale también el CSV de cualquier otro tracker.** Eliges qué columna es cada cosa, en qué viene el tiempo (horas, minutos, segundos o 12:30:00) y sobre cuánto va la nota.
 - **Antes de importar ves cómo queda:**
