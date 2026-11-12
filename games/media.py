@@ -235,13 +235,14 @@ def _credit(image_source, logo_source):
     return " · ".join(part for part in parts if part)
 
 
-def _hero_image(media):
-    """URL de la mejor imagen de IGDB para la cabecera, o vacía si no hay ninguna.
+def best_art(media):
+    """La mejor imagen de IGDB de media (Game.media) para una cabecera, como su dict ({"id", "w", "h"…}), o None.
 
     Es el arte principal sin logo; si no hay, el arte apaisado más ancho que no lleve el logo (repetiría
     el título); y si tampoco, la primera captura.
 
-    Pantallas: Ficha del juego (imagen de la cabecera).
+    Pantallas: Ficha del juego (imagen de la cabecera), Perfil (cabecera «Lo que estoy jugando»), Editar perfil
+    (Apariencia › Cabecera).
     """
     arts = [art for art in media.get("arts") or [] if _is_wide(art)]
     best = next((art for art in arts if art.get("type") == igdb.KEY_ART_WITHOUT_LOGO), None)
@@ -250,6 +251,15 @@ def _hero_image(media):
         best = max(plain, key=lambda art: art["w"], default=None)
     if best is None:
         best = next(iter(media.get("shots") or []), None)
+    return best
+
+
+def _hero_image(media):
+    """URL de la mejor imagen de IGDB para la cabecera (best_art), o vacía si no hay ninguna.
+
+    Pantallas: Ficha del juego (imagen de la cabecera).
+    """
+    best = best_art(media)
     return igdb_image_url(best["id"], "t_1080p") if best else ""
 
 

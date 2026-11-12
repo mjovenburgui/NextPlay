@@ -119,6 +119,8 @@ class Profile(models.Model):
         GRADIENT = "gradient", "Degradado con el color del perfil"
         IMAGE = "image", "Una imagen mía"
         GAME = "game", "El arte de un juego"
+        # Sigue sola al juego al que estás jugando (accounts.banner): se guarda en banner_game y banner_art, como GAME.
+        PLAYING = "playing", "Lo que estoy jugando"
 
     class BackgroundMode(models.TextChoices):
         NONE = "none", "Sin fondo"
@@ -208,6 +210,12 @@ class Profile(models.Model):
     )
     background_fit = models.BooleanField("fondo entero", default=False)
     accent_color = models.CharField("color del perfil", max_length=7, blank=True)
+    # Que el color del perfil salga de la imagen de la cabecera (accounts.banner.apply_color): se recalcula al guardar
+    # Editar perfil y cada vez que cambia la cabecera «Lo que estoy jugando».
+    accent_from_banner = models.BooleanField(
+        "sacarlo de la cabecera", default=False,
+        help_text="Con «Lo que estoy jugando», cambia con cada juego. Con el degradado no hay imagen de la que sacarlo.",
+    )
     layout = models.CharField("diseño de la cabecera", max_length=10, choices=Layout.choices, default=Layout.CLASSIC)
     # Usuario de cada red de SOCIAL_LINKS y, con la clave «web», la URL de su web: {"twitch": "usuario", ...}.
     links = models.JSONField("redes sociales", default=dict, blank=True)
@@ -384,13 +392,14 @@ class Profile(models.Model):
     def banner_url(self):
         """Imagen de la cabecera según banner_mode, o vacía para el degradado con el color del perfil.
 
-        Con un juego usa el arte de IGDB elegido o, si no hay, su portada (que se enseña desenfocada).
+        Con un juego (elegido a mano o el de «Lo que estoy jugando», que pone accounts.banner) usa el arte de IGDB
+        elegido o, si no hay, su portada (que se enseña desenfocada).
 
         Pantallas: Perfil (cabecera), Editar perfil (Apariencia › Cabecera).
         """
         if self.banner_mode == self.BannerMode.IMAGE and (url := self._uploaded_url("banner")):
             return url
-        if self.banner_mode == self.BannerMode.GAME and self.banner_game_id:
+        if self.banner_mode in (self.BannerMode.GAME, self.BannerMode.PLAYING) and self.banner_game_id:
             return igdb_image_url(self.banner_art or self.banner_game.cover_image_id, "t_1080p")
         return ""
 
@@ -400,7 +409,8 @@ class Profile(models.Model):
 
         Pantallas: Perfil (cabecera), Editar perfil (Apariencia › Cabecera).
         """
-        return self.banner_mode == self.BannerMode.GAME and bool(self.banner_game_id) and not self.banner_art
+        modes = (self.BannerMode.GAME, self.BannerMode.PLAYING)
+        return self.banner_mode in modes and bool(self.banner_game_id) and not self.banner_art
 
     @property
     def background_url(self):

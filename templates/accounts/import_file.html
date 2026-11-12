@@ -75,7 +75,7 @@
 
         <div class="import-summary" role="status">
           {% if importable %}
-            <p>Se importarán <strong>{{ importable }}</strong> juego{{ importable|pluralize }}:{% for label, count in by_store %} <span class="pill">{{ label }} · {{ count }}</span>{% endfor %}</p>
+            <p>Se importará{{ importable|pluralize:"n" }} <strong>{{ importable }}</strong> juego{{ importable|pluralize }}:{% for label, count in by_store %} <span class="pill">{{ label }} · {{ count }}</span>{% endfor %}</p>
           {% else %}
             <p>Con estas columnas no se importa ninguna fila.{% if not stored.mapping.name %} Elige la que tiene el nombre de cada juego.{% elif without_store %} Elige la columna de la tienda o una tienda para las filas sin ella.{% endif %}</p>
           {% endif %}

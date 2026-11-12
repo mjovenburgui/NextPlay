@@ -15,7 +15,7 @@ from django.urls import reverse
 from games.models import Game
 from library.models import Review
 
-from . import images, notices
+from . import banner, images, notices
 from .models import (
     DEFAULT_ACCENT, FRAME_ZOOM_MAX, HEX_COLOR, SECTIONS, SOCIAL_LINKS, FavoriteGame, PlatformAccount, Profile,
     normalize_handle,
@@ -78,8 +78,8 @@ class ProfileForm(forms.ModelForm):
         fields = (
             "display_name", "bio", "status_emoji", "status_text", "pronouns", "location",
             "avatar", "avatar_source", "avatar_shape", "banner_mode", "banner", "banner_game", "banner_art",
-            "background_mode", "background", "background_dim", "accent_color", "layout", "pinned_review",
-            "is_public", "diary_visible", *FRAMING_FIELDS,
+            "background_mode", "background", "background_dim", "accent_color", "accent_from_banner", "layout",
+            "pinned_review", "is_public", "diary_visible", *FRAMING_FIELDS,
         )
         widgets = {
             **{f"{name}_{part}": forms.HiddenInput for name in IMAGE_FIELDS for part in ("x", "y")},
@@ -291,8 +291,9 @@ class ProfileForm(forms.ModelForm):
     def save(self, commit=True):
         """Guarda el perfil con sus redes, el orden de sus secciones y los avisos que quiere recibir.
 
-        Con commit también borra del disco las imágenes sustituidas o quitadas y guarda el orden de los
-        favoritos (quitando los marcados).
+        Con commit también borra del disco las imágenes sustituidas o quitadas, guarda el orden de los
+        favoritos (quitando los marcados) y pone al día la cabecera «Lo que estoy jugando» y el color sacado de la
+        cabecera (accounts.banner).
 
         Pantallas: Editar perfil (botón «Guardar»), Perfil (todo lo que se personaliza), todas (tu nombre y tu foto en
         la barra de arriba), Avisos (los que te llegan).
@@ -303,6 +304,9 @@ class ProfileForm(forms.ModelForm):
             profile.save()
             self._delete_replaced_images(profile)
             self._save_favorites()
+            # La cabecera «Lo que estoy jugando» y el color de la cabecera se calculan al guardar, no al abrir el perfil.
+            banner.refresh_playing(profile)
+            banner.apply_color(profile)
         return profile
 
     def preview(self):
@@ -310,7 +314,8 @@ class ProfileForm(forms.ModelForm):
 
         No guarda nada: valida el formulario y lo que no sea válido se queda como estaba. Las imágenes
         nuevas no llegan, porque no se suben hasta guardar; en su lugar vienen en local_avatar,
-        local_banner y local_background las direcciones blob: con las que el navegador ya las enseña.
+        local_banner y local_background las direcciones blob: con las que el navegador ya las enseña. La cabecera
+        «Lo que estoy jugando» y el color de la cabecera salen como quedarían (accounts.banner.preview).
         Devuelve (perfil sin guardar, favoritos en su nuevo orden).
 
         Pantallas: Editar perfil (vista previa).
@@ -318,6 +323,7 @@ class ProfileForm(forms.ModelForm):
         self.is_valid()
         profile = self.instance
         self._apply_extras(profile)
+        banner.preview(profile)
         profile.preview_images = {
             name: url for name in IMAGE_FIELDS if LOCAL_IMAGE.match(url := self.data.get(f"local_{name}", ""))
         }
