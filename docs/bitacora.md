@@ -17,7 +17,8 @@ Todo está en `main` menos `playnite-y-csv`, que espera tu revisión. Las siete 
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
-| `playnite-y-csv` | Importar desde un archivo: tus juegos y horas de Epic, GOG, EA, Ubisoft, Battle.net y Amazon con Playnite, y el CSV de otros trackers | Commit local, sin subir, encima de `main`: espera tu revisión. Trae `accounts.0029` y `library.0017`, que solo cambian las opciones de plataforma y no tocan las tablas. |
+| `formularios-que-avisan` | Los formularios que recargan la página avisan mientras trabajan: el botón gira, dice qué hace («Importando tus juegos…») y no se puede pulsar dos veces | En curso, encima de `playnite-y-csv`. |
+| `playnite-y-csv` | Importar desde un archivo: tus juegos y horas de Epic, GOG, EA, Ubisoft, Battle.net y Amazon con Playnite, y el CSV de otros trackers | Commit local `0c4431f`, sin subir, encima de `main`: espera tu revisión. Trae `accounts.0029` y `library.0017`, que solo cambian las opciones de plataforma y no tocan las tablas. |
 | `que-jugar-despues` | Qué jugar después: de tu pendiente y del catálogo, según cómo juegas, con su porqué | En `main` desde el 11/11, sin PR. Su migración `accounts.0028` está aplicada en tu base de datos. |
 | `estadisticas-y-resumen` | Pestaña Estadísticas del perfil y Resumen del año con su imagen para compartir | En `main` desde el 11/11, sin PR. Sin migraciones. |
 | `horas-por-plataforma` | Horas totales y última partida en la base de datos, y cualquier plataforma nueva sin migraciones | En `main` desde el 11/11, sin PR. Su migración `library.0016`, que rellena los totales, está aplicada. |
@@ -40,9 +41,56 @@ Todo está en `main` menos `playnite-y-csv`, que espera tu revisión. Las siete 
 
 ---
 
+## 12/11/2026 · Formularios que avisan mientras trabajan
+
+**Rama:** `formularios-que-avisan`, encima de `playnite-y-csv`. Commit local, sin subir.
+
+**Por qué esta y no «Tareas en segundo plano»**, que era la siguiente que apunté ayer:
+- Las tareas en segundo plano solo se notan con un proceso aparte que las ejecute, y eso se decide al desplegar. La propuesta ya dice que no corre prisa mientras NextPlay esté en local.
+- Lo que sí se nota ya es su otra mitad: que una importación larga diga que está trabajando y no se envíe dos veces. PlayStation y Xbox se van a quedar siempre en la petición, porque el código de Sony no se puede guardar en una cola.
+- «Nintendo Switch con capturas» necesita 10 capturas tuyas de la app para probar la lectura antes de construir nada: la dejo para cuando me las pases.
+
+**Plan:**
+- [x] Un script en `base.html`: al enviar un formulario normal (no los de HTMX), el botón pulsado gira y dice lo que está pasando; los botones se desactivan justo después, cuando el navegador ya ha recogido cuál se pulsó, para que «Guardar borrador» no publique la reseña. Al volver atrás, todo vuelve a su sitio.
+- [x] `data-busy` en los botones lentos: Steam, PlayStation, Xbox, importar un archivo, Publicar, Guardar cambios, reseñas, listas, tier lists, retos y crear la cuenta.
+- [x] Tests, comprobarlo en el servidor de revisión (sobre todo el borrador de una reseña), propuesta, PDF y esta bitácora.
+
+**Qué cambia para ti:**
+- **Al pulsar un botón que recarga la página, se nota que está trabajando:** el botón gira y dice lo que hace. Por ejemplo, «Importando tus juegos…» en Steam y PlayStation, «Guardando…» en Editar perfil, «Publicando…» en una reseña o una publicación y «Creando…» en una lista, una tier list o un reto. Los demás botones del formulario se apagan.
+- **Ya no se envía dos veces** aunque toques otra vez mientras espera: antes, una publicación con imágenes o una importación se podían duplicar.
+- **Si vuelves atrás con el navegador**, el formulario está como lo dejaste, sin el botón girando para siempre.
+- **Los botones desactivados se ven apagados**, como «Importar 0 juegos» en la importación desde un archivo. Antes parecían activos.
+- Lo que va por HTMX (me gusta, estados, comentarios…) ya tenía su aviso y no cambia.
+
+**Cómo comprobarlo tú (guion, 3 minutos, en el mismo servidor de revisión, http://localhost:8001/):**
+1. **Editar perfil:** cambia cualquier cosa y pulsa «Guardar cambios». Durante un instante, el botón gira y dice «Guardando…». En tu PC va muy rápido; se ve mejor en lo lento.
+2. **Lo lento:** en Cuentas vinculadas, pulsa «Sincronizar juegos» de Steam con `tester_steam`. Mientras trae tus juegos, el botón dice «Importando tus juegos…» y no se puede volver a pulsar.
+3. **La trampa que había:** escribe una reseña y pulsa «Guardar borrador». Tiene que salir «Borrador guardado. Solo lo ves tú.», no publicarse.
+4. **Volver atrás:** envía cualquier formulario y, en cuanto cargue la página siguiente, pulsa Atrás en el navegador. El botón ya no gira y se puede pulsar.
+
+**Qué he tocado:**
+- `templates/base.html`: el script, junto a los demás de todas las páginas. No va en la vista previa del perfil, como los otros.
+- `static/css/app.css`: el giro (`.is-busy`, que se queda quieto si el sistema pide menos movimiento) y los botones desactivados.
+- `data-busy` en `accounts/linking/_steam.html`, `_psn.html` y `_xbox.html`, `accounts/edit_profile.html`, `accounts/import_file.html`, `social/_composer.html`, `library/review_form.html`, `lists/form.html`, `edit.html` y `tier_form.html`, `challenges/form.html` y `edit.html`, `registration/signup.html` y `password_reset_form.html`.
+- `accounts/import_file.html` ya no lleva su propio aviso al importar: usa el de todas.
+- `config/tests.py`, la propuesta (hecha) y los dos PDF.
+
+**Cómo lo he comprobado:**
+- 2 tests nuevos: el script va en todas las páginas salvo en la vista previa del perfil, y los botones lentos llevan su `data-busy`.
+- La batería completa, en las dos variantes. La primera vez fallaron 4 tests: el comentario del script nombraba pantallas («Editar perfil», «Nueva lista»…) y, como los comentarios de JavaScript salen en el HTML de todas las páginas, esas palabras aparecían donde no debían. Ahora el comentario no nombra ninguna, y pasan los 602 tests, sin claves y con claves falsas y un proxy muerto.
+- En el servidor de revisión, con `tester`:
+  - en Editar perfil, al enviar: «Guardando…», el giro, `aria-busy`, los botones apagados justo después y un segundo envío cancelado; al simular la vuelta atrás, todo vuelve a como estaba;
+  - una reseña guardada con «Guardar borrador» se ha quedado en borrador, sin horas verificadas porque Battlefield 2042 solo tenía las del archivo. Después la he borrado.
+
+**Qué falta:**
+- Que lo revises.
+- Lo que la propuesta deja para más adelante: evitar duplicados también en el servidor (un token de un solo uso en Publicar) y el progreso de verdad en las importaciones, que llega con las tareas en segundo plano.
+
+---
+
 ## 12/11/2026 · Importar desde un archivo: Playnite (Epic, GOG, EA, Ubisoft, Battle.net, Amazon) y CSV de otros trackers
 
-**Rama:** `playnite-y-csv`, encima de `main`. Commit local, sin subir.
+**Rama:** `playnite-y-csv`, encima de `main`. Commit local `0c4431f`, sin subir.
 
 **Por qué:** me dijiste «sigue con lo que haya pendiente». Lo pendiente era esto: el 11/11 se quedó a medias por el límite de uso y, tal cual, entró en `main` esa noche con el resto de ramas.
 

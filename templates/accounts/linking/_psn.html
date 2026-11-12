@@ -27,6 +27,6 @@
       <input id="npsso" name="npsso" type="password" required spellcheck="false" autocomplete="off" placeholder="64 letras y números">
       <p class="help">Solo se usa para esta importación y no se guarda. Da acceso a tu cuenta: no lo compartas con nadie más.</p>
     </div>
-    <button class="btn btn-psn" type="submit">{% include "games/shop_icons/playstation.svg" %} {% if account %}Sincronizar PlayStation{% else %}Vincular e importar{% endif %}</button>
+    <button class="btn btn-psn" type="submit" data-busy="Importando tus juegos…">{% include "games/shop_icons/playstation.svg" %} {% if account %}Sincronizar PlayStation{% else %}Vincular e importar{% endif %}</button>
   </form>
 {% endwith %}

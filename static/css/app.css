@@ -1467,6 +1467,22 @@ input[type=range] { width: 100%; accent-color: var(--violet); }
   .live-state.is-updating::before { animation: none; opacity: .5; }
 }
 
+/* Formularios que recargan la página mientras esperan al servidor (el script de base.html): el botón pulsado gira y dice
+   qué hace, y los demás del formulario se apagan. */
+form[aria-busy="true"] { cursor: progress; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn:disabled:hover { border-color: var(--border); }
+.btn-primary:disabled:hover { border-color: transparent; box-shadow: var(--glow); }
+.is-busy, .btn.is-busy:disabled { opacity: .9; cursor: progress; }
+.is-busy::before {
+  content: ""; display: inline-block; width: .85em; height: .85em; margin-right: .45em; vertical-align: -.12em;
+  border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: busy-spin .7s linear infinite;
+}
+@keyframes busy-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .is-busy::before { animation: none; border-right-color: currentColor; opacity: .5; }
+}
+
 /* Las dos pantallas, una al lado de la otra y del mismo alto: el del móvil, limitado para que quepa en la ventana. */
 .preview-devices { display: flex; align-items: stretch; gap: 1rem; }
 .device { display: flex; flex-direction: column; gap: .45rem; min-width: 0; margin: 0; }

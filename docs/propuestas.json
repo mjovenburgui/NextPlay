@@ -1020,7 +1020,7 @@
   {
     "titulo": "Formularios que avisan mientras trabajan",
     "fecha": "2026-10-28",
-    "estado": "pendiente",
+    "estado": "hecha",
     "prioridad": "media",
     "tipo": "Diseño",
     "resumen": "Lo que va por HTMX ya se atenúa mientras espera, pero los formularios normales no dan ninguna señal: al pulsar «Sincronizar» en Steam, «Publicar» con imágenes o «Guardar cambios» en Editar perfil, la página se queda quieta hasta que responde el servidor y un segundo toque lo envía dos veces. Al enviarlos, desactivar el botón y poner en él lo que está pasando: «Importando tus juegos…», «Publicando…», «Guardando…».",
@@ -1030,7 +1030,7 @@
       "Volver a activarlo en pageshow, para cuando se vuelve atrás y el navegador recupera la página de su caché.",
       "data-busy en los botones de Steam, PlayStation y Xbox, en Publicar, en Guardar cambios y en los de crear y editar listas y retos."
     ],
-    "notas": "Los filtros que se envían solos al cambiar un desplegable usan this.form.submit(), que no lanza el evento submit: si se quiere que también avisen, cambiarlo por requestSubmit().",
+    "notas": "Los filtros que se envían solos al cambiar un desplegable usan this.form.submit(), que no lanza el evento submit: si se quiere que también avisen, cambiarlo por requestSubmit(). 12/11/2026, rama formularios-que-avisan: hecho. Un script en base.html, por delegación: al enviar un formulario POST que no va por HTMX (ni se abre en otra pestaña ni lleva data-no-busy), el botón pulsado gira (.is-busy) y, si lleva data-busy, dice lo que está pasando; el formulario lleva aria-busy y un segundo envío se cancela. Los botones se desactivan con setTimeout(…, 0), cuando el navegador ya ha recogido cuál se pulsó: comprobado en el navegador que «Guardar borrador» sigue guardando un borrador. Al volver atrás (pageshow con persisted) todo vuelve a como estaba, y solo se reactivan los botones que apagó el script. data-busy en Steam, PlayStation, Xbox, importar un archivo, Publicar, Guardar cambios, Guardar tiendas, las reseñas, crear y editar listas, tier lists y retos, crear la cuenta y recuperar la contraseña. Los desplegables que se envían solos son formularios GET (filtros y orden), que solo navegan: se quedan con this.form.submit().",
     "revision": {
       "fecha": "2026-11-01",
       "hoy": "Igual: ninguna plantilla usa aria-busy y siete desplegables siguen con this.form.submit() (3 en el catálogo, 2 en el perfil y 2 en la lista de deseos). Hay una trampa en su plan: _review_editor decide con «borrador» in request.POST, y un botón desactivado en el evento submit no se envía. Hecho tal cual, «Guardar borrador» publicaría la reseña.",
@@ -1944,7 +1944,7 @@
       "PlayStation y Xbox se quedan en la petición, con «Formularios que avisan mientras trabajan»: el NPSSO y el código de Microsoft no pueden guardarse en una cola, porque la web promete que no se guardan.",
       "nightly sigue siendo un comando: para lo que se programa a una hora, cron basta."
     ],
-    "notas": "Sale de la revisión del 01/11/2026. No corre prisa mientras NextPlay esté en local: es más necesaria al publicar o si la importación crece mucho.",
+    "notas": "Sale de la revisión del 01/11/2026. No corre prisa mientras NextPlay esté en local: es más necesaria al publicar o si la importación crece mucho. 12/11/2026: aplazada a propósito. Solo se nota con un proceso aparte que ejecute las tareas, y eso se decide al desplegar (el paquete django-tasks con su worker, o un hilo en el mismo proceso). Mientras tanto, «Formularios que avisan mientras trabajan» ya dice que una importación está trabajando y evita que se envíe dos veces.",
     "revision": {
       "fecha": "2026-11-01",
       "hoy": "Propuesta nueva. Hay ejecución en paralelo dentro de la petición (ThreadPoolExecutor en los logros de Steam y los trofeos), pero nada fuera de ella.",

@@ -1,5 +1,6 @@
 """Tests del proyecto que no son de ninguna app: las páginas de error propias (404.html, 500.html y la de formulario
-caducado, config.views.csrf_failure) y que cada función diga a qué pantallas afecta."""
+caducado, config.views.csrf_failure), que cada función diga a qué pantallas afecta y que los formularios que recargan la
+página avisen mientras trabajan (el script de base.html y los data-busy de sus botones)."""
 
 import importlib.util
 from pathlib import Path
@@ -69,3 +70,45 @@ class ErrorPagesTests(TestCase):
         response = client.post(reverse("edit_profile"), {"display_name": "Ana"})
         self.assertContains(response, "El formulario ha caducado", status_code=403)
         self.assertContains(response, "Salir", status_code=403)  # con la sesión iniciada, como siempre
+
+
+class BusyFormsTests(TestCase):
+    """Los formularios que recargan la página avisan mientras trabajan: el script de base.html va en todas las páginas
+    (salvo en la vista previa del perfil) y los botones lentos dicen qué hacen con data-busy."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from games.models import Game
+        from library.models import LibraryEntry
+
+        cls.user = get_user_model().objects.create_user("ana", "ana@example.com", "x")
+        cls.game = Game.objects.create(name="Hades", slug="hades")
+        # Escribir reseña solo se abre con el juego en la biblioteca.
+        LibraryEntry.objects.create(user=cls.user, game=cls.game)
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def test_every_page_has_the_script_but_the_profile_preview(self):
+        script = 'document.addEventListener("submit"'
+        self.assertContains(self.client.get(reverse("home")), script)
+        self.assertContains(self.client.get(reverse("edit_profile")), script)
+        self.assertNotContains(self.client.post(reverse("profile_preview"), {"display_name": "Ana"}), script)
+        self.client.logout()
+        self.assertContains(self.client.get(reverse("signup")), 'data-busy="Creando tu cuenta…"')
+
+    def test_slow_buttons_say_what_they_do(self):
+        pages = {
+            reverse("edit_profile"): ['data-busy="Guardando…">Guardar cambios', 'data-busy="Importando tus juegos…"'],
+            reverse("home"): ['data-busy="Publicando…">Publicar'],
+            reverse("library:review_new", args=[self.game.pk]): [
+                'name="publicar" data-busy="Publicando…"', 'name="borrador" data-busy="Guardando…"',
+            ],
+            reverse("import_file"): ['data-busy="Leyendo el archivo…"'],
+            reverse("lists:new"): ['data-busy="Creando…">Crear lista'],
+            reverse("challenges:new"): ['data-busy="Creando…"'],
+        }
+        for url, fragments in pages.items():
+            response = self.client.get(url)
+            for fragment in fragments:
+                self.assertContains(response, fragment, msg_prefix=url)

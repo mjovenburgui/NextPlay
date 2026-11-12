@@ -17,7 +17,7 @@
       </label>
       <div class="list-form-foot">
         <a class="btn" href="{{ challenge.get_absolute_url }}">Cancelar</a>
-        <button class="btn btn-primary" type="submit">Guardar</button>
+        <button class="btn btn-primary" type="submit" data-busy="Guardando…">Guardar</button>
       </div>
     </form>
     <form class="challenge-delete" method="post" action="{% url 'challenges:delete' challenge.pk %}"

@@ -227,6 +227,70 @@
       })();
     </script>
 
+    <script>
+      // Formularios que recargan la página (los POST que no van por HTMX, que ya tiene su aviso): al enviarlos, el botón
+      // pulsado gira y, si lleva data-busy, pone ese texto, y un segundo envío se cancela. Los botones se desactivan justo
+      // después, cuando el navegador ya ha recogido cuál se pulsó: un botón desactivado no se envía, y hay vistas que
+      // miran cuál fue. Si al volver atrás el navegador recupera la página de su caché, todo vuelve a como estaba.
+      // (Sin nombres de pantallas ni de botones: este comentario sale en el HTML de todas las páginas.)
+      // Pantallas: todas (los formularios que recargan la página).
+      (function () {
+        var HTMX = ["hx-post", "hx-get", "hx-put", "hx-patch", "hx-delete"];
+
+        // Si un formulario recarga la página: un POST que no maneja HTMX, que no se abre en otra pestaña y que no pide
+        // quedarse fuera (data-no-busy).
+        function reloads(form) {
+          return form.method === "post" && !form.target && !form.hasAttribute("data-no-busy")
+            && !HTMX.some(function (name) { return form.hasAttribute(name); });
+        }
+
+        document.addEventListener("submit", function (event) {
+          var form = event.target;
+          if (event.defaultPrevented || !reloads(form)) return;
+          if (form.hasAttribute("data-sending")) {
+            event.preventDefault();
+            return;
+          }
+          form.setAttribute("data-sending", "");
+          form.setAttribute("aria-busy", "true");
+          var button = event.submitter;
+          if (button && button.tagName === "BUTTON") {
+            button.classList.add("is-busy");
+            if (button.dataset.busy) {
+              button.dataset.idle = button.innerHTML;
+              button.textContent = button.dataset.busy;
+            }
+          }
+          setTimeout(function () {
+            form.querySelectorAll("button:not(:disabled), input[type=submit]:not(:disabled)").forEach(function (control) {
+              if (control.type !== "submit") return;
+              control.disabled = true;
+              control.setAttribute("data-busy-off", "");
+            });
+          }, 0);
+        });
+
+        window.addEventListener("pageshow", function (event) {
+          if (!event.persisted) return;
+          document.querySelectorAll("form[data-sending]").forEach(function (form) {
+            form.removeAttribute("data-sending");
+            form.removeAttribute("aria-busy");
+            form.querySelectorAll("[data-busy-off]").forEach(function (control) {
+              control.disabled = false;
+              control.removeAttribute("data-busy-off");
+            });
+            form.querySelectorAll(".is-busy").forEach(function (button) {
+              button.classList.remove("is-busy");
+              if (button.dataset.idle !== undefined) {
+                button.innerHTML = button.dataset.idle;
+                delete button.dataset.idle;
+              }
+            });
+          });
+        });
+      })();
+    </script>
+
     {# Avisos de abajo: lo que no se ha podido guardar o cargar con HTMX (antes fallaba sin decir nada). #}
     <div class="toasts" data-toasts aria-live="assertive"></div>
     <script>
