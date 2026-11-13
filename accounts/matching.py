@@ -23,6 +23,7 @@ from library.models import LibraryEntry, PlaySession, Review
 from library.reminders import remind_outdated_reviews
 from social.activity import games_imported
 
+from .banner import refresh_user
 from .models import ExternalTitle, ImportedTitle
 
 # Búsquedas sueltas en IGDB como máximo por sincronización, para los juegos que no salen por nombre exacto, y
@@ -368,8 +369,9 @@ def update_library(user, platform, opened_only=False, record_activity=False, pri
     (social.activity.games_imported) y lo que ha subido el tiempo de los que ya tenían horas de esta plataforma se
     apunta como sesiones de juego (library.models.PlaySession), con las que se mira si ha conseguido algún reto de
     horas (challenges.progress.check). De esa subida se descuenta prior_minutes ({ID externo: minutos}), lo que trae
-    una cuenta en su primera importación: es de antes de vincularla, no algo que se acabe de jugar. Devuelve (juegos
-    añadidos, juegos actualizados).
+    una cuenta en su primera importación: es de antes de vincularla, no algo que se acabe de jugar. Con
+    record_activity, también pone al día la cabecera «Lo que estoy jugando» (accounts.banner.refresh_user). Devuelve
+    (juegos añadidos, juegos actualizados).
 
     Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas),
     Ficha del juego (tus horas), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos
@@ -434,6 +436,8 @@ def update_library(user, platform, opened_only=False, record_activity=False, pri
         games_imported(user, platform, new)
         if played:
             challenge_progress.check(user)
+        # La cabecera «Lo que estoy jugando» sigue al último juego jugado (accounts.banner).
+        refresh_user(user)
     if updated:
         remind_outdated_reviews(user)
     return len(new), updated

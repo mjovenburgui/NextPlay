@@ -24,7 +24,7 @@ from games.models import Game, GamePrice, Platform
 from library.models import LibraryEntry, PlaySession, Review, WishlistItem
 from social.models import Activity
 
-from . import achievements, csv_import, images, matching, notices, psn, steam, xbox
+from . import achievements, banner, csv_import, images, matching, notices, psn, steam, xbox
 from .views import importar_archivo, perfil
 from .models import (
     Achievement, ExternalTitle, FavoriteGame, ImportedTitle, Notification, PlatformAccount, Profile, PSNAccount,
@@ -2711,3 +2711,157 @@ class FileImportTests(TestCase):
         self.client.force_login(self.user)
         for page in (reverse("edit_profile"), reverse("profile", args=["ana"])):
             self.assertContains(self.client.get(page), f'href="{reverse("import_file")}"')
+
+
+class AutoBannerTests(TestCase):
+    """La cabecera «Lo que estoy jugando» y el color del perfil sacado de la cabecera (accounts.banner)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("ana", "ana@example.com", "x")
+        art = {"id": "arthades", "w": 1920, "h": 1080, "type": igdb.KEY_ART_WITHOUT_LOGO}
+        cls.hades = Game.objects.create(name="Hades", slug="hades", cover_image_id="cohades", media={"arts": [art]})
+        cls.celeste = Game.objects.create(name="Celeste", slug="celeste", cover_image_id="coceleste")
+        cls.doom = Game.objects.create(name="Doom", slug="doom")
+
+    def setUp(self):
+        cache.clear()
+
+    def entry(self, game, status, days_ago=None):
+        """Mete game en la biblioteca con status y, si days_ago, una hora de Steam jugada hace esos días."""
+        played = timezone.now() - timedelta(days=days_ago) if days_ago is not None else None
+        return LibraryEntry.objects.create(
+            user=self.user, game=game, status=status, steam_playtime_minutes=60 if played else None,
+            steam_last_played=played,
+        )
+
+    def playing_profile(self, **fields):
+        """El perfil de ana con la cabecera «Lo que estoy jugando» (y fields)."""
+        profile = Profile.objects.get(user=self.user)
+        profile.banner_mode = Profile.BannerMode.PLAYING
+        for name, value in fields.items():
+            setattr(profile, name, value)
+        profile.save()
+        return profile
+
+    def test_the_game_is_what_you_play_now(self):
+        self.assertIsNone(banner.playing_game(self.user))
+        self.entry(self.doom, LibraryEntry.Status.PLAYED, days_ago=60)
+        self.assertIsNone(banner.playing_game(self.user))  # hace demasiado
+        LibraryEntry.objects.filter(game=self.doom).delete()
+        self.entry(self.doom, LibraryEntry.Status.PLAYED, days_ago=3)
+        self.assertEqual(banner.playing_game(self.user), self.doom)  # sin nada en «Jugando», lo último jugado
+        celeste = self.entry(self.celeste, LibraryEntry.Status.PLAYING)
+        self.assertEqual(banner.playing_game(self.user), self.celeste)  # «Jugando» va antes, aunque no tenga partidas
+        self.entry(self.hades, LibraryEntry.Status.PLAYING, days_ago=1)
+        self.assertEqual(banner.playing_game(self.user), self.hades)  # y en «Jugando», la última partida
+        # Celeste puesta en «Jugando» a mano hace un momento: cuenta como jugada ahora, por delante de la partida de ayer...
+        LibraryEntry.objects.filter(pk=celeste.pk).update(marked_playing_at=timezone.now())
+        self.assertEqual(banner.playing_game(self.user), self.celeste)
+        # ...pero no si fue hace una semana.
+        LibraryEntry.objects.filter(pk=celeste.pk).update(marked_playing_at=timezone.now() - timedelta(days=7))
+        self.assertEqual(banner.playing_game(self.user), self.hades)
+
+    def test_refresh_puts_the_game_its_art_and_its_color(self):
+        profile = self.playing_profile(accent_from_banner=True, banner_x=10, banner_zoom=180)
+        self.entry(self.hades, LibraryEntry.Status.PLAYING, days_ago=1)
+        with mock.patch.object(banner, "banner_color", return_value="#c04040"):
+            self.assertTrue(banner.refresh_playing(profile))
+        profile.refresh_from_db()
+        self.assertEqual((profile.banner_game, profile.banner_art), (self.hades, "arthades"))
+        self.assertEqual((profile.banner_x, profile.banner_zoom, profile.accent_color), (50, 100, "#c04040"))
+        self.assertIn("arthades", profile.banner_url)
+        self.assertFalse(profile.banner_blurred)
+        self.assertFalse(banner.refresh_playing(profile))  # sin cambios, no vuelve a hacer nada
+        profile.banner_mode = Profile.BannerMode.GRADIENT
+        self.assertFalse(banner.refresh_playing(profile))  # con otra cabecera, no la toca
+
+    def test_a_game_without_art_shows_its_blurred_cover(self):
+        profile = self.playing_profile()
+        self.entry(self.celeste, LibraryEntry.Status.PLAYING)
+        banner.refresh_playing(profile)
+        self.assertEqual((profile.banner_game, profile.banner_art), (self.celeste, ""))
+        self.assertIn("coceleste", profile.banner_url)
+        self.assertTrue(profile.banner_blurred)
+
+    def test_status_change_and_import_move_it(self):
+        self.playing_profile()
+        self.client.force_login(self.user)
+        self.entry(self.doom, LibraryEntry.Status.PLAYING, days_ago=0)
+        # Una partida antigua de Celeste no importa: ponerla en «Jugando» a mano cuenta como jugarla ahora.
+        LibraryEntry.objects.create(
+            user=self.user, game=self.celeste, status=LibraryEntry.Status.PLAYED,
+            steam_playtime_minutes=90, steam_last_played=timezone.now() - timedelta(days=400),
+        )
+        self.client.post(reverse("library:set_status", args=[self.celeste.pk]), {"status": "playing"})
+        self.assertEqual(Profile.objects.get(user=self.user).banner_game, self.celeste)
+        # Y sigue saliendo al guardar Editar perfil, que vuelve a mirarlo.
+        self.client.post(reverse("edit_profile"), {"display_name": "Ana", "is_public": "on", "banner_mode": "playing"})
+        self.assertEqual(Profile.objects.get(user=self.user).banner_game, self.celeste)
+        # Dos días después, una importación con una partida de ayer: Hades pasa delante.
+        LibraryEntry.objects.filter(game=self.celeste).update(marked_playing_at=timezone.now() - timedelta(days=2))
+        LibraryEntry.objects.filter(game=self.doom).update(last_played=timezone.now() - timedelta(days=3))
+        played = (timezone.now() - timedelta(days=1)).strftime("%d/%m/%Y %H:%M:%S")
+        text = f"Nombre,Fuentes,Tiempo jugado,Jugado por última vez\nHades,Epic,7200,{played}\n"
+        headers, rows = csv_import.read(text.encode("utf-8"))
+        with override_settings(IGDB_CLIENT_ID="", IGDB_CLIENT_SECRET=""):
+            csv_import.import_items(self.user, csv_import.interpret(rows, csv_import.guess(headers), "segundos"))
+        self.assertEqual(Profile.objects.get(user=self.user).banner_game, self.hades)
+
+    def test_dominant_color_skips_greys_and_reads_on_dark(self):
+        import colorsys
+
+        def png(image):
+            """La imagen en PNG."""
+            buffer = io.BytesIO()
+            image.save(buffer, "PNG")
+            return buffer.getvalue()
+
+        image = Image.new("RGB", (100, 100), (128, 128, 128))
+        image.paste((20, 60, 160), (0, 0, 60, 100))  # un azul oscuro sobre gris
+        color = banner.dominant_color(png(image))
+        red, green, blue = (int(color[i:i + 2], 16) for i in (1, 3, 5))
+        self.assertGreater(blue, max(red, green))  # sigue siendo azul
+        _, lightness, saturation = colorsys.rgb_to_hls(red / 255, green / 255, blue / 255)
+        self.assertGreaterEqual(round(lightness, 2), banner.MIN_LIGHTNESS)  # aclarado para leerse sobre el fondo
+        self.assertGreaterEqual(round(saturation, 2), banner.MIN_SATURATION)
+        self.assertEqual(banner.dominant_color(png(Image.new("RGB", (40, 40), (90, 90, 90)))), "")
+        # Una imagen apagada, de grises azulados y negros (como el arte de The Witcher 3): un azul, no nada.
+        night = Image.new("RGB", (100, 100), (11, 8, 14))
+        night.paste((70, 76, 79), (0, 0, 70, 100))
+        red, green, blue = (int(banner.dominant_color(png(night))[i:i + 2], 16) for i in (1, 3, 5))
+        self.assertGreater(blue, red)
+        self.assertEqual(banner.dominant_color(b"no es una imagen"), "")
+
+    def test_banner_color_reads_the_igdb_thumbnail_once(self):
+        profile = self.playing_profile(banner_game=self.hades, banner_art="arthades")
+        image = Image.new("RGB", (60, 30), (200, 40, 40))
+        buffer = io.BytesIO()
+        image.save(buffer, "PNG")
+        answer = mock.Mock(content=buffer.getvalue(), raise_for_status=mock.Mock())
+        with mock.patch("accounts.banner.requests.get", return_value=answer) as get:
+            first, second = banner.banner_color(profile), banner.banner_color(profile)
+        self.assertEqual(first, second)
+        self.assertTrue(first.startswith("#"))
+        self.assertEqual(get.call_count, 1)  # la segunda vez, de la caché
+        self.assertIn("arthades", get.call_args.args[0])
+        profile.banner_mode = Profile.BannerMode.GRADIENT
+        self.assertEqual(banner.banner_color(profile), "")
+
+    def test_edit_profile_offers_it_and_saves_it(self):
+        self.entry(self.hades, LibraryEntry.Status.PLAYING, days_ago=1)
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("edit_profile"))
+        self.assertContains(response, "Lo que estoy jugando")
+        self.assertContains(response, "Ahora sale <strong>Hades</strong>")
+        self.assertContains(response, "Sacarlo de la cabecera")
+        data = {"display_name": "Ana", "is_public": "on", "banner_mode": "playing", "accent_from_banner": "on"}
+        with mock.patch.object(banner, "banner_color", return_value="#3f7fd0"):
+            self.client.post(reverse("edit_profile"), data)
+            preview = self.client.post(reverse("profile_preview"), data)
+        profile = Profile.objects.get(user=self.user)
+        self.assertEqual(
+            (profile.banner_mode, profile.banner_game, profile.banner_art, profile.accent_color, profile.accent_from_banner),
+            ("playing", self.hades, "arthades", "#3f7fd0", True),
+        )
+        self.assertContains(preview, "arthades")

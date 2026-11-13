@@ -13,11 +13,12 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Todo está en `main` menos `playnite-y-csv`, que espera tu revisión. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
+Todo está en `main` menos tres ramas de hoy, una encima de otra, que esperan tu revisión: `playnite-y-csv`, `formularios-que-avisan` y `cabecera-automatica`. Las tres se ven juntas en el servidor de revisión (http://localhost:8001/, con una copia de tu base de datos) y cada una lleva su guion para comprobarla. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
-| `formularios-que-avisan` | Los formularios que recargan la página avisan mientras trabajan: el botón gira, dice qué hace («Importando tus juegos…») y no se puede pulsar dos veces | En curso, encima de `playnite-y-csv`. |
+| `cabecera-automatica` | Cabecera «Lo que estoy jugando», que sigue sola al juego al que juegas, y el color del perfil sacado de la cabecera | Commit local, sin subir, encima de `formularios-que-avisan`. Trae las migraciones `accounts.0030` y `library.0018`. |
+| `formularios-que-avisan` | Los formularios que recargan la página avisan mientras trabajan: el botón gira, dice qué hace («Importando tus juegos…») y no se puede pulsar dos veces | Commit local `ee08633`, sin subir, encima de `playnite-y-csv`. Sin migraciones. |
 | `playnite-y-csv` | Importar desde un archivo: tus juegos y horas de Epic, GOG, EA, Ubisoft, Battle.net y Amazon con Playnite, y el CSV de otros trackers | Commit local `0c4431f`, sin subir, encima de `main`: espera tu revisión. Trae `accounts.0029` y `library.0017`, que solo cambian las opciones de plataforma y no tocan las tablas. |
 | `que-jugar-despues` | Qué jugar después: de tu pendiente y del catálogo, según cómo juegas, con su porqué | En `main` desde el 11/11, sin PR. Su migración `accounts.0028` está aplicada en tu base de datos. |
 | `estadisticas-y-resumen` | Pestaña Estadísticas del perfil y Resumen del año con su imagen para compartir | En `main` desde el 11/11, sin PR. Sin migraciones. |
@@ -41,9 +42,78 @@ Todo está en `main` menos `playnite-y-csv`, que espera tu revisión. Las siete 
 
 ---
 
+## 12/11/2026 · Cabecera y color automáticos según lo que juegas
+
+**Rama:** `cabecera-automatica`, encima de `formularios-que-avisan`. Commit local, sin subir.
+
+**Por qué:** es de prioridad alta y del perfil, que es de lo primero que pediste («10000 veces más modificable»). Hasta ahora todo en el perfil era a mano y se quedaba viejo.
+
+**Qué cambia para ti:**
+- **Una cabecera nueva en Editar perfil › Apariencia: «Lo que estoy jugando».** Lleva el arte del juego al que estás jugando y cambia sola:
+  - el juego es el de «Jugando» con lo último que ha pasado con él: su última partida importada o, si es después, cuándo lo pusiste en «Jugando» desde su ficha. Ponerlo a mano cuenta como jugarlo en ese momento, aunque su última partida importada sea de hace años;
+  - si no tienes nada en «Jugando», lo último que has jugado del último mes; si tampoco, se queda la cabecera que tuvieras;
+  - la imagen es el mejor arte de IGDB, el mismo que sale en la cabecera de su ficha; si no tiene ninguno, su portada desenfocada, como al elegir un juego a mano.
+- **Cuándo cambia:** al sincronizar tus juegos (también la sincronización de cada noche), al pasar un juego a «Jugando» desde su ficha (ese sale enseguida, aunque otro tenga una partida más reciente) y al guardar Editar perfil. Nunca al abrir tu perfil, que así no espera a nadie.
+- **Editar perfil te dice qué juego saldría** («Ahora sale Fortnite, lo último que has jugado de lo que tienes en «Jugando»») y el encuadre enseña su imagen.
+- **«Sacarlo de la cabecera», en Color del perfil:**
+  - el color del perfil sale de la imagen de la cabecera: la tuya subida, la de un juego o la automática;
+  - con «Lo que estoy jugando», cambia con cada juego;
+  - se aclara y se aviva lo justo para que se lea sobre el fondo oscuro, y nunca coge grises, negros ni blancos. Si la imagen es toda apagada, como el arte de The Witcher 3, coge su tono aunque sea leve (ahí, un azul);
+  - si eliges un color a mano, la casilla se quita sola;
+  - para quedarte con el color de una imagen y que ya no cambie: márcala, guarda y desmárcala.
+- Con `tester`, en el servidor de revisión:
+  - al elegirla, la cabecera ha pasado a Fortnite, que tiene en «Jugando» desde la importación de ejemplo, y el color del perfil, del cian a un naranja (#cb7851) sacado de su arte;
+  - al poner Cyberpunk 2077 en «Jugando» desde su ficha, la cabecera ha pasado a su arte y el color, a un ámbar (#d48c44), con el texto encima en oscuro porque es un color claro.
+
+**Cómo comprobarlo tú (guion, 5 minutos, en el servidor de revisión http://localhost:8001/):**
+1. **Entra con `tester_steam`** y ve a Editar perfil › Apariencia › Cabecera. Hay una opción nueva, «Lo que estoy jugando». Al elegirla, debajo dice qué juego saldría ahora.
+2. **En Color del perfil**, marca «Sacarlo de la cabecera».
+3. **Pulsa «Guardar cambios».** En tu perfil, la cabecera es el arte de ese juego y el color de los botones y pestañas sale de ella.
+4. **Haz que cambie:** abre la ficha de otro juego de tu biblioteca y ponlo en «Jugando». Vuelve a tu perfil: la cabecera ya es la suya, y el color también.
+5. **Elige un color a mano** en Editar perfil: la casilla «Sacarlo de la cabecera» se desmarca sola.
+6. **Con una imagen tuya:** elige «Una imagen mía», sube una, marca «Sacarlo de la cabecera» y guarda. El color sale de tu imagen.
+
+**Qué he tocado:**
+- `accounts/banner.py`, nuevo:
+  - qué juego sale (`playing_game`) y con qué imagen;
+  - ponerla al día (`refresh_playing`, `refresh_user`) y la vista previa;
+  - el color de la cabecera (`banner_color`, `dominant_color`, con Pillow).
+- `accounts/models.py`: `Profile.BannerMode.PLAYING` y `Profile.accent_from_banner` (migración `accounts.0030`); `banner_url` y `banner_blurred` valen también para la automática.
+- `library/models.py`: `LibraryEntry.marked_playing_at`, cuándo pusiste un juego en «Jugando» desde su ficha (migración `library.0018`). Lo apunta `set_status` y se vacía si cambia a otro estado.
+- `games/media.py`: `best_art`, la mejor imagen de un juego para una cabecera, que ahora comparten la ficha y el perfil.
+- Dónde se pone al día:
+  - `accounts/matching.py`, al importar, y `accounts/csv_import.py` otra vez al final, ya con los estados del archivo: un juego que Playnite da por terminado no se queda de cabecera;
+  - `library/views/ficha_del_juego.py`, al cambiar el estado;
+  - `accounts/forms.py`, al guardar y en la vista previa.
+- `accounts/views/editar_perfil.py` y `templates/accounts/edit_profile.html`: la opción, el juego que saldría, su encuadre y la casilla del color.
+- Tests, `docs/pantallas.json`, la propuesta (hecha) y los dos PDF.
+- De paso, en Importar desde un archivo: «Se importará 1 juego», en singular (decía «Se importarán 1 juego»).
+
+**Cómo lo he comprobado:**
+- 7 tests nuevos:
+  - qué juego sale, también el que acabas de poner en «Jugando»;
+  - el juego con su imagen, su encuadre y su color, y que con otra cabecera no se toca;
+  - un juego sin arte sale con su portada desenfocada;
+  - el cambio de estado y la importación la mueven;
+  - el color: sin grises, aclarado para leerse, y una sola petición a IGDB por imagen;
+  - Editar perfil la ofrece, la guarda y la enseña en la vista previa.
+- En el servidor de revisión, con `tester`:
+  - elegida la cabecera y la casilla del color, guardado: la cabecera es el arte de Fortnite, que IGDB ha mandado al guardar, y el color, #cb7851;
+  - la prueba sacó dos fallos, ya arreglados:
+    - **The Witcher 3 puesto en «Jugando» desde su ficha** salía en la cabecera, pero al guardar Editar perfil volvía Fortnite: su partida importada era más antigua y ponerlo a mano no contaba. Para eso está ahora `marked_playing_at`. Repetido con Cyberpunk 2077: se queda.
+    - **El color de The Witcher 3** no cambiaba: su arte es casi todo gris y negro y no encontraba ningún color vivo, así que se quedaba el anterior. Ahora coge el tono más presente aunque sea leve: un azul (#599dc0).
+  - una importación de un CSV de Playnite en inglés («Time Played», «Last Played» con PM, «Beaten», «User Score»): se reconoce todo solo y se importa pulsando el botón nuevo que gira.
+- La batería completa, sin claves y con claves falsas y un proxy muerto: 609 tests en cada pasada, todos bien.
+
+**Qué falta:**
+- Que lo revises. Al fusionar, tu base de datos necesita `migrate` (`accounts.0030` y `library.0018`).
+- Lo que la propuesta deja para más adelante: un escaparate que cambie solo («Este mes he jugado a…»), una vitrina de logros elegidos y un aspecto guardado para cada juego.
+
+---
+
 ## 12/11/2026 · Formularios que avisan mientras trabajan
 
-**Rama:** `formularios-que-avisan`, encima de `playnite-y-csv`. Commit local, sin subir.
+**Rama:** `formularios-que-avisan`, encima de `playnite-y-csv`. Commit local `ee08633`, sin subir.
 
 **Por qué esta y no «Tareas en segundo plano»**, que era la siguiente que apunté ayer:
 - Las tareas en segundo plano solo se notan con un proceso aparte que las ejecute, y eso se decide al desplegar. La propuesta ya dice que no corre prisa mientras NextPlay esté en local.
@@ -99,6 +169,8 @@ Todo está en `main` menos `playnite-y-csv`, que espera tu revisión. Las siete 
 **Qué cambia para ti:**
 - **Una tarjeta nueva en Editar perfil › Cuentas vinculadas: «Desde un archivo»**, con la franja dorada, y lo mismo en el modal «Vincular cuentas» de tu perfil. Lleva a la pantalla nueva, **Importar desde un archivo** (`/cuenta/importar-archivo/`).
 - **Sirve para las tiendas sin API.** Subes el CSV que exporta Playnite con su complemento Library Exporter Advanced y te traes los juegos y las horas de Epic, GOG, EA, Ubisoft, Battle.net y Amazon. La página explica cómo sacarlo.
+  - **Ojo (corregido por la tarde):** el complemento trae sin marcar el tiempo jugado, la última partida, el estado y la nota, y la página decía «deja marcados». Ahora dice que hay que marcarlos; sin ellos, el archivo llega sin horas.
+  - No exporta solo: para que se actualice cada día haría falta una extensión de Playnite propia. Está apuntado en la propuesta, con cómo la haría.
 - **Las columnas de Playnite se eligen solas**, lo tengas en castellano o en inglés: nombre, tienda, tiempo jugado, última partida, estado y nota. Lo he sacado del código del complemento. Las cabeceras salen en el idioma de Playnite, el tiempo va en segundos, las fechas con el formato de Windows (día o mes delante: se adivina) y la nota sobre 100.
 - **Vale también el CSV de cualquier otro tracker.** Eliges qué columna es cada cosa, en qué viene el tiempo (horas, minutos, segundos o 12:30:00) y sobre cuánto va la nota.
 - **Antes de importar ves cómo queda:**

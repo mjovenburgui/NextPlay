@@ -135,7 +135,10 @@
             {% endif %}
             {{ form.banner_art.errors }}
           </div>
-          <div data-show-when="banner_mode=image,game">
+          <div class="field" data-show-when="banner_mode=playing" data-playing-banner data-src="{{ playing_image.src }}"{% if playing_image.blurred %} data-blur="1"{% endif %}>
+            <p class="help playing-banner-note">{% if playing_now %}Ahora sale <strong>{{ playing_now.name }}</strong>, lo último que has jugado de lo que tienes en «Jugando».{% else %}Aún no tienes ningún juego en «Jugando»: mientras tanto se queda la cabecera que tengas.{% endif %} Cambia sola al sincronizar tus juegos o al pasar otro a «Jugando», con el mejor arte de cada uno.</p>
+          </div>
+          <div data-show-when="banner_mode=image,game,playing">
             {% include "accounts/_framer.html" with name="banner" views=framer_views.banner x=form.banner_x y=form.banner_y zoom=form.banner_zoom fit=form.banner_fit src=profile.banner_url blurred=profile.banner_blurred upload=uploads.banner shape="" %}
           </div>
 
@@ -177,6 +180,8 @@
             </div>
             <p class="help">Tiñe los botones, las pestañas, los brillos y el degradado de la cabecera de tu perfil.</p>
             {{ form.accent_color.errors }}
+            <label class="check">{{ form.accent_from_banner }} {{ form.accent_from_banner.label }}</label>
+            <p class="help">{{ form.accent_from_banner.help_text }}</p>
           </div>
 
           <h3>Diseño de la cabecera</h3>
@@ -425,8 +430,18 @@
         });
       }
       color.addEventListener("input", markSwatch);
+      // Elegir un color a mano deja de sacarlo de la cabecera: si no, al guardar se pondría el de la imagen.
+      var fromBanner = document.getElementById("{{ form.accent_from_banner.id_for_label }}");
+      // Quita «Sacarlo de la cabecera» (y avisa a la vista previa) cuando se elige un color a mano.
+      function chooseByHand() {
+        if (!fromBanner.checked) return;
+        fromBanner.checked = false;
+        fromBanner.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      color.addEventListener("input", chooseByHand);
       swatches.forEach(function (swatch) {
         swatch.addEventListener("click", function () {
+          chooseByHand();
           color.value = swatch.dataset.color;
           markSwatch();
           color.dispatchEvent(new Event("change", { bubbles: true }));
@@ -601,6 +616,11 @@
       // aún no se sabe (llegan las imágenes del juego): el marco se queda como está.
       function frameSource(name) {
         if (name === "background" && checked("background_mode") === "banner") return frameSource("banner");
+        if (name === "banner" && checked("banner_mode") === "playing") {
+          // «Lo que estoy jugando»: la imagen del juego que saldría ahora, que manda el servidor.
+          var playing = form.querySelector("[data-playing-banner]");
+          return { src: playing.dataset.src, blurred: Boolean(playing.dataset.blur) };
+        }
         if (name === "banner" && checked("banner_mode") === "game") {
           var arts = document.getElementById("banner-arts");
           if (arts && arts.hasAttribute("hx-get")) return { src: null };

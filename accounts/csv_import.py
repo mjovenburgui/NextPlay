@@ -25,6 +25,7 @@ from django.utils.dateparse import parse_date, parse_datetime
 from challenges import progress as challenge_progress
 from library.models import LibraryEntry
 
+from .banner import refresh_user
 from .matching import add_title, clean_name, match_by_name, name_key, normalize, save_titles, update_library
 from .models import ExternalTitle
 
@@ -396,7 +397,8 @@ def import_items(user, items):
     emparejados por su nombre (como los de PlayStation) y después a la biblioteca (update_library, que apunta la
     importación en su actividad). Los juegos sin horas ni partida entran como «Pendiente», porque Playnite lista también
     los que nunca se han abierto. A los que entran nuevos les pone el estado y la nota del archivo si los trae
-    (_keep_file_choices); los que ya tenía se quedan como estaban. Devuelve {"added", "updated", "unmatched", "skipped",
+    (_keep_file_choices); los que ya tenía se quedan como estaban. Al acabar, vuelve a mirar la cabecera «Lo que estoy
+    jugando» (accounts.banner), ya con esos estados. Devuelve {"added", "updated", "unmatched", "skipped",
     "platforms"}.
 
     Pantallas: Importar desde un archivo, Perfil (biblioteca y horas), Juegos importados (los que no se encuentran),
@@ -429,6 +431,9 @@ def import_items(user, items):
         completed = _keep_file_choices(user, games, first, before) or completed
     if completed:
         challenge_progress.check(user)
+    # update_library ya puso al día la cabecera «Lo que estoy jugando», pero antes de los estados del archivo: un juego
+    # que Playnite da por terminado no debe quedarse en ella.
+    refresh_user(user)
     return {
         "added": added,
         "updated": updated,

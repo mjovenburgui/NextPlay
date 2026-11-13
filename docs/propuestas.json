@@ -520,7 +520,7 @@
   {
     "titulo": "Cabecera y color automáticos según lo que juegas",
     "fecha": "2026-11-01",
-    "estado": "pendiente",
+    "estado": "hecha",
     "prioridad": "alta",
     "tipo": "Funcionalidad",
     "resumen": "Una opción más en Editar perfil: que la cabecera sea siempre el arte del juego al que más estás jugando y que el color del perfil salga de esa imagen, sin tocar nada.",
@@ -531,10 +531,10 @@
       "«Usar el color de la cabecera», también como botón de una sola vez para quien tiene una imagen propia; la vista previa en directo lo enseña antes de guardar.",
       "Se calcula al sincronizar, sin peticiones de más al abrir el perfil."
     ],
-    "notas": "Sale de la revisión del 01/11/2026.",
+    "notas": "Sale de la revisión del 01/11/2026. 12/11/2026, rama cabecera-automatica: hecha. Cabecera nueva «Lo que estoy jugando» (Profile.BannerMode.PLAYING): el juego de «Jugando» con lo último que ha pasado con él (su última partida o, si es después, cuándo se puso en «Jugando» desde su ficha, que se guarda en LibraryEntry.marked_playing_at), con su mejor arte de IGDB (games.media.best_art, el mismo que la cabecera de la ficha) o, si no tiene, su portada desenfocada. Sin nada en «Jugando», lo último jugado de los últimos 30 días; si tampoco, se queda la cabecera que hubiera. Se pone al día al importar (update_library), al cambiar el estado de un juego en su ficha (el que se acaba de poner en «Jugando» sale aunque otro tenga una partida más reciente) y al guardar Editar perfil; nunca al abrir el perfil. Color: «Sacarlo de la cabecera» (Profile.accent_from_banner) vale con cualquier cabecera con imagen (la subida, la de un juego o la automática). Pillow reduce una miniatura a 8 colores, se queda con el que más pesa sin grises, casi negros ni casi blancos, y lo aclara y aviva lo justo para leerse sobre el fondo oscuro; se guarda en caché por imagen. Elegir un color a mano quita la casilla. En vez de un botón de una sola vez, la casilla: marcarla, guardar y desmarcarla deja ese color fijo. Si la imagen es toda apagada (el arte de The Witcher 3), el color sale del tono más presente aunque sea leve.",
     "revision": {
       "fecha": "2026-11-01",
-      "hoy": "Propuesta nueva. Profile.banner_game, banner_art, text_on y la vista previa en directo ya existen.",
+      "hoy": "Hecha el 12/11/2026 (ver notas). Lo de profundizar sigue abierto: el escaparate que cambia solo, la vitrina de logros y un aspecto guardado para cada juego.",
       "profundizar": [
         "Escaparate que cambia solo: secciones automáticas como «Este mes he jugado a…» (PlaySession) o «Mis logros más raros», que se actualizan sin editar nada.",
         "Vitrina de logros: elegir hasta 5 logros o trofeos para enseñar, como los juegos favoritos, con su rareza (con «Logros uno a uno»).",
@@ -1998,11 +1998,12 @@
     "notas": "Comprobar las columnas exactas antes de empezar: en el foro de Playnite recomiendan la extensión Library Exporter Advanced. No leer la web de Backloggd para importar (es frágil y seguramente va contra sus condiciones); si saca su exportación a CSV, aceptarla el primer día. 12/11/2026, rama playnite-y-csv: hecha la importación desde un archivo. Pantalla nueva, «Importar desde un archivo», en Editar perfil › Cuentas vinculadas › Desde un archivo y en el modal «Vincular cuentas» del perfil. Lee el CSV de Library Exporter Advanced con Playnite en castellano o en inglés y reconoce solas sus columnas: Nombre, Fuentes, Tiempo jugado (en segundos), Jugado por última vez (con la fecha como la escribe Windows, con el día o el mes delante), Estado de finalización y Puntuación del usuario (sobre 100). Vale cualquier otro CSV con cabecera: se dice qué columna es cada cosa, la unidad del tiempo y la escala de la nota, con una vista previa. Cada tienda es una plataforma nueva (epic, gog, ea, ubisoft, battlenet, amazon y otras) con sus horas en LibraryEntry.extra_hours y su logo; lo de Steam, PlayStation y Xbox se salta, porque se importa desde la cuenta. Los juegos sin horas entran como Pendiente (Playnite lista también los que nunca se han abierto); el estado y la nota del archivo solo van a los juegos nuevos, y un completado lleva como fecha su última partida, nunca la de hoy. Las horas de un archivo no son verificadas: no salen en el sello de horas de las reseñas ni cuentan en la media «con horas jugadas» de la ficha.",
     "revision": {
       "fecha": "2026-11-12",
-      "hoy": "Hecha la importación, en la rama playnite-y-csv, sin subir. Las columnas están comprobadas en el código de Library Exporter Advanced (repositorio PlayniteExtensionsCollection): las cabeceras salen en el idioma de Playnite, el tiempo jugado en segundos, las fechas con el formato de Windows y la nota sobre 100. Falta probarlo con un archivo real tuyo: es lo primero que conviene mirar.",
+      "hoy": "Hecha la importación, en la rama playnite-y-csv, sin subir. Las columnas están comprobadas en el código de Library Exporter Advanced (repositorio PlayniteExtensionsCollection): las cabeceras salen en el idioma de Playnite, el tiempo jugado en segundos, las fechas con el formato de Windows y la nota sobre 100. Falta probarlo con un archivo real tuyo: es lo primero que conviene mirar. Después, mirando sus ajustes: Library Exporter Advanced no exporta solo (siempre hay que pulsar «Exportar») y trae sin marcar el tiempo jugado, la última partida, el estado y la nota; la página de importar ya dice que hay que marcarlos. Para que se actualice cada día sin volver a subir nada, hace falta una extensión de Playnite propia.",
       "plan": [
-        "Probarlo con tu biblioteca: exportar con Library Exporter Advanced, subirlo y mirar la vista previa antes de importar.",
-        "Lo que no se encuentre queda en Juegos importados; una importación busca como mucho 25 nombres sueltos en IGDB, así que con muchos juegos raros conviene repetirla o lanzar rematch_titles.",
-        "Con bibliotecas muy grandes, llevar la importación a «Tareas en segundo plano para lo que tarda»."
+        "Un token personal en Editar perfil › Cuentas vinculadas › Desde un archivo, que se puede revocar y no deja hacer nada más que mandar la biblioteca.",
+        "Una dirección /api/playnite/ que recibe la biblioteca en JSON (nombre, fuente, segundos jugados, última actividad, estado, nota y el ID del juego en Playnite) y la importa con csv_import.import_items, que ya empareja, reparte por tienda, apunta las sesiones y pone al día la cabecera.",
+        "La extensión «NextPlay Sync» (C#, Playnite SDK, .NET Framework 4.6.2; se compila con el .NET SDK que hay en el PC): manda la biblioteca al abrir Playnite y una vez al día, y cada sesión al cerrar un juego (OnGameStopped trae los segundos exactos, mejor dato que el de Steam, que solo da totales).",
+        "Probarla con Playnite de verdad: en este PC no está en las carpetas de siempre. Mientras NextPlay esté en local, la extensión apunta a http://localhost:8000."
       ],
       "profundizar": [
         "Extensión propia de Playnite: un token personal en Editar perfil y un POST a /api/sync. Sincroniza solo las tiendas sin API y, como Playnite cuenta el tiempo de cada sesión, da mejores datos que Steam.",

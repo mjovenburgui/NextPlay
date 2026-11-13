@@ -12,6 +12,7 @@ from django.views.decorators.http import require_POST
 
 from django.db.models import Exists, OuterRef
 
+from accounts import banner
 from challenges import progress as challenge_progress
 from games.models import Game
 from social import activity
@@ -146,9 +147,12 @@ def set_status(request, game_id):
 
     Si el estado es nuevo, lo apunta en su actividad (social.activity) y, al pasarlo a «Completado», apunta cuándo
     (completed_at, que se vacía si después cambia de estado) y mira si con eso ha conseguido algún reto
-    (challenges.progress.check). Responde 400 si el estado no es uno de los permitidos.
+    (challenges.progress.check). Al pasarlo a «Jugando» apunta también cuándo (marked_playing_at), y con cualquier
+    cambio de estado pone al día la cabecera «Lo que estoy jugando» (accounts.banner). Responde 400 si el estado no es
+    uno de los permitidos.
 
-    Pantallas: Ficha del juego (Tu biblioteca: estado), Perfil (biblioteca), Catálogo (estado de cada tarjeta),
+    Pantallas: Ficha del juego (Tu biblioteca: estado), Perfil (biblioteca; cabecera «Lo que estoy jugando»),
+    Catálogo (estado de cada tarjeta),
     Página de la lista (estado de cada juego), Inicio (feed y tu resumen), Retos (progreso), Página del reto
     (progreso).
     """
@@ -160,11 +164,14 @@ def set_status(request, game_id):
     defaults = {"status": status}
     if status != previous:
         defaults["completed_at"] = timezone.now() if status == LibraryEntry.Status.COMPLETED else None
+        defaults["marked_playing_at"] = timezone.now() if status == LibraryEntry.Status.PLAYING else None
     entry, _ = LibraryEntry.objects.update_or_create(user=request.user, game=game, defaults=defaults)
     if status != previous:
         activity.status_changed(request.user, game, status)
         if status == LibraryEntry.Status.COMPLETED:
             challenge_progress.check(request.user)
+        # Lo que hay en «Jugando» decide la cabecera «Lo que estoy jugando»: el que se acaba de poner, ese.
+        banner.refresh_user(request.user)
     return _respond(request, game, entry)
 
 

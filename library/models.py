@@ -84,6 +84,10 @@ class LibraryEntry(models.Model):
     completed_at = models.DateTimeField("terminado", null=True, blank=True)
     # Cuándo se contestó en el repaso de la biblioteca (library.backlog), para no volver a preguntarlo.
     reviewed_at = models.DateTimeField("repasado", null=True, blank=True)
+    # Cuándo lo puso el jugador en «Jugando» desde su ficha (library.views.set_status); vacío si llegó así de una
+    # importación o si ya no está en «Jugando». Con su última partida, decide la cabecera «Lo que estoy jugando»
+    # (accounts.banner): ponerlo a mano cuenta como haberlo jugado en ese momento.
+    marked_playing_at = models.DateTimeField("puesto en «Jugando» a mano", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

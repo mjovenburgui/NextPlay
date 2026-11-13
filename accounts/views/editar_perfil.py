@@ -17,7 +17,7 @@ from django.views.decorators.http import require_POST
 from games import igdb
 from games.models import Game, igdb_image_url, known_shops
 
-from .. import images
+from .. import banner, images
 from ..forms import IMAGE_FIELDS, ProfileForm
 from ..models import ACCENT_PRESETS, SECTIONS, FavoriteGame, Profile
 from .cuentas_vinculadas import linking_context
@@ -90,6 +90,9 @@ def edit_profile(request):
             "uploads": {name: getattr(profile, name).url if getattr(profile, name) else "" for name in IMAGE_FIELDS},
             "sections": _posted_sections(form) or profile.section_layout,
             "shop_choices": [(shop_id, name, shop_id in chosen) for shop_id, name in known_shops()],
+            # El juego que pondría ahora la cabecera «Lo que estoy jugando», y con qué imagen.
+            "playing_now": (playing := banner.playing_game(request.user)),
+            "playing_image": banner.playing_image(playing),
             **linking_context(),
         },
     )
