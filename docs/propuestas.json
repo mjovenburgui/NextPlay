@@ -2001,7 +2001,7 @@
       "hoy": "Hechos el archivo (12/11) y la extensión NextPlay Sync (13/11), ver notas. La extensión compila y funciona contra NextPlay desde un programa de prueba con su mismo código, pero no se ha podido probar dentro de Playnite: en este PC no está instalado en las carpetas de siempre.",
       "plan": [
         "Probar la extensión dentro de Playnite: instalar el .pext, pegar la dirección y el código, abrir Playnite y cerrar un juego. Lo más dudoso es si al cerrar la partida Playnite ya ha sumado su tiempo: por eso se espera 10 segundos y se vuelve a leer el juego.",
-        "Publicarla en la base de datos de complementos de Playnite cuando NextPlay tenga dirección pública."
+        "Al publicar NextPlay: la extensión la instala cada usuario de Playnite en su PC (en el servidor solo hace falta la dirección api/playnite/, que ya va con la web). Para que sea fácil, que venga con la dirección pública ya puesta (hoy trae http://localhost:8000) y solo haya que pegar el código, compilar el .pext al desplegar (lo compilado no va en el repositorio) y publicarla en la base de datos de complementos de Playnite, para instalarla desde el propio Playnite."
       ],
       "profundizar": [
         "Extensión propia de Playnite: un token personal en Editar perfil y un POST a /api/sync. Sincroniza solo las tiendas sin API y, como Playnite cuenta el tiempo de cada sesión, da mejores datos que Steam.",
