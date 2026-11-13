@@ -1,6 +1,7 @@
-"""Vistas de las cuentas vinculadas: vincular, importar y desvincular Steam, PlayStation y Xbox y añadir o quitar las
-cuentas de otras plataformas. Se pulsan en Editar perfil › Cuentas vinculadas y en el modal «Vincular cuentas» del
-Perfil, y lo que importan sale en el Perfil, la Ficha del juego, Juegos importados, Inicio y los retos.
+"""Vistas de las cuentas vinculadas: vincular, importar y desvincular Steam, PlayStation, Xbox, GOG y Epic Games y
+añadir o quitar las cuentas de otras plataformas. Se pulsan en Editar perfil › Cuentas vinculadas y en el modal
+«Vincular cuentas» del Perfil, y lo que importan sale en el Perfil, la Ficha del juego, Juegos importados, Inicio y los
+retos.
 """
 
 import logging
@@ -13,15 +14,16 @@ from django.shortcuts import get_object_or_404, redirect
 from django.template.defaultfilters import pluralize
 from django.urls import reverse
 from django.utils.html import format_html
+from django.views.decorators.debug import sensitive_post_parameters
 from django.views.decorators.http import require_POST
 
 from games import igdb, prices
 from games.models import Game
 from library import wishlist
 
-from .. import psn, steam, xbox
+from .. import epic, gog, psn, steam, xbox
 from ..forms import PlatformAccountForm
-from ..models import PlatformAccount, PSNAccount, SteamAccount, XboxAccount
+from ..models import EpicAccount, GOGAccount, PlatformAccount, PSNAccount, SteamAccount, XboxAccount
 from .comun import _back
 
 STEAM_STATE_KEY = "steam_openid_state"
@@ -48,6 +50,8 @@ def linking_context():
         "xbox_configured": xbox.is_configured(),
         "max_steam_accounts": SteamAccount.MAX_PER_USER,
         "psn_npsso_url": psn.NPSSO_URL,
+        "epic_login_url": epic.LOGIN_URL,
+        "epic_code_url": epic.CODE_URL,
         # (valor, plataforma, etiqueta del campo, ayuda) para el formulario de otras plataformas.
         "platform_rules": [
             (value, label, *PlatformAccount.RULES[value][:2])
@@ -404,6 +408,158 @@ def psn_unlink(request):
     PSNAccount.objects.filter(user=request.user).delete()
     messages.success(request, "Cuenta de PlayStation desvinculada. Tus juegos importados siguen en tu biblioteca.")
     return _back(request, f"{reverse('edit_profile')}#psn")
+
+
+def _report_store_import(request, label, result):
+    """Avisa de lo que se ha importado de GOG o de Epic Games (label, con el nombre de la cuenta): juegos añadidos, con
+    horas actualizadas y no encontrados en el catálogo, con el enlace para emparejarlos.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: mensaje con el resultado de la importación de GOG o de Epic), Perfil
+    (modal «Vincular cuentas» de su dueño).
+    """
+    added, updated = result["added"], result["updated"]
+    text = f"{label}: {added} juego{pluralize(added)} añadido{pluralize(added)}"
+    if updated:
+        text += f", {updated} con horas actualizadas"
+    messages.success(request, _with_unmatched(text, result["unmatched"]))
+
+
+def _gog_error(request, text):
+    """Avisa del error de GOG y vuelve a donde estaba el formulario (por defecto, Editar perfil, en GOG).
+
+    Pantallas: Editar perfil (Cuentas vinculadas: mensaje de error de GOG), Perfil (modal «Vincular cuentas» de su
+    dueño).
+    """
+    messages.error(request, text)
+    return _back(request, f"{reverse('edit_profile')}#gog")
+
+
+@require_POST
+@login_required
+def gog_sync(request):
+    """Vincula el perfil público de GOG escrito (o lo vuelve a importar) e importa sus juegos con sus horas; desde
+    entonces se lee solo cada noche. Con «unplayed», también los que nunca ha abierto. Avisa si no parece un usuario de
+    GOG, si el perfil no es público o si no existe, y, si solo se han traído los jugados, de cuántos se han quedado
+    fuera. Después pide los precios de los juegos que nunca los han tenido (_fetch_library_prices).
+
+    Pantallas: Editar perfil (Cuentas vinculadas: formulario de GOG), Perfil (modal «Vincular cuentas» de su dueño;
+    biblioteca y horas; cuentas de la cabecera), Juegos importados (los que no se encuentran), Inicio (feed: la
+    importación), Retos (progreso), Página del reto (progreso).
+    """
+    username = gog.clean_username(request.POST.get("username"))
+    if not username:
+        return _gog_error(
+            request, "Ese no parece un usuario de GOG: son de 2 a 32 letras, números, puntos o guiones. Copia el que "
+            "sale en la dirección de tu perfil (gog.com/u/…).",
+        )
+    include_unplayed = request.POST.get("unplayed") == "1"
+    try:
+        result = gog.import_library(request.user, username, include_unplayed)
+    except gog.GOGPrivateError:
+        return _gog_error(
+            request, f"El perfil de GOG de {username} no es público. En gog.com, en los ajustes de privacidad de tu "
+            "cuenta, deja que cualquiera pueda verlo y vuelve a intentarlo.",
+        )
+    except gog.GOGMissingError:
+        return _gog_error(
+            request, f"No hay ningún usuario de GOG que se llame {username}. Copia el que sale en la dirección de tu "
+            "perfil (gog.com/u/…).",
+        )
+    except (gog.GOGError, igdb.IGDBError):
+        logger.exception("Falló la importación de GOG de %s", request.user.username)
+        return _gog_error(request, "No se pudieron importar tus juegos de GOG. Inténtalo de nuevo más tarde.")
+
+    _fetch_library_prices(request.user)
+    _report_store_import(request, f"GOG ({username})", result)
+    total, left = result["total"], result["total"] - result["account"].games
+    if left > 0 and not include_unplayed:
+        others = "el otro" if left == 1 else f"los otros {left}"
+        messages.info(
+            request,
+            f"Tu perfil de GOG tiene {total} juego{pluralize(total)} y solo se han traído los que tienen horas: "
+            f"GOG solo cuenta las de lo que juegas con GOG Galaxy. Para traer también {others}, marca «Importar "
+            "también los juegos que no he abierto nunca» y vuelve a sincronizar.",
+        )
+    return redirect("profile", username=request.user.username)
+
+
+@require_POST
+@login_required
+def gog_unlink(request):
+    """Deja de importar el perfil de GOG del usuario (ya no se lee cada noche). Los juegos importados se quedan en su
+    biblioteca, y su usuario de GOG en «Otras plataformas», si lo tenía.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: botón para desvincular GOG), Perfil (modal «Vincular cuentas» de su
+    dueño).
+    """
+    GOGAccount.objects.filter(user=request.user).delete()
+    messages.success(
+        request, "GOG desvinculado: ya no se leerá cada noche. Tus juegos importados siguen en tu biblioteca.",
+    )
+    return _back(request, f"{reverse('edit_profile')}#gog")
+
+
+def _epic_error(request, text):
+    """Avisa del error de Epic Games y vuelve a donde estaba el formulario (por defecto, Editar perfil, en Epic).
+
+    Pantallas: Editar perfil (Cuentas vinculadas: mensaje de error de Epic Games), Perfil (modal «Vincular cuentas» de
+    su dueño).
+    """
+    messages.error(request, text)
+    return _back(request, f"{reverse('edit_profile')}#epic")
+
+
+@sensitive_post_parameters("code")
+@require_POST
+@login_required
+def epic_sync(request):
+    """Vincula la cuenta de Epic Games del código pegado (o la actualiza) e importa sus juegos con sus horas. Con
+    «unplayed», también los que nunca ha abierto.
+
+    El código solo se usa durante esta petición: no se guarda, no sale en los informes de error
+    (sensitive_post_parameters) y la sesión de Epic que abre se cierra al acabar (accounts.epic). Avisa si no parece
+    un código, si Epic no lo acepta o si esa cuenta de Epic ya es de otro usuario. Después pide los precios de los
+    juegos que nunca los han tenido (_fetch_library_prices).
+
+    Pantallas: Editar perfil (Cuentas vinculadas: formulario del código de Epic Games), Perfil (modal «Vincular
+    cuentas» de su dueño; biblioteca y horas; cuentas de la cabecera), Juegos importados (los que no se encuentran),
+    Inicio (feed: la importación), Retos (progreso), Página del reto (progreso).
+    """
+    code = epic.clean_code(request.POST.get("code"))
+    if not code:
+        return _epic_error(
+            request, "Ese no parece el código de Epic: copia lo que va detrás de «authorizationCode» (o todo el texto "
+            "de la página).",
+        )
+    try:
+        result = epic.import_library(request.user, code, include_unplayed=request.POST.get("unplayed") == "1")
+    except epic.EpicAuthError:
+        return _epic_error(
+            request, "Epic no ha aceptado el código: caduca a los pocos minutos y solo vale una vez. Abre otra vez la "
+            "página de Epic, copia el código nuevo y pégalo enseguida.",
+        )
+    except ValueError as exc:
+        return _epic_error(request, str(exc))
+    except (epic.EpicError, igdb.IGDBError):
+        logger.exception("Falló la importación de Epic de %s", request.user.username)
+        return _epic_error(request, "No se pudieron importar tus juegos de Epic. Inténtalo de nuevo más tarde.")
+
+    _fetch_library_prices(request.user)
+    _report_store_import(request, f"Epic Games ({result['account'].name})", result)
+    return redirect("profile", username=request.user.username)
+
+
+@require_POST
+@login_required
+def epic_unlink(request):
+    """Desvincula la cuenta de Epic Games del usuario; los juegos importados se quedan en su biblioteca.
+
+    Pantallas: Editar perfil (Cuentas vinculadas: botón para desvincular Epic Games), Perfil (modal «Vincular cuentas»
+    de su dueño).
+    """
+    EpicAccount.objects.filter(user=request.user).delete()
+    messages.success(request, "Cuenta de Epic Games desvinculada. Tus juegos importados siguen en tu biblioteca.")
+    return _back(request, f"{reverse('edit_profile')}#epic")
 
 
 @require_POST

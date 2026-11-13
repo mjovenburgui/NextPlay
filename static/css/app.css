@@ -478,6 +478,19 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .psn-badge .shop-logo, .btn-psn .shop-logo { width: 1.1rem; height: 1.1rem; vertical-align: -.15rem; }
 .btn-psn { display: inline-flex; align-items: center; gap: .45rem; background: linear-gradient(135deg, #00205b, #0070d1); border-color: #3d9bff; color: #fff; }
 .btn-psn:hover { border-color: #3d9bff; box-shadow: 0 0 14px rgba(0, 112, 209, .45); }
+/* Botones de GOG (en su morado) y de Epic Games (en negro, como su logo), con el mismo dibujo que el de PlayStation. */
+.btn-gog, .btn-epic { display: inline-flex; align-items: center; gap: .45rem; color: #fff; }
+.btn-gog .shop-logo, .btn-epic .shop-logo { width: 1.1rem; height: 1.1rem; }
+.btn-gog { background: linear-gradient(135deg, #4b1a5e, #86328a); border-color: #c069d6; }
+.btn-gog:hover { border-color: #c069d6; box-shadow: 0 0 14px rgba(192, 105, 214, .45); }
+.btn-epic { background: linear-gradient(135deg, #111, #313131); border-color: #9aa0ad; }
+.btn-epic:hover { border-color: #d6dae2; box-shadow: 0 0 14px rgba(214, 218, 226, .3); }
+/* Aviso dentro de una tarjeta de cuentas: el riesgo del código de Epic o que anoche no se pudo leer GOG. */
+.link-warning {
+  margin: .75rem 0 0; padding: .6rem .75rem; font-size: .85rem; color: var(--gold-text);
+  background: color-mix(in srgb, var(--gold) 10%, transparent); border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
+  border-radius: 8px;
+}
 .psn-steps { margin: 1rem 0; padding-left: 1.2rem; font-size: .9rem; color: var(--muted); }
 .psn-steps li { margin-bottom: .3rem; }
 .psn-steps code { padding: .05rem .3rem; background: var(--surface-2); border-radius: 4px; font-size: .8rem; }
@@ -961,6 +974,8 @@ button.chip-link { background: none; font-family: inherit; cursor: pointer; }
 .platform-steam { border-top-color: #66c0f4; }
 .platform-xbox { border-top-color: #3fbf3f; }
 .platform-psn { border-top-color: #3d9bff; }
+.platform-gog { border-top-color: #c069d6; }
+.platform-epic { border-top-color: #d6dae2; }
 /* «Desde un archivo» (Playnite o CSV), en oro: no es una cuenta, es algo que subes tú. */
 .platform-file { border-top-color: var(--gold); }
 .platform-file h3 > .icon, .link-block h3 > .icon { color: var(--gold); }

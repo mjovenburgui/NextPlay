@@ -1,0 +1,37 @@
+{# Panel de GOG: el perfil público cuya biblioteca se importa sin iniciar sesión, al vincularlo y cada noche. Con next, vuelve a esa página. #}
+{% with account=profile.gog %}
+  {% if account %}
+    <div class="steam-account">
+      {% include "games/shop_icons/gog.svg" %}
+      <div>
+        <strong><a href="{{ account.url }}" target="_blank" rel="noopener">{{ account.username }}</a></strong>
+        <p class="help">{% if account.synced_at %}Última importación hace {{ account.synced_at|timesince }}, con {{ account.games }} juego{{ account.games|pluralize }}. {% endif %}Se vuelve a leer sola cada noche.</p>
+      </div>
+      <form action="{% url 'gog_unlink' %}" method="post">
+        {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+        <button class="link small" type="submit">Desvincular</button>
+      </form>
+    </div>
+    {% if account.problem == "privado" %}
+      <p class="link-warning">Anoche no se pudo leer: tu perfil de GOG ya no es público. Vuelve a hacerlo público y pulsa «Sincronizar GOG».</p>
+    {% elif account.problem == "no-existe" %}
+      <p class="link-warning">Anoche no se pudo leer: ya no hay ningún usuario de GOG que se llame {{ account.username }}. Si te lo has cambiado, escribe el nuevo.</p>
+    {% endif %}
+  {% else %}
+    <p class="muted">Importa tus juegos de GOG con sus horas desde tu perfil público, sin instalar nada ni dar ninguna contraseña, y se actualizan solos cada noche.</p>
+  {% endif %}
+  <ol class="psn-steps">
+    <li>En gog.com, en los ajustes de privacidad de tu cuenta, deja que cualquiera pueda ver tu perfil.</li>
+    <li>Escribe aquí tu usuario de GOG, el que sale en la dirección de tu perfil (<code>gog.com/u/…</code>), o pega esa dirección.</li>
+  </ol>
+  <form action="{% url 'gog_sync' %}" method="post" autocomplete="off">
+    {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+    <div class="field">
+      <label for="gog-username">Usuario de GOG</label>
+      <input id="gog-username" name="username" required maxlength="100" spellcheck="false" autocomplete="off" value="{{ profile.gog_username }}">
+      <p class="help">GOG solo cuenta las horas de lo que juegas con GOG Galaxy.</p>
+    </div>
+    <label class="check"><input type="checkbox" name="unplayed" value="1"{% if account.include_unplayed %} checked{% endif %}> Importar también los juegos que no he abierto nunca (como Pendiente)</label>
+    <button class="btn btn-gog" type="submit" data-busy="Importando tus juegos…">{% include "games/shop_icons/gog.svg" %} {% if account %}Sincronizar GOG{% else %}Vincular e importar{% endif %}</button>
+  </form>
+{% endwith %}

@@ -355,6 +355,40 @@ class Profile(models.Model):
             return None
 
     @property
+    def gog(self):
+        """El perfil público de GOG cuya biblioteca se importa, o None si no tiene.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › GOG), Perfil (modal «Vincular cuentas» de su dueño).
+        """
+        try:
+            return self.user.gog_account
+        except GOGAccount.DoesNotExist:
+            return None
+
+    @property
+    def gog_username(self):
+        """El usuario de GOG que se propone en la tarjeta de GOG: el del perfil que ya se importa o, si no, el que haya
+        puesto en «Otras plataformas»; vacío si no hay ninguno.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › GOG), Perfil (modal «Vincular cuentas» de su dueño).
+        """
+        if self.gog:
+            return self.gog.username
+        handles = (account.handle for account in self.platforms if account.platform == PlatformAccount.Platform.GOG)
+        return next(handles, "")
+
+    @property
+    def epic(self):
+        """La cuenta de Epic Games vinculada, o None si no tiene.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › Epic Games), Perfil (modal «Vincular cuentas» de su dueño).
+        """
+        try:
+            return self.user.epic_account
+        except EpicAccount.DoesNotExist:
+            return None
+
+    @property
     def avatar_url(self):
         """Foto del perfil según avatar_source: la subida o la de Steam, PlayStation o Xbox; vacía para la inicial.
 
@@ -860,6 +894,83 @@ class PlayniteAccount(models.Model):
         return cls.objects.select_related("user").filter(token_hash=cls.fingerprint(token)).first()
 
 
+class GOGAccount(models.Model):
+    """Perfil público de GOG cuya biblioteca importa un usuario (uno por usuario). Sus juegos, con los minutos y la
+    última partida que cuenta GOG Galaxy, se leen sin iniciar sesión (accounts.gog) al vincularlo y cada noche (comando
+    sync_gog).
+
+    No se guarda ninguna contraseña ni token: basta con el nombre de usuario, y el perfil tiene que ser público. Como
+    las cuentas de otras plataformas (PlatformAccount), no se puede comprobar que sea de quien lo escribe.
+    """
+
+    class Problem(models.TextChoices):
+        PRIVATE = "privado", "El perfil no es público"
+        MISSING = "no-existe", "No hay ningún usuario con ese nombre"
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="gog_account")
+    username = models.CharField("usuario de GOG", max_length=32)
+    include_unplayed = models.BooleanField("traer también los que nunca ha abierto", default=False)
+    synced_at = models.DateTimeField("última importación", null=True, blank=True)
+    games = models.PositiveIntegerField("juegos de la última importación", default=0)
+    # Por qué falló la última sincronización de cada noche (vacío si fue bien): Editar perfil lo avisa.
+    problem = models.CharField("problema", max_length=20, blank=True, choices=Problem.choices)
+    linked_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "cuenta de GOG"
+        verbose_name_plural = "cuentas de GOG"
+
+    def __str__(self):
+        """Texto de la cuenta en el admin: el usuario de GOG.
+
+        Pantallas: Panel de administración.
+        """
+        return self.username
+
+    @property
+    def url(self):
+        """El perfil público en gog.com.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › GOG), Perfil (modal «Vincular cuentas» de su dueño).
+        """
+        return f"https://www.gog.com/u/{self.username}"
+
+
+class EpicAccount(models.Model):
+    """Cuenta de Epic Games vinculada a un usuario (una por usuario), cuya biblioteca y horas se importan con el código
+    de inicio de sesión que pega cada vez (accounts.epic), como el NPSSO de PlayStation.
+
+    No se guarda ni el código ni ningún token de Epic: se usan durante la importación y, al acabar, se cierra esa sesión.
+    """
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="epic_account")
+    # ID de la cuenta en Epic; único para que una cuenta no esté en dos usuarios de NextPlay.
+    account_id = models.CharField("ID de cuenta de Epic", max_length=40, unique=True)
+    display_name = models.CharField("nombre en Epic", max_length=64, blank=True)
+    synced_at = models.DateTimeField("última importación", null=True, blank=True)
+    games = models.PositiveIntegerField("juegos de la última importación", default=0)
+    linked_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "cuenta de Epic Games"
+        verbose_name_plural = "cuentas de Epic Games"
+
+    def __str__(self):
+        """Texto de la cuenta en el admin: su nombre en Epic.
+
+        Pantallas: Panel de administración.
+        """
+        return self.name
+
+    @property
+    def name(self):
+        """Nombre que se muestra: el de Epic, o «Epic Games» si no lo ha dado.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › Epic Games), Perfil (modal «Vincular cuentas» de su dueño).
+        """
+        return self.display_name or "Epic Games"
+
+
 class ExternalTitle(models.Model):
     """Juego tal como lo identifica una plataforma (app de Steam, titleId de PlayStation o de Xbox) y el
     juego del catálogo que le corresponde (vacío si no se encontró).
@@ -872,7 +983,8 @@ class ExternalTitle(models.Model):
         STEAM = "steam", "Steam"
         PSN = "psn", "PlayStation"
         XBOX = "xbox", "Xbox"
-        # Las que llegan en un archivo (accounts.csv_import), sin ID de la tienda: se emparejan por nombre.
+        # Las que llegan en un archivo (accounts.csv_import), de la extensión de Playnite o, las de Epic y GOG, de su
+        # cuenta (accounts.epic y accounts.gog): sin ID de la tienda, se emparejan por nombre.
         EPIC = "epic", "Epic Games"
         GOG = "gog", "GOG"
         EA = "ea", "EA app"

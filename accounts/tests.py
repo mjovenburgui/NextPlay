@@ -25,11 +25,11 @@ from games.models import Game, GamePrice, Platform
 from library.models import LibraryEntry, PlaySession, Review, WishlistItem
 from social.models import Activity
 
-from . import achievements, banner, csv_import, images, matching, notices, psn, steam, xbox
+from . import achievements, banner, csv_import, epic, gog, images, matching, notices, psn, steam, xbox
 from .views import importar_archivo, perfil, sincronizar_playnite
 from .models import (
-    Achievement, ExternalTitle, FavoriteGame, ImportedTitle, Notification, PlatformAccount, PlayniteAccount, Profile,
-    PSNAccount, SteamAccount, UnlockedAchievement, XboxAccount,
+    Achievement, EpicAccount, ExternalTitle, FavoriteGame, GOGAccount, ImportedTitle, Notification, PlatformAccount,
+    PlayniteAccount, Profile, PSNAccount, SteamAccount, UnlockedAchievement, XboxAccount,
 )
 
 User = get_user_model()
@@ -2973,3 +2973,250 @@ class PlayniteSyncTests(TestCase):
                 self.assertIn("NextPlaySync.pext", response["Content-Disposition"])
                 self.assertEqual(b"".join(response.streaming_content), b"PK")
                 response.close()
+
+
+def gog_item(title, minutes=None, last=None):
+    """Un juego del perfil público de GOG tal como lo da GOG: con sus minutos y su última partida de GOG Galaxy, o sin
+    estadísticas (una lista vacía) si nunca lo ha abierto con él."""
+    stats = {"46989086008219842": {"playtime": minutes or 0, "lastSession": last}} if minutes or last else []
+    return {"game": {"id": "1", "title": title, "url": "", "achievementSupport": False, "image": ""}, "stats": stats}
+
+
+def gog_page(items, pages=1):
+    """Una página del perfil público de GOG con esos juegos, de las pages que hay."""
+    return fake_response(200, {"page": 1, "limit": 50, "pages": pages, "total": len(items), "_embedded": {"items": items}})
+
+
+@override_settings(IGDB_CLIENT_ID="", IGDB_CLIENT_SECRET="")
+class GOGImportTests(TestCase):
+    """La biblioteca de GOG desde el perfil público (accounts.gog), sin iniciar sesión: al vincularla en Cuentas
+    vinculadas y cada noche (sync_gog), con GOG simulado."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("ana", "ana@example.com", "x")
+        pc = Platform.objects.create(name="PC (Microsoft Windows)", slug="win")
+        cls.witcher = Game.objects.create(name="The Witcher 3: Wild Hunt", slug="the-witcher-3")
+        cls.disco = Game.objects.create(name="Disco Elysium", slug="disco-elysium")
+        cls.witcher.platforms.set([pc])
+        cls.disco.platforms.set([pc])
+
+    def setUp(self):
+        self.enterContext(mock.patch.object(gog, "PAUSE", 0))
+
+    def pages(self, *pages):
+        """Simula GOG: cada petición se lleva la siguiente respuesta de pages."""
+        return mock.patch("accounts.gog.requests.get", side_effect=list(pages))
+
+    def library(self):
+        """El perfil de Ana en dos páginas: The Witcher 3 jugado con Galaxy hace dos días y un juego que no está en el
+        catálogo; en la segunda, Disco Elysium, que nunca ha abierto con Galaxy."""
+        played = (timezone.now() - timedelta(days=2)).isoformat()
+        return (
+            gog_page([gog_item("The Witcher 3: Wild Hunt", 600, played), gog_item("Juego Raro de GOG", 30)], pages=2),
+            gog_page([gog_item("Disco Elysium")], pages=2),
+        )
+
+    def test_imports_the_played_games_of_every_page_without_logging_in(self):
+        with self.pages(*self.library()) as get:
+            result = gog.import_library(self.user, "AnaGOG")
+        self.assertEqual(get.call_count, 2)
+        self.assertEqual(get.call_args.kwargs["params"]["page"], 2)
+        self.assertNotIn("Authorization", get.call_args.kwargs["headers"])
+        self.assertEqual((result["added"], result["unmatched"], result["total"]), (1, 1, 3))
+        entry = LibraryEntry.objects.get(user=self.user, game=self.witcher)
+        self.assertEqual((entry.minutes_on("gog"), entry.status), (600, LibraryEntry.Status.PLAYING))
+        # Sin «los que no he abierto nunca», Disco Elysium no entra.
+        self.assertFalse(LibraryEntry.objects.filter(user=self.user, game=self.disco).exists())
+        account = GOGAccount.objects.get(user=self.user)
+        self.assertEqual((account.username, account.games, account.include_unplayed, account.problem), ("AnaGOG", 2, False, ""))
+        # La primera vez se pone en «Otras plataformas», para que se vea en su perfil.
+        self.assertTrue(PlatformAccount.objects.filter(user=self.user, platform="gog", handle="AnaGOG").exists())
+
+    def test_unplayed_games_and_the_nightly_sync_records_the_session(self):
+        with self.pages(*self.library()):
+            gog.import_library(self.user, "AnaGOG", include_unplayed=True)
+        self.assertEqual(LibraryEntry.objects.get(user=self.user, game=self.disco).status, LibraryEntry.Status.BACKLOG)
+        # A la noche siguiente The Witcher 3 tiene una hora más: es una sesión de juego en GOG.
+        with self.pages(gog_page([gog_item("The Witcher 3: Wild Hunt", 660, timezone.now().isoformat())])):
+            call_command("sync_gog", "--user", "ana", stdout=io.StringIO())
+        session = PlaySession.objects.get(user=self.user, game=self.witcher)
+        self.assertEqual((session.platform, session.minutes), ("gog", 60))
+        self.assertTrue(GOGAccount.objects.get(user=self.user).include_unplayed)
+        from accounts.management.commands.nightly import Command
+
+        self.assertLess(Command.TASKS.index("sync_gog"), Command.TASKS.index("close_challenges"))
+
+    def test_private_or_missing_profiles_and_the_warning_after_a_night(self):
+        with self.pages(fake_response(403)), self.assertRaises(gog.GOGPrivateError):
+            gog.import_library(self.user, "AnaGOG")
+        self.assertFalse(GOGAccount.objects.exists())
+        GOGAccount.objects.create(user=self.user, username="AnaGOG", synced_at=timezone.now() - timedelta(days=1))
+        out = io.StringIO()
+        with self.pages(fake_response(403)):
+            call_command("sync_gog", stdout=out)
+        self.assertIn("ya no es público", out.getvalue())
+        self.assertEqual(GOGAccount.objects.get(user=self.user).problem, GOGAccount.Problem.PRIVATE)
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(reverse("edit_profile")), "tu perfil de GOG ya no es público")
+        with self.pages(fake_response(404)):
+            call_command("sync_gog", "--user", "ana", stdout=io.StringIO())
+        self.assertEqual(GOGAccount.objects.get(user=self.user).problem, GOGAccount.Problem.MISSING)
+        # Cuando se vuelve a poder leer, el aviso se va.
+        with self.pages(gog_page([gog_item("The Witcher 3: Wild Hunt", 600)])):
+            call_command("sync_gog", "--user", "ana", stdout=io.StringIO())
+        self.assertEqual(GOGAccount.objects.get(user=self.user).problem, "")
+
+    def test_the_username_can_be_the_address_of_the_profile(self):
+        self.assertEqual(gog.clean_username("  AnaGOG "), "AnaGOG")
+        self.assertEqual(gog.clean_username("https://www.gog.com/u/AnaGOG/games"), "AnaGOG")
+        self.assertEqual(gog.clean_username("https://www.gog.com/es/u/Ana.GOG"), "Ana.GOG")
+        self.assertIsNone(gog.clean_username("Ana GOG"))
+        self.assertIsNone(gog.clean_username(""))
+
+    def test_the_card_the_form_and_unlinking(self):
+        self.client.force_login(self.user)
+        PlatformAccount.objects.create(user=self.user, platform="gog", handle="AnaGOG")
+        page = self.client.get(reverse("edit_profile"))
+        self.assertContains(page, 'id="gog"')
+        self.assertContains(page, 'value="AnaGOG"')  # se propone el de «Otras plataformas»
+        self.assertContains(self.client.post(reverse("gog_sync"), {"username": "no vale"}, follow=True), "no parece un usuario de GOG")
+        with self.pages(*self.library()), mock.patch.object(prices, "fetch_missing"):
+            response = self.client.post(reverse("gog_sync"), {"username": "https://www.gog.com/u/AnaGOG"}, follow=True)
+        self.assertContains(response, "GOG (AnaGOG): 1 juego añadido")
+        self.assertContains(response, "Tu perfil de GOG tiene 3 juegos y solo se han traído los que tienen horas")
+        self.assertContains(self.client.get(reverse("profile", args=["ana"])), "Sincronizar GOG")  # en el modal
+        self.client.post(reverse("gog_unlink"))
+        self.assertFalse(GOGAccount.objects.exists())
+        self.assertTrue(LibraryEntry.objects.filter(user=self.user, game=self.witcher).exists())
+
+
+def epic_record(namespace, item_id, app, sandbox="PUBLIC"):
+    """Un artículo de la biblioteca de Epic tal como lo da su lanzador."""
+    return {
+        "namespace": namespace, "catalogItemId": item_id, "appName": app, "productId": "p", "sandboxName": "Live",
+        "sandboxType": sandbox, "recordType": "APPLICATION", "acquisitionDate": "2024-01-01T00:00:00.000Z",
+    }
+
+
+@override_settings(IGDB_CLIENT_ID="", IGDB_CLIENT_SECRET="")
+class EpicImportTests(TestCase):
+    """La biblioteca y las horas de Epic Games con el código que se pega cada vez (accounts.epic), con Epic simulado:
+    nunca se habla con Epic de verdad."""
+
+    CODE = "0123456789abcdef0123456789abcdef"
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("ana", "ana@example.com", "x")
+        pc = Platform.objects.create(name="PC (Microsoft Windows)", slug="win")
+        cls.hades = Game.objects.create(name="Hades", slug="hades")
+        cls.control = Game.objects.create(name="Control", slug="control")
+        cls.hades.platforms.set([pc])
+        cls.control.platforms.set([pc])
+
+    def fake_epic(self, account_id="epic-1", token_status=200):
+        """Simula Epic: la sesión del código, la biblioteca en dos páginas (Hades, Control, un DLC de Control, algo de
+        la tienda de Unreal y algo de pruebas), las horas (Hades y el DLC) y el catálogo. Devuelve los mocks de post,
+        get y delete."""
+        library = (
+            {"records": [epic_record("hades-ns", "hades-id", "Hades"), epic_record("control-ns", "control-id", "Control")],
+             "responseMetadata": {"nextCursor": "c2"}},
+            {"records": [epic_record("control-ns", "dlc-id", "ControlDLC"), epic_record("ue", "asset-id", "Asset"),
+                         epic_record("dev-ns", "dev-id", "Dev", sandbox="PRIVATE")],
+             "responseMetadata": {}},
+        )
+        catalog = {
+            "hades-id": {"title": "Hades", "categories": [{"path": "games"}, {"path": "applications"}]},
+            "control-id": {"title": "Control", "categories": [{"path": "games"}]},
+            "dlc-id": {"title": "Control: The Foundation", "categories": [{"path": "addons"}], "mainGameItem": {"id": "c"}},
+        }
+        hours = [
+            {"accountId": account_id, "artifactId": "Hades", "totalTime": 36000},
+            {"accountId": account_id, "artifactId": "ControlDLC", "totalTime": 600},
+        ]
+
+        def get(url, params=None, headers=None, timeout=None):
+            """Lo que contesta Epic a cada GET: biblioteca, horas o ficha del catálogo."""
+            if url == epic.LIBRARY_URL:
+                return fake_response(200, library[1] if params.get("cursor") else library[0])
+            if url == epic.PLAYTIME_URL.format(account_id):
+                return fake_response(200, hours)
+            item = params["id"]
+            return fake_response(200, {item: catalog[item]} if item in catalog else {})
+
+        session = {"access_token": "tok", "account_id": account_id, "displayName": "AnaEpic"}
+        error = {"errorCode": "errors.com.epicgames.account.oauth.authorization_code_not_found"}
+        token = fake_response(token_status, session if token_status == 200 else error)
+        return (
+            self.enterContext(mock.patch("accounts.epic.requests.post", return_value=token)),
+            self.enterContext(mock.patch("accounts.epic.requests.get", side_effect=get)),
+            self.enterContext(mock.patch("accounts.epic.requests.delete")),
+        )
+
+    def test_imports_the_played_games_with_their_hours_and_closes_the_session(self):
+        post, get, delete = self.fake_epic()
+        result = epic.import_library(self.user, self.CODE)
+        # El código se cambia por una sesión del lanzador, con su cliente público.
+        self.assertEqual(post.call_args.kwargs["data"]["code"], self.CODE)
+        self.assertEqual(post.call_args.kwargs["auth"], (epic.CLIENT_ID, epic.CLIENT_SECRET))
+        # Solo tienen horas Hades y el DLC, que no es un juego: lo de Unreal y lo de pruebas ni se miran.
+        self.assertEqual((result["added"], result["unmatched"]), (1, 0))
+        self.assertEqual(LibraryEntry.objects.get(user=self.user, game=self.hades).minutes_on("epic"), 600)
+        self.assertFalse(LibraryEntry.objects.filter(user=self.user, game=self.control).exists())
+        asked = {call.kwargs["params"]["id"] for call in get.call_args_list if (call.kwargs.get("params") or {}).get("id")}
+        self.assertEqual(asked, {"hades-id", "dlc-id"})
+        # Al acabar se cierra la sesión, y de ella solo queda la cuenta.
+        delete.assert_called_once()
+        self.assertIn("tok", delete.call_args.args[0])
+        account = EpicAccount.objects.get(user=self.user)
+        self.assertEqual((account.account_id, account.display_name, account.games), ("epic-1", "AnaEpic", 1))
+        self.assertTrue(PlatformAccount.objects.filter(user=self.user, platform="epic", handle="AnaEpic").exists())
+
+    def test_unplayed_games_come_as_backlog_if_asked(self):
+        self.fake_epic()
+        epic.import_library(self.user, self.CODE, include_unplayed=True)
+        self.assertEqual(LibraryEntry.objects.get(user=self.user, game=self.control).status, LibraryEntry.Status.BACKLOG)
+        self.assertEqual(EpicAccount.objects.get(user=self.user).games, 2)  # Hades y Control, sin el DLC
+
+    def test_a_bad_code_and_an_account_of_someone_else(self):
+        self.fake_epic(token_status=400)
+        with self.assertRaises(epic.EpicAuthError):
+            epic.import_library(self.user, self.CODE)
+        other = User.objects.create_user("luis", "luis@example.com", "x")
+        EpicAccount.objects.create(user=other, account_id="epic-1")
+        _, _, delete = self.fake_epic()
+        with self.assertRaises(ValueError):
+            epic.import_library(self.user, self.CODE)
+        delete.assert_called_once()  # aunque falle, la sesión se cierra
+        self.assertFalse(LibraryEntry.objects.filter(user=self.user).exists())
+
+    def test_the_code_can_be_pasted_alone_or_with_the_whole_page(self):
+        code = self.CODE
+        page = json.dumps({
+            "warning": "No lo compartas", "redirectUrl": f"https://localhost/launcher/authorized?code={code}",
+            "authorizationCode": code, "exchangeCode": None, "sid": None,
+        })
+        self.assertEqual(epic.clean_code(code), code)
+        self.assertEqual(epic.clean_code(page), code)
+        self.assertEqual(epic.clean_code(f"https://localhost/launcher/authorized?code={code}"), code)
+        self.assertEqual(epic.clean_code(f' "{code}" '), code)
+        self.assertIsNone(epic.clean_code('{"authorizationCode": null}'))
+        self.assertIsNone(epic.clean_code("hola"))
+
+    def test_the_card_and_the_form_never_keep_the_code(self):
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("edit_profile"))
+        self.assertContains(page, 'id="epic"')
+        self.assertContains(page, epic.CODE_URL.replace("&", "&amp;"))
+        self.assertContains(page, "da acceso completo a tu cuenta")
+        self.assertContains(self.client.post(reverse("epic_sync"), {"code": "no"}, follow=True), "no parece el código de Epic")
+        self.fake_epic()
+        with mock.patch.object(prices, "fetch_missing"):
+            response = self.client.post(reverse("epic_sync"), {"code": self.CODE}, follow=True)
+        self.assertContains(response, "Epic Games (AnaEpic): 1 juego añadido")
+        self.assertNotIn(self.CODE, str(dict(self.client.session.items())))
+        self.assertContains(self.client.get(reverse("profile", args=["ana"])), "Sincronizar Epic")  # en el modal
+        self.client.post(reverse("epic_unlink"))
+        self.assertFalse(EpicAccount.objects.exists())
+        self.assertTrue(LibraryEntry.objects.filter(user=self.user, game=self.hades).exists())

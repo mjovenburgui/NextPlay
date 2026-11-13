@@ -7,8 +7,8 @@ from django.contrib.auth.admin import UserAdmin
 
 from .matching import OPENED_ONLY, update_library
 from .models import (
-    Achievement, ExternalTitle, FavoriteGame, Notification, PlatformAccount, PlayniteAccount, Profile, PSNAccount,
-    SteamAccount, User, XboxAccount,
+    Achievement, EpicAccount, ExternalTitle, FavoriteGame, GOGAccount, Notification, PlatformAccount, PlayniteAccount,
+    Profile, PSNAccount, SteamAccount, User, XboxAccount,
 )
 
 admin.site.register(User, UserAdmin)
@@ -56,6 +56,21 @@ class PlatformAccountAdmin(admin.ModelAdmin):
 class XboxAccountAdmin(admin.ModelAdmin):
     list_display = ("gamertag", "xuid", "user", "synced_at", "linked_at")
     search_fields = ("gamertag", "xuid", "user__username")
+    raw_id_fields = ("user",)
+
+
+@admin.register(GOGAccount)
+class GOGAccountAdmin(admin.ModelAdmin):
+    list_display = ("username", "user", "games", "problem", "synced_at", "linked_at")
+    list_filter = ("problem",)
+    search_fields = ("username", "user__username")
+    raw_id_fields = ("user",)
+
+
+@admin.register(EpicAccount)
+class EpicAccountAdmin(admin.ModelAdmin):
+    list_display = ("display_name", "account_id", "user", "games", "synced_at", "linked_at")
+    search_fields = ("display_name", "account_id", "user__username")
     raw_id_fields = ("user",)
 
 

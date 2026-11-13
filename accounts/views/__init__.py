@@ -4,8 +4,8 @@
 - perfil.py: Perfil (también lo que pinta la vista previa de Editar perfil).
 - editar_perfil.py: Editar perfil (el formulario, su vista previa, las imágenes de un juego para la cabecera y las
   tiendas en las que compras).
-- cuentas_vinculadas.py: vincular, importar y desvincular Steam, PlayStation y Xbox y las cuentas de otras plataformas
-  (Editar perfil › Cuentas vinculadas y el modal «Vincular cuentas» del Perfil).
+- cuentas_vinculadas.py: vincular, importar y desvincular Steam, PlayStation, Xbox, GOG y Epic Games y las cuentas de
+  otras plataformas (Editar perfil › Cuentas vinculadas y el modal «Vincular cuentas» del Perfil).
 - juegos_importados.py: Juegos importados.
 - importar_archivo.py: Importar desde un archivo (el CSV de Playnite o de otro tracker).
 - sincronizar_playnite.py: la extensión NextPlay Sync de Playnite (su código y su descarga, en Editar perfil › Cuentas
@@ -20,8 +20,9 @@ Aquí se reexportan las vistas y lo que usan otras apps, para que urls.py y quie
 
 from .avisos import notifications
 from .cuentas_vinculadas import (
-    platform_add, platform_remove, psn_sync, psn_unlink, steam_auto_sync, steam_callback, steam_import, steam_link,
-    steam_unlink, steam_wishlist, xbox_callback, xbox_link, xbox_unlink,
+    epic_sync, epic_unlink, gog_sync, gog_unlink, platform_add, platform_remove, psn_sync, psn_unlink,
+    steam_auto_sync, steam_callback, steam_import, steam_link, steam_unlink, steam_wishlist, xbox_callback, xbox_link,
+    xbox_unlink,
 )
 from .editar_perfil import banner_arts, edit_profile, profile_preview, shops_update
 from .ficha_del_juego import banner_from_game, favorite_context, favorite_toggle, game_achievements

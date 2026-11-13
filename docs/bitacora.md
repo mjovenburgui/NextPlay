@@ -13,10 +13,11 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Todo está en `main` menos cuatro ramas del 12 y el 13/11, una encima de otra, que esperan tu revisión: `playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica` y `playnite-sync`. Las cuatro se ven juntas en el servidor de revisión (http://localhost:8001/, con una copia de tu base de datos) y cada una lleva su guion para comprobarla. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
+Todo está en `main` menos cinco ramas del 12 y el 13/11, una encima de otra, que esperan tu revisión: `playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica`, `playnite-sync` y `gog-y-epic`. Las cinco se ven juntas en el servidor de revisión (http://localhost:8001/, con una copia de tu base de datos) y cada una lleva su guion para comprobarla. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
+| `gog-y-epic` | Importar GOG (desde el perfil público, cada noche) y Epic Games (pegando un código cada vez) sin instalar nada | Commit local, sin subir, encima de `playnite-sync`. Trae la migración `accounts.0032`. |
 | `playnite-sync` | La extensión de Playnite NextPlay Sync: tus juegos y horas de Epic, GOG, EA… se actualizan solos cada día y con cada partida | Commit local, sin subir, encima de `cabecera-automatica`. Trae la migración `accounts.0031`. |
 | `cabecera-automatica` | Cabecera «Lo que estoy jugando», que sigue sola al juego al que juegas, y el color del perfil sacado de la cabecera | Commits locales `1985824` y `9cbbf76` (las columnas que hay que marcar en Library Exporter), sin subir, encima de `formularios-que-avisan`. Trae las migraciones `accounts.0030` y `library.0018`. |
 | `formularios-que-avisan` | Los formularios que recargan la página avisan mientras trabajan: el botón gira, dice qué hace («Importando tus juegos…») y no se puede pulsar dos veces | Commit local `ee08633`, sin subir, encima de `playnite-y-csv`. Sin migraciones. |
@@ -40,6 +41,81 @@ Todo está en `main` menos cuatro ramas del 12 y el 13/11, una encima de otra, q
 - `challenges.0002`;
 - `social.0008` y `social.0009`;
 - `library.0014`.
+
+---
+
+## 13/11/2026 · GOG y Epic Games, sin instalar nada
+
+**Rama:** `gog-y-epic`, encima de `playnite-sync`. Commit local, sin subir.
+
+**Por qué:** me preguntaste si había forma de hacerlo sin instalar nada, o instalando algo solo en el servidor. Lo miré: GOG se puede leer desde el perfil público, y Epic, con un código de inicio de sesión, aunque la propia Epic avisa de que ese código da acceso completo a la cuenta. Te lo expliqué y elegiste «GOG y también Epic».
+
+**Qué cambia para ti:**
+- **Dos tarjetas nuevas en Editar perfil › Cuentas vinculadas**, también en el modal «Vincular cuentas» de tu perfil:
+  - **GOG**, con la franja morada y la etiqueta «Automático»:
+    - escribes tu usuario de GOG o pegas la dirección de tu perfil. Si ya lo tenías en «Otras plataformas», sale escrito;
+    - trae tus juegos con los minutos y la última partida que cuenta GOG Galaxy, sin contraseña;
+    - desde entonces se vuelve a leer sola cada noche;
+    - si una noche tu perfil ya no es público o tu usuario ya no existe, la tarjeta te lo avisa.
+  - **Epic Games**, con la franja gris claro y la etiqueta «Experimental»:
+    - como PlayStation: inicias sesión en epicgames.com, abres la página que enseña tu código y lo pegas;
+    - trae tus juegos con las horas que cuenta su lanzador, sin DLC ni extras;
+    - no guarda el código, y la sesión de Epic que abre se cierra al acabar. Por eso no se actualiza sola: cada vez hay que pegar un código nuevo;
+    - un aviso en amarillo explica lo que dice Epic de ese código y ofrece Playnite como alternativa.
+- **En las dos**, sin marcar «Importar también los juegos que no he abierto nunca», solo entran los que tienen horas, como en Steam. Con Epic es importante, porque regala muchos juegos. Si GOG no tiene horas tuyas (no usas Galaxy), te dice cuántos juegos se han quedado fuera y que marques la casilla.
+- **Se importan como lo de Playnite**: por nombre, y en la misma plataforma. Así un juego que llega por las dos vías no suma sus horas dos veces.
+- **La primera vez**, si no tenías tu cuenta de GOG o de Epic en «Otras plataformas», se pone sola, para que se vea en tu perfil. Si la quitas, no vuelve.
+
+**Cómo comprobarlo tú (guion):**
+1. **En el servidor de revisión** (http://localhost:8001/), entra con `tester_steam` y ve a Editar perfil › Cuentas vinculadas. Detrás de PlayStation están las tarjetas «GOG» y «Epic Games».
+2. **GOG:**
+   1. escribe tu usuario de GOG (tu perfil tiene que ser público) y pulsa «Vincular e importar». El botón dice «Importando tus juegos…». Con un perfil de 100 juegos jugados tarda unos 45 segundos;
+   2. llegas a tu perfil con «GOG (tu usuario): N juegos añadidos…». Si no usas Galaxy, sale además cuántos se han quedado fuera; marca la casilla y vuelve a sincronizar;
+   3. prueba con un usuario que no existe: sale «No hay ningún usuario de GOG que se llame…».
+3. **La sincronización de una noche de GOG**, a mano. Contesta «tester_steam: 0 añadidos, N actualizados…»:
+
+   ```bash
+   C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/NextPlay/.claude/worktrees/pending-tasks-19995d/manage.py sync_gog --user tester_steam
+   ```
+
+4. **Epic:**
+   1. en su tarjeta, inicia sesión en epicgames.com con el primer enlace;
+   2. abre «esta página de Epic» y copia el código que va detrás de `authorizationCode`. Vale el texto entero;
+   3. pégalo enseguida y pulsa «Vincular e importar». Debería salir «Epic Games (tu nombre): N juegos añadidos…», y en tu biblioteca, tus juegos de Epic con horas;
+   4. si vuelves a pegar ese mismo código, sale «Epic no ha aceptado el código…», porque solo vale una vez;
+   5. **esto yo no lo he podido probar contra Epic** (abajo te cuento por qué). Si sale otra cosa, pásame el mensaje.
+5. **Desvincular:** cada tarjeta tiene su «Desvincular». Tus juegos se quedan en la biblioteca.
+
+Si el servidor de revisión no responde, levántalo con:
+
+```bash
+C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/NextPlay/.claude/worktrees/pending-tasks-19995d/manage.py runserver 8001
+```
+
+**Qué he tocado:**
+- `accounts/gog.py`, nuevo: leer el perfil público página a página e importarlo.
+- `accounts/epic.py`, nuevo: el código, la sesión del lanzador, la biblioteca, las horas, el catálogo y el cierre de la sesión.
+- `accounts/models.py`: `GOGAccount` y `EpicAccount`, con la migración `accounts.0032`, y `Profile.gog`, `Profile.epic` y `Profile.gog_username`.
+- `accounts/views/cuentas_vinculadas.py`: vincular, sincronizar y desvincular cada una; el formulario de Epic no deja el código en los informes de error.
+- `accounts/management/commands/sync_gog.py`, nuevo, dentro de `nightly`.
+- Las plantillas `_gog.html` y `_epic.html`, en Editar perfil y en el modal, y los textos de «Otras plataformas» y «Desde un archivo». También el panel de administración y `static/css/app.css`.
+- `README.md`, `docs/pantallas.json`, la propuesta («Importar GOG y Epic sin instalar nada») y los dos PDF.
+
+**Cómo lo he comprobado:**
+- 10 tests nuevos, con GOG y Epic simulados:
+  - GOG: todas las páginas sin iniciar sesión; los no jugados; la sesión de juego de una noche; perfil privado o que no existe, con el aviso de la tarjeta; el usuario escrito como dirección; la tarjeta, el formulario y desvincular;
+  - Epic: el código cambiado por la sesión con el cliente del lanzador; sin DLC, sin lo de Unreal y sin lo de pruebas; los no jugados; la sesión cerrada aunque falle; un código que no vale; una cuenta que ya es de otro; el código pegado de varias formas; la tarjeta y que el código no se guarda en ningún sitio.
+- La batería completa, sin claves y con claves falsas y un proxy muerto: 624 tests en cada pasada, todos bien.
+- **GOG contra GOG de verdad:**
+  - un perfil público de 550 juegos en 12 páginas;
+  - uno privado da «no es público» y uno que no existe, «no existe»;
+  - una importación entera en un usuario provisional, que luego borré: 104 juegos jugados, 92 añadidos y 12 sin encontrar, en 43 segundos; la segunda vez, nada nuevo;
+  - en el navegador, con `tester`: las dos tarjetas, el usuario de GOG que no existe y el código de Epic mal pegado.
+- **Epic, solo simulado.** Quise comprobar en vivo, sin ninguna cuenta, que Epic acepta su cliente y qué forma tiene su catálogo, pero el sistema en el que trabajo bloqueó esa prueba porque usa las credenciales del lanzador de Epic. Está hecho con lo que hacen Legendary y Playnite, que sí funcionan, pero falta tu prueba con tu cuenta.
+
+**Qué falta:**
+- Que lo revises y pruebes Epic con tu cuenta. Al fusionar, `migrate` (`accounts.0032`).
+- Detalle para producción: con una biblioteca grande, la primera importación tarda (GOG, unos 45 segundos con 100 juegos). En el servidor de desarrollo no pasa nada, pero un servidor de producción puede cortar las peticiones largas. Habría que mandarlo a segundo plano; a Steam y a PlayStation les pasa lo mismo.
 
 ---
 

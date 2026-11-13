@@ -1,6 +1,6 @@
-"""Comando «manage.py nightly»: las tareas de cada noche en orden (sync_libraries, close_challenges, update_prices,
-localize_games, fill_game_fields, import_addons y merge_editions). No pinta ninguna pantalla; lo que guarda se ve
-sobre todo en el Perfil, la Ficha del juego, el Catálogo, los Retos y la Lista de deseos.
+"""Comando «manage.py nightly»: las tareas de cada noche en orden (sync_libraries, sync_gog, close_challenges,
+update_prices, localize_games, fill_game_fields, import_addons y merge_editions). No pinta ninguna pantalla; lo que
+guarda se ve sobre todo en el Perfil, la Ficha del juego, el Catálogo, los Retos y la Lista de deseos.
 """
 
 from django.core.management import call_command
@@ -9,7 +9,8 @@ from django.core.management.base import BaseCommand, CommandError
 
 class Command(BaseCommand):
     help = (
-        "Tareas de cada noche, en orden: sincroniza las bibliotecas de Steam (sync_libraries), repasa los retos "
+        "Tareas de cada noche, en orden: sincroniza las bibliotecas de Steam (sync_libraries) y las de GOG "
+        "(sync_gog), repasa los retos "
         "(close_challenges), actualiza los precios (update_prices), completa los datos en castellano de los juegos "
         "(localize_games), pone al día su ficha técnica de IGDB (fill_game_fields), trae las expansiones y los DLC que "
         "aún no tienen ficha (import_addons) y junta las ediciones con su juego (merge_editions). Es lo que hay que "
@@ -20,8 +21,8 @@ class Command(BaseCommand):
     # se traen después de la pasada a IGDB, que puede descubrir alguno nuevo; y las ediciones se juntan al final, porque
     # las dos cosas pueden enlazar alguna.
     TASKS = (
-        "sync_libraries", "close_challenges", "update_prices", "localize_games", "fill_game_fields", "import_addons",
-        "merge_editions",
+        "sync_libraries", "sync_gog", "close_challenges", "update_prices", "localize_games", "fill_game_fields",
+        "import_addons", "merge_editions",
     )
 
     def handle(self, *args, **options):

@@ -2,8 +2,8 @@
 y las imágenes de un juego para la cabecera), Juegos importados (cuenta/juegos-importados/), Avisos (avisos/), Iniciar
 sesión y Recuperar contraseña (las de Django, en cuenta/), Importar desde un archivo (cuenta/importar-archivo/) y Perfil
 (u/<usuario>/). La extensión de Playnite manda la biblioteca a api/playnite/. El resto son acciones de botones:
-favoritos, tiendas, logros de la Ficha del juego y vincular, importar o desvincular Steam, PlayStation, Xbox y otras
-plataformas.
+favoritos, tiendas, logros de la Ficha del juego y vincular, importar o desvincular Steam, PlayStation, Xbox, GOG, Epic
+Games y otras plataformas.
 """
 
 from django.urls import include, path
@@ -30,6 +30,10 @@ urlpatterns = [
     path("cuenta/xbox/vincular/", views.xbox_link, name="xbox_link"),
     path("cuenta/xbox/vuelta/", views.xbox_callback, name="xbox_callback"),
     path("cuenta/xbox/desvincular/", views.xbox_unlink, name="xbox_unlink"),
+    path("cuenta/gog/sincronizar/", views.gog_sync, name="gog_sync"),
+    path("cuenta/gog/desvincular/", views.gog_unlink, name="gog_unlink"),
+    path("cuenta/epic/sincronizar/", views.epic_sync, name="epic_sync"),
+    path("cuenta/epic/desvincular/", views.epic_unlink, name="epic_unlink"),
     path("cuenta/juegos-importados/", views.imported_titles, name="imported_titles"),
     path("cuenta/importar-archivo/", views.import_file, name="import_file"),
     path("cuenta/playnite/codigo/", views.playnite_token, name="playnite_token"),
