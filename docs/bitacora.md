@@ -13,15 +13,15 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Todo está en `main` menos cinco ramas del 12 y el 13/11, una encima de otra, que esperan tu revisión: `playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica`, `playnite-sync` y `gog-y-epic`. Las cinco se ven juntas en el servidor de revisión (http://localhost:8001/, con una copia de tu base de datos) y cada una lleva su guion para comprobarla. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
+Todo está en `main`. Las cinco ramas del 12 y el 13/11 (`playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica`, `playnite-sync` y `gog-y-epic`) entraron el 13/11 con los PR #40 a #44, sin que las hubieras probado: me pediste fusionarlas y dejarlas pendientes de revisión. Qué falta probar, y en qué servidor, está en la primera entrada de abajo. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
-| `gog-y-epic` | Importar GOG (desde el perfil público, cada noche) y Epic Games (pegando un código cada vez) sin instalar nada | Commit local, sin subir, encima de `playnite-sync`. Trae la migración `accounts.0032`. |
-| `playnite-sync` | La extensión de Playnite NextPlay Sync: tus juegos y horas de Epic, GOG, EA… se actualizan solos cada día y con cada partida | Commit local, sin subir, encima de `cabecera-automatica`. Trae la migración `accounts.0031`. |
-| `cabecera-automatica` | Cabecera «Lo que estoy jugando», que sigue sola al juego al que juegas, y el color del perfil sacado de la cabecera | Commits locales `1985824` y `9cbbf76` (las columnas que hay que marcar en Library Exporter), sin subir, encima de `formularios-que-avisan`. Trae las migraciones `accounts.0030` y `library.0018`. |
-| `formularios-que-avisan` | Los formularios que recargan la página avisan mientras trabajan: el botón gira, dice qué hace («Importando tus juegos…») y no se puede pulsar dos veces | Commit local `ee08633`, sin subir, encima de `playnite-y-csv`. Sin migraciones. |
-| `playnite-y-csv` | Importar desde un archivo: tus juegos y horas de Epic, GOG, EA, Ubisoft, Battle.net y Amazon con Playnite, y el CSV de otros trackers | Commit local `0c4431f`, sin subir, encima de `main`: espera tu revisión. Trae `accounts.0029` y `library.0017`, que solo cambian las opciones de plataforma y no tocan las tablas. |
+| `gog-y-epic` | Importar GOG (desde el perfil público, cada noche) y Epic Games (pegando un código cada vez) sin instalar nada | Fusionada con `main` el 13/11: [PR #44](https://github.com/mjovenburgui/NextPlay/pull/44). **Pendiente de revisión**, sobre todo Epic con tu cuenta. Trae la migración `accounts.0032`. |
+| `playnite-sync` | La extensión de Playnite NextPlay Sync: tus juegos y horas de Epic, GOG, EA… se actualizan solos cada día y con cada partida | Fusionada con `main` el 13/11: [PR #43](https://github.com/mjovenburgui/NextPlay/pull/43). **Pendiente de revisión**, sobre todo dentro de Playnite. Trae la migración `accounts.0031`. |
+| `cabecera-automatica` | Cabecera «Lo que estoy jugando», que sigue sola al juego al que juegas, y el color del perfil sacado de la cabecera | Fusionada con `main` el 13/11: [PR #42](https://github.com/mjovenburgui/NextPlay/pull/42), con las columnas que hay que marcar en Library Exporter. **Pendiente de revisión.** Trae las migraciones `accounts.0030` y `library.0018`. |
+| `formularios-que-avisan` | Los formularios que recargan la página avisan mientras trabajan: el botón gira, dice qué hace («Importando tus juegos…») y no se puede pulsar dos veces | Fusionada con `main` el 13/11: [PR #41](https://github.com/mjovenburgui/NextPlay/pull/41). **Pendiente de revisión.** Sin migraciones. |
+| `playnite-y-csv` | Importar desde un archivo: tus juegos y horas de Epic, GOG, EA, Ubisoft, Battle.net y Amazon con Playnite, y el CSV de otros trackers | Fusionada con `main` el 13/11: [PR #40](https://github.com/mjovenburgui/NextPlay/pull/40). **Pendiente de revisión.** Trae `accounts.0029` y `library.0017`, que solo cambian las opciones de plataforma y no tocan las tablas. |
 | `que-jugar-despues` | Qué jugar después: de tu pendiente y del catálogo, según cómo juegas, con su porqué | En `main` desde el 11/11, sin PR. Su migración `accounts.0028` está aplicada en tu base de datos. |
 | `estadisticas-y-resumen` | Pestaña Estadísticas del perfil y Resumen del año con su imagen para compartir | En `main` desde el 11/11, sin PR. Sin migraciones. |
 | `horas-por-plataforma` | Horas totales y última partida en la base de datos, y cualquier plataforma nueva sin migraciones | En `main` desde el 11/11, sin PR. Su migración `library.0016`, que rellena los totales, está aplicada. |
@@ -36,6 +36,10 @@ Todo está en `main` menos cinco ramas del 12 y el 13/11, una encima de otra, qu
 | `repaso-de-la-biblioteca` | Repaso de la biblioteca y valor del pendiente | Fusionada con `main`: [PR #36](https://github.com/mjovenburgui/NextPlay/pull/36). |
 | `remates-rapidos` | Siete remates rápidos, un commit por cada uno, y los PDF al día | Fusionada con `main`: [PR #37](https://github.com/mjovenburgui/NextPlay/pull/37). |
 
+**Migraciones de las cinco ramas del 12 y el 13/11** (aplicadas en tu base de datos el 13/11, justo después de fusionar, con una copia de seguridad antes):
+- `accounts.0029` a `accounts.0032`;
+- `library.0017` y `library.0018`.
+
 **Migraciones de las cuatro ramas del 08/11** (aplicadas en tu base de datos ese día):
 - `accounts.0022` a `accounts.0025`;
 - `challenges.0002`;
@@ -44,9 +48,64 @@ Todo está en `main` menos cinco ramas del 12 y el 13/11, una encima de otra, qu
 
 ---
 
-## 13/11/2026 · GOG y Epic Games, sin instalar nada
+## 13/11/2026 · Las cinco ramas, en main y pendientes de revisión
 
-**Rama:** `gog-y-epic`, encima de `playnite-sync`. Commit local, sin subir.
+**Ramas:** `playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica`, `playnite-sync` y `gog-y-epic`. Fusionadas con `main` en ese orden el 13/11/2026: [PR #40](https://github.com/mjovenburgui/NextPlay/pull/40), [#41](https://github.com/mjovenburgui/NextPlay/pull/41), [#42](https://github.com/mjovenburgui/NextPlay/pull/42), [#43](https://github.com/mjovenburgui/NextPlay/pull/43) y [#44](https://github.com/mjovenburgui/NextPlay/pull/44).
+
+**Por qué:** te pregunté qué te salía al probar Epic con tu cuenta y contestaste «ya lo probaré luego, déjalo como pendiente de revisión y fusiónalo con main y déjalo bien». Como las ramas van una encima de otra, `gog-y-epic` no podía entrar sola: entraron las cinco, cada una con su PR.
+
+**Qué cambia para ti:**
+- **Todo está en `main`**, y el servidor de `main` (http://localhost:8000/) lo enseña junto, con tu base de datos de verdad.
+- **Tu base de datos tiene sus migraciones:** `accounts.0029` a `accounts.0032`, `library.0017` y `library.0018`. Antes de aplicarlas hice una copia de seguridad.
+- **La extensión de Playnite, compilada en la carpeta de `main`** (`playnite-extension/dist/NextPlaySync.pext`, que no va en el repositorio), para que «Descarga la extensión» funcione en el 8000.
+- **Un estado nuevo en el PDF de propuestas, «pendiente de revisión»** (en morado): lo que ya está hecho y en `main`, pero aún no has probado tú. Va entre las abiertas y las hechas, con su grupo en el panel de marcadores. Lo llevan las cuatro propuestas de estas ramas:
+  - «Importar GOG y Epic sin instalar nada»;
+  - «Importar Epic, GOG, EA y Battle.net con Playnite, y CSV de otros trackers»;
+  - «Cabecera y color automáticos según lo que juegas»;
+  - «Formularios que avisan mientras trabajan».
+- **Cuando las pruebes**, dime cómo ha ido: las que vayan bien pasan a «hecha», y lo que falle lo arreglo.
+
+**Qué he tocado:**
+- `docs/generar_propuestas.py`: el estado nuevo, con su color, su sitio en el orden y su plural en el resumen de la portada. En el índice, el estado se parte en dos líneas si no cabe.
+- `docs/propuestas.json`: el estado, la nota y la revisión de esas cuatro propuestas.
+- El PDF de propuestas.
+- Esta bitácora: la tabla de arriba, cada entrada con su PR y los guiones con el servidor que toca.
+
+**Cómo lo he comprobado:**
+- Antes de fusionar, los tests sin claves y con claves falsas: 624 en cada modo, todos bien.
+- Después, en tu base de datos, `migrate --check`, sin nada pendiente.
+- El servidor de `main` en el navegador: Cuentas vinculadas con las tarjetas de GOG, Epic y Playnite, e Importar desde un archivo.
+
+**Qué falta (depende de ti):** probarlo. Hay dos servidores, y no da igual cuál uses:
+- **El de `main`**, http://localhost:8000/, usa tu base de datos de verdad: lo que importes ahí se queda. Es el sitio para tus cuentas de verdad.
+- **El de revisión**, http://localhost:8001/, usa una copia de tu base de datos y ya tiene el mismo código que `main`. Es el sitio para los guiones que meten juegos inventados: el CSV de ejemplo y el programa de prueba de Playnite, que trae un Hades inventado.
+- Si el de revisión ya no está (vive en la carpeta de esta sesión de Claude y se va con ella), haz esas dos pruebas en el de `main`, pero con `tester`, nunca con `tester_steam`.
+
+**Cómo comprobarlo tú (guion):**
+1. **Epic con tu cuenta**, lo primero: es lo único que no he podido probar contra el servicio de verdad. En http://localhost:8000/ con `tester_steam`, el paso 4 del guion de «GOG y Epic Games, sin instalar nada».
+2. **GOG con tu perfil**, si es público: los pasos 2 y 3 del mismo guion, también en el 8000.
+3. **La extensión dentro de Playnite**, si lo tienes instalado: el paso 3 del guion de «NextPlay Sync». Ya no hay que cambiarle la dirección: trae `http://localhost:8000`, la de `main`.
+4. **La cabecera automática y los formularios que avisan:** sus guiones, en el 8000 con `tester_steam`. Lo que cambian se deshace: vuelve a tu cabecera de antes en Editar perfil y borra el borrador de reseña.
+5. **Importar desde un archivo:**
+   - con tu propio archivo de Playnite, en el 8000 con `tester_steam`;
+   - con el CSV de ejemplo, solo en el 8001, porque sus juegos son inventados.
+6. **Si un servidor no responde** (la app los para cuando la sesión se queda quieta), levántalo. El de `main`:
+
+   ```bash
+   C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/NextPlay/manage.py runserver 8000
+   ```
+
+   El de revisión:
+
+   ```bash
+   C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/NextPlay/.claude/worktrees/pending-tasks-19995d/manage.py runserver 8001
+   ```
+
+---
+
+## 13/11/2026 · GOG y Epic Games, sin instalar nada (fusionado con main, pendiente de revisión)
+
+**Rama:** `gog-y-epic`, encima de `playnite-sync`. Fusionada con `main` el 13/11/2026: [PR #44](https://github.com/mjovenburgui/NextPlay/pull/44). Pendiente de tu revisión.
 
 **Por qué:** me preguntaste si había forma de hacerlo sin instalar nada, o instalando algo solo en el servidor. Lo miré: GOG se puede leer desde el perfil público, y Epic, con un código de inicio de sesión, aunque la propia Epic avisa de que ese código da acceso completo a la cuenta. Te lo expliqué y elegiste «GOG y también Epic».
 
@@ -67,7 +126,7 @@ Todo está en `main` menos cinco ramas del 12 y el 13/11, una encima de otra, qu
 - **La primera vez**, si no tenías tu cuenta de GOG o de Epic en «Otras plataformas», se pone sola, para que se vea en tu perfil. Si la quitas, no vuelve.
 
 **Cómo comprobarlo tú (guion):**
-1. **En el servidor de revisión** (http://localhost:8001/), entra con `tester_steam` y ve a Editar perfil › Cuentas vinculadas. Detrás de PlayStation están las tarjetas «GOG» y «Epic Games».
+1. **En el servidor de `main`** (http://localhost:8000/, con tu base de datos de verdad: lo que importes se queda), entra con `tester_steam` y ve a Editar perfil › Cuentas vinculadas. Detrás de PlayStation están las tarjetas «GOG» y «Epic Games».
 2. **GOG:**
    1. escribe tu usuario de GOG (tu perfil tiene que ser público) y pulsa «Vincular e importar». El botón dice «Importando tus juegos…». Con un perfil de 100 juegos jugados tarda unos 45 segundos;
    2. llegas a tu perfil con «GOG (tu usuario): N juegos añadidos…». Si no usas Galaxy, sale además cuántos se han quedado fuera; marca la casilla y vuelve a sincronizar;
@@ -75,7 +134,7 @@ Todo está en `main` menos cinco ramas del 12 y el 13/11, una encima de otra, qu
 3. **La sincronización de una noche de GOG**, a mano. Contesta «tester_steam: 0 añadidos, N actualizados…»:
 
    ```bash
-   C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/NextPlay/.claude/worktrees/pending-tasks-19995d/manage.py sync_gog --user tester_steam
+   C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/NextPlay/manage.py sync_gog --user tester_steam
    ```
 
 4. **Epic:**
@@ -86,10 +145,10 @@ Todo está en `main` menos cinco ramas del 12 y el 13/11, una encima de otra, qu
    5. **esto yo no lo he podido probar contra Epic** (abajo te cuento por qué). Si sale otra cosa, pásame el mensaje.
 5. **Desvincular:** cada tarjeta tiene su «Desvincular». Tus juegos se quedan en la biblioteca.
 
-Si el servidor de revisión no responde, levántalo con:
+Si el servidor de `main` no responde, levántalo con:
 
 ```bash
-C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/NextPlay/.claude/worktrees/pending-tasks-19995d/manage.py runserver 8001
+C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/NextPlay/manage.py runserver 8000
 ```
 
 **Qué he tocado:**
@@ -119,9 +178,9 @@ C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/
 
 ---
 
-## 13/11/2026 · NextPlay Sync: lo de Playnite se actualiza solo, cada día y con cada partida
+## 13/11/2026 · NextPlay Sync: lo de Playnite se actualiza solo, cada día y con cada partida (fusionado con main, pendiente de revisión)
 
-**Rama:** `playnite-sync`, encima de `cabecera-automatica`. Commit local, sin subir.
+**Rama:** `playnite-sync`, encima de `cabecera-automatica`. Fusionada con `main` el 13/11/2026: [PR #43](https://github.com/mjovenburgui/NextPlay/pull/43). Pendiente de tu revisión.
 
 **Por qué:** me preguntaste si lo de los CSV se podía actualizar a diario. Con un archivo, no: es una foto del momento, y el complemento de Playnite no exporta solo. Te propuse una extensión de Playnite propia y me dijiste «Sí, hazla».
 
@@ -142,14 +201,14 @@ C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/
   - los juegos sin tienda (añadidos a mano o emulados) van a «Otras tiendas».
 
 **Cómo comprobarlo tú (guion):**
-1. **En el servidor de revisión** (http://localhost:8001/), entra con `tester_steam` y ve a Editar perfil › Cuentas vinculadas › Playnite.
+1. **En el servidor de `main`** (http://localhost:8000/, con tu base de datos de verdad), entra con `tester_steam` y ve a Editar perfil › Cuentas vinculadas › Playnite. Para el paso 4, que manda un juego inventado, usa el de revisión.
 2. **Pulsa «Generar el código».** Sale en una caja con «Copiar» y un aviso de que solo se enseña esta vez. Recarga la página: ya no está, y la tarjeta dice «Vinculado».
 3. **Si tienes Playnite** (yo no lo he encontrado instalado en tu PC):
    1. pulsa «Descarga la extensión» y abre el archivo: Playnite la instala;
-   2. en sus ajustes (Complementos › Ajustes de extensiones › Genéricas › NextPlay Sync), pega la dirección `http://localhost:8001` y el código;
+   2. en sus ajustes (Complementos › Ajustes de extensiones › Genéricas › NextPlay Sync), deja la dirección `http://localhost:8000`, que ya viene puesta, y pega el código;
    3. menú principal › NextPlay › Sincronizar ahora. Sale un aviso con lo que se ha traído, y la tarjeta de NextPlay dice cuándo y cuántos juegos;
    4. juega un rato a algo de Epic o GOG y ciérralo. A los 10 segundos, la ficha de ese juego en NextPlay tiene sus horas al día, y tu diario, la partida de hoy.
-4. **Sin Playnite**, con el programa de prueba, que usa el mismo código que la extensión. Desde la carpeta del proyecto, con el código que te dio el paso 2:
+4. **Sin Playnite**, con el programa de prueba, que usa el mismo código que la extensión. Manda un Hades inventado, así que hazlo en el servidor de revisión (http://localhost:8001/, una copia de tu base de datos), no en el de `main`. Genera allí el código con `tester_steam`, como en el paso 2, y lánzalo desde la carpeta de esta sesión (`C:\Users\joven\Desktop\NextPlay\.claude\worktrees\pending-tasks-19995d`), que es donde está compilado:
 
    ```bash
    playnite-extension/Prueba/bin/Release/net462/Prueba.exe http://localhost:8001 TU_CODIGO
@@ -195,9 +254,9 @@ C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/
 
 ---
 
-## 12/11/2026 · Cabecera y color automáticos según lo que juegas
+## 12/11/2026 · Cabecera y color automáticos según lo que juegas (fusionado con main, pendiente de revisión)
 
-**Rama:** `cabecera-automatica`, encima de `formularios-que-avisan`. Commit local, sin subir.
+**Rama:** `cabecera-automatica`, encima de `formularios-que-avisan`. Fusionada con `main` el 13/11/2026: [PR #42](https://github.com/mjovenburgui/NextPlay/pull/42). Pendiente de tu revisión.
 
 **Por qué:** es de prioridad alta y del perfil, que es de lo primero que pediste («10000 veces más modificable»). Hasta ahora todo en el perfil era a mano y se quedaba viejo.
 
@@ -218,7 +277,7 @@ C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/
   - al elegirla, la cabecera ha pasado a Fortnite, que tiene en «Jugando» desde la importación de ejemplo, y el color del perfil, del cian a un naranja (#cb7851) sacado de su arte;
   - al poner Cyberpunk 2077 en «Jugando» desde su ficha, la cabecera ha pasado a su arte y el color, a un ámbar (#d48c44), con el texto encima en oscuro porque es un color claro.
 
-**Cómo comprobarlo tú (guion, 5 minutos, en el servidor de revisión http://localhost:8001/):**
+**Cómo comprobarlo tú (guion, 5 minutos, en el servidor de `main`, http://localhost:8000/; al acabar, puedes volver a tu cabecera de antes):**
 1. **Entra con `tester_steam`** y ve a Editar perfil › Apariencia › Cabecera. Hay una opción nueva, «Lo que estoy jugando». Al elegirla, debajo dice qué juego saldría ahora.
 2. **En Color del perfil**, marca «Sacarlo de la cabecera».
 3. **Pulsa «Guardar cambios».** En tu perfil, la cabecera es el arte de ese juego y el color de los botones y pestañas sale de ella.
@@ -264,9 +323,9 @@ C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/
 
 ---
 
-## 12/11/2026 · Formularios que avisan mientras trabajan
+## 12/11/2026 · Formularios que avisan mientras trabajan (fusionado con main, pendiente de revisión)
 
-**Rama:** `formularios-que-avisan`, encima de `playnite-y-csv`. Commit local `ee08633`, sin subir.
+**Rama:** `formularios-que-avisan`, encima de `playnite-y-csv`. Fusionada con `main` el 13/11/2026: [PR #41](https://github.com/mjovenburgui/NextPlay/pull/41). Pendiente de tu revisión.
 
 **Por qué esta y no «Tareas en segundo plano»**, que era la siguiente que apunté ayer:
 - Las tareas en segundo plano solo se notan con un proceso aparte que las ejecute, y eso se decide al desplegar. La propuesta ya dice que no corre prisa mientras NextPlay esté en local.
@@ -285,7 +344,7 @@ C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/
 - **Los botones desactivados se ven apagados**, como «Importar 0 juegos» en la importación desde un archivo. Antes parecían activos.
 - Lo que va por HTMX (me gusta, estados, comentarios…) ya tenía su aviso y no cambia.
 
-**Cómo comprobarlo tú (guion, 3 minutos, en el mismo servidor de revisión, http://localhost:8001/):**
+**Cómo comprobarlo tú (guion, 3 minutos, en el servidor de `main`, http://localhost:8000/; el borrador de reseña del paso 3, bórralo al acabar):**
 1. **Editar perfil:** cambia cualquier cosa y pulsa «Guardar cambios». Durante un instante, el botón gira y dice «Guardando…». En tu PC va muy rápido; se ve mejor en lo lento.
 2. **Lo lento:** en Cuentas vinculadas, pulsa «Sincronizar juegos» de Steam con `tester_steam`. Mientras trae tus juegos, el botón dice «Importando tus juegos…» y no se puede volver a pulsar.
 3. **La trampa que había:** escribe una reseña y pulsa «Guardar borrador». Tiene que salir «Borrador guardado. Solo lo ves tú.», no publicarse.
@@ -311,9 +370,9 @@ C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/
 
 ---
 
-## 12/11/2026 · Importar desde un archivo: Playnite (Epic, GOG, EA, Ubisoft, Battle.net, Amazon) y CSV de otros trackers
+## 12/11/2026 · Importar desde un archivo: Playnite (Epic, GOG, EA, Ubisoft, Battle.net, Amazon) y CSV de otros trackers (fusionado con main, pendiente de revisión)
 
-**Rama:** `playnite-y-csv`, encima de `main`. Commit local `0c4431f`, sin subir.
+**Rama:** `playnite-y-csv`, encima de `main`. Fusionada con `main` el 13/11/2026: [PR #40](https://github.com/mjovenburgui/NextPlay/pull/40). Pendiente de tu revisión.
 
 **Por qué:** me dijiste «sigue con lo que haya pendiente». Lo pendiente era esto: el 11/11 se quedó a medias por el límite de uso y, tal cual, entró en `main` esa noche con el resto de ramas.
 
@@ -341,7 +400,7 @@ C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/
 - **Un detalle de paso:** el aviso de juegos sin encontrar ya habla en singular cuando es uno («1 no se encontró en el catálogo: emparéjalo a mano si es un juego»). Antes decía «1 no se encontraron». Vale para todas las importaciones.
 
 **Cómo comprobarlo tú (guion, unos 10 minutos):**
-1. **Abre el servidor de revisión:** http://localhost:8001/. Es esta rama con una copia de tu base de datos de hoy, así que lo que hagas ahí no toca la de verdad. Si no responde (la app lo para cuando la sesión se queda quieta), arráncalo así y vuelve a abrirlo:
+1. **Abre el servidor de revisión:** http://localhost:8001/. Tiene el mismo código que `main` y una copia de tu base de datos, así que lo que hagas ahí no toca la de verdad. Este guion importa juegos inventados: no lo sigas en el servidor de `main` (http://localhost:8000/) con `tester_steam`. Tu propio archivo de Playnite, en cambio, súbelo en el de `main`. Si no responde (la app lo para cuando la sesión se queda quieta), arráncalo así y vuelve a abrirlo:
 
    ```bash
    C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/NextPlay/.claude/worktrees/pending-tasks-19995d/manage.py runserver 8001
@@ -407,7 +466,7 @@ C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/
 
 ## 11/11/2026 · Qué jugar después
 
-**Rama:** `que-jugar-despues`, encima de `estadisticas-y-resumen`. Commit local, sin subir.
+**Rama:** `que-jugar-despues`, encima de `estadisticas-y-resumen`. En `main` desde el 11/11, sin PR (ver «Estado de las ramas»).
 
 **Por qué:** era la siguiente de la lista. Es lo que da nombre a NextPlay, y tu pendiente tiene más de cien juegos.
 
@@ -444,7 +503,7 @@ C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/
 
 ## 11/11/2026 · Estadísticas del perfil y resumen del año
 
-**Rama:** `estadisticas-y-resumen`, encima de `horas-por-plataforma`. Commit local, sin subir.
+**Rama:** `estadisticas-y-resumen`, encima de `horas-por-plataforma`. En `main` desde el 11/11, sin PR (ver «Estado de las ramas»).
 
 **Por qué:** era la siguiente de la lista y se apoya en lo de antes: las horas totales, el diario y los logros con fecha.
 
@@ -479,7 +538,7 @@ C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/
 
 ## 11/11/2026 · Horas por plataforma sin una columna por tienda
 
-**Rama:** `horas-por-plataforma`, encima de `logros-fase-2`. Commit local, sin subir.
+**Rama:** `horas-por-plataforma`, encima de `logros-fase-2`. En `main` desde el 11/11, sin PR (ver «Estado de las ramas»).
 
 **Por qué:** es la base de lo que viene después: importar Playnite (Epic, GOG, EA, Battle.net…) y Nintendo sin añadir dos columnas por tienda cada vez.
 
@@ -506,7 +565,7 @@ C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/
 
 ## 11/11/2026 · Logros, fase 2: trofeos de PlayStation uno a uno, logros en el feed y el año pasado
 
-**Rama:** `logros-fase-2`, encima de `gente-que-sigues`. Commit local, sin subir.
+**Rama:** `logros-fase-2`, encima de `gente-que-sigues`. En `main` desde el 11/11, sin PR (ver «Estado de las ramas»).
 
 **Por qué:** me dijiste «ahora sigue con las demás», y la siguiente de la lista era «Logros uno a uno», que tenía hecha solo la fase de Steam.
 
@@ -538,7 +597,7 @@ C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/
 
 ## 11/11/2026 · La gente que sigues, en la ficha y en los perfiles
 
-**Rama:** `gente-que-sigues`, encima de `diario-de-partidas`. Commit local, sin subir.
+**Rama:** `gente-que-sigues`, encima de `diario-de-partidas`. En `main` desde el 11/11, sin PR (ver «Estado de las ramas»).
 
 **Por qué:** era la dos de tu «ve haciendo la uno y la dos». Seguir a alguien solo servía para el feed; ahora su opinión sale justo donde decides qué jugar.
 
@@ -578,7 +637,7 @@ C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/
 
 ## 11/11/2026 · Diario de partidas: lo que juegas y cuándo, sin apuntar nada
 
-**Rama:** `diario-de-partidas`, encima de `sesiones-segunda-cuenta`. Commit local, sin subir.
+**Rama:** `diario-de-partidas`, encima de `sesiones-segunda-cuenta`. En `main` desde el 11/11, sin PR (ver «Estado de las ramas»).
 
 **Por qué:** me pediste «ve haciendo la uno y la dos», y la uno era «Diario de partidas que se escribe solo», la más gorda del núcleo.
 
@@ -617,7 +676,7 @@ C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/
 
 ## 10/11/2026 · Las cuentas de Steam recién vinculadas ya no cuentan como sesiones de juego
 
-**Rama:** `sesiones-segunda-cuenta`, encima de `main`. Commit local, sin subir.
+**Rama:** `sesiones-segunda-cuenta`, encima de `main`. En `main` desde el 11/11, sin PR (ver «Estado de las ramas»).
 
 **Por qué:** me preguntaste «¿se puede traer de Steam la última sesión del usuario?». Al mirarlo salió que, al vincular tu segunda cuenta de Steam el 02/11, la importación apuntó su historial entero como si lo hubieras jugado esos días. Elegiste «Arreglar las sesiones».
 
@@ -809,7 +868,7 @@ C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/
 
 ---
 
-## 04-08/11/2026 · Siete remates rápidos (hecho, sin subir)
+## 04-08/11/2026 · Siete remates rápidos (fusionado con main, PR #37)
 
 **Rama:** `remates-rapidos`, encima de `repaso-de-la-biblioteca`. Lleva un commit por cada remate, para que se puedan revisar por separado.
 
@@ -869,7 +928,7 @@ C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/
 
 ---
 
-## 04/11/2026 · Repaso de la biblioteca y valor del pendiente (hecho, sin subir)
+## 04/11/2026 · Repaso de la biblioteca y valor del pendiente (fusionado con main, PR #36)
 
 **Rama:** `repaso-de-la-biblioteca`, encima de `retos-fase-2`.
 
@@ -911,7 +970,7 @@ C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/
 
 ---
 
-## 04/11/2026 · Retos, fase 2 (hecho, sin subir)
+## 04/11/2026 · Retos, fase 2 (fusionado con main, PR #35)
 
 **Rama:** `retos-fase-2`, encima de `avisos-en-un-solo-sitio`.
 
@@ -980,7 +1039,7 @@ C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/
 
 ---
 
-## 04/11/2026 · Avisos en un solo sitio, con preferencias por tipo (hecho, sin subir)
+## 04/11/2026 · Avisos en un solo sitio, con preferencias por tipo (fusionado con main, PR #34)
 
 **Rama:** `avisos-en-un-solo-sitio`, commit `d025255`, solo en local.
 
