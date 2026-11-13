@@ -22,7 +22,7 @@
           {% if error %}<ul class="errorlist" id="archivo-error"><li>{{ error }}</li></ul>{% endif %}
           <p class="help">Hasta 10 MB y 5000 juegos. Antes de importar verás cómo se lee cada fila: nada se guarda hasta que pulses «Importar».</p>
         </div>
-        <button class="btn btn-primary" type="submit">Subir y ver cómo queda</button>
+        <button class="btn btn-primary" type="submit" data-busy="Leyendo el archivo…">Subir y ver cómo queda</button>
       </form>
 
       <h2 class="import-subtitle">Cómo sacar el archivo de Playnite</h2>
@@ -107,31 +107,19 @@
 
         <p class="help">El estado y la nota del archivo solo se ponen en los juegos que aún no tienes: lo que ya está en tu biblioteca se queda como lo dejaste. Las horas de un archivo cuentan en tu biblioteca, tus estadísticas y tus retos, pero en tus reseñas no salen como horas verificadas, porque un archivo se puede retocar.</p>
         <div class="import-actions">
-          <button class="btn" type="submit" name="paso" value="revisar" data-review>Ver cómo queda</button>
-          <button class="btn btn-primary" type="submit" name="paso" value="importar"{% if not importable %} disabled{% endif %}>Importar {{ importable }} juego{{ importable|pluralize }}</button>
+          <button class="btn" type="submit" name="paso" value="revisar" data-review data-busy="Leyendo…">Ver cómo queda</button>
+          {# Buscar los juegos en el catálogo puede tardar: lo dice el script de los formularios de base.html. #}
+          <button class="btn btn-primary" type="submit" name="paso" value="importar" data-busy="Importando… puede tardar un poco"{% if not importable %} disabled{% endif %}>Importar {{ importable }} juego{{ importable|pluralize }}</button>
         </div>
       </form>
       <script>
-        // Vuelve a pedir la vista previa en cuanto cambia una columna, la unidad, la escala o la tienda, y al importar
-        // deja claro que está trabajando (buscar los juegos en el catálogo puede tardar un poco).
+        // Vuelve a pedir la vista previa en cuanto cambia una columna, la unidad, la escala o la tienda.
         // Pantallas: Importar desde un archivo.
         (function () {
           var form = document.querySelector("[data-import-map]");
           var review = form.querySelector("[data-review]");
           form.addEventListener("change", function (event) {
             if (event.target.matches("select")) form.requestSubmit(review);
-          });
-          form.addEventListener("submit", function (event) {
-            var button = event.submitter;
-            if (!button || button.value !== "importar") return;
-            // Un botón desactivado no se envía: el paso va en un campo oculto.
-            var step = document.createElement("input");
-            step.type = "hidden";
-            step.name = "paso";
-            step.value = "importar";
-            form.appendChild(step);
-            button.disabled = true;
-            button.textContent = "Importando… puede tardar un poco";
           });
         })();
       </script>

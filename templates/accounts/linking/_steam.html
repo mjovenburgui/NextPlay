@@ -20,7 +20,7 @@
       <form action="{% url 'steam_import' %}" method="post">
         {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
         <label class="check"><input type="checkbox" name="unplayed" value="1"> Importar también los juegos que no he abierto nunca (como Pendiente)</label>
-        <button class="btn btn-primary" type="submit">Sincronizar {% if accounts|length > 1 %}las {{ accounts|length }} cuentas{% else %}juegos{% endif %}</button>
+        <button class="btn btn-primary" type="submit" data-busy="Importando tus juegos…">Sincronizar {% if accounts|length > 1 %}las {{ accounts|length }} cuentas{% else %}juegos{% endif %}</button>
       </form>
       {% if accounts|length > 1 %}<p class="help">Si un juego está en varias cuentas, se suman sus horas.</p>{% endif %}
       <form action="{% url 'steam_auto_sync' %}" method="post">
@@ -55,7 +55,7 @@
   {% if accounts|length < max_steam_accounts %}
     <form action="{% url 'steam_link' %}" method="post">
       {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
-      <button class="btn btn-steam" type="submit">{% include "games/shop_icons/steam.svg" %} {% if accounts %}Añadir otra cuenta{% else %}Vincular con Steam{% endif %}</button>
+      <button class="btn btn-steam" type="submit" data-busy="Abriendo Steam…">{% include "games/shop_icons/steam.svg" %} {% if accounts %}Añadir otra cuenta{% else %}Vincular con Steam{% endif %}</button>
     </form>
     {% if accounts %}
       <p class="help">Steam usará la cuenta con la que tengas la sesión abierta en el navegador. Para añadir otra, pulsa «¿No eres tú?» en la página de Steam o cierra sesión allí antes.</p>

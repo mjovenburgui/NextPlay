@@ -163,8 +163,8 @@
       </div>
 
       <div class="editor-actions">
-        <button class="btn btn-primary" type="submit" name="publicar">{% if review.pk and not review.is_draft %}Guardar cambios{% else %}Publicar reseña{% endif %}</button>
-        <button class="btn" type="submit" name="borrador">{% if review.pk and not review.is_draft %}Pasar a borrador{% else %}Guardar borrador{% endif %}</button>
+        <button class="btn btn-primary" type="submit" name="publicar" data-busy="{% if review.pk and not review.is_draft %}Guardando…{% else %}Publicando…{% endif %}">{% if review.pk and not review.is_draft %}Guardar cambios{% else %}Publicar reseña{% endif %}</button>
+        <button class="btn" type="submit" name="borrador" data-busy="Guardando…">{% if review.pk and not review.is_draft %}Pasar a borrador{% else %}Guardar borrador{% endif %}</button>
         <a class="link" href="{{ game.get_absolute_url }}#resenas">Cancelar</a>
       </div>
     </form>

@@ -18,7 +18,7 @@
   {% if xbox_configured %}
     <form action="{% url 'xbox_link' %}" method="post">
       {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
-      <button class="btn btn-xbox" type="submit">{% include "games/shop_icons/xbox.svg" %} {% if account %}Sincronizar Xbox{% else %}Vincular con Microsoft{% endif %}</button>
+      <button class="btn btn-xbox" type="submit" data-busy="Abriendo Microsoft…">{% include "games/shop_icons/xbox.svg" %} {% if account %}Sincronizar Xbox{% else %}Vincular con Microsoft{% endif %}</button>
     </form>
     <p class="help">{% if account %}Para sincronizar se vuelve a iniciar sesión: no guardamos ningún token de Microsoft.{% else %}Algunos juegos antiguos (Xbox 360) no publican los minutos jugados y entran sin horas.{% endif %}</p>
   {% else %}

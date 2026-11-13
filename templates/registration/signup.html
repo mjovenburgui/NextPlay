@@ -9,7 +9,7 @@
     <p class="muted small auth-sub">Importa tus juegos, valóralos y entérate de cuándo bajan de precio.</p>
     <form method="post">
       {% include "_form.html" %}
-      <button class="btn btn-primary" type="submit">Crear cuenta</button>
+      <button class="btn btn-primary" type="submit" data-busy="Creando tu cuenta…">Crear cuenta</button>
     </form>
     <p class="muted">¿Ya tienes cuenta? <a href="{% url 'login' %}">Entrar</a></p>
   </section>

@@ -31,7 +31,7 @@
       <input class="visually-hidden" type="file" name="imagenes" multiple accept="image/png,image/jpeg,image/webp,image/gif" data-images>
     </label>
     <label class="check small"><input type="checkbox" name="has_spoilers"{% if post_form.has_spoilers.value %} checked{% endif %}> Es un spoiler</label>
-    <button class="btn btn-primary composer-send" type="submit">Publicar</button>
+    <button class="btn btn-primary composer-send" type="submit" data-busy="Publicando…">Publicar</button>
   </div>
 </form>
 <script>
