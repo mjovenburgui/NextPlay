@@ -328,7 +328,7 @@
 
       <section class="settings-card" id="cuentas">
         <h2>Cuentas vinculadas</h2>
-        <p class="help">Importa tus juegos y horas desde Steam, Xbox y PlayStation o desde un archivo de Playnite, y muestra en tu perfil tus cuentas de otras plataformas.</p>
+        <p class="help">Importa tus juegos y horas desde Steam, Xbox, PlayStation, GOG y Epic o con Playnite, y muestra en tu perfil tus cuentas de otras plataformas.</p>
 
         <div class="platform-cards">
           <section class="link-block platform-card platform-steam" id="steam">
@@ -352,6 +352,23 @@
             <details class="link-details"{% if not profile.psn %} open{% endif %}>
               <summary>{% if profile.psn %}Sincronizar o desvincular{% else %}Cómo vincularla{% endif %}</summary>
               {% include "accounts/linking/_psn.html" %}
+            </details>
+          </section>
+
+          <section class="link-block platform-card platform-gog" id="gog">
+            <h3>{% include "games/shop_icons/gog.svg" %} GOG <span class="pill">Automático</span>
+              <span class="link-status">{% if profile.gog %}{{ profile.gog.username }}{% else %}Sin vincular{% endif %}</span>
+            </h3>
+            {% include "accounts/linking/_gog.html" %}
+          </section>
+
+          <section class="link-block platform-card platform-epic" id="epic">
+            <h3>{% include "games/shop_icons/epic.svg" %} Epic Games <span class="pill">Experimental</span>
+              <span class="link-status">{% if profile.epic %}{{ profile.epic.name }}{% else %}Sin vincular{% endif %}</span>
+            </h3>
+            <details class="link-details"{% if not profile.epic %} open{% endif %}>
+              <summary>{% if profile.epic %}Sincronizar o desvincular{% else %}Cómo vincularla{% endif %}</summary>
+              {% include "accounts/linking/_epic.html" %}
             </details>
           </section>
 

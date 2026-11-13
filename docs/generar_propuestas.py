@@ -3,9 +3,11 @@
     .venv/Scripts/python docs/generar_propuestas.py
 
 Con --hook lee por stdin el aviso de edición de Claude Code y solo regenera si se tocó uno de los dos JSON.
-Cada propuesta del JSON tiene: titulo, fecha (AAAA-MM-DD), estado (pendiente, en curso, hecha o
+Cada propuesta del JSON tiene: titulo, fecha (AAAA-MM-DD), estado (pendiente, en curso, pendiente de revisión, hecha o
 descartada), prioridad (alta, media o baja; solo las abiertas), tipo, resumen, motivo, pasos (lista) y notas.
-Dentro de cada prioridad se respeta el orden del JSON, así que la primera es la más urgente.
+Dentro de cada prioridad se respeta el orden del JSON, así que la primera es la más urgente. Las pendientes de
+revisión ya están hechas y en main, pero falta que el usuario las pruebe: van después de las abiertas y antes de las
+hechas y descartadas, y sin prioridad.
 
 Las que se han revisado llevan además revision, que el PDF enseña aparte: su fecha, cómo está hoy (hoy), cómo se haría
 (plan, una lista que puede faltar) y formas de profundizar (profundizar, otra lista). La revisión de la lista entera,
@@ -37,6 +39,7 @@ OUTPUT = ROOT / "docs" / "NextPlay-propuestas.pdf"
 STATES = {
     "pendiente": colors.HexColor("#d97706"),
     "en curso": colors.HexColor("#2563eb"),
+    "pendiente de revisión": colors.HexColor("#7c3aed"),
     "hecha": colors.HexColor("#059669"),
     "descartada": colors.HexColor("#6b7280"),
 }
@@ -47,6 +50,8 @@ PRIORITIES = {
     "baja": colors.HexColor("#6b7280"),
 }
 CLOSED = ("hecha", "descartada")
+# Hecha y en main, pero sin probar por el usuario: va entre las abiertas y las cerradas y, como estas, sin prioridad.
+REVIEW = "pendiente de revisión"
 RULE = colors.HexColor("#e5e7eb")
 # Sitio que tiene que quedar en la página para empezar una sección: si no, pasa a la siguiente con su título.
 MIN_SECTION = 2.5 * cm
@@ -71,14 +76,17 @@ class Bookmark(Flowable):
 
 
 def load():
-    """Lee las propuestas del JSON: abiertas por prioridad (en el orden del JSON) y luego hechas y descartadas."""
+    """Lee las propuestas del JSON: abiertas por prioridad (en el orden del JSON), luego las pendientes de revisión
+    y al final hechas y descartadas."""
     proposals = json.loads(SOURCE.read_text(encoding="utf-8"))
     order = list(PRIORITIES)
 
     def rank(p):
-        """Posición de la propuesta: cerradas al final y, entre las abiertas, por prioridad."""
+        """Posición: abiertas por prioridad, luego las pendientes de revisión y al final las cerradas."""
         if p["estado"] in CLOSED:
-            return (1, list(STATES).index(p["estado"]))
+            return (2, list(STATES).index(p["estado"]))
+        if p["estado"] == REVIEW:
+            return (1, 0)
         return (0, order.index(p.get("prioridad")) if p.get("prioridad") in order else len(order))
 
     return sorted(proposals, key=rank)
@@ -104,11 +112,12 @@ def build():
         "item": ParagraphStyle("item", parent=body, leftIndent=16, bulletFontName=regular, bulletFontSize=9, spaceBefore=2),
         "link": ParagraphStyle("link", parent=body, fontSize=9, leading=12, leftIndent=10, spaceBefore=2),
         "muted": ParagraphStyle("muted", fontName=regular, fontSize=9, leading=12, textColor=MUTED),
+        "cell": ParagraphStyle("cell", fontName=regular, fontSize=9, leading=11),
     }
     proposals = load()
     numbers = {p["titulo"]: number for number, p in enumerate(proposals, 1)}
     counts = {state: sum(1 for p in proposals if p["estado"] == state) for state in STATES}
-    summary = " · ".join(f"{n} {state}{'s' if n != 1 and state != 'en curso' else ''}" for state, n in counts.items() if n)
+    summary = " · ".join(f"{n} {_plural(state, n)}" for state, n in counts.items() if n)
 
     story = [
         Paragraph("NextPlay · Propuestas", styles["title"]),
@@ -122,7 +131,7 @@ def build():
         index.append([
             str(number), Paragraph(f'<a href="#p{number}">{escape(p["titulo"])}</a>', styles["body"]),
             Paragraph(_badge(p.get("prioridad", "—"), PRIORITIES, p.get("prioridad")), styles["body"]),
-            p.get("tipo", ""), p["estado"],
+            p.get("tipo", ""), Paragraph(escape(p["estado"]), styles["cell"]),
         ])
     table = Table(index, colWidths=[0.9 * cm, 8.6 * cm, 2.2 * cm, 2.8 * cm, 2.5 * cm], repeatRows=1)
     table.setStyle(TableStyle([
@@ -223,7 +232,7 @@ def _proposal(p, number, marks, styles):
     páginas en blanco, y cada sección pasa a la siguiente con su título si no queda sitio para empezarla.
     """
     badges = _badge(p["estado"].upper(), STATES, p["estado"])
-    if p.get("prioridad") and p["estado"] not in CLOSED:
+    if p.get("prioridad") and p["estado"] not in (*CLOSED, REVIEW):
         badges = f"{_badge('PRIORIDAD ' + p['prioridad'].upper(), PRIORITIES, p['prioridad'])} · {badges}"
 
     def section(label, *content):
@@ -264,10 +273,22 @@ def _items(texts, style, numbered=True):
 
 
 def _group(p):
-    """Grupo de la propuesta en el panel de marcadores: su prioridad o, si está cerrada, «Hechas y descartadas»."""
+    """Grupo de la propuesta en el panel de marcadores: su prioridad, «Pendientes de revisión» o, si está cerrada,
+    «Hechas y descartadas»."""
     if p["estado"] in CLOSED:
         return "Hechas y descartadas"
+    if p["estado"] == REVIEW:
+        return "Pendientes de revisión"
     return f"Prioridad {p['prioridad']}" if p.get("prioridad") in PRIORITIES else "Sin prioridad"
+
+
+def _plural(state, n):
+    """El estado como va en el resumen de la portada: en plural si son varias («35 pendientes», «4 pendientes de
+    revisión»), salvo «en curso», que no cambia."""
+    if n == 1 or state == "en curso":
+        return state
+    first, _, rest = state.partition(" ")
+    return f"{first}s {rest}".rstrip()
 
 
 def _hex(color):

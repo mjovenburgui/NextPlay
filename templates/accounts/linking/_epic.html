@@ -1,0 +1,34 @@
+{# Panel de Epic Games: cuenta vinculada y formulario del código de inicio de sesión, que se pide cada vez y no se guarda. Con next, vuelve a esa página. #}
+{% with account=profile.epic %}
+  {% if account %}
+    <div class="steam-account">
+      {% include "games/shop_icons/epic.svg" %}
+      <div>
+        <strong>{{ account.name }}</strong>
+        <p class="help">{% if account.synced_at %}Última importación hace {{ account.synced_at|timesince }}, con {{ account.games }} juego{{ account.games|pluralize }}{% endif %}</p>
+      </div>
+      <form action="{% url 'epic_unlink' %}" method="post">
+        {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+        <button class="link small" type="submit">Desvincular</button>
+      </form>
+    </div>
+  {% else %}
+    <p class="muted">Importa tus juegos de Epic con las horas que cuenta su lanzador. Epic no tiene una API para webs, así que se usa la de su lanzador, la misma que usan Playnite, Heroic o Legendary: puede dejar de funcionar sin avisar.</p>
+  {% endif %}
+  <p class="link-warning"><strong>Antes de pegar nada:</strong> en esa página Epic avisa de que el código no se dé a servicios de terceros, porque da acceso completo a tu cuenta. NextPlay solo lo usa para leer tu biblioteca y tus horas, no lo guarda y cierra esa sesión de Epic al acabar. Si prefieres no hacerlo, usa la extensión de Playnite.</p>
+  <ol class="psn-steps">
+    <li>Inicia sesión en <a href="{{ epic_login_url }}" target="_blank" rel="noopener">epicgames.com</a> con tu cuenta.</li>
+    <li>En el mismo navegador abre <a href="{{ epic_code_url }}" target="_blank" rel="noopener">esta página de Epic</a>: verás algo como <code>{"authorizationCode":"…"}</code>.</li>
+    <li>Copia el código (o todo el texto) y pégalo aquí enseguida: caduca a los pocos minutos y solo vale una vez.</li>
+  </ol>
+  <form action="{% url 'epic_sync' %}" method="post" autocomplete="off">
+    {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+    <div class="field">
+      <label for="epic-code">Código de Epic</label>
+      <input id="epic-code" name="code" type="password" required spellcheck="false" autocomplete="off" placeholder="El de «authorizationCode»">
+      <p class="help">Solo se usa para esta importación y no se guarda. Para volver a sincronizar, pide otro.</p>
+    </div>
+    <label class="check"><input type="checkbox" name="unplayed" value="1"> Importar también los juegos que no he abierto nunca (como Pendiente). Sin marcarlo, solo entran los que tienen horas: Epic regala muchos.</label>
+    <button class="btn btn-epic" type="submit" data-busy="Importando tus juegos…">{% include "games/shop_icons/epic.svg" %} {% if account %}Sincronizar Epic{% else %}Vincular e importar{% endif %}</button>
+  </form>
+{% endwith %}

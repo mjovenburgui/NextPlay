@@ -112,10 +112,33 @@ Para el botón «Vincular con Microsoft» hace falta una aplicación de Azure (g
    secreto de cliente, copia el **Valor** (no el «Id. de secreto») a `XBOX_CLIENT_SECRET`.
 4. Reinicia `runserver`. No se guarda ningún token de Microsoft: cada sincronización pide iniciar sesión.
 
+## Importar de GOG y de Epic Games, sin instalar nada
+
+Las dos tienen su tarjeta en Editar perfil › Cuentas vinculadas (y en el modal «Vincular cuentas» del perfil). Sus
+juegos se importan como las filas de un archivo (`csv_import.import_items`): por nombre, en las plataformas `gog` y
+`epic`, con las horas en `LibraryEntry.extra_hours`. Así un juego que llega por aquí y por Playnite no cuenta dos veces.
+Sin «Importar también los juegos que no he abierto nunca», solo entran los que tienen horas, como en Steam.
+
+- **GOG** (`accounts/gog.py`): se lee el perfil público (`https://www.gog.com/u/<usuario>/games/stats`), la misma
+  dirección que usa la extensión de GOG de Playnite. Solo hace falta el nombre de usuario y que el perfil sea público:
+  no se guarda ninguna contraseña ni token (`GOGAccount`). Da los minutos y la última partida de lo jugado con GOG
+  Galaxy. Se vuelve a leer cada noche (`sync_gog`, dentro de `nightly`); si el perfil deja de ser público o el usuario ya
+  no existe, se apunta en `GOGAccount.problem` y la tarjeta lo avisa.
+- **Epic Games** (`accounts/epic.py`): con la API del lanzador de Epic y su cliente público (el de Legendary, Heroic y
+  Playnite). El usuario inicia sesión en epicgames.com, abre la página que enseña su código («authorizationCode») y lo
+  pega, como el NPSSO de PlayStation. Con él se leen la biblioteca, las horas que cuenta el lanzador y el nombre de cada
+  juego en el catálogo (sin DLC, mods ni lo de Unreal). Ese código da acceso completo a la cuenta, y Epic lo avisa en
+  esa misma página: no se guarda ni él ni la sesión, que se cierra al acabar (`EpicAccount` solo guarda el ID y el
+  nombre de la cuenta). Por eso no se sincroniza sola: cada vez hay que pegar un código nuevo. Epic no da la fecha de
+  la última partida.
+
+La primera vez que se vincula cada una, si el usuario no tenía puesta esa cuenta en «Otras plataformas», se pone sola
+para que se vea en su perfil. EA, Ubisoft, Battle.net y Amazon no tienen una vía así: siguen con Playnite.
+
 ## Importar desde un archivo (Playnite u otro tracker)
 
-Epic, GOG, EA, Ubisoft, Battle.net y Amazon no tienen API para leer tus horas, pero Playnite (el lanzador que las junta
-todas) sí las tiene en tu PC. En `/cuenta/importar-archivo/` (Editar perfil › Cuentas vinculadas › Desde un archivo) se
+EA, Ubisoft, Battle.net y Amazon no tienen API para leer tus horas (Epic y GOG sí tienen una vía, la de arriba), pero
+Playnite (el lanzador que las junta todas) sí las tiene en tu PC. En `/cuenta/importar-archivo/` (Editar perfil › Cuentas vinculadas › Desde un archivo) se
 sube el CSV que exporta su complemento **Library Exporter Advanced**, o el de cualquier otro tracker con una fila de
 cabecera (`accounts/csv_import.py`):
 
@@ -423,8 +446,9 @@ perfil) y después actualiza los precios:
 ```
 
 `sync_libraries` espera 3 segundos entre usuarios (`--pause`) para repartir las llamadas a Steam e IGDB
-y se salta a quien se haya sincronizado en las últimas 12 horas (`--min-hours`). PlayStation y Xbox no
-se sincronizan solas porque no se guarda el código ni el token de la cuenta.
+y se salta a quien se haya sincronizado en las últimas 12 horas (`--min-hours`). Justo después, `sync_gog` hace lo
+mismo con los perfiles públicos de GOG vinculados (con las mismas opciones). PlayStation, Xbox y Epic no se
+sincronizan solas porque no se guarda el código ni el token de la cuenta.
 
 Para programarlo, en Linux con cron (todos los días a las 4:00):
 
