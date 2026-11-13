@@ -1,4 +1,5 @@
-"""Emparejamiento de los juegos importados (Steam, PlayStation, Xbox) con el catálogo y su paso a la biblioteca.
+"""Emparejamiento de los juegos importados (Steam, PlayStation, Xbox y los de un archivo, como el de Playnite) con el
+catálogo y su paso a la biblioteca.
 
 Cada título importado se guarda en ExternalTitle (compartido por todos los usuarios) y en ImportedTitle
 (del usuario, con sus minutos). Los títulos ya emparejados —por una importación anterior o porque
@@ -27,6 +28,9 @@ from .models import ExternalTitle, ImportedTitle
 # Búsquedas sueltas en IGDB como máximo por sincronización, para los juegos que no salen por nombre exacto, y
 # resultados de cada una entre los que se busca el que se llama como el título.
 MAX_SEARCHES = 25
+# Plataformas que solo dan los juegos abiertos alguna vez (PlayStation y Xbox): lo que llega de ellas sin horas ni
+# partida entra como «Jugado», no como «Pendiente». Steam y los archivos (Playnite) dan también los que nunca se abrieron.
+OPENED_ONLY = (ExternalTitle.Platform.PSN, ExternalTitle.Platform.XBOX)
 SEARCH_RESULTS = 10
 # Títulos que no son un juego concreto sino un lanzador de varios (p. ej. «Call of Duty®» en PS5, desde el que se
 # abren MWII, MWIII y Black Ops 6). Se cuentan como no encontrados.
@@ -457,9 +461,7 @@ def reassign(imported, game, by):
     title.assigned_by = by
     with transaction.atomic():
         title.save()
-        added, updated = update_library(
-            imported.user, title.platform, opened_only=title.platform != ExternalTitle.Platform.STEAM
-        )
+        added, updated = update_library(imported.user, title.platform, opened_only=title.platform in OPENED_ONLY)
         removed = False
         if previous is not None and previous != game:
             entry = LibraryEntry.objects.filter(user=imported.user, game=previous).first()

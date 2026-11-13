@@ -824,6 +824,13 @@ button.chip-link { background: none; font-family: inherit; cursor: pointer; }
 .pill-steam { border-color: #66c0f4; color: #66c0f4; }
 .pill-psn { border-color: #3d9bff; color: #3d9bff; }
 .pill-xbox { border-color: #3fbf3f; color: #3fbf3f; }
+/* Las tiendas que llegan en un archivo (Playnite u otro tracker); «Otras tiendas» se queda con la píldora de serie. */
+.pill-epic { border-color: #c8cbd8; color: #e6e8f2; }
+.pill-gog { border-color: #c99cff; color: #c99cff; }
+.pill-ea { border-color: #ff6b6b; color: #ff8f8f; }
+.pill-ubisoft { border-color: #5b8cff; color: #8fb0ff; }
+.pill-battlenet { border-color: #148eff; color: #5fb3ff; }
+.pill-amazon { border-color: #ff9900; color: #ffb84d; }
 .imported-search { display: flex; gap: .5rem; margin: .75rem 0; }
 .imported-search input { flex: 1; }
 .candidates { margin: 0 0 .5rem; padding: 0; list-style: none; }
@@ -954,6 +961,11 @@ button.chip-link { background: none; font-family: inherit; cursor: pointer; }
 .platform-steam { border-top-color: #66c0f4; }
 .platform-xbox { border-top-color: #3fbf3f; }
 .platform-psn { border-top-color: #3d9bff; }
+/* «Desde un archivo» (Playnite o CSV), en oro: no es una cuenta, es algo que subes tú. */
+.platform-file { border-top-color: var(--gold); }
+.platform-file h3 > .icon, .link-block h3 > .icon { color: var(--gold); }
+.btn-file { display: inline-flex; align-items: center; gap: .45rem; margin-top: .75rem; }
+.btn-file .icon { width: 1.1rem; height: 1.1rem; }
 .platform-card .shop-logo { width: 1.1rem; height: 1.1rem; vertical-align: -.15rem; }
 .platform-card h3 .shop-logo { width: 1.3rem; height: 1.3rem; }
 .platform-card .steam-account .shop-logo { width: 1.6rem; height: 1.6rem; flex: none; }
@@ -2414,3 +2426,27 @@ form:has(input[name="kind"]:checked:not([value="games"])) .challenge-for-games {
   .filter-checks { grid-column: 1 / -1; }
 }
 .catalog-results.htmx-request { opacity: .55; transition: opacity .15s; }
+
+/* Importar desde un archivo: las columnas en rejilla, el resumen de lo que se va a importar y la vista previa en una
+   tabla que, en el móvil, se desliza de lado dentro de su caja sin mover la página. */
+.import-page .page-head { align-items: flex-start; }
+.import-subtitle { margin: 1.75rem 0 .25rem; font-size: 1rem; }
+.import-file-name { margin: 0 0 1rem; overflow-wrap: anywhere; }
+.import-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: 0 1rem; min-width: 0; margin: 0; padding: 0; border: 0; }
+.import-columns legend { margin-bottom: .6rem; padding: 0; font-weight: 700; }
+.import-columns .field { min-width: 0; margin-bottom: .8rem; }
+.import-columns select { width: 100%; }
+.import-summary { margin: .5rem 0 1rem; padding: .8rem 1rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; }
+.import-summary p { margin: 0; }
+.import-summary .pill { display: inline-block; margin: .25rem .2rem 0 0; }
+.import-summary .help { margin-top: .45rem; }
+.table-scroll { overflow-x: auto; margin: 0 0 1rem; }
+.import-preview { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.import-preview caption { margin-bottom: .4rem; color: var(--muted); font-size: .8rem; text-align: left; }
+.import-preview th, .import-preview td { padding: .45rem .6rem; border-top: 1px solid var(--border); text-align: left; vertical-align: top; }
+.import-preview thead th { border-top: 0; color: var(--muted); font-size: .78rem; font-weight: 600; white-space: nowrap; }
+.import-preview tbody th { min-width: 11rem; font-weight: 600; overflow-wrap: anywhere; }
+.import-preview td { white-space: nowrap; }
+.import-preview th .help { display: block; color: var(--pink-text); font-weight: 400; }
+.import-preview .is-skipped th, .import-preview .is-skipped td { color: var(--muted); }
+.import-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .6rem; margin-top: 1rem; }

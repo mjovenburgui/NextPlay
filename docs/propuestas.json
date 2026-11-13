@@ -1983,7 +1983,7 @@
   {
     "titulo": "Importar Epic, GOG, EA y Battle.net con Playnite, y CSV de otros trackers",
     "fecha": "2026-10-21",
-    "estado": "pendiente",
+    "estado": "en curso",
     "prioridad": "media",
     "tipo": "Funcionalidad",
     "resumen": "Importar las horas de las tiendas sin API (Epic, GOG, EA, Ubisoft, Battle.net, Amazon…) desde la exportación de Playnite, el lanzador que las junta todas, y aceptar el CSV de otros trackers para que quien llega se traiga su historial.",
@@ -1995,16 +1995,14 @@
       "Importador de CSV genérico con un paso para decir qué columna es cada cosa, para los trackers que exportan (Grouvee y otros).",
       "Más adelante, una extensión de Playnite propia que sincronice sola con un token personal del usuario."
     ],
-    "notas": "Comprobar las columnas exactas antes de empezar: en el foro de Playnite recomiendan la extensión Library Exporter Advanced. No leer la web de Backloggd para importar (es frágil y seguramente va contra sus condiciones); si saca su exportación a CSV, aceptarla el primer día.",
+    "notas": "Comprobar las columnas exactas antes de empezar: en el foro de Playnite recomiendan la extensión Library Exporter Advanced. No leer la web de Backloggd para importar (es frágil y seguramente va contra sus condiciones); si saca su exportación a CSV, aceptarla el primer día. 12/11/2026, rama playnite-y-csv: hecha la importación desde un archivo. Pantalla nueva, «Importar desde un archivo», en Editar perfil › Cuentas vinculadas › Desde un archivo y en el modal «Vincular cuentas» del perfil. Lee el CSV de Library Exporter Advanced con Playnite en castellano o en inglés y reconoce solas sus columnas: Nombre, Fuentes, Tiempo jugado (en segundos), Jugado por última vez (con la fecha como la escribe Windows, con el día o el mes delante), Estado de finalización y Puntuación del usuario (sobre 100). Vale cualquier otro CSV con cabecera: se dice qué columna es cada cosa, la unidad del tiempo y la escala de la nota, con una vista previa. Cada tienda es una plataforma nueva (epic, gog, ea, ubisoft, battlenet, amazon y otras) con sus horas en LibraryEntry.extra_hours y su logo; lo de Steam, PlayStation y Xbox se salta, porque se importa desde la cuenta. Los juegos sin horas entran como Pendiente (Playnite lista también los que nunca se han abierto); el estado y la nota del archivo solo van a los juegos nuevos, y un completado lleva como fecha su última partida, nunca la de hoy. Las horas de un archivo no son verificadas: no salen en el sello de horas de las reseñas ni cuentan en la media «con horas jugadas» de la ficha.",
     "revision": {
-      "fecha": "2026-11-01",
-      "hoy": "Sin empezar. Antes hay que resolver que LibraryEntry tiene dos columnas por plataforma: ver «Horas por plataforma sin una columna por tienda». Tampoco se ha visto aún un CSV real de Library Exporter Advanced.",
+      "fecha": "2026-11-12",
+      "hoy": "Hecha la importación, en la rama playnite-y-csv, sin subir. Las columnas están comprobadas en el código de Library Exporter Advanced (repositorio PlayniteExtensionsCollection): las cabeceras salen en el idioma de Playnite, el tiempo jugado en segundos, las fechas con el formato de Windows y la nota sobre 100. Falta probarlo con un archivo real tuyo: es lo primero que conviene mirar.",
       "plan": [
-        "Exportar un CSV real desde Playnite y fijar las columnas antes de escribir nada.",
-        "accounts/csv_import.py y una página de subida: csv.DictReader detectando separador y BOM, un paso para decir qué columna es cada cosa si no es de Playnite, y una vista previa de 20 filas.",
-        "Una plataforma por tienda en ExternalTitle.Platform (epic, gog, ea, ubisoft, battlenet, amazon); como ID, el de la tienda si lo trae o el nombre normalizado, como ya hacen PlayStation y Xbox («name:…»).",
-        "match_by_name por lotes, con MAX_SEARCHES por importación: los que no salgan quedan en «Sin emparejar», y se reintentan al volver a importar. Con muchos juegos, como tarea en segundo plano.",
-        "Estado solo en los juegos nuevos, sin pisar lo que haya puesto el usuario, y la última actividad a last_played."
+        "Probarlo con tu biblioteca: exportar con Library Exporter Advanced, subirlo y mirar la vista previa antes de importar.",
+        "Lo que no se encuentre queda en Juegos importados; una importación busca como mucho 25 nombres sueltos en IGDB, así que con muchos juegos raros conviene repetirla o lanzar rematch_titles.",
+        "Con bibliotecas muy grandes, llevar la importación a «Tareas en segundo plano para lo que tarda»."
       ],
       "profundizar": [
         "Extensión propia de Playnite: un token personal en Editar perfil y un POST a /api/sync. Sincroniza solo las tiendas sin API y, como Playnite cuenta el tiempo de cada sesión, da mejores datos que Steam.",

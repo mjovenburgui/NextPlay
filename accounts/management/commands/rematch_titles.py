@@ -1,12 +1,13 @@
-"""Comando «manage.py rematch_titles»: vuelve a buscar en el catálogo los títulos de PlayStation y Xbox importados que no
-se encontraron. Lo que empareja deja de salir en Juegos importados y pasa a la biblioteca del Perfil con sus horas.
+"""Comando «manage.py rematch_titles»: vuelve a buscar en el catálogo los títulos importados de PlayStation, de Xbox y de
+un archivo (Playnite u otro tracker) que no se encontraron. Lo que empareja deja de salir en Juegos importados y pasa a
+la biblioteca del Perfil con sus horas.
 """
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.template.defaultfilters import pluralize
 
-from ...matching import clean_name, match_by_name, update_library
+from ...matching import OPENED_ONLY, clean_name, match_by_name, update_library
 from ...models import ExternalTitle, ImportedTitle
 
 # Las que se emparejan por el nombre; Steam va por su ID de app.
@@ -64,7 +65,7 @@ class Command(BaseCommand):
                 title.save(update_fields=["game", "updated_at"])
             rows = ImportedTitle.objects.filter(title__in=matched).select_related("user", "title")
             for user, platform in {(row.user, row.title.platform) for row in rows}:
-                update_library(user, platform, opened_only=True)
+                update_library(user, platform, opened_only=platform in OPENED_ONLY)
 
         for title in sorted(matched, key=lambda title: -sum(row.minutes for row in title.imports.all())):
             hours = sum(row.minutes for row in title.imports.all()) / 60

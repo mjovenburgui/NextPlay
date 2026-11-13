@@ -13,17 +13,18 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Todas las ramas de abajo están fusionadas con `main`, cada una con su PR, menos las de arriba del todo (`sesiones-segunda-cuenta` y las que van encima), que esperan tu revisión. Las migraciones de las cuatro del 08/11 ya están en tu base de datos de verdad (comprobado el 08/11/2026). También está la de `pasada-a-igdb`, `games.0010`, con la pasada a IGDB hecha (comprobado el 09/11/2026: sin migraciones pendientes y con la ficha técnica de 2235 de sus 2236 juegos). `ficha-ligera-y-dlc` no trae migraciones. Justo después de fusionarla, en el mismo paso, traigo los DLC y las expansiones a tu base de datos con `import_addons`, con una copia de seguridad antes. Lo que salga te lo digo al terminar.
+Todo está en `main` menos `playnite-y-csv`, que espera tu revisión. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
-| `que-jugar-despues` | Qué jugar después: de tu pendiente y del catálogo, según cómo juegas, con su porqué | Commit local, sin subir, encima de `estadisticas-y-resumen`. Trae la migración `accounts.0028`. |
-| `estadisticas-y-resumen` | Pestaña Estadísticas del perfil y Resumen del año con su imagen para compartir | Commit local, sin subir, encima de `horas-por-plataforma`. Sin migraciones. |
-| `horas-por-plataforma` | Horas totales y última partida en la base de datos, y cualquier plataforma nueva sin migraciones | Commit local, sin subir, encima de `logros-fase-2`. Trae la migración `library.0016`, que rellena los totales. |
-| `logros-fase-2` | Logros: trofeos de PlayStation uno a uno, logros en el feed y «Jugados en» el año pasado | Commit local, sin subir, encima de `gente-que-sigues`. Trae la migración `social.0010`. |
-| `gente-que-sigues` | La gente que sigues en la ficha y en los perfiles: su recuadro y sus reseñas delante, «En común», «A quién seguir» y un aviso nuevo | Commit local, sin subir, encima de `diario-de-partidas`. Trae la migración `accounts.0027`. |
-| `diario-de-partidas` | Diario de partidas: pestaña Diario del perfil con el calendario de cada año, línea en la ficha y juegos en «Jugando» sin jugar en el repaso | Commit local, sin subir, encima de `sesiones-segunda-cuenta`. Trae las migraciones `library.0015` y `accounts.0026`. |
-| `sesiones-segunda-cuenta` | Las cuentas de Steam recién vinculadas ya no cuentan como sesiones de juego | Commit local, sin subir: espera tu revisión. Sin migraciones; las sesiones de `tester_steam` ya están corregidas en tu base de datos. |
+| `playnite-y-csv` | Importar desde un archivo: tus juegos y horas de Epic, GOG, EA, Ubisoft, Battle.net y Amazon con Playnite, y el CSV de otros trackers | Commit local, sin subir, encima de `main`: espera tu revisión. Trae `accounts.0029` y `library.0017`, que solo cambian las opciones de plataforma y no tocan las tablas. |
+| `que-jugar-despues` | Qué jugar después: de tu pendiente y del catálogo, según cómo juegas, con su porqué | En `main` desde el 11/11, sin PR. Su migración `accounts.0028` está aplicada en tu base de datos. |
+| `estadisticas-y-resumen` | Pestaña Estadísticas del perfil y Resumen del año con su imagen para compartir | En `main` desde el 11/11, sin PR. Sin migraciones. |
+| `horas-por-plataforma` | Horas totales y última partida en la base de datos, y cualquier plataforma nueva sin migraciones | En `main` desde el 11/11, sin PR. Su migración `library.0016`, que rellena los totales, está aplicada. |
+| `logros-fase-2` | Logros: trofeos de PlayStation uno a uno, logros en el feed y «Jugados en» el año pasado | En `main` desde el 11/11, sin PR. Su migración `social.0010` está aplicada. |
+| `gente-que-sigues` | La gente que sigues en la ficha y en los perfiles: su recuadro y sus reseñas delante, «En común», «A quién seguir» y un aviso nuevo | En `main` desde el 11/11, sin PR. Su migración `accounts.0027` está aplicada. |
+| `diario-de-partidas` | Diario de partidas: pestaña Diario del perfil con el calendario de cada año, línea en la ficha y juegos en «Jugando» sin jugar en el repaso | En `main` desde el 11/11, sin PR. Sus migraciones `library.0015` y `accounts.0026` están aplicadas. |
+| `sesiones-segunda-cuenta` | Las cuentas de Steam recién vinculadas ya no cuentan como sesiones de juego | En `main` desde el 11/11, sin PR. Sin migraciones. |
 | `ficha-ligera-y-dlc` | Ficha del juego más ligera: tres columnas, lo secundario plegado y cada DLC con su ficha y su precio | Fusionada con `main`: [PR #39](https://github.com/mjovenburgui/NextPlay/pull/39). Sin migraciones; los DLC llegan a tu base de datos con `import_addons`. |
 | `pasada-a-igdb` | Una pasada a IGDB: ficha técnica, duración, ediciones agrupadas, sin DLC en las búsquedas y catálogo con filtros | Fusionada con `main`: [PR #38](https://github.com/mjovenburgui/NextPlay/pull/38). Trae la migración `games.0010`. |
 | `avisos-en-un-solo-sitio` | Avisos en un solo sitio, con preferencias por tipo | Fusionada con `main`: [PR #34](https://github.com/mjovenburgui/NextPlay/pull/34). |
@@ -31,13 +32,103 @@ Todas las ramas de abajo están fusionadas con `main`, cada una con su PR, menos
 | `repaso-de-la-biblioteca` | Repaso de la biblioteca y valor del pendiente | Fusionada con `main`: [PR #36](https://github.com/mjovenburgui/NextPlay/pull/36). |
 | `remates-rapidos` | Siete remates rápidos, un commit por cada uno, y los PDF al día | Fusionada con `main`: [PR #37](https://github.com/mjovenburgui/NextPlay/pull/37). |
 
-**Migraciones de estas cuatro ramas:**
+**Migraciones de las cuatro ramas del 08/11** (aplicadas en tu base de datos ese día):
 - `accounts.0022` a `accounts.0025`;
 - `challenges.0002`;
 - `social.0008` y `social.0009`;
 - `library.0014`.
 
-Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan estas migraciones: `manage.py migrate`.
+---
+
+## 12/11/2026 · Importar desde un archivo: Playnite (Epic, GOG, EA, Ubisoft, Battle.net, Amazon) y CSV de otros trackers
+
+**Rama:** `playnite-y-csv`, encima de `main`. Commit local, sin subir.
+
+**Por qué:** me dijiste «sigue con lo que haya pendiente». Lo pendiente era esto: el 11/11 se quedó a medias por el límite de uso y, tal cual, entró en `main` esa noche con el resto de ramas.
+
+**Antes de nada, tu base de datos:** con esas ramas en `main`, a tu base de datos le faltaban seis migraciones (`accounts.0026` a `0028`, `library.0015` y `0016` y `social.0010`), y el servidor de `main` habría fallado al abrir casi cualquier página. Se las he aplicado. Antes hice una copia de seguridad, por si quieres volver atrás: `C:\Users\joven\AppData\Local\Temp\claude\d396e005d3d5d5ae\fd38f2ed-e13e-4d47-86a7-7223ea21c063\scratchpad\db-antes-de-migrar-2026-11-12.sqlite3`.
+
+**Qué cambia para ti:**
+- **Una tarjeta nueva en Editar perfil › Cuentas vinculadas: «Desde un archivo»**, con la franja dorada, y lo mismo en el modal «Vincular cuentas» de tu perfil. Lleva a la pantalla nueva, **Importar desde un archivo** (`/cuenta/importar-archivo/`).
+- **Sirve para las tiendas sin API.** Subes el CSV que exporta Playnite con su complemento Library Exporter Advanced y te traes los juegos y las horas de Epic, GOG, EA, Ubisoft, Battle.net y Amazon. La página explica cómo sacarlo.
+- **Las columnas de Playnite se eligen solas**, lo tengas en castellano o en inglés: nombre, tienda, tiempo jugado, última partida, estado y nota. Lo he sacado del código del complemento. Las cabeceras salen en el idioma de Playnite, el tiempo va en segundos, las fechas con el formato de Windows (día o mes delante: se adivina) y la nota sobre 100.
+- **Vale también el CSV de cualquier otro tracker.** Eliges qué columna es cada cosa, en qué viene el tiempo (horas, minutos, segundos o 12:30:00) y sobre cuánto va la nota.
+- **Antes de importar ves cómo queda:**
+  - las 10 primeras filas tal como se van a leer;
+  - cuántos juegos van a cada tienda;
+  - cuántas filas no se importan y por qué;
+  - la tabla se recarga sola al cambiar cualquier desplegable.
+- **Lo de Steam, PlayStation y Xbox se salta**, porque se importa desde su cuenta y contaría dos veces. Las filas sin tienda se saltan, salvo que elijas una para ellas.
+- **Cada tienda es una plataforma más**, con su logo en las portadas del perfil, en «Tus horas» de la ficha y en «Horas por plataforma» de Estadísticas.
+- **Lo que no se encuentra en el catálogo** va a Juegos importados, con la píldora de su tienda, como lo de PlayStation.
+- **El estado y la nota del archivo solo se ponen en los juegos que entran nuevos.** Lo que ya tenías se queda como lo dejaste, con las horas de la tienda sumadas.
+  - Un juego completado lleva como fecha su última partida, nunca la de hoy, para que no cuente en un reto que no le toca.
+  - Un juego sin horas entra como Pendiente, porque Playnite lista también los que nunca has abierto.
+- **Las horas de un archivo no son verificadas.** Cuentan en tu biblioteca, tus estadísticas y tus retos, pero no salen en el sello de horas de tus reseñas ni en la media «con horas jugadas» de la ficha: un archivo se puede retocar a mano.
+- **Un detalle de paso:** el aviso de juegos sin encontrar ya habla en singular cuando es uno («1 no se encontró en el catálogo: emparéjalo a mano si es un juego»). Antes decía «1 no se encontraron». Vale para todas las importaciones.
+
+**Cómo comprobarlo tú (guion, unos 10 minutos):**
+1. **Abre el servidor de revisión:** http://localhost:8001/. Es esta rama con una copia de tu base de datos de hoy, así que lo que hagas ahí no toca la de verdad. Si no responde (la app lo para cuando la sesión se queda quieta), arráncalo así y vuelve a abrirlo:
+
+   ```bash
+   C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/NextPlay/.claude/worktrees/pending-tasks-19995d/manage.py runserver 8001
+   ```
+2. **Entra con `tester_steam`**, tu cuenta con tus datos de verdad. Yo lo he probado con `tester` para dejarte la tuya sin tocar.
+3. **Ve a Editar perfil › Cuentas vinculadas.** Debajo de «Otras plataformas» está «Desde un archivo». Pulsa «Importar un archivo».
+4. **Sube un archivo:**
+   - el de ejemplo que he dejado en la rama: `C:\Users\joven\Desktop\NextPlay\.claude\worktrees\pending-tasks-19995d\docs\ejemplos\playnite-ejemplo.csv`, con 14 juegos en el formato de Playnite en castellano;
+   - o, si usas Playnite, el tuyo, con los pasos que da la página. Es lo que más me interesa que pruebes: yo no he podido ver un archivo real.
+5. **Mira la vista previa** (con el de ejemplo):
+   - las seis columnas ya elegidas y «En segundos (Playnite)» en el tiempo;
+   - «Se importarán 12 juegos», repartidos así: Epic Games 4, GOG 3, Battle.net 2, y EA app, Ubisoft Connect y Amazon Games 1 cada una;
+   - «No se importan: Steam: se importa desde tu cuenta (1) · Sin tienda: elige una para estas filas (1)»;
+   - cambia «Filas sin tienda» a «Otras tiendas»: la página se recarga sola y Super Mario Odyssey pasa a contar (13).
+6. **Pulsa «Importar 13 juegos».** Vuelves a tu perfil con el resumen, más o menos «… juegos añadidos, … con horas actualizadas y 1 fila sin importar. 1 no se encontró en el catálogo…». A `tester` le salieron 7 añadidos y 5 actualizados.
+7. **Comprueba con `tester_steam`:**
+   - **The Witcher 3** (lo tienes como Jugado, con 5 estrellas y 131 h: 70 de Steam y 61 de PlayStation): sigue Jugado y con tus 5 estrellas. En «Tus horas» de su ficha sale una fila más, la de GOG, con 100 h y su logo, y el total sube a unas 231 h.
+   - **Diablo IV** (Jugando, 80 h): suma 70 h de Battle.net.
+   - **Assassin's Creed Valhalla** (Pendiente, sin horas): pasa a Jugado con 30 h de Ubisoft. Es la regla de siempre: un Pendiente con horas pasa a Jugado.
+   - **Battlefield 2042** (no lo tienes): entra como Abandonado, con 2 estrellas y 7,5 h de EA app.
+   - **Disco Elysium**: entra como Pendiente, sin horas.
+   - **Alan Wake 2 y Overwatch 2**: no están en tu catálogo, así que se buscan en IGDB. Con `tester`, Alan Wake 2 salió como «Alan Wake II»: Completado, 5 estrellas y completado el 28/12/2024, la fecha de su última partida. Overwatch 2 se emparejó con «Overwatch», porque en IGDB es otro nombre del mismo juego. Si no te parece bien, se corrige desde su ficha con «¿No es este el juego que jugaste?».
+   - **Juegos importados**: «Juego Inventado de Prueba», con la píldora de Epic Games, para emparejarlo a mano o ocultarlo.
+   - **Perfil › Estadísticas**: en «Horas por plataforma» salen ya GOG, Epic Games, Battle.net y las demás.
+   - **Inicio**: en tu actividad, «importó … juegos de Epic Games» y una entrada por cada tienda con juegos nuevos.
+8. **Las horas no verificadas:** escribe una reseña de Battlefield 2042, que solo tiene horas del archivo. No sale el sello de horas verificadas. En una de The Witcher 3 sí, pero con sus 131 h de Steam y PlayStation, sin las 100 de GOG.
+9. **Si quieres repetir la prueba desde cero**, dímelo y vuelvo a copiar tu base de datos en la de revisión.
+
+**Qué he tocado:**
+- `accounts/csv_import.py` (terminado):
+  - leer el CSV: UTF-8 o Latin-1, coma, punto y coma o tabulador, sin las columnas larguísimas como la descripción;
+  - adivinar las columnas, la unidad del tiempo, la escala de la nota y si las fechas llevan el mes delante;
+  - interpretar cada fila e importarla por tienda.
+- `accounts/views/importar_archivo.py` (terminada) y su dirección en `accounts/urls.py`.
+- Plantillas: la nueva `accounts/import_file.html`, la nueva `accounts/linking/_file.html` (la tarjeta), `edit_profile.html`, `linking/_dialog.html`, `linking/_platforms.html`, `imported_titles.html` y los logos de las tiendas nuevas en `library/_platform_symbols.html`.
+- `accounts/matching.py`: `OPENED_ONLY`. Solo PlayStation y Xbox dan únicamente los juegos abiertos alguna vez; un archivo trae también los nunca jugados. Lo usan también `admin.py`, `games/editions.py` y `rematch_titles`, que ahora busca también los títulos de los archivos.
+- `accounts/views/cuentas_vinculadas.py` (el aviso en singular) y `juegos_importados.py` (docstrings).
+- Las migraciones `accounts.0029` y `library.0017`. Solo cambian las opciones de plataforma y no tocan las tablas.
+- `static/css/app.css`: la página, la tarjeta y las píldoras de cada tienda.
+- `docs/ejemplos/playnite-ejemplo.csv`, nuevo; `README.md`, `docs/pantallas.json`, la propuesta (en curso) y los dos PDF.
+
+**Cómo lo he comprobado:**
+- 7 tests nuevos:
+  - el CSV de Playnite en castellano y en inglés y el de otro tracker con punto y coma y Latin-1;
+  - las unidades del tiempo, los estados y las tiendas;
+  - las fechas con el día o el mes delante;
+  - la importación completa: lo nuevo, lo que ya tenías, lo que no se encuentra y la sesión al volver a importar;
+  - que las horas de un archivo no son verificadas;
+  - la página paso a paso;
+  - los enlaces desde Cuentas vinculadas y el perfil.
+- La batería completa, sin claves y con claves falsas y un proxy muerto: 600 tests en cada pasada, todos bien.
+- En el servidor de revisión, con `tester`:
+  - he subido el CSV de ejemplo, cambiado la tienda de las filas sin tienda e importado;
+  - he mirado la ficha de The Witcher 3, Juegos importados, el perfil con los logos nuevos y Estadísticas;
+  - a 375 px la página no se sale por los lados y la tabla se desliza dentro de su caja;
+  - sin errores en la consola ni en el servidor.
+
+**Qué falta:**
+- Que lo revises y lo pruebes con un archivo real de Playnite. Al fusionar, `migrate` (las dos migraciones nuevas, que no tocan nada).
+- Lo que sigue en la propuesta: una extensión propia de Playnite que sincronice sola, exportar tu biblioteca en el mismo CSV y plantillas por tracker. Y, con bibliotecas muy grandes, llevar la importación a segundo plano, que es la siguiente propuesta de la lista.
 
 ---
 
@@ -662,8 +753,8 @@ Si un servidor de `main` da error de columnas que no existen, es que a esa base 
 2. Después: subir la rama, abrir el PR y fusionarlo.
 3. Aplicar la migración `accounts.0022` a tu base de datos de verdad. Antes haré una copia de seguridad.
 
-## playnite-y-csv (a medias, sin commit)
+## 11/11/2026 · playnite-y-csv, a medias (terminado el 12/11: ver «Importar desde un archivo», arriba)
 
-11/11/2026: cortado por el límite de uso. En el worktree, sin commit: accounts/csv_import.py (leer el CSV, adivinar las columnas, interpretar cada fila e importar por tienda), accounts/views/importar_archivo.py, las tiendas nuevas en ExternalTitle.Platform y HOURS_SOURCES, las horas verificadas solo de Steam, PlayStation y Xbox (Review.snapshot, Review.hours_since y la media de la ficha) y la pantalla nueva en pantallas.json. `manage.py check` pasa.
+Cortado por el límite de uso. En el worktree, sin commit: accounts/csv_import.py (leer el CSV, adivinar las columnas, interpretar cada fila e importar por tienda), accounts/views/importar_archivo.py, las tiendas nuevas en ExternalTitle.Platform y HOURS_SOURCES, las horas verificadas solo de Steam, PlayStation y Xbox (Review.snapshot, Review.hours_since y la media de la ficha) y la pantalla nueva en pantallas.json. `manage.py check` pasa.
 
 Falta: la plantilla accounts/import_file.html, la URL y el enlace desde Otras plataformas, los símbolos de las tiendas nuevas en library/_platform_symbols.html, las migraciones (choices de ExternalTitle.platform y PlaySession.platform), los tests, la propuesta, los dos PDF y el commit. Después: Tareas en segundo plano y Nintendo Switch con capturas.

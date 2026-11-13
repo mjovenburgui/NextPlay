@@ -112,9 +112,27 @@ Para el botón «Vincular con Microsoft» hace falta una aplicación de Azure (g
    secreto de cliente, copia el **Valor** (no el «Id. de secreto») a `XBOX_CLIENT_SECRET`.
 4. Reinicia `runserver`. No se guarda ningún token de Microsoft: cada sincronización pide iniciar sesión.
 
+## Importar desde un archivo (Playnite u otro tracker)
+
+Epic, GOG, EA, Ubisoft, Battle.net y Amazon no tienen API para leer tus horas, pero Playnite (el lanzador que las junta
+todas) sí las tiene en tu PC. En `/cuenta/importar-archivo/` (Editar perfil › Cuentas vinculadas › Desde un archivo) se
+sube el CSV que exporta su complemento **Library Exporter Advanced**, o el de cualquier otro tracker con una fila de
+cabecera (`accounts/csv_import.py`):
+
+- Las columnas de Playnite se reconocen solas, con Playnite en castellano o en inglés («Tiempo jugado»/«Time Played»
+  en segundos, «Jugado por última vez»/«Last Played» con la fecha como la escribe Windows, «Estado de
+  finalización»/«Completion Status» y «Puntuación del usuario»/«User Score», sobre 100). En otro CSV se elige qué
+  columna es cada cosa, la unidad del tiempo y la escala de la nota, con una vista previa de las primeras filas.
+- Cada tienda es una plataforma más (`epic`, `gog`, `ea`, `ubisoft`, `battlenet`, `amazon` y `otras`), con sus horas en
+  `LibraryEntry.extra_hours`, y sus juegos se buscan por el nombre, como los de PlayStation. Lo de Steam, PlayStation y
+  Xbox se salta: se importa desde la cuenta.
+- El estado y la nota del archivo solo se ponen en los juegos que entran nuevos. Sus horas cuentan en la biblioteca y
+  en los retos, pero no son verificadas (`library.models.VERIFIED_SOURCES`): no salen en el sello de horas de las
+  reseñas ni en la media «con horas jugadas» de la ficha.
+
 ## Juegos importados sin emparejar
 
-Cada juego importado de Steam, PlayStation o Xbox se guarda como título de su plataforma
+Cada juego importado de Steam, PlayStation, Xbox o de un archivo se guarda como título de su plataforma
 (`ExternalTitle`) con el juego del catálogo que le corresponde, y cada usuario con sus horas
 (`ImportedTitle`). Los que no se encuentran aparecen en `/cuenta/juegos-importados/` para emparejarlos
 a mano, y la ficha de un juego importado ofrece «¿No es este el juego que jugaste?» para corregir los
@@ -139,8 +157,8 @@ ampliar el catálogo). No toca lo corregido a mano, lo bloqueado ni lo que han o
 
 ### Horas de cada plataforma
 
-Cada juego de la biblioteca guarda aparte las horas y la última partida de Steam, PlayStation y Xbox
-(`LibraryEntry.hours_by_platform`). La ficha las enseña en «Tus horas», una fila por plataforma con el total si son
+Cada juego de la biblioteca guarda aparte las horas y la última partida de Steam, PlayStation y Xbox, y las de las
+tiendas de un archivo (Epic, GOG…), en `extra_hours` (`LibraryEntry.hours_by_platform`). La ficha las enseña en «Tus horas», una fila por plataforma con el total si son
 varias. Las portadas del perfil llevan el logo de la plataforma junto a las horas o, si se ha jugado en varias, el total y
 debajo las de cada una, y las cifras del perfil reparten las horas jugadas por plataforma. Los logos se dibujan una sola
 vez por página (`library/_platform_symbols.html`) y cada portada los reutiliza, para que una biblioteca de cientos de

@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Importar desde un archivo · NextPlay{% endblock %}
+
+{% block content %}
+  {# Importar desde un archivo (accounts.views.importar_archivo): subir el CSV de Playnite o de otro tracker, decir qué columna es cada cosa con una vista previa e importarlo. #}
+  <section class="panel panel-wide import-page">
+    <header class="page-head">
+      <div>
+        <h1>{% include "_icon.html" with name="list" %} Importar desde un archivo</h1>
+        <p class="muted">Tus juegos y horas de Epic, GOG, EA, Ubisoft, Battle.net, Amazon… con el archivo que exporta Playnite, o el CSV de otro tracker. Steam, PlayStation y Xbox se importan desde su cuenta.</p>
+      </div>
+      <a class="btn" href="{% url 'edit_profile' %}#cuentas">Cuentas vinculadas</a>
+    </header>
+
+    {% if not stored %}
+      <form class="import-upload" method="post" enctype="multipart/form-data" data-import-upload>
+        {% csrf_token %}<input type="hidden" name="paso" value="subir">
+        <div class="field">
+          <label for="archivo">Archivo CSV</label>
+          <input id="archivo" name="archivo" type="file" accept=".csv,text/csv" required{% if error %} aria-describedby="archivo-error"{% endif %}>
+          {% if error %}<ul class="errorlist" id="archivo-error"><li>{{ error }}</li></ul>{% endif %}
+          <p class="help">Hasta 10 MB y 5000 juegos. Antes de importar verás cómo se lee cada fila: nada se guarda hasta que pulses «Importar».</p>
+        </div>
+        <button class="btn btn-primary" type="submit">Subir y ver cómo queda</button>
+      </form>
+
+      <h2 class="import-subtitle">Cómo sacar el archivo de Playnite</h2>
+      <ol class="psn-steps">
+        <li>En <a href="https://playnite.link/" target="_blank" rel="noopener">Playnite</a>, instala el complemento <strong>Library Exporter Advanced</strong> desde el buscador de complementos.</li>
+        <li>Ábrelo desde el menú de extensiones de Playnite y deja marcados, al menos, el nombre, las fuentes, el tiempo jugado, la última vez que jugaste, el estado de finalización y tu puntuación.</li>
+        <li>Exporta a CSV y sube aquí el archivo. Las columnas se reconocen solas, tengas Playnite en castellano o en inglés.</li>
+      </ol>
+      <p class="help">De otro tracker vale cualquier CSV con una fila de cabecera: en el paso siguiente dices qué columna es cada cosa.</p>
+    {% else %}
+      <form class="import-map" method="post" data-import-map>
+        {% csrf_token %}
+        <p class="import-file-name"><strong>{{ stored.file }}</strong> · {{ total }} fila{{ total|pluralize }} · <a href="?empezar=1">Subir otro archivo</a></p>
+
+        <fieldset class="import-columns">
+          <legend>Qué columna es cada cosa</legend>
+          {% for field, label, selected in columns %}
+            <div class="field">
+              <label for="col_{{ field }}">{{ label }}</label>
+              <select id="col_{{ field }}" name="col_{{ field }}">
+                <option value="">{% if field == "name" %}Elige una columna{% else %}Ninguna{% endif %}</option>
+                {% for header in stored.headers %}<option value="{{ header }}"{% if header == selected %} selected{% endif %}>{{ header }}</option>{% endfor %}
+              </select>
+            </div>
+          {% endfor %}
+          {% if stored.mapping.time %}
+            <div class="field">
+              <label for="unidad">El tiempo viene…</label>
+              <select id="unidad" name="unidad">
+                {% for key, unit in units %}<option value="{{ key }}"{% if key == stored.unit %} selected{% endif %}>{{ unit.0 }}</option>{% endfor %}
+              </select>
+            </div>
+          {% endif %}
+          {% if stored.mapping.rating %}
+            <div class="field">
+              <label for="escala">La nota va…</label>
+              <select id="escala" name="escala">
+                {% for key, scale in scales %}<option value="{{ key }}"{% if key == stored.scale %} selected{% endif %}>{{ scale.0 }}</option>{% endfor %}
+              </select>
+            </div>
+          {% endif %}
+          <div class="field">
+            <label for="tienda">Filas sin tienda</label>
+            <select id="tienda" name="tienda">
+              <option value="">No importarlas</option>
+              {% for value, label in stores %}<option value="{{ value }}"{% if value == stored.store %} selected{% endif %}>{{ label }}</option>{% endfor %}
+            </select>
+          </div>
+        </fieldset>
+
+        <div class="import-summary" role="status">
+          {% if importable %}
+            <p>Se importarán <strong>{{ importable }}</strong> juego{{ importable|pluralize }}:{% for label, count in by_store %} <span class="pill">{{ label }} · {{ count }}</span>{% endfor %}</p>
+          {% else %}
+            <p>Con estas columnas no se importa ninguna fila.{% if not stored.mapping.name %} Elige la que tiene el nombre de cada juego.{% elif without_store %} Elige la columna de la tienda o una tienda para las filas sin ella.{% endif %}</p>
+          {% endif %}
+          {% if skipped %}
+            <p class="help">No se importan: {% for reason, count in skipped %}{{ reason }} ({{ count }}){% if not forloop.last %} · {% endif %}{% endfor %}.</p>
+          {% endif %}
+        </div>
+
+        <div class="table-scroll">
+          <table class="import-preview">
+            <caption>Las {{ sample|length }} primeras filas, como se van a leer{% if more %} (y {{ more }} más){% endif %}</caption>
+            <thead>
+              <tr><th scope="col">Juego</th><th scope="col">Tienda</th><th scope="col">Horas</th><th scope="col">Última partida</th><th scope="col">Estado</th><th scope="col">Nota</th></tr>
+            </thead>
+            <tbody>
+              {% for item in sample %}
+                <tr{% if item.skip %} class="is-skipped"{% endif %}>
+                  <th scope="row">{{ item.name|default:"—" }}{% if item.skip %}<span class="help">{{ item.skip }}</span>{% endif %}</th>
+                  <td>{{ item.platform_label|default:"—" }}</td>
+                  <td>{% if item.hours is not None %}{{ item.hours|floatformat:"-1" }} h{% else %}—{% endif %}</td>
+                  <td>{% if item.last_played %}{{ item.last_played|date:"j M Y" }}{% else %}—{% endif %}</td>
+                  <td>{{ item.status_label|default:"—" }}</td>
+                  <td>{% if item.stars %}{{ item.stars|floatformat:"-1" }} ★{% else %}—{% endif %}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <p class="help">El estado y la nota del archivo solo se ponen en los juegos que aún no tienes: lo que ya está en tu biblioteca se queda como lo dejaste. Las horas de un archivo cuentan en tu biblioteca, tus estadísticas y tus retos, pero en tus reseñas no salen como horas verificadas, porque un archivo se puede retocar.</p>
+        <div class="import-actions">
+          <button class="btn" type="submit" name="paso" value="revisar" data-review>Ver cómo queda</button>
+          <button class="btn btn-primary" type="submit" name="paso" value="importar"{% if not importable %} disabled{% endif %}>Importar {{ importable }} juego{{ importable|pluralize }}</button>
+        </div>
+      </form>
+      <script>
+        // Vuelve a pedir la vista previa en cuanto cambia una columna, la unidad, la escala o la tienda, y al importar
+        // deja claro que está trabajando (buscar los juegos en el catálogo puede tardar un poco).
+        // Pantallas: Importar desde un archivo.
+        (function () {
+          var form = document.querySelector("[data-import-map]");
+          var review = form.querySelector("[data-review]");
+          form.addEventListener("change", function (event) {
+            if (event.target.matches("select")) form.requestSubmit(review);
+          });
+          form.addEventListener("submit", function (event) {
+            var button = event.submitter;
+            if (!button || button.value !== "importar") return;
+            // Un botón desactivado no se envía: el paso va en un campo oculto.
+            var step = document.createElement("input");
+            step.type = "hidden";
+            step.name = "paso";
+            step.value = "importar";
+            form.appendChild(step);
+            button.disabled = true;
+            button.textContent = "Importando… puede tardar un poco";
+          });
+        })();
+      </script>
+    {% endif %}
+  </section>
+{% endblock %}

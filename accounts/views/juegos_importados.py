@@ -1,6 +1,6 @@
-"""Vistas de Juegos importados (cuenta/juegos-importados/): los títulos importados de Steam, PlayStation o Xbox que no se
-encontraron en el catálogo, para asignarles su juego a mano u ocultarlos, y los que han llevado a un juego, para
-corregirlo.
+"""Vistas de Juegos importados (cuenta/juegos-importados/): los títulos importados de Steam, PlayStation, Xbox o de un
+archivo (Playnite u otro tracker) que no se encontraron en el catálogo, para asignarles su juego a mano u ocultarlos, y
+los que han llevado a un juego, para corregirlo.
 """
 
 import logging
@@ -50,7 +50,7 @@ def _search_games(query):
 def imported_titles(request):
     """Juegos importados para revisar a mano.
 
-    Sin parámetros, los títulos de Steam, PlayStation o Xbox del usuario que no se encontraron en el
+    Sin parámetros, los títulos de Steam, PlayStation, Xbox o de un archivo del usuario que no se encontraron en el
     catálogo (con ?ocultos=1, los que ocultó). Con ?juego=<id>, los que han llevado a ese juego de su
     biblioteca, para corregirlo si no es el que jugó. Con ?titulo=<id>&q= busca candidatos para ese
     título (por defecto, por su nombre).
