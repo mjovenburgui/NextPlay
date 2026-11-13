@@ -1,0 +1,34 @@
+{# Panel de Playnite: la extensión NextPlay Sync, que manda sola los juegos y horas de Epic, GOG, EA, Ubisoft, Battle.net y Amazon. Necesita profile y, justo después de generarlo, playnite_token (el código, que solo se enseña esa vez). #}
+{% with account=profile.playnite %}
+  {% if playnite_token %}
+    <div class="token-box">
+      <label for="playnite-token">Tu código</label>
+      <div class="token-row">
+        <input id="playnite-token" type="text" readonly value="{{ playnite_token }}" spellcheck="false" autocomplete="off">
+        <button class="btn btn-small" type="button" data-copy-link="{{ playnite_token }}"><span data-copy-label>Copiar</span></button>
+      </div>
+      <p class="help">Solo se enseña ahora: si lo pierdes, genera otro. Sirve únicamente para mandar tu biblioteca, pero no lo compartas.</p>
+    </div>
+  {% elif account %}
+    <p class="muted">{% if account.synced_at %}Última sincronización hace {{ account.synced_at|timesince }}{% if account.games %}, con {{ account.games }} juego{{ account.games|pluralize }} de sus tiendas{% endif %}.{% else %}Vinculado, pero aún no ha mandado nada: abre Playnite con la extensión instalada y el código pegado.{% endif %}</p>
+  {% else %}
+    <p class="muted">Con la extensión NextPlay Sync, Playnite te manda tus juegos y horas de Epic, GOG, EA, Ubisoft, Battle.net y Amazon al abrirlo y cada día, y cada partida al cerrar el juego. Sin volver a subir ningún archivo.</p>
+  {% endif %}
+  <ol class="psn-steps">
+    <li><a href="{% url 'playnite_extension' %}">Descarga la extensión</a> y ábrela: Playnite la instala.</li>
+    <li>En sus ajustes (Complementos › Ajustes de extensiones › Genéricas › NextPlay Sync), pega la dirección <code>{{ request.scheme }}://{{ request.get_host }}</code> y tu código.</li>
+    <li>Listo: se sincroniza al abrir Playnite, una vez al día y cada vez que cierras un juego. También a mano, desde su menú «NextPlay».</li>
+  </ol>
+  <div class="playnite-actions">
+    <form action="{% url 'playnite_token' %}" method="post">
+      {% csrf_token %}
+      <button class="btn{% if not account %} btn-primary{% endif %}" type="submit" data-busy="Generando…">{% if account %}Generar otro código{% else %}Generar el código{% endif %}</button>
+    </form>
+    {% if account %}
+      <form action="{% url 'playnite_unlink' %}" method="post">
+        {% csrf_token %}
+        <button class="link small" type="submit">Desvincular</button>
+      </form>
+    {% endif %}
+  </div>
+{% endwith %}

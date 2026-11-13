@@ -368,6 +368,13 @@
             </h3>
             {% include "accounts/linking/_file.html" %}
           </section>
+
+          <section class="link-block platform-card platform-playnite" id="playnite">
+            <h3>{% include "_icon.html" with name="replay" %} Playnite <span class="pill">Automático</span>
+              <span class="link-status">{% if profile.playnite %}Vinculado{% else %}Sin vincular{% endif %}</span>
+            </h3>
+            {% include "accounts/linking/_playnite.html" %}
+          </section>
         </div>
       </section>
     </div>

@@ -3,7 +3,9 @@ foto y su nombre, en todas las pantallas), sus juegos favoritos, las cuentas vin
 otras plataformas, los títulos importados de cada una con sus horas y logros, y los avisos de la campana.
 """
 
+import hashlib
 import re
+import secrets
 from urllib.parse import urlparse
 
 from django.conf import settings
@@ -339,6 +341,17 @@ class Profile(models.Model):
         try:
             return self.user.xbox_account
         except XboxAccount.DoesNotExist:
+            return None
+
+    @property
+    def playnite(self):
+        """La extensión NextPlay Sync de Playnite vinculada, o None si no tiene.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › Playnite), Perfil (modal «Vincular cuentas» de su dueño).
+        """
+        try:
+            return self.user.playnite_account
+        except PlayniteAccount.DoesNotExist:
             return None
 
     @property
@@ -791,6 +804,60 @@ class XboxAccount(models.Model):
         Pantallas: Editar perfil (Cuentas vinculadas › Xbox), Perfil (enlace de la cuenta de Xbox en la cabecera).
         """
         return f"https://www.xbox.com/es-ES/play/user/{self.gamertag}" if self.gamertag else ""
+
+
+class PlayniteAccount(models.Model):
+    """La extensión NextPlay Sync de Playnite de un usuario (una por usuario): el código personal con el que manda a
+    NextPlay su biblioteca (accounts.playnite y accounts.views.sincronizar_playnite).
+
+    Del código solo se guarda su huella (SHA-256), como de una contraseña: se enseña una vez al generarlo y, si se
+    pierde, se genera otro. Solo sirve para mandar la biblioteca, no para entrar en la cuenta.
+    """
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="playnite_account")
+    token_hash = models.CharField("huella del código", max_length=64, unique=True)
+    linked_at = models.DateTimeField(auto_now_add=True)
+    synced_at = models.DateTimeField("última sincronización", null=True, blank=True)
+    games = models.PositiveIntegerField("juegos de la última biblioteca", default=0)
+
+    class Meta:
+        verbose_name = "extensión de Playnite"
+        verbose_name_plural = "extensiones de Playnite"
+
+    def __str__(self):
+        """Texto en el admin: de quién es la extensión.
+
+        Pantallas: Panel de administración.
+        """
+        return f"Playnite de {self.user}"
+
+    @staticmethod
+    def fingerprint(token):
+        """La huella de un código (SHA-256 en hexadecimal), que es lo que se guarda y por lo que se busca.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › Playnite), ninguna (la dirección que usa la extensión).
+        """
+        return hashlib.sha256(token.encode()).hexdigest()
+
+    @classmethod
+    def issue(cls, user):
+        """Genera un código nuevo para user y lo devuelve; el anterior deja de valer. Es la única vez que se ve entero.
+
+        Pantallas: Editar perfil (Cuentas vinculadas › Playnite: «Generar el código»).
+        """
+        token = "np_" + secrets.token_urlsafe(32)
+        cls.objects.update_or_create(user=user, defaults={"token_hash": cls.fingerprint(token)})
+        return token
+
+    @classmethod
+    def for_token(cls, token):
+        """La extensión de quien tiene el código token, o None si no vale ninguno.
+
+        Pantallas: ninguna (la dirección que usa la extensión de Playnite).
+        """
+        if not token:
+            return None
+        return cls.objects.select_related("user").filter(token_hash=cls.fingerprint(token)).first()
 
 
 class ExternalTitle(models.Model):

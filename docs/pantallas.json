@@ -124,7 +124,7 @@
     {
       "nombre": "Editar perfil",
       "urls": ["edit_profile", "profile_preview", "banner_arts"],
-      "que_es": "Tu configuración: datos, apariencia (foto, cabecera —también «Lo que estoy jugando», que sigue sola al juego al que juegas—, fondo, color —que puede salir de la cabecera—, diseño y su encuadre), escaparate, redes, privacidad y avisos, tiendas en las que compras y cuentas vinculadas (Steam, Xbox, PlayStation, otras plataformas y «Desde un archivo», que lleva a Importar desde un archivo), con la vista previa del perfil en directo."
+      "que_es": "Tu configuración: datos, apariencia (foto, cabecera —también «Lo que estoy jugando», que sigue sola al juego al que juegas—, fondo, color —que puede salir de la cabecera—, diseño y su encuadre), escaparate, redes, privacidad y avisos, tiendas en las que compras y cuentas vinculadas (Steam, Xbox, PlayStation, otras plataformas, «Desde un archivo», que lleva a Importar desde un archivo, y Playnite, con el código y la descarga de la extensión NextPlay Sync, que manda sola la biblioteca), con la vista previa del perfil en directo."
     },
     {
       "nombre": "Juegos importados",

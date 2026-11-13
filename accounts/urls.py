@@ -1,7 +1,7 @@
 """Direcciones de las cuentas. Pantallas: Registro (cuenta/registro/), Editar perfil (cuenta/perfil/, con su vista previa
 y las imágenes de un juego para la cabecera), Juegos importados (cuenta/juegos-importados/), Avisos (avisos/), Iniciar
 sesión y Recuperar contraseña (las de Django, en cuenta/), Importar desde un archivo (cuenta/importar-archivo/) y Perfil
-(u/<usuario>/). El resto son acciones de botones:
+(u/<usuario>/). La extensión de Playnite manda la biblioteca a api/playnite/. El resto son acciones de botones:
 favoritos, tiendas, logros de la Ficha del juego y vincular, importar o desvincular Steam, PlayStation, Xbox y otras
 plataformas.
 """
@@ -32,6 +32,10 @@ urlpatterns = [
     path("cuenta/xbox/desvincular/", views.xbox_unlink, name="xbox_unlink"),
     path("cuenta/juegos-importados/", views.imported_titles, name="imported_titles"),
     path("cuenta/importar-archivo/", views.import_file, name="import_file"),
+    path("cuenta/playnite/codigo/", views.playnite_token, name="playnite_token"),
+    path("cuenta/playnite/desvincular/", views.playnite_unlink, name="playnite_unlink"),
+    path("cuenta/playnite/NextPlaySync.pext", views.playnite_extension, name="playnite_extension"),
+    path("api/playnite/", views.playnite_api, name="playnite_api"),
     path("avisos/", views.notifications, name="notifications"),
     path("cuenta/juegos-importados/<int:pk>/asignar/", views.imported_title_assign, name="imported_title_assign"),
     path("cuenta/juegos-importados/<int:pk>/ocultar/", views.imported_title_hide, name="imported_title_hide"),
