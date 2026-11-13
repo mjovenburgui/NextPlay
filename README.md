@@ -130,6 +130,21 @@ cabecera (`accounts/csv_import.py`):
   en los retos, pero no son verificadas (`library.models.VERIFIED_SOURCES`): no salen en el sello de horas de las
   reseñas ni en la media «con horas jugadas» de la ficha.
 
+### Que se actualice sola: la extensión NextPlay Sync
+
+Un archivo es una foto del momento, y Library Exporter Advanced no exporta solo. Para que lo de Playnite se actualice
+cada día está la extensión propia **NextPlay Sync** (`playnite-extension/`, en C#):
+
+- En Editar perfil › Cuentas vinculadas › Playnite se genera un código personal (`PlayniteAccount`: solo se guarda su
+  huella SHA-256) y se descarga la extensión (`playnite-extension/dist/NextPlaySync.pext`, que deja
+  `playnite-extension/build.ps1`).
+- La extensión manda a `api/playnite/` (`accounts/views/sincronizar_playnite.py`, con «Authorization: Bearer <código>»)
+  la biblioteca entera al abrir Playnite y cada día, y el juego que se acaba de cerrar al terminar cada partida.
+- NextPlay lo importa como las filas de un archivo (`accounts/playnite.py` → `csv_import.import_items`), así que la
+  subida de horas de cada partida queda como una sesión de juego de ese día.
+- `playnite-extension/Prueba` manda juegos de ejemplo con el mismo código que la extensión, para probarla sin
+  Playnite (ver `playnite-extension/README.md`).
+
 ## Juegos importados sin emparejar
 
 Cada juego importado de Steam, PlayStation, Xbox o de un archivo se guarda como título de su plataforma

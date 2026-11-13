@@ -353,34 +353,43 @@ def interpret(rows, mapping, unit="horas", scale="10", default_store=""):
         return row.get(mapping.get(field) or "", "") if mapping.get(field) else ""
 
     order = month_first([cell(row, "last") for row in rows if cell(row, "last")])
-    items = []
-    for row in rows:
-        name = clean_name(cell(row, "name"))
-        platform = store_of(cell(row, "store"), default_store)
-        skip = ""
-        if not name:
-            skip = "Sin nombre"
-        elif not platform:
-            skip = "Sin tienda: elige una para estas filas"
-        elif platform in ACCOUNT_PLATFORMS:
-            skip = f"{ExternalTitle.Platform(platform).label}: se importa desde tu cuenta"
-        minutes = parse_time(cell(row, "time"), unit)
-        status = status_of(cell(row, "status"))
-        rating = rating_of(cell(row, "rating"), scale)
-        items.append({
-            "name": name,
-            "platform": platform,
-            "platform_label": ExternalTitle.Platform(platform).label if platform else "",
-            "minutes": minutes,
-            "hours": None if minutes is None else round(minutes / 60, 1),
-            "last_played": parse_when(cell(row, "last"), order),
-            "status": status,
-            "status_label": Status(status).label if status else "",
-            "rating": rating,
-            "stars": rating / 2 if rating else None,
-            "skip": skip,
-        })
-    return items
+    return [
+        make_item(
+            clean_name(cell(row, "name")), store_of(cell(row, "store"), default_store),
+            parse_time(cell(row, "time"), unit), parse_when(cell(row, "last"), order),
+            status_of(cell(row, "status")), rating_of(cell(row, "rating"), scale),
+        )
+        for row in rows
+    ]
+
+
+def make_item(name, platform, minutes, last_played, status, rating):
+    """Una fila tal como la entiende NextPlay: sus datos, sus nombres para enseñarlos (tienda, horas, estado y
+    estrellas) y «skip» con el motivo si no se importa (sin nombre, sin tienda o de una plataforma que se importa desde
+    su cuenta). La usan los archivos (interpret) y la extensión de Playnite (accounts.playnite).
+
+    Pantallas: Importar desde un archivo (vista previa e importación), Editar perfil (Cuentas vinculadas › Playnite).
+    """
+    skip = ""
+    if not name:
+        skip = "Sin nombre"
+    elif not platform:
+        skip = "Sin tienda: elige una para estas filas"
+    elif platform in ACCOUNT_PLATFORMS:
+        skip = f"{ExternalTitle.Platform(platform).label}: se importa desde tu cuenta"
+    return {
+        "name": name,
+        "platform": platform,
+        "platform_label": ExternalTitle.Platform(platform).label if platform else "",
+        "minutes": minutes,
+        "hours": None if minutes is None else round(minutes / 60, 1),
+        "last_played": last_played,
+        "status": status,
+        "status_label": Status(status).label if status else "",
+        "rating": rating,
+        "stars": rating / 2 if rating else None,
+        "skip": skip,
+    }
 
 
 def external_id(name):

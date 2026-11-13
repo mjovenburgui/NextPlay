@@ -3,6 +3,7 @@ import json
 import shutil
 import tempfile
 import time
+from pathlib import Path
 from datetime import date, datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal
 from unittest import mock
@@ -25,10 +26,10 @@ from library.models import LibraryEntry, PlaySession, Review, WishlistItem
 from social.models import Activity
 
 from . import achievements, banner, csv_import, images, matching, notices, psn, steam, xbox
-from .views import importar_archivo, perfil
+from .views import importar_archivo, perfil, sincronizar_playnite
 from .models import (
-    Achievement, ExternalTitle, FavoriteGame, ImportedTitle, Notification, PlatformAccount, Profile, PSNAccount,
-    SteamAccount, UnlockedAchievement, XboxAccount,
+    Achievement, ExternalTitle, FavoriteGame, ImportedTitle, Notification, PlatformAccount, PlayniteAccount, Profile,
+    PSNAccount, SteamAccount, UnlockedAchievement, XboxAccount,
 )
 
 User = get_user_model()
@@ -2865,3 +2866,110 @@ class AutoBannerTests(TestCase):
             ("playing", self.hades, "arthades", "#3f7fd0", True),
         )
         self.assertContains(preview, "arthades")
+
+
+@override_settings(IGDB_CLIENT_ID="", IGDB_CLIENT_SECRET="")
+class PlayniteSyncTests(TestCase):
+    """La extensión NextPlay Sync de Playnite: su código, su descarga y la dirección que recibe la biblioteca
+    (accounts.playnite y accounts.views.sincronizar_playnite)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.hades = Game.objects.create(name="Hades", slug="hades")
+        cls.hades.platforms.set([Platform.objects.create(name="PC (Microsoft Windows)", slug="win")])
+
+    def send(self, token, payload):
+        """Manda payload a la dirección de la extensión con el código token, como lo hace NextPlayClient."""
+        return self.client.post(
+            reverse("playnite_api"), json.dumps(payload), content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+        )
+
+    def library(self, playtime=36000, kind="biblioteca"):
+        """Lo que manda la extensión: Hades de Epic (terminado y con un 90), Portal 2 de Steam, un juego sin tienda y
+        otro de GOG con una fecha que no se entiende."""
+        played = (timezone.now() - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return {"version": 1, "kind": kind, "games": [
+            {
+                "id": "a", "name": "Hades", "source": "Epic", "platforms": ["PC (Windows)"], "playtime": playtime,
+                "last_activity": played, "completion_status": "Completed", "user_score": 90, "hidden": False,
+            },
+            {"id": "b", "name": "Portal 2", "source": "Steam", "playtime": 600, "last_activity": None},
+            {"id": "c", "name": "Juego Casero", "source": "", "playtime": 120, "user_score": None},
+            {"id": "d", "name": "Raro", "source": "GOG", "playtime": 60, "last_activity": "no es una fecha"},
+        ]}
+
+    def test_the_code_is_shown_once_and_only_its_fingerprint_is_kept(self):
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("playnite_token"), follow=True)
+        token = response.context["playnite_token"]
+        self.assertTrue(token.startswith("np_"))
+        self.assertContains(response, token)
+        account = PlayniteAccount.objects.get(user=self.user)
+        self.assertEqual(account.token_hash, PlayniteAccount.fingerprint(token))
+        self.assertNotIn(token, account.token_hash)
+        self.assertNotContains(self.client.get(reverse("edit_profile")), token)  # solo se enseña una vez
+        self.client.post(reverse("playnite_token"))
+        self.assertIsNone(PlayniteAccount.for_token(token))  # uno nuevo invalida el anterior
+
+    def test_the_api_needs_a_valid_code_and_a_list_of_games(self):
+        self.assertEqual(self.client.get(reverse("playnite_api")).status_code, 405)
+        self.assertEqual(self.send("np_falso", self.library()).status_code, 401)
+        self.assertEqual(self.client.post(reverse("playnite_api"), "{}", content_type="application/json").status_code, 401)
+        token = PlayniteAccount.issue(self.user)
+        bad = self.client.post(
+            reverse("playnite_api"), "esto no es JSON", content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+        )
+        self.assertEqual(bad.status_code, 400)
+        self.assertEqual(self.send(token, {"games": "no"}).status_code, 400)
+        self.assertFalse(LibraryEntry.objects.filter(user=self.user).exists())
+
+    def test_the_library_and_then_a_finished_session(self):
+        token = PlayniteAccount.issue(self.user)
+        data = self.send(token, self.library()).json()
+        # Hades entra; el casero (en «Otras tiendas») y el de GOG no están en el catálogo; Portal 2 es de Steam.
+        self.assertEqual((data["ok"], data["added"], data["unmatched"], data["skipped"]), (True, 1, 2, 1))
+        self.assertTrue(data["message"].startswith("1 juego añadido"))
+        entry = LibraryEntry.objects.get(user=self.user, game=self.hades)
+        self.assertEqual((entry.minutes_on("epic"), entry.status, entry.rating), (600, "completed", 9))
+        self.assertEqual(
+            set(ImportedTitle.objects.filter(user=self.user).values_list("title__platform", flat=True)),
+            {"epic", "otras", "gog"},
+        )
+        account = PlayniteAccount.objects.get(user=self.user)
+        self.assertEqual(account.games, 3)
+        self.assertIsNotNone(account.synced_at)
+        # Al cerrar una partida llega solo ese juego, con una hora más: es una sesión de juego y no cambia la cuenta.
+        data = self.send(token, {"version": 1, "kind": "partida", "games": [self.library(39600)["games"][0]]}).json()
+        self.assertEqual(data["updated"], 1)
+        session = PlaySession.objects.get(user=self.user, game=self.hades)
+        self.assertEqual((session.platform, session.minutes), ("epic", 60))
+        self.assertEqual(PlayniteAccount.objects.get(user=self.user).games, 3)
+
+    def test_the_card_in_linked_accounts_and_unlinking(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("edit_profile"))
+        self.assertContains(response, "Generar el código")
+        self.assertContains(response, reverse("playnite_extension"))
+        self.assertContains(response, "<code>http://testserver</code>")
+        PlayniteAccount.issue(self.user)
+        self.assertContains(self.client.get(reverse("edit_profile")), "Generar otro código")
+        self.assertContains(self.client.get(reverse("profile", args=["ana"])), "Generar otro código")  # en el modal
+        self.client.post(reverse("playnite_unlink"))
+        self.assertFalse(PlayniteAccount.objects.filter(user=self.user).exists())
+        self.assertTrue(Profile.objects.get(user=self.user).playnite is None)
+
+    def test_the_extension_download(self):
+        self.client.force_login(self.user)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "NextPlaySync.pext"
+            with mock.patch.object(sincronizar_playnite, "EXTENSION_FILE", path):
+                self.assertEqual(self.client.get(reverse("playnite_extension")).status_code, 404)
+                path.write_bytes(b"PK")
+                response = self.client.get(reverse("playnite_extension"))
+                self.assertEqual(response.status_code, 200)
+                self.assertIn("NextPlaySync.pext", response["Content-Disposition"])
+                self.assertEqual(b"".join(response.streaming_content), b"PK")
+                response.close()

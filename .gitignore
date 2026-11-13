@@ -222,3 +222,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Extensión de Playnite: lo que deja la compilación (playnite-extension/build.ps1)
+playnite-extension/**/bin/
+playnite-extension/**/obj/
+playnite-extension/dist/

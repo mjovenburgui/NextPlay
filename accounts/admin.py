@@ -7,8 +7,8 @@ from django.contrib.auth.admin import UserAdmin
 
 from .matching import OPENED_ONLY, update_library
 from .models import (
-    Achievement, ExternalTitle, FavoriteGame, Notification, PlatformAccount, Profile, PSNAccount, SteamAccount, User,
-    XboxAccount,
+    Achievement, ExternalTitle, FavoriteGame, Notification, PlatformAccount, PlayniteAccount, Profile, PSNAccount,
+    SteamAccount, User, XboxAccount,
 )
 
 admin.site.register(User, UserAdmin)
@@ -57,6 +57,15 @@ class XboxAccountAdmin(admin.ModelAdmin):
     list_display = ("gamertag", "xuid", "user", "synced_at", "linked_at")
     search_fields = ("gamertag", "xuid", "user__username")
     raw_id_fields = ("user",)
+
+
+@admin.register(PlayniteAccount)
+class PlayniteAccountAdmin(admin.ModelAdmin):
+    # Sin la huella del código: no sirve de nada verla y el código no se puede sacar de ella.
+    list_display = ("user", "games", "synced_at", "linked_at")
+    search_fields = ("user__username",)
+    raw_id_fields = ("user",)
+    exclude = ("token_hash",)
 
 
 @admin.register(ExternalTitle)

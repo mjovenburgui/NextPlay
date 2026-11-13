@@ -13,11 +13,12 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Todo está en `main` menos tres ramas de hoy, una encima de otra, que esperan tu revisión: `playnite-y-csv`, `formularios-que-avisan` y `cabecera-automatica`. Las tres se ven juntas en el servidor de revisión (http://localhost:8001/, con una copia de tu base de datos) y cada una lleva su guion para comprobarla. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
+Todo está en `main` menos cuatro ramas del 12 y el 13/11, una encima de otra, que esperan tu revisión: `playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica` y `playnite-sync`. Las cuatro se ven juntas en el servidor de revisión (http://localhost:8001/, con una copia de tu base de datos) y cada una lleva su guion para comprobarla. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
-| `cabecera-automatica` | Cabecera «Lo que estoy jugando», que sigue sola al juego al que juegas, y el color del perfil sacado de la cabecera | Commit local, sin subir, encima de `formularios-que-avisan`. Trae las migraciones `accounts.0030` y `library.0018`. |
+| `playnite-sync` | La extensión de Playnite NextPlay Sync: tus juegos y horas de Epic, GOG, EA… se actualizan solos cada día y con cada partida | Commit local, sin subir, encima de `cabecera-automatica`. Trae la migración `accounts.0031`. |
+| `cabecera-automatica` | Cabecera «Lo que estoy jugando», que sigue sola al juego al que juegas, y el color del perfil sacado de la cabecera | Commits locales `1985824` y `9cbbf76` (las columnas que hay que marcar en Library Exporter), sin subir, encima de `formularios-que-avisan`. Trae las migraciones `accounts.0030` y `library.0018`. |
 | `formularios-que-avisan` | Los formularios que recargan la página avisan mientras trabajan: el botón gira, dice qué hace («Importando tus juegos…») y no se puede pulsar dos veces | Commit local `ee08633`, sin subir, encima de `playnite-y-csv`. Sin migraciones. |
 | `playnite-y-csv` | Importar desde un archivo: tus juegos y horas de Epic, GOG, EA, Ubisoft, Battle.net y Amazon con Playnite, y el CSV de otros trackers | Commit local `0c4431f`, sin subir, encima de `main`: espera tu revisión. Trae `accounts.0029` y `library.0017`, que solo cambian las opciones de plataforma y no tocan las tablas. |
 | `que-jugar-despues` | Qué jugar después: de tu pendiente y del catálogo, según cómo juegas, con su porqué | En `main` desde el 11/11, sin PR. Su migración `accounts.0028` está aplicada en tu base de datos. |
@@ -39,6 +40,82 @@ Todo está en `main` menos tres ramas de hoy, una encima de otra, que esperan tu
 - `challenges.0002`;
 - `social.0008` y `social.0009`;
 - `library.0014`.
+
+---
+
+## 13/11/2026 · NextPlay Sync: lo de Playnite se actualiza solo, cada día y con cada partida
+
+**Rama:** `playnite-sync`, encima de `cabecera-automatica`. Commit local, sin subir.
+
+**Por qué:** me preguntaste si lo de los CSV se podía actualizar a diario. Con un archivo, no: es una foto del momento, y el complemento de Playnite no exporta solo. Te propuse una extensión de Playnite propia y me dijiste «Sí, hazla».
+
+**Qué cambia para ti:**
+- **Una tarjeta nueva en Editar perfil › Cuentas vinculadas: «Playnite»**, con la etiqueta «Automático» y la franja en cian. También está en el modal «Vincular cuentas» de tu perfil. Con ella:
+  - generas tu código personal. Se enseña una sola vez, con un botón para copiarlo; NextPlay solo guarda su huella, como de una contraseña. Si lo pierdes, generas otro y el anterior deja de valer;
+  - descargas la extensión, `NextPlaySync.pext`, y ves la dirección de NextPlay que hay que pegar en ella;
+  - ves cuándo fue la última sincronización y cuántos juegos trajo, y puedes desvincularla. Los juegos que trajo se quedan.
+- **La extensión NextPlay Sync, en Playnite:**
+  - manda tu biblioteca entera al abrir Playnite, si hace un día o más de la última vez, y después cada día mientras siga abierto;
+  - al cerrar un juego, manda ese juego con su tiempo ya sumado. En NextPlay queda como una sesión de ese día, con su duración real, así que cuenta en el diario, en los retos de horas y en la cabecera «Lo que estoy jugando»;
+  - se puede lanzar a mano, desde el menú principal de Playnite › NextPlay › Sincronizar ahora;
+  - si algo falla (sin conexión, código que no vale), avisa en la campana de Playnite, y en sus ajustes dice qué pasó la última vez.
+- **NextPlay lo importa igual que un archivo:**
+  - por tienda, emparejado por nombre;
+  - el estado y la nota de Playnite solo en los juegos que entran nuevos;
+  - lo de Steam, PlayStation y Xbox se salta, porque se importa desde tu cuenta;
+  - los juegos sin tienda (añadidos a mano o emulados) van a «Otras tiendas».
+
+**Cómo comprobarlo tú (guion):**
+1. **En el servidor de revisión** (http://localhost:8001/), entra con `tester_steam` y ve a Editar perfil › Cuentas vinculadas › Playnite.
+2. **Pulsa «Generar el código».** Sale en una caja con «Copiar» y un aviso de que solo se enseña esta vez. Recarga la página: ya no está, y la tarjeta dice «Vinculado».
+3. **Si tienes Playnite** (yo no lo he encontrado instalado en tu PC):
+   1. pulsa «Descarga la extensión» y abre el archivo: Playnite la instala;
+   2. en sus ajustes (Complementos › Ajustes de extensiones › Genéricas › NextPlay Sync), pega la dirección `http://localhost:8001` y el código;
+   3. menú principal › NextPlay › Sincronizar ahora. Sale un aviso con lo que se ha traído, y la tarjeta de NextPlay dice cuándo y cuántos juegos;
+   4. juega un rato a algo de Epic o GOG y ciérralo. A los 10 segundos, la ficha de ese juego en NextPlay tiene sus horas al día, y tu diario, la partida de hoy.
+4. **Sin Playnite**, con el programa de prueba, que usa el mismo código que la extensión. Desde la carpeta del proyecto, con el código que te dio el paso 2:
+
+   ```bash
+   playnite-extension/Prueba/bin/Release/net462/Prueba.exe http://localhost:8001 TU_CODIGO
+   ```
+
+   Contesta algo como «BIEN: 1 juego añadido…» y, en tu biblioteca, aparece Hades de Epic (Completado, 4,5 estrellas). Con `partida` al final, Hades sube una hora y tu diario tiene esa sesión hoy.
+
+**Qué he tocado:**
+- En NextPlay:
+  - `accounts/models.py`: `PlayniteAccount` (el código, del que solo se guarda la huella; migración `accounts.0031`) y `Profile.playnite`;
+  - `accounts/playnite.py`, nuevo: qué manda la extensión y cómo se importa;
+  - `accounts/views/sincronizar_playnite.py`, nuevo: generar el código, desvincular, descargar la extensión y la dirección `api/playnite/`, que no usa la sesión del navegador sino el código;
+  - `accounts/csv_import.py`: `make_item`, la fila que comparten el archivo y la extensión;
+  - la tarjeta, `accounts/linking/_playnite.html`, en Editar perfil y en el modal; el panel de administración; `static/css/app.css`.
+- La extensión, en `playnite-extension/`:
+  - `NextPlaySync/`: el plugin en C#, con el SDK 6.4 de Playnite, que vale para cualquier Playnite 10;
+  - `Prueba/`: el programa de prueba;
+  - `build.ps1`: la compila y la empaqueta en `dist/NextPlaySync.pext`. Lo compilado no se sube al repositorio;
+  - su `README.md`.
+- `README.md`, `docs/pantallas.json`, la propuesta y los dos PDF.
+
+**Cómo lo he comprobado:**
+- 5 tests nuevos:
+  - el código solo se enseña una vez y se guarda su huella;
+  - la dirección pide un código válido y una lista de juegos;
+  - la biblioteca y después una partida, con su sesión;
+  - la tarjeta y desvincular;
+  - la descarga.
+- La batería completa, sin claves y con claves falsas y un proxy muerto: 614 tests en cada pasada, todos bien.
+- La extensión y el programa de prueba compilan sin errores ni avisos con el .NET SDK de tu PC. El `.pext` pesa 11 KB y lleva `extension.yaml` y la `.dll`.
+- De punta a punta, en el servidor de revisión con `tester`:
+  - el código, generado desde la página;
+  - el programa de prueba, mandando la biblioteca: «1 juego añadido», con Portal 2 saltado por ser de Steam;
+  - una partida: «1 con horas actualizadas» y una sesión de 60 minutos de hoy en Epic;
+  - un código falso: «El código no vale…»;
+  - la descarga del `.pext` desde la tarjeta.
+- **Sin probar:** dentro de Playnite, porque no está instalado. Lo más dudoso es si, al cerrar un juego, Playnite ya ha sumado su tiempo cuando avisa a la extensión. Por eso espera 10 segundos y vuelve a leer el juego. Si llegara sin sumar, la partida aparecería igualmente con la sincronización del día siguiente.
+
+**Qué falta:**
+- Que lo revises y, si usas Playnite, que lo pruebes dentro. Al fusionar, `migrate` (`accounts.0031`).
+- Para tenerla en tu PC con `main`, compilarla con `playnite-extension/build.ps1`: lo compilado no va en el repositorio.
+- Cuando NextPlay tenga dirección pública, publicarla en la base de datos de complementos de Playnite.
 
 ---
 

@@ -966,6 +966,15 @@ button.chip-link { background: none; font-family: inherit; cursor: pointer; }
 .platform-file h3 > .icon, .link-block h3 > .icon { color: var(--gold); }
 .btn-file { display: inline-flex; align-items: center; gap: .45rem; margin-top: .75rem; }
 .btn-file .icon { width: 1.1rem; height: 1.1rem; }
+/* Playnite con su extensión: se sincroniza sola, en cian. El código se enseña una vez, en su caja, para copiarlo. */
+.platform-playnite { border-top-color: var(--cyan); }
+.platform-playnite h3 > .icon { color: var(--cyan); }
+.token-box { margin: .25rem 0 .5rem; padding: .75rem; background: var(--surface); border: 1px solid var(--cyan); border-radius: 10px; }
+.token-box label { display: block; margin-bottom: .35rem; font-weight: 600; font-size: .9rem; }
+.token-row { display: flex; gap: .5rem; }
+.token-row input { flex: 1; min-width: 0; font-family: ui-monospace, Consolas, monospace; font-size: .85rem; }
+.playnite-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.playnite-actions form { margin: 0; }
 .platform-card .shop-logo { width: 1.1rem; height: 1.1rem; vertical-align: -.15rem; }
 .platform-card h3 .shop-logo { width: 1.3rem; height: 1.3rem; }
 .platform-card .steam-account .shop-logo { width: 1.6rem; height: 1.6rem; flex: none; }

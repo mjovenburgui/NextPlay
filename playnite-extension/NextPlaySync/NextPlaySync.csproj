@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Extensión NextPlay Sync para Playnite 10 (.NET Framework 4.6.2, el de Playnite). Se compila con build.ps1. -->
+  <PropertyGroup>
+    <TargetFramework>net462</TargetFramework>
+    <AssemblyName>NextPlaySync</AssemblyName>
+    <RootNamespace>NextPlaySync</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Version>0.1.0</Version>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Playnite.SDK lo pone Playnite: se compila contra él, pero no se copia. La 6.4 la entiende cualquier Playnite 10. -->
+    <PackageReference Include="PlayniteSDK" Version="6.4.0" ExcludeAssets="runtime" />
+    <!-- Para compilar para .NET Framework sin tener instalado su paquete de desarrollo. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="WindowsBase" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="extension.yaml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

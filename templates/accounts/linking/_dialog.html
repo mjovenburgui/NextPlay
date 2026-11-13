@@ -43,6 +43,13 @@
     </h3>
     {% include "accounts/linking/_file.html" %}
   </section>
+
+  <section class="link-block">
+    <h3>{% include "_icon.html" with name="replay" %} Playnite <span class="pill">Automático</span>
+      <span class="link-status">{% if profile.playnite %}Vinculado{% else %}Sin vincular{% endif %}</span>
+    </h3>
+    {% include "accounts/linking/_playnite.html" %}
+  </section>
 </dialog>
 <script>
   // Abre y cierra el modal; también se cierra al pulsar fuera de él o con Esc (lo hace <dialog>).

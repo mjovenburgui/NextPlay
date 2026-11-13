@@ -93,6 +93,8 @@ def edit_profile(request):
             # El juego que pondría ahora la cabecera «Lo que estoy jugando», y con qué imagen.
             "playing_now": (playing := banner.playing_game(request.user)),
             "playing_image": banner.playing_image(playing),
+            # El código de Playnite recién generado: se enseña esta vez y no más.
+            "playnite_token": request.session.pop("playnite_token", None),
             **linking_context(),
         },
     )

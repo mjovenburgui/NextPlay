@@ -8,6 +8,8 @@
   (Editar perfil › Cuentas vinculadas y el modal «Vincular cuentas» del Perfil).
 - juegos_importados.py: Juegos importados.
 - importar_archivo.py: Importar desde un archivo (el CSV de Playnite o de otro tracker).
+- sincronizar_playnite.py: la extensión NextPlay Sync de Playnite (su código y su descarga, en Editar perfil › Cuentas
+  vinculadas, y la dirección api/playnite/ a la que manda la biblioteca).
 - avisos.py: Avisos.
 - ficha_del_juego.py: los botones de las cuentas en la Ficha del juego (favoritos, «Tus logros» y poner de cabecera).
 - resumen_anual.py: Resumen del año (y su imagen para compartir).
@@ -28,3 +30,4 @@ from .juegos_importados import imported_title_assign, imported_title_hide, impor
 from .perfil import profile
 from .registro import signup
 from .resumen_anual import year_summary, year_summary_image
+from .sincronizar_playnite import playnite_api, playnite_extension, playnite_token, playnite_unlink
