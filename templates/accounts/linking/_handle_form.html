@@ -1,0 +1,29 @@
+{# Para una plataforma de la que aún no se traen los juegos (platform: «xbox» o «nintendo», de PlatformAccount.Platform): #}
+{# su gamertag o su código de amigo en tu perfil, para que te encuentren. Si ya lo tienes (account), sale con «Quitar». #}
+{# Necesita profile, platform_rules (linking_context) y, si se quiere volver a una página, next. #}
+{% if account %}
+  <div class="steam-account">
+    {% include account.logo_template %}
+    <div>
+      <strong>{{ account.handle }}</strong>
+      <p class="help">En tu perfil, para que te encuentren.</p>
+    </div>
+    <form action="{% url 'platform_remove' account.platform %}" method="post">
+      {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+      <button class="link small" type="submit" aria-label="Quitar {{ account.get_platform_display }}">Quitar</button>
+    </form>
+  </div>
+{% else %}
+  {% for value, label, field_label, help_text in platform_rules %}{% if value == platform %}
+    <form class="handle-form" action="{% url 'platform_add' %}" method="post" autocomplete="off">
+      {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+      <input type="hidden" name="platform" value="{{ value }}">
+      <label for="handle-{{ value }}">{{ field_label }}</label>
+      <div class="handle-row">
+        <input id="handle-{{ value }}" name="handle" required maxlength="40" spellcheck="false" autocomplete="off">
+        <button class="btn" type="submit">Añadir</button>
+      </div>
+      <p class="help">{{ help_text }}</p>
+    </form>
+  {% endif %}{% endfor %}
+{% endif %}

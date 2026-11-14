@@ -53,6 +53,18 @@
 
     <div class="col-main">
       {% if user.is_authenticated %}
+        {% if first_steps %}
+          {# Con la biblioteca vacía (al registrarse, por ejemplo): dónde juega y cómo traer sus juegos de cada sitio #}
+          {# (accounts/linking/_where.html, lo mismo que la ventana «Vincular cuentas»). Se va en cuanto tiene un juego. #}
+          <section class="card-box first-steps" id="trae-tus-juegos" aria-labelledby="first-steps-title">
+            <header class="first-steps-head">
+              <h2 id="first-steps-title">{% include "_icon.html" with name="library" %} Trae tus juegos</h2>
+              <p class="muted">Tráelos con sus horas y NextPlay te cuenta cuánto has jugado, qué tienes pendiente y por cuál seguir.</p>
+            </header>
+            {% include "accounts/linking/_where.html" with profile=user.profile next=request.path %}
+            <p class="small first-steps-manual">¿Juegas en físico o en una consola antigua? <a href="{% url 'games:catalog' %}">Busca tus juegos en el catálogo</a> y apúntalos a mano.</p>
+          </section>
+        {% endif %}
         {# Lo que quieras contar, con los juegos que estás jugando para decir de cuál hablas (social/_composer.html). #}
         <section class="card-box">{% include "social/_composer.html" %}</section>
       {% else %}

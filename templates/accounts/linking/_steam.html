@@ -46,7 +46,7 @@
         {% endif %}
       </form>
     {% else %}
-      <p class="help">La importación de juegos no está disponible: falta configurar STEAM_API_KEY.</p>
+      <p class="help">Ahora mismo no se pueden importar los juegos de Steam. Inténtalo más tarde.{% if user.is_staff %} Para el equipo de NextPlay: falta STEAM_API_KEY en el archivo .env.{% endif %}</p>
     {% endif %}
   {% else %}
     <p class="muted">Vincula tus cuentas para importar a tu biblioteca los juegos que has jugado en Steam, con tus horas de juego. Iniciarás sesión en la web de Steam: NextPlay nunca ve tu contraseña.</p>

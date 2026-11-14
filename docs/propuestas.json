@@ -1007,7 +1007,7 @@
   {
     "titulo": "Primer uso: traer tus juegos nada más crear la cuenta",
     "fecha": "2026-10-28",
-    "estado": "pendiente",
+    "estado": "en curso",
     "prioridad": "media",
     "tipo": "Diseño",
     "resumen": "Al registrarse, NextPlay manda al catálogo con «Añade tus primeros juegos a la biblioteca», y ni el inicio ni la biblioteca vacía del perfil ofrecen traerlos de Steam, PlayStation o Xbox, que es lo que trae las horas. Mientras la biblioteca esté vacía, el inicio enseñaría arriba una tarjeta «Trae tus juegos» con un botón por plataforma y, debajo, la opción de marcarlos a mano en el catálogo.",
@@ -1018,16 +1018,13 @@
       "Después de registrarse, ir al inicio con esa tarjeta en vez de al catálogo, con un aviso que diga qué hacer primero.",
       "Quitar la tarjeta en cuanto haya algún juego en la biblioteca o una plataforma vinculada."
     ],
-    "notas": "Al vincular Steam la biblioteca se importa en la misma petición de vuelta y tarda unos segundos; «Sincronizar» e «Importar» tampoco avisan mientras trabajan (ver «Formularios que avisan mientras trabajan»).",
+    "notas": "Al vincular Steam la biblioteca se importa en la misma petición de vuelta y tarda unos segundos; «Sincronizar» e «Importar» tampoco avisan mientras trabajan (ver «Formularios que avisan mientras trabajan»). 14/11/2026: hecha junto con «Vincular cuentas empezando por «¿Dónde juegas?»» en la rama primer-uso, sin fusionar. Al registrarse se va a Inicio, que con la biblioteca vacía empieza por la tarjeta «Trae tus juegos»: la pregunta «¿Dónde juegas?» y la forma recomendada de traerlos de cada sitio (accounts/linking/_where.html, la misma de la ventana «Vincular cuentas»). La tarjeta se va con el primer juego de la biblioteca. El vacío de la biblioteca del perfil lleva «Traer mis juegos», que abre esa ventana, y «Buscar en el catálogo». Por debajo de la tarjeta, «¿Juegas en físico o en una consola antigua?» lleva al catálogo.",
     "revision": {
-      "fecha": "2026-11-01",
-      "hoy": "Igual: signup manda al catálogo y el vacío de la biblioteca solo nombra Steam. El diálogo de vincular (accounts/linking/_dialog.html) y su data-open-dialog ya sirven para cualquier página; ahora solo se incluyen en el perfil.",
+      "fecha": "2026-11-14",
+      "hoy": "Hecha en la rama primer-uso, sin fusionar: el registro lleva a Inicio con la tarjeta «Trae tus juegos», que se va con el primer juego, y el vacío de la biblioteca ofrece «Traer mis juegos». Falta que lo revises en el servidor de revisión; después se fusiona y pasa a «hecha».",
       "plan": [
-        "En games/home.html, si summary.games es 0 y no hay cuentas vinculadas, una tarjeta «Trae tus juegos» antes de la caja de publicar, e incluir el diálogo también en la portada.",
-        "Un botón por plataforma que abra su panel: Steam va directo a steam_link, PlayStation explica el NPSSO y Xbox sale solo si está configurado. Debajo, «o añádelos a mano» al catálogo.",
-        "signup redirige al inicio, con un mensaje que diga qué hacer primero.",
-        "Los mismos botones en el vacío de la biblioteca (.empty-actions). La tarjeta desaparece en cuanto hay un juego o una cuenta vinculada, sin ningún modelo nuevo.",
-        "Tests de las tres situaciones: recién registrado, con cuenta vinculada y con juegos."
+        "Revisarlo en el servidor de revisión con una cuenta nueva: registrarse, contestar «¿Dónde juegas?» y ver la forma de traer los juegos de cada plataforma elegida.",
+        "Fusionarlo con main, con la migración accounts.0033 en tu base de datos, y pasar a «hecha»."
       ],
       "profundizar": [
         "Resumen de la primera importación: «1.200 horas, tus 3 más jugados, 12 de tus deseados están en su mínimo y 8 sin emparejar». Los datos ya están en _report_import y _report_wishlist; hoy son un mensaje de una línea, y es el mejor momento para enseñar lo que hace NextPlay.",
@@ -2658,7 +2655,7 @@
   {
     "titulo": "Vincular cuentas empezando por «¿Dónde juegas?»",
     "fecha": "2026-11-14",
-    "estado": "pendiente",
+    "estado": "en curso",
     "prioridad": "media",
     "tipo": "Diseño",
     "resumen": "Que la ventana de vincular pregunte primero en qué plataformas juegas y enseñe un solo camino recomendado para cada una, en vez de las ocho tarjetas de ahora, y sin mensajes técnicos.",
@@ -2669,13 +2666,18 @@
       "Lo que no está disponible no sale, o sale como «Pronto», nunca con nombres de variables. El aviso de «Experimental», en una línea y donde se pide el código.",
       "Lo mismo al terminar de registrarse: encaja con «Primer uso: traer tus juegos nada más crear la cuenta»."
     ],
-    "notas": "Las tarjetas y sus vistas (accounts/views/cuentas_vinculadas.py y templates/accounts/linking/) se quedan: cambian el orden y lo que se enseña. Nintendo Switch aún no se importa: decirlo claro y ofrecer apuntar los juegos a mano, hasta que exista «Importar Nintendo Switch con capturas de la app Nintendo Store».",
+    "notas": "Las tarjetas y sus vistas (accounts/views/cuentas_vinculadas.py y templates/accounts/linking/) se quedan: cambian el orden y lo que se enseña. Nintendo Switch aún no se importa: decirlo claro y ofrecer apuntar los juegos a mano, hasta que exista «Importar Nintendo Switch con capturas de la app Nintendo Store». 14/11/2026: hecha en la rama primer-uso, sin fusionar. La respuesta se guarda en Profile.play_platforms (migración accounts.0033), y las cuentas que ya tienes cuentan como contestada (Profile.where_you_play): a quien ya vinculó algo no se le pregunta. Cada plataforma es un paso plegable con lo que trae y cada cuánto se actualiza, y solo va desplegado el siguiente que falta (Profile.where_steps). Otras tiendas de PC ofrece Playnite (recomendado) o GOG sin instalar nada. Epic con un código, el archivo y las cuentas de otras plataformas van plegados en «Otras formas». Xbox sin configurar sale como «Pronto», con el campo del gamertag; Switch explica que no se puede y pide el código de amigo. Lo que falta configurar (STEAM_API_KEY, XBOX_CLIENT_ID…) solo lo lee el personal (is_staff), también en Editar perfil y en los avisos. «Experimental» ya no sale en la ventana: queda la línea de PlayStation y el aviso de Epic, donde se pide el código.",
     "revision": {
       "fecha": "2026-11-14",
-      "hoy": "Sin empezar. Comprobado en la copia de revisión con una cuenta recién creada: 8 tarjetas, 3258 px de alto y el mensaje con XBOX_CLIENT_ID.",
+      "hoy": "Hecha en la rama primer-uso, sin fusionar, junto con «Primer uso: traer tus juegos nada más crear la cuenta». Falta que la revises en el servidor de revisión; después se fusiona y pasa a «hecha».",
+      "plan": [
+        "Revisar la ventana «Vincular cuentas» con tester_steam (no pregunta: ya sabe que juegas en Steam y PlayStation) y con una cuenta nueva (empieza por la pregunta).",
+        "Fusionarlo con main y pasar a «hecha»."
+      ],
       "profundizar": [
-        "En cada plataforma, qué trae: horas, logros, lista de deseos, actualización diaria.",
-        "En tu perfil, lo que te falta por vincular de las plataformas que dijiste («Tienes Xbox sin vincular»)."
+        "Usar la respuesta en más sitios: «Dónde comprarlo» y las alertas de precio, con las tiendas de tus plataformas (Profile.shops vacía hoy significa todas); «Qué jugar después», con lo que puedes jugar.",
+        "En tu perfil, lo que te falta por vincular de las plataformas que dijiste («Tienes PlayStation sin vincular»), con where_steps.",
+        "Cuando exista «Importar Nintendo Switch con capturas de la app Nintendo Store», el paso de Switch la ofrece en vez del código de amigo."
       ]
     }
   },
