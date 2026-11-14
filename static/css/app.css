@@ -636,6 +636,65 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .first-steps-head p { margin: 0; }
 .first-steps-manual { margin: 1rem 0 0; color: var(--muted); }
 
+/* Avisos de Editar perfil: un grupo por fila, con lo que avisa a la izquierda y por dónde llega a la derecha: tres
+   casillas de icono (campana, notificación y correo, en ese orden siempre; la leyenda de arriba dice cuál es cuál) que
+   se encienden en violeta. Si el texto no cabe al lado (en el móvil), las casillas bajan a su propia línea. */
+.notice-legend { display: flex; flex-wrap: wrap; gap: .3rem 1rem; margin: .7rem 0 0; }
+.notice-legend span { display: inline-flex; align-items: center; gap: .3rem; }
+.notice-legend .icon { width: .95rem; height: .95rem; }
+.notice-groups { display: grid; gap: .45rem; margin-top: .7rem; }
+/* (Con .notice-groups delante, para ganar a «.settings-card fieldset», que les quita el relleno y el borde.) */
+.notice-groups .notice-group {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; min-width: 0;
+  margin: 0; padding: .7rem .9rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+}
+.notice-what { flex: 1 1 12rem; min-width: 0; }
+.notice-what strong { display: block; font-size: .95rem; }
+.notice-what .help { display: block; margin: .1rem 0 0; }
+.notice-channels { display: flex; gap: .35rem; flex: none; }
+.notice-toggle {
+  position: relative; display: inline-grid; place-items: center; width: 2.4rem; height: 2.4rem;
+  border: 1px solid var(--border); border-radius: 10px; color: var(--muted); cursor: pointer;
+  transition: border-color .15s, background-color .15s, color .15s;
+}
+.notice-toggle input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.notice-toggle .icon { width: 1.15rem; height: 1.15rem; }
+.notice-toggle:hover { border-color: var(--violet); color: var(--text); }
+.notice-toggle:has(input:checked) { border-color: var(--violet); background: rgba(157, 92, 255, .22); color: #fff; }
+.notice-toggle:has(input:focus-visible) { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.notice-toggle.is-none { visibility: hidden; }
+
+/* Avisos en el móvil y el ordenador (Editar perfil): este dispositivo con sus botones, la lista de los demás y cómo
+   instalar NextPlay. Los botones que no tocan llevan hidden, que aquí tiene que ganar a .btn. */
+.device-here { margin-top: .9rem; padding: .9rem 1rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; }
+.device-status { margin: 0; }
+.device-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .6rem; }
+.device-actions:not(:has(button:not([hidden]))) { display: none; }
+.device-actions .btn, .device-install .btn { display: inline-flex; align-items: center; gap: .45rem; }
+.device-actions .icon, .device-install .btn .icon { width: 1.05rem; height: 1.05rem; }
+.device-actions [hidden], [data-install][hidden] { display: none !important; }
+.push-devices-title { margin: 1.2rem 0 .35rem; font-size: 1rem; }
+.push-devices { margin: 0; padding: 0; list-style: none; }
+.push-device { display: flex; align-items: center; gap: .75rem; padding: .6rem 0; border-top: 1px solid var(--border); }
+.push-device:first-child { border-top: 0; }
+.push-device > div { flex: 1; min-width: 0; }
+.push-device p { margin: 0; }
+.push-device > .icon { color: var(--muted); }
+.push-device form { margin: 0; }
+.device-install .help { margin: 0 0 .6rem; }
+/* En Avisos, si aún no los tiene en ningún dispositivo. */
+.push-hint {
+  display: flex; align-items: flex-start; gap: .5rem; padding: .7rem .9rem; font-size: .9rem;
+  background: rgba(157, 92, 255, .1); border: 1px solid rgba(157, 92, 255, .35); border-radius: 10px;
+}
+.push-hint .icon { flex: none; margin-top: .1rem; color: var(--violet); }
+
+/* Sin conexión (templates/offline.html): la marca, qué pasa y el botón para volver a intentarlo, en el centro. */
+.offline-page { justify-content: center; }
+.offline { display: grid; justify-items: center; gap: .6rem; max-width: 28rem; margin: 0 auto; padding: 2rem 1rem; text-align: center; }
+.offline h1 { margin: .4rem 0 0; }
+.offline p { margin: 0 0 .6rem; }
+
 /* Reseñas */
 .reviews { margin-top: 2rem; }
 .reviews h2 { font-size: 1.3rem; margin: 0 0 .75rem; }

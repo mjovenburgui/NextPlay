@@ -13,10 +13,11 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Todo está en `main` salvo dos ramas del 14/11, locales y sin subir: `publicaciones` y, encima, `primer-uso`. Las cinco ramas del 12 y el 13/11 (`playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica`, `playnite-sync` y `gog-y-epic`) entraron el 13/11 con los PR #40 a #44, sin que las hubieras probado: me pediste fusionarlas y dejarlas pendientes de revisión. Qué falta probar, y en qué servidor, está en la primera entrada de abajo. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
+Todo está en `main` salvo tres ramas del 14/11, locales y sin subir, una encima de otra: `publicaciones`, `primer-uso` y `avisos-que-llegan`. Las cinco ramas del 12 y el 13/11 (`playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica`, `playnite-sync` y `gog-y-epic`) entraron el 13/11 con los PR #40 a #44, sin que las hubieras probado: me pediste fusionarlas y dejarlas pendientes de revisión. Qué falta probar, y en qué servidor, está en la primera entrada de abajo. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
+| `avisos-que-llegan` | NextPlay instalable y avisos que llegan: como notificación en el móvil o el ordenador y, los de los retos, por correo | Commit local, sin subir, encima de `primer-uso`. **Pendiente de tu revisión**, sobre todo el push en tu Chrome. Trae la migración `accounts.0034` y necesita las claves VAPID en `.env`. |
 | `primer-uso` | Primer uso: al registrarte, Inicio empieza por «Trae tus juegos» con «¿Dónde juegas?», y «Vincular cuentas» enseña solo la forma recomendada de cada plataforma | Commit local, sin subir, encima de `publicaciones`. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae la migración `accounts.0033`. |
 | `publicaciones` | El repaso de las propuestas (11 nuevas) y Publicaciones: spoiler por imagen, pestaña del perfil, sección en la ficha y Guardados | Commits locales, sin subir. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae la migración `social.0011`. |
 | `gog-y-epic` | Importar GOG (desde el perfil público, cada noche) y Epic Games (pegando un código cada vez) sin instalar nada | Fusionada con `main` el 13/11: [PR #44](https://github.com/mjovenburgui/NextPlay/pull/44). **Pendiente de revisión**, sobre todo Epic con tu cuenta. Trae la migración `accounts.0032`. |
@@ -47,6 +48,120 @@ Todo está en `main` salvo dos ramas del 14/11, locales y sin subir: `publicacio
 - `challenges.0002`;
 - `social.0008` y `social.0009`;
 - `library.0014`.
+
+---
+
+## 14/11/2026 · NextPlay instalable y avisos que llegan al móvil y por correo
+
+**Rama:** `avisos-que-llegan`, encima de `primer-uso`. Commit local, sin subir.
+
+**Por qué:** te pregunté «¿Sigo con los avisos que llegan al móvil y por correo?» y contestaste «Sí, sigue». Era lo segundo del repaso como cliente: hasta ahora, todo iba a la campana y solo las bajadas de precio podían ir por correo.
+
+**Qué cambia para ti:**
+- **NextPlay se puede instalar** en el móvil y en el ordenador. Tiene:
+  - su icono, la N del favicon;
+  - pantalla completa;
+  - accesos directos a Qué jugar, Deseos, Publicar y Avisos.
+
+  Cuando el navegador lo ofrece, sale «Instalar NextPlay» en el menú de tu cuenta.
+- **Sin conexión:** si no hay red, en vez del error del navegador sale una página de NextPlay con «Volver a intentarlo». Lo demás va siempre a la red, así que nunca verás una página vieja.
+- **Avisos en el móvil y el ordenador:** una tarjeta nueva en Editar perfil (en el menú de la izquierda, «En el móvil»). En ella:
+  - «Activar en este dispositivo», «Mandar una prueba» y «Desactivar aquí»;
+  - «Tus dispositivos», cada uno con «Quitar»;
+  - cómo instalar NextPlay.
+
+  Los avisos llegan como los de cualquier aplicación, aunque no tengas NextPlay abierta.
+- **La sección Avisos de Editar perfil es más compacta.** Cada tipo de aviso es una fila con tres casillas de icono:
+  - campana;
+  - notificación;
+  - correo, en los que lo admiten.
+
+  Una leyenda arriba dice cuál es cuál. Todo empieza encendido, como antes.
+- **Por correo, también los retos:** cuando a uno le quedan pocos días y cuando termina, cómo has quedado.
+- **En Avisos**, si aún no los tienes en ningún dispositivo, un recuadro te dice dónde activarlos.
+
+**Lo que no pude hacer como quería:** la librería habitual para esto, `pywebpush`, no se pudo instalar. El modo automático no me deja instalar paquetes, y lo intenté dos veces. Lo he hecho con la biblioteca estándar de Python:
+- **La firma VAPID** (`accounts/vapid.py`) da exactamente los resultados de prueba oficiales de RFC 6979.
+- **Los avisos viajan sin contenido:** el servicio push del navegador solo despierta a NextPlay en tu dispositivo, y este le pregunta qué enseñar. Así el texto de tus avisos no pasa por Google ni por Apple.
+- **Si prefieres la librería**, instálala tú:
+
+  ```bash
+  C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe -m pip install pywebpush
+  ```
+
+  Dímelo y la uso para que el texto vaya cifrado dentro del aviso.
+
+**Qué he tocado:**
+- `accounts`:
+  - `vapid.py` y `push.py`, nuevos;
+  - el modelo `PushSubscription`, con su migración `accounts.0034`;
+  - el canal «notificación» en `notices.py`, y el correo de los retos;
+  - las vistas de `views/aplicacion.py`: manifiesto, service worker, Sin conexión y las direcciones de los avisos push;
+  - el comando `vapid_keys`;
+  - el formulario de Avisos.
+- `config/settings.py`: las claves VAPID.
+- Las plantillas:
+  - `sw.js`, `offline.html` y `accounts/_devices.html`, nuevas;
+  - `base.html`, Editar perfil y Avisos.
+- `static/icons/`: los cinco iconos, dibujados desde el favicon.
+- `app.css`.
+- `README.md`, `docs/pantallas.json` (la pantalla «Sin conexión»), la propuesta y los dos PDF.
+
+**Cómo lo he comprobado:**
+- Los tests, sin claves y con claves falsas: 664 en cada modo, todos bien. Hay 21 nuevos, entre ellos:
+  - la firma, contra los vectores de RFC 6979;
+  - activar y quitar dispositivos;
+  - lo que se manda;
+  - lo que enseña cada dispositivo;
+  - la prueba y el correo de los retos.
+- En el navegador de Claude, en la copia de revisión:
+  - el service worker cubre toda la web y guarda «Sin conexión»;
+  - el manifiesto carga, con sus iconos y accesos directos;
+  - Editar perfil y Avisos se ven bien. Como el panel estaba oculto, las capturas las hice con Chrome sin ventana;
+  - a 375 px no se sale nada;
+  - la consola no da errores.
+- **Lo que no he podido comprobar:** que la notificación llegue de verdad. El navegador de Claude bloquea las notificaciones y no tiene servicio push. Eso lo tienes que probar tú (guion de abajo).
+
+**Qué falta (depende de ti):**
+- Probar el push en tu Chrome.
+- Al fusionarlo con `main`:
+  - tu base de datos necesitará `accounts.0034` (más `accounts.0033` y `social.0011`, de las otras dos ramas);
+  - el `.env` de `main` necesitará sus dos claves VAPID. Las genera `manage.py vapid_keys`.
+
+**Cómo comprobarlo tú (guion):** en **tu Chrome** (no en el de Claude), en http://localhost:8001/, la copia de revisión. Ya tiene sus claves VAPID.
+1. **Entra** con `tester_steam`.
+2. **Activa los avisos.** Ve a Editar perfil y, en el menú de la izquierda, a «En el móvil».
+   - Pulsa «Activar en este dispositivo» y acepta el permiso de Chrome.
+   - La página se recarga con «Activados en este dispositivo».
+   - En «Tus dispositivos» sale «Chrome en Windows».
+3. **Manda una prueba.** Pulsa «Mandar una prueba».
+   - En unos segundos sale una notificación de Windows: «NextPlay · Así te llegarán los avisos a este dispositivo».
+   - Púlsala: se abre Avisos.
+4. **Un aviso de verdad.** En una ventana de incógnito, entra con `tester` y sigue a `tester_steam` (en http://localhost:8001/u/tester_steam/, «Seguir»; en la copia aún no lo sigue). A `tester_steam` le llega «Nuevo seguidor» como notificación, aunque tenga cerrada la pestaña de NextPlay.
+5. **Las casillas.**
+   - Como `tester_steam`, en Editar perfil › Avisos, quita «Notificación» (el icono del móvil) en «Me gusta» y guarda.
+   - Con `tester`, dale «me gusta» a la publicación de `tester_steam` en la ficha de Grand Theft Auto V («Me ha costado, pero ya está…»).
+
+   Llega a la campana, pero no como notificación.
+6. **Instalar.** En la barra de direcciones de Chrome, pulsa el icono de instalar (o abre el menú de tu cuenta › «Instalar NextPlay»). Se abre en su propia ventana, con la N.
+7. **Sin conexión.** Con NextPlay abierta, pulsa F12 › Red › «Sin conexión» y recarga: sale la página de NextPlay «Sin conexión».
+8. **En el móvil Android** (opcional). Levanta la copia para la red de casa:
+
+   ```bash
+   C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/NextPlay/.claude/worktrees/revision-tareas-pendientes-d85f54/manage.py runserver 0.0.0.0:8003
+   ```
+
+   En Chrome del móvil:
+   - abre `chrome://flags/#unsafely-treat-insecure-origin-as-secure`;
+   - añade `http://192.168.1.88:8003` y reinicia Chrome;
+   - entra en esa dirección y repite los pasos 2 y 3.
+
+   Si no carga, puede ser el cortafuegos de Windows.
+9. **Si el servidor no responde**, levántalo:
+
+   ```bash
+   C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/NextPlay/.claude/worktrees/revision-tareas-pendientes-d85f54/manage.py runserver 8001
+   ```
 
 ---
 

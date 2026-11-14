@@ -1,5 +1,6 @@
 """Panel de administración de las cuentas: usuarios, perfiles, favoritos, cuentas vinculadas (Steam, PlayStation, Xbox y
-otras plataformas), títulos importados (donde se corrige a mano el juego de cada uno), logros y avisos.
+otras plataformas), títulos importados (donde se corrige a mano el juego de cada uno), logros, avisos y los
+dispositivos con avisos push.
 """
 
 from django.contrib import admin
@@ -8,10 +9,18 @@ from django.contrib.auth.admin import UserAdmin
 from .matching import OPENED_ONLY, update_library
 from .models import (
     Achievement, EpicAccount, ExternalTitle, FavoriteGame, GOGAccount, Notification, PlatformAccount, PlayniteAccount,
-    Profile, PSNAccount, SteamAccount, User, XboxAccount,
+    Profile, PSNAccount, PushSubscription, SteamAccount, User, XboxAccount,
 )
 
 admin.site.register(User, UserAdmin)
+
+
+@admin.register(PushSubscription)
+class PushSubscriptionAdmin(admin.ModelAdmin):
+    list_display = ("user", "device", "created_at", "last_push_at")
+    search_fields = ("user__username", "device")
+    raw_id_fields = ("user",)
+    readonly_fields = ("endpoint", "auth", "p256dh", "last_notification_id", "test_requested_at")
 
 
 @admin.register(Profile)

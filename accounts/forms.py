@@ -165,12 +165,16 @@ class ProfileForm(forms.ModelForm):
             label="Web", required=False, max_length=200, assume_scheme="https", initial=links.get("web", ""),
             widget=forms.TextInput(attrs={"inputmode": "url", "placeholder": "https://…"}),
         )
-        # Interruptores de «Avisos»: uno por grupo de accounts.notices (aviso_<grupo>) y, en los que también pueden
-        # llegar por correo, otro para el correo (correo_<grupo>). Lo que no ha tocado sale encendido.
+        # Casillas de «Avisos», por grupo de accounts.notices: la campana (aviso_<grupo>), la notificación del móvil o
+        # del ordenador (notificacion_<grupo>) y, en los que también pueden llegar por correo, el correo
+        # (correo_<grupo>). Lo que no ha tocado sale encendido.
         prefs = profile.notification_prefs
         for key, group in notices.GROUPS.items():
             self.fields[f"aviso_{key}"] = forms.BooleanField(
                 label=group.label, help_text=group.help_text, required=False, initial=notices.enabled(prefs, key),
+            )
+            self.fields[f"notificacion_{key}"] = forms.BooleanField(
+                label="Notificación", required=False, initial=notices.enabled(prefs, key, notices.PUSH),
             )
             if group.email:
                 self.fields[f"correo_{key}"] = forms.BooleanField(
@@ -190,12 +194,12 @@ class ProfileForm(forms.ModelForm):
 
     @property
     def notice_rows(self):
-        """Los interruptores de «Avisos», grupo a grupo: (el de la campana, el del correo o None).
+        """Las casillas de «Avisos», grupo a grupo: (la de la campana, la de la notificación y la del correo o None).
 
         Pantallas: Editar perfil (Avisos).
         """
         return [
-            (self[f"aviso_{key}"], self[f"correo_{key}"] if group.email else None)
+            (self[f"aviso_{key}"], self[f"notificacion_{key}"], self[f"correo_{key}"] if group.email else None)
             for key, group in notices.GROUPS.items()
         ]
 
@@ -347,6 +351,7 @@ class ProfileForm(forms.ModelForm):
             profile.notification_prefs = {
                 key: {
                     notices.BELL: bool(self.cleaned_data.get(f"aviso_{key}")),
+                    notices.PUSH: bool(self.cleaned_data.get(f"notificacion_{key}")),
                     **({notices.EMAIL: bool(self.cleaned_data.get(f"correo_{key}"))} if group.email else {}),
                 }
                 for key, group in notices.GROUPS.items()

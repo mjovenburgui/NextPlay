@@ -1,5 +1,6 @@
 import io
 import json
+import re
 import shutil
 import tempfile
 import time
@@ -14,6 +15,7 @@ from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core import mail
 from django.core.management import CommandError, call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -25,11 +27,11 @@ from games.models import Game, GamePrice, Platform
 from library.models import LibraryEntry, PlaySession, Review, WishlistItem
 from social.models import Activity
 
-from . import achievements, banner, csv_import, epic, gog, images, matching, notices, psn, steam, xbox
+from . import achievements, banner, csv_import, epic, gog, images, matching, notices, psn, push, steam, vapid, xbox
 from .views import importar_archivo, perfil, sincronizar_playnite
 from .models import (
     Achievement, EpicAccount, ExternalTitle, FavoriteGame, GOGAccount, ImportedTitle, Notification, PlatformAccount,
-    PlayniteAccount, Profile, PSNAccount, SteamAccount, UnlockedAchievement, XboxAccount,
+    PlayniteAccount, Profile, PSNAccount, PushSubscription, SteamAccount, UnlockedAchievement, XboxAccount,
 )
 
 User = get_user_model()
@@ -1827,7 +1829,9 @@ class ProfileCustomizationTests(TestCase):
         # Solo los dos de privacidad: el perfil público y el diario de partidas visible.
         self.assertEqual(privacy.count('class="switch-row"'), 2)
         notice_section = page.split('id="avisos"')[1].split("</section>")[0]
-        self.assertEqual(notice_section.count('class="switch-row'), len(notices.GROUPS) + 1)  # y el del correo
+        # Por grupo, la campana y la notificación; y el correo en los que lo admiten.
+        emails = sum(1 for group in notices.GROUPS.values() if group.email)
+        self.assertEqual(notice_section.count('type="checkbox"'), 2 * len(notices.GROUPS) + emails)
 
     @override_settings(IGDB_CLIENT_ID="", IGDB_CLIENT_SECRET="")
     def test_banner_arts_without_igdb(self):
@@ -2568,11 +2572,15 @@ class NoticesTests(TestCase):
         for kind in (Notification.Kind.LIKE, Notification.Kind.POST_LIKE, Notification.Kind.LIST_LIKE):
             self.assertIsNone(self.notify(kind, actor=self.luis))
         self.assertIsNotNone(self.notify(Notification.Kind.COMMENT, actor=self.luis))
-        # Las denuncias no se pueden apagar, y por correo solo pueden llegar las bajadas de precio.
+        # Las denuncias no se pueden apagar ni salen como notificación. Por correo solo pueden llegar las bajadas de
+        # precio y, de los retos, que se acaban y cómo han terminado.
         self.ana.profile.notification_prefs = {key: {"campana": False} for key in notices.GROUPS}
         self.ana.profile.save()
         self.assertIsNotNone(self.notify(Notification.Kind.REPORT))
+        self.assertFalse(notices.wants(self.ana, Notification.Kind.REPORT, notices.PUSH))
         self.assertTrue(notices.wants(self.ana, Notification.Kind.PRICE, notices.EMAIL))
+        self.assertTrue(notices.wants(self.ana, Notification.Kind.CHALLENGE_ENDING, notices.EMAIL))
+        self.assertFalse(notices.wants(self.ana, Notification.Kind.CHALLENGE_WON, notices.EMAIL))
         self.assertFalse(notices.wants(self.ana, Notification.Kind.FOLLOW, notices.EMAIL))
         self.assertFalse(notices.wants(self.ana, Notification.Kind.REPORT, notices.EMAIL))
 
@@ -2613,15 +2621,22 @@ class NoticePrefsTests(TestCase):
         self.assertTrue(all(field.value() for row in rows for field in row if field is not None))
 
     def test_saves_what_is_turned_off_and_shows_it(self):
-        data = {"is_public": "on", "avisos": "1", **{f"aviso_{key}": "on" for key in notices.GROUPS}}
+        data = {
+            "is_public": "on", "avisos": "1",
+            **{f"aviso_{key}": "on" for key in notices.GROUPS},
+            **{f"notificacion_{key}": "on" for key in notices.GROUPS},
+        }
         del data["aviso_me_gusta"]
-        self.client.post(reverse("edit_profile"), data)  # sin correo_precios: el correo, apagado
+        del data["notificacion_comentarios"]
+        self.client.post(reverse("edit_profile"), data)  # sin correo_precios ni correo_retos: el correo, apagado
         prefs = self.prefs()
-        self.assertEqual(prefs["me_gusta"], {"campana": False})
-        self.assertEqual(prefs["precios"], {"campana": True, "correo": False})
-        self.assertEqual(prefs["comentarios"], {"campana": True})
+        self.assertEqual(prefs["me_gusta"], {"campana": False, "notificacion": True})
+        self.assertEqual(prefs["precios"], {"campana": True, "notificacion": True, "correo": False})
+        self.assertEqual(prefs["comentarios"], {"campana": True, "notificacion": False})
+        self.assertEqual(prefs["retos"], {"campana": True, "notificacion": True, "correo": False})
         form = self.client.get(reverse("edit_profile")).context["form"]
         self.assertFalse(form["aviso_me_gusta"].value())
+        self.assertFalse(form["notificacion_comentarios"].value())
         self.assertFalse(form["correo_precios"].value())
         self.assertTrue(form["aviso_seguidores"].value())
 
@@ -2635,6 +2650,286 @@ class NoticePrefsTests(TestCase):
         self.assertContains(response, '<span class="unsaved" data-unsaved role="status" hidden>Cambios sin guardar</span>')
         self.assertContains(response, '<button class="btn" type="button" data-discard hidden>Descartar</button>')
         self.assertContains(response, 'window.addEventListener("beforeunload"')
+
+
+# Las claves VAPID de los tests: las del ejemplo de RFC 6979 (A.2.5), cuya firma se conoce.
+RFC_PRIVATE = 0xC9AFA9D845BA75166B5C215767B1D6934E50C3DB36E89B127B8A622B120F6721
+RFC_PUBLIC = bytes.fromhex(
+    "04"
+    "60FED4BA255A9D31C961EB74C6356D68C049B8923B61FA6CE669622E60F29FB6"
+    "7903FE1008B8BC99A41AE9E95628BC64F2F1B20C2D7E9F5177A3C294D4462299"
+)
+TEST_VAPID = {
+    "VAPID_PUBLIC_KEY": vapid.b64url(RFC_PUBLIC),
+    "VAPID_PRIVATE_KEY": vapid.b64url(RFC_PRIVATE.to_bytes(32, "big")),
+    "VAPID_SUBJECT": "mailto:equipo@nextplay.test",
+}
+ENDPOINT = "https://fcm.googleapis.com/fcm/send/dispositivo-de-ana"
+
+
+class VapidTests(TestCase):
+    """accounts.vapid: la firma ECDSA P-256 de VAPID, solo con la biblioteca estándar, contra los vectores de RFC 6979."""
+
+    def test_public_key_and_signatures_match_rfc_6979(self):
+        self.assertEqual(vapid.public_key(RFC_PRIVATE), RFC_PUBLIC)
+        vectors = (
+            (b"sample", "EFD48B2AACB6A8FD1140DD9CD45E81D69D2C877B56AAF991C34D0EA84EAF3716",
+             "F7CB1C942D657C41D436C7A1B6E29F65F3E900DBB9AFF4064DC4AB2F843ACDA8"),
+            (b"test", "F1ABB023518351CD71D881567B1EA663ED3EFCF6C5132B354F28D3B0B7D38367",
+             "019F4113742A2B14BD25926B49C649155F267E60D3814B4C0CC84250E46F0083"),
+        )
+        for message, r, s in vectors:
+            signature = vapid.sign(message, RFC_PRIVATE)
+            self.assertEqual(signature.hex().upper(), r + s)
+            self.assertTrue(vapid.verify(message, signature, RFC_PUBLIC))
+            self.assertFalse(vapid.verify(message + b"!", signature, RFC_PUBLIC))
+
+    def test_generated_keys_are_a_pair(self):
+        public, private = vapid.generate_keys()
+        self.assertEqual(len(vapid.b64url_decode(public)), 65)
+        self.assertTrue(vapid.valid_keys(public, private))
+        self.assertFalse(vapid.valid_keys(public, vapid.generate_keys()[1]))
+        self.assertFalse(vapid.valid_keys("", ""))
+        self.assertFalse(vapid.valid_keys("falsa", "falsa"))
+
+    def test_the_jwt_is_signed_for_the_push_service(self):
+        header = vapid.authorization(
+            ENDPOINT, "mailto:equipo@nextplay.test", TEST_VAPID["VAPID_PUBLIC_KEY"], TEST_VAPID["VAPID_PRIVATE_KEY"],
+        )
+        self.assertTrue(header.startswith("vapid t="))
+        token, key = header.removeprefix("vapid t=").split(", k=")
+        self.assertEqual(key, TEST_VAPID["VAPID_PUBLIC_KEY"])
+        head, body, signature = token.split(".")
+        claims = json.loads(vapid.b64url_decode(body))
+        self.assertEqual(claims["aud"], "https://fcm.googleapis.com")
+        self.assertEqual(claims["sub"], "mailto:equipo@nextplay.test")
+        self.assertLessEqual(claims["exp"] - time.time(), 24 * 3600)
+        self.assertEqual(json.loads(vapid.b64url_decode(head)), {"typ": "JWT", "alg": "ES256"})
+        self.assertTrue(vapid.verify(f"{head}.{body}".encode(), vapid.b64url_decode(signature), RFC_PUBLIC))
+
+    def test_the_command_prints_the_lines_for_env(self):
+        out, err = io.StringIO(), io.StringIO()
+        call_command("vapid_keys", stdout=out, stderr=err)
+        lines = dict(line.split("=", 1) for line in out.getvalue().split())
+        self.assertTrue(vapid.valid_keys(lines["VAPID_PUBLIC_KEY"], lines["VAPID_PRIVATE_KEY"]))
+        self.assertIn(".env", err.getvalue())
+
+
+@override_settings(**TEST_VAPID)
+class PushTests(TestCase):
+    """Los avisos push (accounts.push y sus vistas): activarlos en un dispositivo, mandarlos firmados y sin contenido, lo
+    que enseña el dispositivo al despertarlo y cuándo no se manda nada."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.luis = User.objects.create_user("luis", "luis@example.com", "x")
+
+    def setUp(self):
+        push._queued.clear()
+        self.client.force_login(self.ana)
+
+    def tearDown(self):
+        push._queued.clear()
+
+    def device(self, user=None, endpoint=ENDPOINT, **fields):
+        """Un dispositivo con los avisos activados (de ana, si no se dice otra cosa)."""
+        return PushSubscription.objects.create(user=user or self.ana, endpoint=endpoint, auth="secreto", **fields)
+
+    def subscribe(self, endpoint=ENDPOINT, auth="secreto", user_agent=""):
+        """Lo que manda el navegador al activarlos en Editar perfil."""
+        body = json.dumps({"endpoint": endpoint, "keys": {"auth": auth, "p256dh": "clave"}})
+        return self.client.post(
+            reverse("push_subscribe"), body, content_type="application/json", HTTP_USER_AGENT=user_agent,
+        )
+
+    def pending(self, endpoint=ENDPOINT, auth="secreto"):
+        """Lo que pide el service worker al despertarlo un aviso push (sin sesión)."""
+        body = json.dumps({"endpoint": endpoint, "auth": auth})
+        return self.client_class().post(reverse("push_pending"), body, content_type="application/json")
+
+    def test_only_known_push_services_are_accepted(self):
+        for endpoint in (ENDPOINT, "https://updates.push.services.mozilla.com/wpush/v2/x", "https://web.push.apple.com/x"):
+            self.assertTrue(push.allowed_endpoint(endpoint), endpoint)
+        for endpoint in ("http://fcm.googleapis.com/x", "https://localhost:8000/admin/", "https://evilfcm.googleapis.com.evil.test/", ""):
+            self.assertFalse(push.allowed_endpoint(endpoint), endpoint)
+        self.assertEqual(self.subscribe("https://localhost:8000/admin/").status_code, 400)
+        self.assertFalse(PushSubscription.objects.exists())
+
+    def test_subscribing_saves_the_device_from_now_on(self):
+        old = notices.notify(self.ana, Notification.Kind.FOLLOW, "Luis te sigue.", "/u/luis/", actor=self.luis)
+        agent = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Mobile Safari/537.36"
+        self.assertEqual(self.subscribe(user_agent=agent).status_code, 201)
+        device = PushSubscription.objects.get()
+        self.assertEqual((device.user, device.auth, device.device), (self.ana, "secreto", "Chrome en Android"))
+        self.assertEqual(device.last_notification_id, old.pk)  # lo que ya había no se manda
+        # El mismo navegador vuelve a decirlo: no cambia nada. Con otra cuenta, pasa a ser de esa.
+        self.assertEqual(self.subscribe(user_agent=agent).status_code, 200)
+        self.client.force_login(self.luis)
+        self.subscribe()
+        self.assertEqual(PushSubscription.objects.get().user, self.luis)
+
+    def test_unsubscribing_and_removing_a_device(self):
+        here, other = self.device(), self.device(endpoint=f"{ENDPOINT}-2")
+        theirs = self.device(user=self.luis, endpoint=f"{ENDPOINT}-3")
+        body = json.dumps({"endpoint": here.endpoint})
+        self.client.post(reverse("push_unsubscribe"), body, content_type="application/json")
+        self.assertFalse(PushSubscription.objects.filter(pk=here.pk).exists())
+        response = self.client.post(reverse("push_remove", args=[other.pk]))
+        self.assertRedirects(response, f"{reverse('edit_profile')}#dispositivos", fetch_redirect_response=False)
+        self.client.post(reverse("push_remove", args=[theirs.pk]))  # el de otro no se toca
+        self.assertEqual(list(PushSubscription.objects.all()), [theirs])
+
+    def test_sending_is_signed_and_empty_and_forgets_expired_devices(self):
+        device = self.device()
+        with mock.patch("accounts.push.requests.post", return_value=fake_response(201)) as post:
+            self.assertTrue(push.send(device))
+        args, kwargs = post.call_args
+        self.assertEqual((args[0], kwargs["data"]), (ENDPOINT, b""))
+        headers = kwargs["headers"]
+        self.assertEqual((headers["TTL"], headers["Topic"], headers["Urgency"]), (str(push.TTL), "avisos", "normal"))
+        token = headers["Authorization"].removeprefix("vapid t=").split(", k=")[0]
+        head, body, signature = token.split(".")
+        self.assertTrue(vapid.verify(f"{head}.{body}".encode(), vapid.b64url_decode(signature), RFC_PUBLIC))
+        self.assertIsNotNone(PushSubscription.objects.get().last_push_at)
+        with mock.patch("accounts.push.requests.post", return_value=fake_response(500, text="error")):
+            self.assertFalse(push.send(device))
+        self.assertTrue(PushSubscription.objects.exists())
+        with mock.patch("accounts.push.requests.post", return_value=fake_response(410)):
+            self.assertFalse(push.send(device))
+        self.assertFalse(PushSubscription.objects.exists())
+
+    def test_new_notices_are_sent_after_saving_them(self):
+        self.device()
+        with mock.patch.object(push, "_submit") as submit, self.captureOnCommitCallbacks(execute=True):
+            notices.notify(self.ana, Notification.Kind.FOLLOW, "Luis te sigue.", "/u/luis/", actor=self.luis)
+            notices.notify(self.ana, Notification.Kind.POST_LIKE, "A Luis le gusta.", "/p/1/", actor=self.luis)
+        # Los dos viajan en el mismo envío: el dispositivo enseña todo lo que tenga pendiente.
+        submit.assert_called_once_with(push._in_background, self.ana.pk)
+
+    def test_nothing_is_sent_without_devices_keys_or_wish(self):
+        with mock.patch.object(push, "_submit") as submit, self.captureOnCommitCallbacks(execute=True):
+            notices.notify(self.ana, Notification.Kind.FOLLOW, "Luis te sigue.", "/u/luis/", actor=self.luis)
+            self.device()
+            self.ana.profile.notification_prefs = {"seguidores": {"notificacion": False}}
+            self.ana.profile.save()
+            notices.notify(self.ana, Notification.Kind.FOLLOW, "Eva te sigue.", "/u/eva/", actor=self.ana_friend())
+            notices.notify(self.ana, Notification.Kind.REPORT, "Denuncia.", "/admin/")
+            with override_settings(VAPID_PUBLIC_KEY="", VAPID_PRIVATE_KEY=""):
+                notices.notify(self.ana, Notification.Kind.POST_LIKE, "A Luis le gusta.", "/p/1/", actor=self.luis)
+        submit.assert_not_called()
+
+    def ana_friend(self):
+        """Una tercera persona, para avisos de gente distinta."""
+        return User.objects.create_user("eva", "eva@example.com", "x")
+
+    def test_delivering_wakes_every_device_of_the_user(self):
+        self.device(), self.device(endpoint=f"{ENDPOINT}-2"), self.device(user=self.luis, endpoint=f"{ENDPOINT}-3")
+        with mock.patch("accounts.push.requests.post", return_value=fake_response(201)) as post:
+            self.assertEqual(push.deliver(self.ana.pk), 2)
+        self.assertEqual(post.call_count, 2)
+
+    def test_the_device_shows_what_it_has_not_shown_yet(self):
+        device = self.device()
+        game = Game.objects.create(name="Hades", slug="hades", cover_image_id="abc")
+        notices.notify(self.ana, Notification.Kind.PRICE, "Hades ha bajado a 9,99 €.", "/juegos/hades/", game=game)
+        notices.notify(self.ana, Notification.Kind.POST_LIKE, "A Luis le gusta.", "/p/1/", actor=self.luis)
+        self.ana.profile.notification_prefs = {"me_gusta": {"notificacion": False}}
+        self.ana.profile.save()
+        response = self.pending()
+        self.assertEqual(response.status_code, 200)
+        shown = response.json()["avisos"]
+        # El «me gusta» no, porque ahora no lo quiere como notificación.
+        self.assertEqual([(item["title"], item["body"], item["url"]) for item in shown], [
+            ("Bajada de precio", "Hades ha bajado a 9,99 €.", "/juegos/hades/"),
+        ])
+        self.assertIn("abc", shown[0]["icon"])
+        # La siguiente vez no los repite.
+        self.assertEqual(self.pending().json()["avisos"], [])
+        self.assertGreater(PushSubscription.objects.get(pk=device.pk).last_notification_id, 0)
+
+    def test_the_device_has_to_prove_who_it_is(self):
+        self.device()
+        notices.notify(self.ana, Notification.Kind.FOLLOW, "Luis te sigue.", "/u/luis/", actor=self.luis)
+        self.assertEqual(self.pending(auth="otro").status_code, 404)
+        self.assertEqual(self.pending(endpoint=f"{ENDPOINT}-falso").status_code, 404)
+        self.assertEqual(len(self.pending().json()["avisos"]), 1)
+
+    def test_a_test_from_edit_profile(self):
+        self.device()
+        body = json.dumps({"endpoint": ENDPOINT})
+        with mock.patch("accounts.push.requests.post", return_value=fake_response(201)):
+            response = self.client.post(reverse("push_test"), body, content_type="application/json")
+        self.assertEqual(response.json(), {"ok": True})
+        shown = self.pending().json()["avisos"]
+        self.assertEqual(shown[0]["body"], "Así te llegarán los avisos a este dispositivo.")
+        self.assertEqual(self.pending().json()["avisos"], [])
+        response = self.client.post(reverse("push_test"), json.dumps({"endpoint": "x"}), content_type="application/json")
+        self.assertEqual(response.status_code, 404)
+
+    def test_edit_profile_lists_the_devices_and_offers_to_activate_this_one(self):
+        self.device(device="Chrome en Android")
+        response = self.client.get(reverse("edit_profile"))
+        self.assertContains(response, 'id="dispositivos"')
+        self.assertContains(response, f'data-vapid-key="{TEST_VAPID["VAPID_PUBLIC_KEY"]}"')
+        self.assertContains(response, "Chrome en Android")
+        self.assertContains(response, "Activar en este dispositivo")
+        self.assertNotContains(self.client.get(reverse("notifications")), "Actívalos en Editar perfil")
+
+    @override_settings(VAPID_PUBLIC_KEY="", VAPID_PRIVATE_KEY="")
+    def test_without_keys_it_is_soon_and_only_staff_reads_why(self):
+        response = self.client.get(reverse("edit_profile"))
+        self.assertContains(response, "Pronto podrás recibir los avisos en el móvil")
+        self.assertNotContains(response, "data-push ")
+        self.assertNotContains(response, "VAPID_PUBLIC_KEY")
+        self.assertEqual(self.subscribe().status_code, 503)
+        User.objects.filter(pk=self.ana.pk).update(is_staff=True)
+        self.assertContains(self.client.get(reverse("edit_profile")), "VAPID_PUBLIC_KEY")
+
+    def test_notifications_page_suggests_activating_them(self):
+        self.assertContains(self.client.get(reverse("notifications")), "Actívalos en Editar perfil")
+
+    def test_challenge_notices_also_go_by_email(self):
+        notices.notify(self.ana, Notification.Kind.CHALLENGE_ENDING, "Te quedan 2 días para el reto «Mayo».", "/retos/1/")
+        notices.notify(self.ana, Notification.Kind.CHALLENGE_WON, "¡Has conseguido el reto «Mayo»!", "/retos/1/")
+        notices.notify(self.ana, Notification.Kind.PRICE, "Hades ha bajado.", "/juegos/hades/")  # van en su propio correo
+        self.assertEqual([message.subject for message in mail.outbox], ["Te quedan 2 días para el reto «Mayo»."])
+        self.assertIn("http://localhost:8000/retos/1/", mail.outbox[0].body)
+        self.assertIn("/cuenta/perfil/#avisos", mail.outbox[0].body)
+        self.ana.profile.notification_prefs = {"retos": {"correo": False}}
+        self.ana.profile.save()
+        notices.notify(self.ana, Notification.Kind.CHALLENGE_RESULT, "El reto «Mayo» ha terminado.", "/retos/1/")
+        self.assertEqual(len(mail.outbox), 1)
+
+
+class AppTests(TestCase):
+    """NextPlay como aplicación: el manifiesto, el service worker y Sin conexión."""
+
+    def test_the_manifest_names_icons_and_shortcuts(self):
+        response = self.client.get(reverse("manifest"))
+        self.assertEqual(response["Content-Type"], "application/manifest+json")
+        data = response.json()
+        self.assertEqual((data["name"], data["display"], data["start_url"], data["lang"]), ("NextPlay", "standalone", "/", "es"))
+        self.assertEqual({icon["purpose"] for icon in data["icons"]}, {"any", "maskable"})
+        self.assertIn(reverse("library:next"), [shortcut["url"] for shortcut in data["shortcuts"]])
+        self.assertContains(self.client.get(reverse("home")), f'<link rel="manifest" href="{reverse("manifest")}">')
+
+    def test_the_service_worker_is_served_from_the_root(self):
+        response = self.client.get(reverse("service_worker"))
+        self.assertEqual(reverse("service_worker"), "/sw.js")
+        self.assertEqual(response["Content-Type"], "application/javascript")
+        self.assertIn("no-cache", response["Cache-Control"])
+        # Con re y no partiendo por líneas: en Windows, git puede dejar la plantilla con CRLF.
+        config = json.loads(re.search(r"var CONFIG = (\{.*?\});", response.content.decode()).group(1))
+        self.assertEqual(config["offline"], reverse("offline"))
+        self.assertIn(reverse("offline"), config["precache"])
+        self.assertEqual(config["pending"], reverse("push_pending"))
+        self.assertEqual(len(config["version"]), 12)
+
+    def test_offline_page_needs_no_session(self):
+        response = self.client.get(reverse("offline"))
+        self.assertContains(response, "Sin conexión")
+        self.assertNotContains(response, "account-menu")
 
 
 # Lo que exporta Playnite (Library Exporter Advanced) con Windows y Playnite en castellano: el tiempo en segundos, las

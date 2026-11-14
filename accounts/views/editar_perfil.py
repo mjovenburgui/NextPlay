@@ -20,6 +20,7 @@ from games.models import Game, igdb_image_url, known_shops
 from .. import banner, images
 from ..forms import IMAGE_FIELDS, ProfileForm
 from ..models import ACCENT_PRESETS, SECTIONS, FavoriteGame, Profile
+from .aplicacion import devices_context
 from .cuentas_vinculadas import linking_context
 from .perfil import _profile_context, _profile_owners
 
@@ -59,8 +60,8 @@ def edit_profile(request):
 
     El formulario trabaja con una copia del perfil para que, si no es válido, la página (las imágenes
     subidas, la barra superior) siga enseñando lo guardado. Al lado va la vista previa del perfil en un
-    ordenador y en un móvil, que pinta profile_preview con lo que hay en el formulario. Las tiendas y las
-    cuentas vinculadas tienen sus propios formularios en la misma página.
+    ordenador y en un móvil, que pinta profile_preview con lo que hay en el formulario. Las tiendas, los avisos en el
+    móvil y el ordenador (devices_context) y las cuentas vinculadas tienen sus propios formularios en la misma página.
 
     Pantallas: Editar perfil.
     """
@@ -96,6 +97,7 @@ def edit_profile(request):
             # El código de Playnite recién generado: se enseña esta vez y no más.
             "playnite_token": request.session.pop("playnite_token", None),
             **linking_context(),
+            **devices_context(request.user),
         },
     )
 

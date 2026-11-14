@@ -1315,3 +1315,37 @@ class Notification(models.Model):
         Pantallas: Panel de administración.
         """
         return f"{self.user} · {self.text}"
+
+
+class PushSubscription(models.Model):
+    """Un dispositivo (el navegador de un móvil o de un ordenador) donde su usuario ha activado los avisos push
+    (accounts.push). Lo da el propio navegador al aceptar los avisos: endpoint es su dirección en el servicio push
+    (Google, Mozilla, Apple o Microsoft), y auth, un secreto que solo conocen él y NextPlay, con el que su service worker
+    demuestra quién es al preguntar qué enseñar.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="push_subscriptions")
+    endpoint = models.URLField("dirección en el servicio push", max_length=600, unique=True)
+    auth = models.CharField("secreto del navegador", max_length=100)
+    # La clave pública del navegador: solo haría falta para mandar avisos con contenido, que irían cifrados.
+    p256dh = models.CharField("clave del navegador", max_length=200, blank=True)
+    # «Chrome en Android», «Safari en iPhone»…, para reconocerlo en Editar perfil.
+    device = models.CharField("dispositivo", max_length=80, blank=True)
+    created_at = models.DateTimeField("activado", auto_now_add=True)
+    last_push_at = models.DateTimeField("último aviso", null=True, blank=True)
+    # El último aviso de su usuario que ya se ha enseñado en este dispositivo (o que ya existía al activarlo).
+    last_notification_id = models.PositiveBigIntegerField("último aviso enseñado", default=0)
+    # Cuándo se pidió una prueba desde Editar perfil: la próxima vez que pregunte qué enseñar, la enseña.
+    test_requested_at = models.DateTimeField("prueba pedida", null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "dispositivo con avisos"
+        verbose_name_plural = "dispositivos con avisos"
+
+    def __str__(self):
+        """Texto del dispositivo en el admin: «usuario · dispositivo».
+
+        Pantallas: Panel de administración.
+        """
+        return f"{self.user} · {self.device or 'dispositivo'}"

@@ -124,12 +124,12 @@
     {
       "nombre": "Avisos",
       "urls": ["notifications"],
-      "que_es": "La campana de la barra de arriba: tus avisos (bajadas de precio, seguidores nuevos, «me gusta», comentarios, invitaciones a listas...)."
+      "que_es": "La campana de la barra de arriba: tus avisos (bajadas de precio, seguidores nuevos, «me gusta», comentarios, invitaciones a listas...). Si aún no los recibes en ningún dispositivo, dónde activarlos para que te lleguen al móvil o al ordenador."
     },
     {
       "nombre": "Editar perfil",
       "urls": ["edit_profile", "profile_preview", "banner_arts"],
-      "que_es": "Tu configuración: datos, apariencia (foto, cabecera —también «Lo que estoy jugando», que sigue sola al juego al que juegas—, fondo, color —que puede salir de la cabecera—, diseño y su encuadre), escaparate, redes, privacidad y avisos, tiendas en las que compras y cuentas vinculadas (Steam, Xbox, PlayStation, GOG, que se lee del perfil público cada noche, Epic Games, con el código de inicio de sesión que se pega cada vez, otras plataformas, «Desde un archivo», que lleva a Importar desde un archivo, y Playnite, con el código y la descarga de la extensión NextPlay Sync, que manda sola la biblioteca), con la vista previa del perfil en directo."
+      "que_es": "Tu configuración: datos, apariencia (foto, cabecera —también «Lo que estoy jugando», que sigue sola al juego al que juegas—, fondo, color —que puede salir de la cabecera—, diseño y su encuadre), escaparate, redes, privacidad y avisos (por cada tipo, en la campana, como notificación y, algunos, por correo), los avisos en el móvil y el ordenador (activarlos en este dispositivo, mandar una prueba, la lista de tus dispositivos e instalar NextPlay), tiendas en las que compras y cuentas vinculadas (Steam, Xbox, PlayStation, GOG, que se lee del perfil público cada noche, Epic Games, con el código de inicio de sesión que se pega cada vez, otras plataformas, «Desde un archivo», que lleva a Importar desde un archivo, y Playnite, con el código y la descarga de la extensión NextPlay Sync, que manda sola la biblioteca), con la vista previa del perfil en directo."
     },
     {
       "nombre": "Juegos importados",
@@ -155,6 +155,11 @@
       "nombre": "Recuperar contraseña",
       "urls": ["password_reset", "password_reset_done", "password_reset_confirm", "password_reset_complete"],
       "que_es": "Los cuatro pasos para cambiar la contraseña olvidada (pedirla, revisar el correo, escribir la nueva y listo) y el correo que se manda. Las vistas son las de Django (django.contrib.auth); NextPlay solo pone las plantillas, así que ninguna función del proyecto las toca."
+    },
+    {
+      "nombre": "Sin conexión",
+      "urls": ["offline"],
+      "que_es": "Lo que enseña NextPlay instalada (o la web, si ya se había abierto) cuando no hay red: qué pasa y «Volver a intentarlo». La guarda el service worker (sw.js), que también recibe los avisos push y abre su enlace al pulsarlos."
     },
     {
       "nombre": "Páginas de error",

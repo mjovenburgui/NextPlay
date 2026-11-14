@@ -1,0 +1,169 @@
+{# Tarjeta «Avisos en el móvil y el ordenador» de Editar perfil: activar, probar y quitar los avisos push en este #}
+{# dispositivo, la lista de los demás e instalar NextPlay. Necesita las variables de accounts.views.devices_context. #}
+<section class="settings-card devices-card" id="dispositivos"{% if push_configured %} data-push data-vapid-key="{{ vapid_public_key }}"
+         data-sw="{% url 'service_worker' %}" data-subscribe="{% url 'push_subscribe' %}" data-unsubscribe="{% url 'push_unsubscribe' %}" data-test="{% url 'push_test' %}"{% endif %}>
+  <h2>Avisos en el móvil y el ordenador</h2>
+  <p class="help">Los avisos que marques con «Notificación» te llegan como los de cualquier aplicación, aunque no tengas NextPlay abierta. Se activan en cada dispositivo, desde su navegador.</p>
+  {% csrf_token %}
+  {% if push_configured %}
+    <div class="device-here">
+      <p class="device-status" data-push-status role="status">Comprobando este dispositivo…</p>
+      <div class="device-actions">
+        <button class="btn btn-primary" type="button" data-push-on hidden>{% include "_icon.html" with name="bell" %} Activar en este dispositivo</button>
+        <button class="btn" type="button" data-push-test hidden>Mandar una prueba</button>
+        <button class="btn" type="button" data-push-off hidden>Desactivar aquí</button>
+      </div>
+      <noscript><p class="help">Para activarlos hace falta JavaScript.</p></noscript>
+    </div>
+  {% else %}
+    <p class="muted">Pronto podrás recibir los avisos en el móvil y en el ordenador.</p>
+    {% if user.is_staff %}<p class="help">Para el equipo de NextPlay: faltan VAPID_PUBLIC_KEY y VAPID_PRIVATE_KEY en el archivo .env. Las genera <code>manage.py vapid_keys</code>.</p>{% endif %}
+  {% endif %}
+
+  {% if push_devices %}
+    <h3 class="push-devices-title">Tus dispositivos</h3>
+    <ul class="push-devices">
+      {% for device in push_devices %}
+        <li class="push-device">
+          {% include "_icon.html" with name="phone" %}
+          <div>
+            <strong>{{ device.device|default:"Navegador" }}</strong>
+            <p class="help">Desde el {{ device.created_at|date:"j/n/Y" }}{% if device.last_push_at %} · último aviso hace {{ device.last_push_at|timesince }}{% endif %}</p>
+          </div>
+          <form action="{% url 'push_remove' device.pk %}" method="post">
+            {% csrf_token %}
+            <button class="link small" type="submit" aria-label="Quitar {{ device.device|default:'este dispositivo' }}">Quitar</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {# Instalar NextPlay: el botón sale cuando el navegador lo ofrece (el script de base.html); si no, cómo hacerlo. #}
+  <div class="device-install">
+    <h3 class="push-devices-title">NextPlay como aplicación</h3>
+    <p class="help" data-install-how>Desde el menú del navegador: «Instalar aplicación» o «Añadir a pantalla de inicio». Se abre a pantalla completa, con su icono, como cualquier otra.</p>
+    <button class="btn" type="button" data-install hidden>{% include "_icon.html" with name="plus" %} Instalar NextPlay</button>
+  </div>
+</section>
+<script>
+  // Avisos push en este dispositivo: según lo que deja el navegador, «Activar» (pide permiso, se suscribe con la clave
+  // VAPID y se lo dice a NextPlay), «Mandar una prueba» y «Desactivar aquí». Al cambiar, recarga la tarjeta para que la
+  // lista de dispositivos esté al día. En el iPhone, el push solo funciona con NextPlay en la pantalla de inicio.
+  // Pantallas: Editar perfil (Avisos en el móvil y el ordenador).
+  (function () {
+    var card = document.querySelector("[data-push]");
+    var ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    var installed = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+    var how = document.querySelector("[data-install-how]");
+    if (how && installed) how.textContent = "Ya la estás usando como aplicación.";
+    else if (how && ios) how.textContent = "En el iPhone o el iPad, abre NextPlay en Safari y pulsa Compartir › «Añadir a pantalla de inicio».";
+    if (!card) return;
+
+    var status = card.querySelector("[data-push-status]");
+    var buttons = {
+      on: card.querySelector("[data-push-on]"),
+      test: card.querySelector("[data-push-test]"),
+      off: card.querySelector("[data-push-off]"),
+    };
+    var token = card.querySelector("[name=csrfmiddlewaretoken]").value;
+    var TEXTS = {
+      insecure: "Este navegador solo deja activarlos en una dirección segura (https://). En tu ordenador, abre NextPlay desde localhost.",
+      unsupported: ios && !installed
+        ? "En el iPhone y el iPad, primero añade NextPlay a la pantalla de inicio (abajo) y actívalos desde ahí."
+        : "Este navegador no puede recibir avisos push.",
+      denied: "Has bloqueado los avisos de NextPlay en este navegador. Para activarlos, permítelos en los ajustes del sitio (el candado de la barra de direcciones) y vuelve aquí.",
+      off: "En este dispositivo no están activados.",
+      on: "Activados en este dispositivo.",
+      working: "Un momento…",
+    };
+
+    function show(state, text) {
+      status.textContent = text || TEXTS[state];
+      buttons.on.hidden = state !== "off";
+      buttons.test.hidden = state !== "on";
+      buttons.off.hidden = state !== "on";
+    }
+
+    function post(url, data) {
+      return fetch(url, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {"Content-Type": "application/json", "X-CSRFToken": token},
+        body: JSON.stringify(data),
+      }).then(function (response) {
+        return response.json().catch(function () { return {}; }).then(function (body) {
+          if (!response.ok) throw new Error(body.error || "NextPlay no ha podido guardarlo.");
+          return body;
+        });
+      });
+    }
+
+    // La clave VAPID, de base64url a los bytes que pide el navegador.
+    function keyBytes(text) {
+      var base64 = (text + "===".slice((text.length + 3) % 4)).replace(/-/g, "+").replace(/_/g, "/");
+      return Uint8Array.from(atob(base64), function (c) { return c.charCodeAt(0); });
+    }
+
+    if (!window.isSecureContext) return show("insecure");
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return show("unsupported");
+    if (Notification.permission === "denied") return show("denied");
+
+    var ready = navigator.serviceWorker.register(card.dataset.sw).then(function () { return navigator.serviceWorker.ready; });
+    ready.then(function (registration) { return registration.pushManager.getSubscription(); })
+      .then(function (subscription) {
+        if (!subscription) return show("off");
+        show("on");
+        // Por si NextPlay no la tiene (o el navegador la ha cambiado): se la vuelve a decir, que no cambia nada si ya está.
+        var data = subscription.toJSON();
+        post(card.dataset.subscribe, {endpoint: data.endpoint, keys: data.keys}).catch(function () {});
+      })
+      .catch(function () { show("unsupported"); });
+
+    buttons.on.addEventListener("click", function () {
+      show("working");
+      Notification.requestPermission().then(function (permission) {
+        if (permission !== "granted") throw new Error(permission);
+        return ready;
+      }).then(function (registration) {
+        return registration.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: keyBytes(card.dataset.vapidKey)});
+      }).then(function (subscription) {
+        var data = subscription.toJSON();
+        return post(card.dataset.subscribe, {endpoint: data.endpoint, keys: data.keys});
+      }).then(function () {
+        location.hash = "dispositivos";
+        location.reload();
+      }).catch(function (error) {
+        if (error.message === "denied") return show("denied");
+        if (error.message === "default") return show("off", "No has dado permiso: vuelve a pulsar «Activar» cuando quieras.");
+        console.error(error);
+        show("off", "No se han podido activar en este navegador. " + (error.name === "AbortError" || error.name === "NotSupportedError"
+          ? "Puede que no tenga servicio de avisos push (pasa en algunos navegadores y en las ventanas privadas)."
+          : error.message));
+      });
+    });
+
+    buttons.test.addEventListener("click", function () {
+      show("working");
+      ready.then(function (registration) { return registration.pushManager.getSubscription(); })
+        .then(function (subscription) { return post(card.dataset.test, {endpoint: subscription && subscription.endpoint}); })
+        .then(function () { show("on", "Prueba mandada: te llegará en unos segundos."); })
+        .catch(function (error) { show("on", error.message); });
+    });
+
+    buttons.off.addEventListener("click", function () {
+      show("working");
+      ready.then(function (registration) { return registration.pushManager.getSubscription(); })
+        .then(function (subscription) {
+          if (!subscription) return null;
+          var endpoint = subscription.endpoint;
+          return subscription.unsubscribe().then(function () { return post(card.dataset.unsubscribe, {endpoint: endpoint}); });
+        })
+        .then(function () {
+          location.hash = "dispositivos";
+          location.reload();
+        })
+        .catch(function (error) { show("on", error.message); });
+    });
+  })();
+</script>
