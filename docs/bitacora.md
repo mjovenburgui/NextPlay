@@ -49,6 +49,62 @@ Todo está en `main` salvo la rama `publicaciones`, del 14/11: es local y no est
 
 ---
 
+## 14/11/2026 · Publicaciones: spoiler por imagen, pestaña del perfil, sección en la ficha y Guardados
+
+**Rama:** `publicaciones`, encima de `main` (`b0402ce`), después del commit del repaso de las propuestas. Commit local, sin subir.
+
+**Por qué:** en el repaso de las gordas, a «Publicaciones con imágenes asociadas a un juego» le faltaban cuatro piezas, y me dijiste «Publicaciones».
+
+**Qué cambia para ti:**
+- **Spoiler imagen a imagen.** En la caja de publicar, cada imagen elegida lleva su casilla «Spoiler». La que la marca sale borrosa, con su etiqueta, hasta que se pulsa. «Es un spoiler» sigue plegando la publicación entera.
+- **Pestaña Publicaciones en el perfil,** con su número: las de esa persona, de 10 en 10, con «Cargar más».
+- **Sección Publicaciones en la ficha del juego.** Se carga al llegar a ella, de 5 en 5, con los filtros «Todas» y «Con imágenes». Si no hay ninguna, lo dice.
+- **Guardar publicaciones** con el botón del marcador, junto a «Me gusta» y los comentarios.
+- **Una página Guardados,** en el menú de Inicio y en el de tu cuenta, por orden de guardado. Solo la ves tú.
+
+**Qué he tocado:**
+- `social`:
+  - el modelo `SavedPost`, con su migración `social.0011`;
+  - las vistas y direcciones nuevas: la pestaña del perfil, la sección de la ficha, guardar y Guardados;
+  - el formulario de publicar, con la casilla de cada imagen.
+- `accounts/views/perfil.py` y `games/views.py`: la pestaña y la sección.
+- Las plantillas:
+  - de `social/`: la tarjeta de una publicación, sus botones y las listas;
+  - el perfil, la ficha, Inicio y el menú.
+- `app.css` y el icono del marcador.
+- `docs/pantallas.json`, con la pantalla Guardados, y el PDF de funciones.
+
+**Cómo lo he comprobado:**
+- Los tests, sin claves y con claves falsas: 630 en cada modo, todos bien.
+- En el navegador, en la copia de revisión:
+  - publicar con una imagen marcada como spoiler;
+  - la pestaña del perfil;
+  - la sección de la ficha, con sus filtros y «Cargar más»;
+  - guardar, quitar y Guardados.
+- También en el móvil: nada se sale por los lados.
+
+**Qué falta (depende de ti):** revisarlo. Cuando se fusione con `main`, tu base de datos necesitará la migración `social.0011`. La aplicaré yo, con una copia de seguridad antes.
+
+**Cómo comprobarlo tú (guion):** en el servidor de revisión, http://localhost:8001/, con `tester_steam`. Su base de datos es una copia de la tuya, con unas publicaciones de ejemplo de `demo1` y `demo2` sobre Grand Theft Auto V.
+1. **La ficha.** Abre http://localhost:8001/juegos/grand-theft-auto-v/ y baja hasta «Publicaciones». Salen las 5 últimas y «Cargar más». La de `demo1` («Por fin he llegado al jefe final…») tiene dos capturas: la segunda está borrosa, con «Spoiler». Púlsala y se ve.
+2. **Los filtros.** Pulsa «Con imágenes»: solo quedan las que llevan capturas.
+3. **Guardar.** En las dos primeras, la de `demo1` y la de `demo2`, el marcador ya está encendido, porque `tester_steam` las tiene guardadas. Guarda otra, por ejemplo la del consejo («Un consejo: no vendáis el equipo…»).
+4. **Guardados.** En Inicio, en el menú de la izquierda, pulsa «Guardados». La que acabas de guardar sale la primera.
+5. **El perfil.** En http://localhost:8001/u/demo1/?vista=publicaciones está la pestaña «Publicaciones», con su número.
+6. **Publicar con un spoiler.** En la caja de publicar de Inicio:
+   - elige dos imágenes tuyas;
+   - marca «Spoiler» en la segunda;
+   - publica.
+
+   En tu perfil, en la pestaña Publicaciones, la segunda sale borrosa.
+7. **Si el servidor no responde**, levántalo:
+
+   ```bash
+   C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/NextPlay/.claude/worktrees/revision-tareas-pendientes-d85f54/manage.py runserver 8001
+   ```
+
+---
+
 ## 14/11/2026 · Repaso de las propuestas: lo gordo, lo que vería un cliente y 11 nuevas
 
 **Rama:** `publicaciones`, encima de `main` (`b0402ce`). Commit local, sin subir. Solo cambia la documentación.

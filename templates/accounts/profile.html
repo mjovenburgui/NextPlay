@@ -267,6 +267,7 @@
     <nav class="tabs tabs-main" aria-label="Secciones del perfil">
       <a class="tab{% if not view %} is-active{% endif %}" href="{% url 'profile' owner.username %}">Biblioteca <span>{{ total }}</span></a>
       <a class="tab{% if view == 'resenas' %} is-active{% endif %}" href="?vista=resenas">Reseñas <span>{{ reviews|length }}</span></a>
+      <a class="tab{% if view == 'publicaciones' %} is-active{% endif %}" href="?vista=publicaciones">Publicaciones <span>{{ post_count }}</span></a>
       <a class="tab{% if view == 'listas' %} is-active{% endif %}" href="?vista=listas">Listas <span>{{ lists|length }}</span></a>
       <a class="tab{% if view == 'tier-lists' %} is-active{% endif %}" href="?vista=tier-lists">Tier lists <span>{{ tier_lists|length }}</span></a>
       <a class="tab{% if view == 'actividad' %} is-active{% endif %}" href="?vista=actividad">Actividad</a>
@@ -305,6 +306,23 @@
       {% else %}
         <p class="empty">
           {% if is_owner %}Aún no tienes tier lists. Empieza desde tu biblioteca: lo que has jugado este año, tus más jugados o tu pendiente ya están ahí, solo falta ponerlos por niveles.{% else %}{{ profile.name }} aún no tiene tier lists.{% endif %}
+        </p>
+      {% endif %}
+    {% elif view == "publicaciones" %}
+      {# Lo que ha publicado, de lo más nuevo a lo más viejo y en tandas con «Cargar más» (social.views.posts_context). #}
+      {% if is_owner %}
+        <div class="lists-bar">
+          <p class="muted small">Lo que publicas lo ve quien puede ver tu perfil.</p>
+          <a class="btn btn-primary" href="{% url 'social:post_new' %}">{% include "_icon.html" with name="edit" %} Publicar</a>
+        </div>
+      {% endif %}
+      {% if posts %}
+        <section class="card-box">
+          <ol class="activities">{% include "social/_posts.html" %}</ol>
+        </section>
+      {% else %}
+        <p class="empty">
+          {% if is_owner %}Aún no has publicado nada. Cuenta a qué estás jugando o sube tus capturas: saldrá aquí, en el inicio de quien te sigue y en la ficha del juego.{% else %}{{ profile.name }} aún no ha publicado nada.{% endif %}
         </p>
       {% endif %}
     {% elif view == "actividad" %}

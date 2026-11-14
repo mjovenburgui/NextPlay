@@ -36,8 +36,8 @@
   </script>
   {% include "games/_hero.html" %}
   {# Tres bloques. En las pantallas grandes van en tres columnas: a la izquierda la carátula, las notas, Cuánto dura y tus #}
-  {# logros; en medio lo que se lee y se usa (tu biblioteca, sinopsis, imágenes, precios, expansiones y DLC, ediciones y #}
-  {# reseñas); y a la derecha los datos (ficha técnica, idiomas, juegos parecidos y listas). En las medianas los datos #}
+  {# logros; en medio lo que se lee y se usa (tu biblioteca, sinopsis, imágenes, precios, expansiones y DLC, ediciones, #}
+  {# reseñas y publicaciones); y a la derecha los datos (ficha técnica, idiomas, juegos parecidos y listas). En las medianas los datos #}
   {# bajan debajo de la carátula, y en el móvil todo va en una sola columna, en el orden que pone app.css. #}
   <article class="game">
     <aside class="game-side">
@@ -154,6 +154,26 @@
       {% include "games/_versions.html" %}
 
       {% include "library/_reviews.html" %}
+
+      {# Lo que la gente publica sobre el juego (texto e imágenes): la cabecera va ya y la lista llega con HTMX al bajar hasta #}
+      {# ella (social.views.game_posts), para que la ficha no la espere. #}
+      <section class="reviews game-posts" id="publicaciones">
+        <div class="reviews-head">
+          <h2>Publicaciones <span class="muted">{{ post_count }}</span></h2>
+          {% if user.is_authenticated %}
+            <div class="reviews-actions">
+              <a class="btn" href="{% url 'social:post_new' %}?juego={{ game.pk }}">{% include "_icon.html" with name="comment" %} Publicar sobre el juego</a>
+            </div>
+          {% endif %}
+        </div>
+        {% if post_count %}
+          <div aria-busy="true" hx-get="{% url 'social:game_posts' game.slug %}" hx-trigger="intersect once" hx-swap="outerHTML">
+            <p class="help">Cargando las publicaciones…</p>
+          </div>
+        {% else %}
+          <p class="empty">Aún nadie ha publicado sobre {{ game.name }}.{% if user.is_authenticated %} Cuenta cómo te va o sube tus capturas.{% endif %}</p>
+        {% endif %}
+      </section>
     </div>
 
     <aside class="game-facts" aria-label="Datos del juego">

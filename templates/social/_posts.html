@@ -1,0 +1,8 @@
+{# Una tanda de publicaciones (social.views.post_batch) y, si quedan más, «Cargar más»: HTMX pide more_url y cambia el botón por la tanda siguiente; sin JavaScript abre more_href. #}
+{# Necesita posts y, si hay más, more_url y more_href; show_user y hide_game pasan a cada tarjeta (social/_post_card.html). Va dentro de <ol class="activities">. #}
+{% for post in posts %}{% include "social/_post_card.html" %}{% endfor %}
+{% if more_url %}
+  <li class="activity-more">
+    <a class="btn" href="{{ more_href }}" hx-get="{{ more_url }}" hx-target="closest li" hx-swap="outerHTML">Cargar más</a>
+  </li>
+{% endif %}

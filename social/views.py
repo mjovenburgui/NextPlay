@@ -1,6 +1,6 @@
-"""Vistas de lo social: el botón de seguir y Seguidores y seguidos, el feed de Inicio y la pestaña Actividad del Perfil
-(con su «Cargar más»), la caja para publicar de Inicio y Publicar, y la Página de la publicación con sus «me gusta»,
-comentarios y denuncias.
+"""Vistas de lo social: el botón de seguir y Seguidores y seguidos, el feed de Inicio y las pestañas Actividad y
+Publicaciones del Perfil (con su «Cargar más»), la caja para publicar de Inicio y Publicar, las publicaciones de la Ficha
+del juego, la Página de la publicación con sus «me gusta», comentarios y denuncias, y Guardados.
 """
 
 from datetime import datetime, timedelta
@@ -12,7 +12,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
 from django.core.paginator import Paginator
-from django.db.models import Count, OuterRef, Prefetch, Q, Subquery
+from django.db.models import Count, Exists, OuterRef, Prefetch, Q, Subquery
 from django.db.models.functions import Coalesce
 from django.http import Http404, HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
@@ -32,13 +32,17 @@ from lists.views import mark_liked_lists, mark_progress
 
 from .activity import post_published
 from .forms import PostCommentForm, PostForm
-from .models import POST_MAX_IMAGES, Activity, Follow, Post, PostComment, PostLike
+from .models import POST_MAX_IMAGES, Activity, Follow, Post, PostComment, PostImage, PostLike, SavedPost
 
 User = get_user_model()
 # Personas por página en las listas de seguidores y seguidos.
 PEOPLE_PER_PAGE = 30
 # Actividades por tanda en la pestaña Actividad del perfil y en el feed de la portada; «Cargar más» trae la siguiente.
 ACTIVITY_PAGE = 20
+# Publicaciones por tanda en la pestaña Publicaciones del perfil y en Guardados, y en la ficha del juego, donde van menos
+# para que no la alarguen; «Cargar más» trae la siguiente.
+POSTS_PAGE = 10
+GAME_POSTS_PAGE = 5
 # Pestañas del feed de la portada: valor de ?ver= → nombre. La primera es la de por defecto.
 FEED_TABS = {"siguiendo": "Siguiendo", "descubrir": "Descubrir"}
 # Gente que se sugiere seguir a quien no sigue a nadie, y cuántos días cuenta la actividad reciente para elegirla.
@@ -177,7 +181,8 @@ def _batch(activities, viewer, cursor):
     Devuelve (actividades, cursor de la tanda siguiente o "" si no hay más). cursor dice desde dónde seguir:
     lo da la tanda anterior, y vacío (o roto) es desde el principio. Cada actividad trae su reseña solo si
     viewer puede leerla (si su autor la volvió a dejar en borrador, no), con sus imágenes y sus «me gusta» y
-    comentarios contados; su lista, solo si viewer puede verla, con su mosaico, sus «me gusta» y cuánto ha jugado
+    comentarios contados; su publicación, con lo mismo y con si viewer la ha guardado; su lista, solo si viewer puede
+    verla, con su mosaico, sus «me gusta» y cuánto ha jugado
     de ella viewer; su reto, solo si viewer puede verlo (los privados, solo quien los crea), con cuánta gente está; y
     las importaciones y los repasos de la biblioteca traen los juegos de sus portadas (cover_games). Las que se quedan
     sin nada que enseñar no salen. No mira de quién son: eso lo decide quien la llama.
@@ -200,7 +205,7 @@ def _batch(activities, viewer, cursor):
     next_cursor = _cursor(activities[ACTIVITY_PAGE - 1]) if len(activities) > ACTIVITY_PAGE else ""
     activities = activities[:ACTIVITY_PAGE]
     mark_liked([activity.review for activity in activities if activity.review], viewer)
-    mark_liked_posts([activity.post for activity in activities if activity.post], viewer)
+    mark_saved_posts(mark_liked_posts([activity.post for activity in activities if activity.post], viewer), viewer)
     lists = list({activity.game_list.pk: activity.game_list for activity in activities if activity.game_list}.values())
     mark_progress(mark_liked_lists(lists, viewer), viewer)
     covered = [activity for activity in activities if activity.kind in (Activity.Kind.IMPORT, Activity.Kind.TIDY)]
@@ -311,20 +316,23 @@ def suggested_people(viewer, limit=SUGGESTIONS):
     return people
 
 
-def _cursor(activity):
-    """Cursor de «Cargar más» para seguir después de activity: «microsegundos desde 1970 (UTC)-id».
+def _cursor(item, field="updated_at"):
+    """Cursor de «Cargar más» para seguir después de item: «microsegundos desde 1970 (UTC)-id», con la fecha field (la
+    última acción de una actividad; en las publicaciones, cuándo se publicaron o, en Guardados, cuándo se guardaron).
 
     Se cuenta en microsegundos enteros, sin decimales, para que la fecha vuelva exacta al leerlo.
 
-    Pantallas: Inicio (feed: «Cargar más»), Perfil (pestaña Actividad).
+    Pantallas: Inicio (feed: «Cargar más»), Perfil (pestañas Actividad y Publicaciones), Ficha del juego
+    (publicaciones), Guardados.
     """
-    return f"{(activity.updated_at - EPOCH) // timedelta(microseconds=1)}-{activity.pk}"
+    return f"{(getattr(item, field) - EPOCH) // timedelta(microseconds=1)}-{item.pk}"
 
 
 def _parse_cursor(cursor):
     """Lo contrario de _cursor: (fecha, id), o None si cursor está vacío o no tiene esa forma.
 
-    Pantallas: Inicio (feed: «Cargar más»), Perfil (pestaña Actividad).
+    Pantallas: Inicio (feed: «Cargar más»), Perfil (pestañas Actividad y Publicaciones), Ficha del juego
+    (publicaciones), Guardados.
     """
     try:
         micros, pk = (int(part) for part in cursor.split("-"))
@@ -381,7 +389,8 @@ def _posts():
 def mark_liked_posts(posts, user):
     """Apunta en cada publicación de posts (liked) si user le ha dado «me gusta»; devuelve la misma lista.
 
-    Pantallas: Inicio, Perfil, Página de la publicación (tus «me gusta» marcados).
+    Pantallas: Inicio, Perfil, Página de la publicación, Ficha del juego (publicaciones), Guardados (tus «me gusta»
+    marcados).
     """
     liked = set()
     if user.is_authenticated and posts:
@@ -389,6 +398,118 @@ def mark_liked_posts(posts, user):
     for post in posts:
         post.liked = post.pk in liked
     return posts
+
+
+def mark_saved_posts(posts, user):
+    """Apunta en cada publicación de posts (saved) si user la tiene en Guardados; devuelve la misma lista.
+
+    Pantallas: Inicio (feed), Perfil (pestañas Actividad y Publicaciones), Ficha del juego (publicaciones), Página de la
+    publicación, Guardados (el botón «Guardar» de cada publicación).
+    """
+    saved = set()
+    if user.is_authenticated and posts:
+        saved = set(SavedPost.objects.filter(user=user, post__in=posts).values_list("post_id", flat=True))
+    for post in posts:
+        post.saved = post.pk in saved
+    return posts
+
+
+def post_batch(posts, viewer, cursor, size=POSTS_PAGE, field="created_at"):
+    """Una tanda de size publicaciones de posts para viewer, de la más nueva a la más vieja según la fecha field, con sus
+    «me gusta» y si viewer las ha guardado ya marcados (mark_liked_posts y mark_saved_posts).
+
+    posts llega ya filtrado: de quién son y quién puede verlas lo decide quien la llama. field es la fecha por la que se
+    ordena: la de publicarlas o, en Guardados, la de guardarlas (saved_at, que pone saved_posts). Devuelve
+    (publicaciones, cursor de la tanda siguiente o "" si no hay más); cursor dice desde dónde seguir, como en las
+    actividades (_cursor), y vacío (o roto) es desde el principio.
+
+    Pantallas: Perfil (pestaña Publicaciones), Ficha del juego (publicaciones), Guardados.
+    """
+    posts = posts.order_by(f"-{field}", "-pk")
+    start = _parse_cursor(cursor)
+    if start:
+        moment, pk = start
+        posts = posts.filter(Q(**{f"{field}__lt": moment}) | Q(**{field: moment, "pk__lt": pk}))
+    batch = list(posts[: size + 1])
+    next_cursor = _cursor(batch[size - 1], field) if len(batch) > size else ""
+    batch = batch[:size]
+    mark_saved_posts(mark_liked_posts(batch, viewer), viewer)
+    return batch, next_cursor
+
+
+def posts_context(user, viewer, cursor=""):
+    """Variables de la pestaña Publicaciones del perfil de user tal como la ve viewer, desde cursor (ver post_batch).
+
+    La tanda que toca (posts) y, si quedan más, las direcciones de «Cargar más»: la que pide HTMX (more_url) y la de la
+    pestaña desde ahí, para quien no tenga JavaScript (more_href). No mira si viewer puede ver el perfil: eso lo hace
+    quien la llama.
+
+    Pantallas: Perfil (pestaña Publicaciones).
+    """
+    posts, next_cursor = post_batch(_posts().filter(user=user), viewer, cursor)
+    context = {"posts": posts}
+    if next_cursor:
+        context["more_url"] = f"{reverse('social:posts', args=[user.username])}?{urlencode({'antes': next_cursor})}"
+        context["more_href"] = (
+            f"{reverse('profile', args=[user.username])}?{urlencode({'vista': 'publicaciones', 'antes': next_cursor})}"
+        )
+    return context
+
+
+def user_posts(request, username):
+    """Tanda siguiente de las publicaciones de username (?antes=, el cursor de la anterior) para «Cargar más».
+
+    Con HTMX devuelve solo las publicaciones nuevas y el botón para la siguiente; sin HTMX lleva a la pestaña
+    Publicaciones del perfil desde ese punto. Un perfil privado da 404 a cualquiera que no sea su dueño.
+
+    Pantallas: Perfil (pestaña Publicaciones: «Cargar más»).
+    """
+    owner = get_object_or_404(User.objects.select_related("profile"), username=username)
+    if not owner.profile.visible_to(request.user):
+        raise Http404
+    cursor = request.GET.get("antes", "")
+    if not request.headers.get("HX-Request"):
+        return redirect(
+            f"{reverse('profile', args=[username])}?{urlencode({'vista': 'publicaciones', 'antes': cursor})}"
+        )
+    return render(request, "social/_posts.html", posts_context(owner, request.user, cursor))
+
+
+def game_posts(request, slug):
+    """Publicaciones de la comunidad sobre el juego slug, para su ficha: de la más nueva a la más vieja, en tandas de
+    GAME_POSTS_PAGE (?antes=, el cursor de «Cargar más») y, con ?imagenes=1, solo las que llevan imágenes.
+
+    Solo salen las de los perfiles que puede ver quien mira (Profile.visible_filter). Con HTMX devuelve la lista con sus
+    dos filtros y lo que hay en cada uno (la ficha la pide al llegar a ella) o, con ?antes=, solo la tanda siguiente;
+    sin HTMX lleva a la ficha, a su sección de publicaciones.
+
+    Pantallas: Ficha del juego (publicaciones).
+    """
+    game = get_object_or_404(Game, slug=slug)
+    if not request.headers.get("HX-Request"):
+        return redirect(f"{game.get_absolute_url()}#publicaciones")
+    visible = Profile.visible_filter(request.user)
+    with_images = Exists(PostImage.objects.filter(post=OuterRef("pk")))
+    only_images = request.GET.get("imagenes") == "1"
+    posts = _posts().filter(visible, game=game)
+    if only_images:
+        posts = posts.filter(with_images)
+    cursor = request.GET.get("antes", "")
+    batch, next_cursor = post_batch(posts, request.user, cursor, size=GAME_POSTS_PAGE)
+    base = reverse("social:game_posts", args=[game.slug])
+    context = {"game": game, "posts": batch, "show_user": True, "hide_game": True}
+    if next_cursor:
+        query = {"antes": next_cursor, **({"imagenes": "1"} if only_images else {})}
+        context["more_url"] = context["more_href"] = f"{base}?{urlencode(query)}"
+    if cursor:
+        return render(request, "social/_posts.html", context)
+    counted = Post.objects.filter(visible, game=game)
+    context["post_filters"] = [
+        ("Todas", base, not only_images, counted.count()),
+        ("Con imágenes", f"{base}?imagenes=1", only_images, counted.filter(with_images).count()),
+    ]
+    context["only_images"] = only_images
+    return render(request, "social/_game_posts.html", context)
 
 
 def composer_context(user, game=None, form=None):
@@ -451,15 +572,15 @@ def post_detail(request, username, post_id):
     """Página de una publicación: su autor, el juego del que habla, el texto entero, sus imágenes, sus «me gusta»
     y sus comentarios.
 
-    La ve quien puede ver el perfil de su autor (si no, 404). Su autor puede borrarla; los demás, denunciarla
-    (con ?denunciar llega abierto el formulario).
+    La ve quien puede ver el perfil de su autor (si no, 404). Quien tiene sesión puede guardarla en Guardados; su autor
+    puede borrarla y los demás, denunciarla (con ?denunciar llega abierto el formulario).
 
     Pantallas: Página de la publicación.
     """
     post = _readable_post(request, post_id)
     if post.user.username != username:
         raise Http404
-    mark_liked_posts([post], request.user)
+    mark_saved_posts(mark_liked_posts([post], request.user), request.user)
     viewer = request.user
     is_author = viewer == post.user
     reported = viewer.is_authenticated and not is_author and Report.objects.filter(
@@ -600,6 +721,55 @@ def _notify_post_like(post, actor):
         post.user, Notification.Kind.POST_LIKE, f"A {actor.profile.name} le ha gustado tu publicación.",
         post.get_absolute_url(), game=post.game, actor=actor,
     )
+
+
+@require_POST
+@login_required
+def save_post(request, post_id):
+    """Guarda una publicación en Guardados del usuario, o la quita si ya la tenía. Valen también las suyas, y no se avisa
+    a nadie. Las que no puede ver dan 404.
+
+    Con HTMX devuelve el botón cambiado; sin HTMX vuelve a la página de «next» o a la de la publicación.
+
+    Pantallas: Guardados, Inicio (feed), Perfil (pestañas Actividad y Publicaciones), Ficha del juego (publicaciones),
+    Página de la publicación (botón «Guardar»).
+    """
+    post = _readable_post(request, post_id)
+    saved, created = SavedPost.objects.get_or_create(user=request.user, post=post)
+    if not created:
+        saved.delete()
+    if request.headers.get("HX-Request"):
+        return render(request, "social/_post_save.html", {"post": post, "saved": created})
+    back = request.POST.get("next", "")
+    if back and url_has_allowed_host_and_scheme(back, allowed_hosts={request.get_host()}):
+        return redirect(back)
+    return redirect(post)
+
+
+@login_required
+def saved_posts(request):
+    """Guardados: las publicaciones que ha guardado el usuario, de la última que guardó a la primera, en tandas de
+    POSTS_PAGE (?antes=, el cursor de «Cargar más»).
+
+    Solo salen las que aún puede ver: si su autor hace privado su perfil, desaparecen de aquí (y vuelven si lo hace
+    público otra vez); si la borra, se van con ella. Con HTMX y ?antes= devuelve solo la tanda siguiente.
+
+    Pantallas: Guardados.
+    """
+    viewer = request.user
+    saved_at = SavedPost.objects.filter(user=viewer, post=OuterRef("pk")).values("created_at")[:1]
+    posts = (
+        _posts().filter(Profile.visible_filter(viewer), pk__in=SavedPost.objects.filter(user=viewer).values("post_id"))
+        .annotate(saved_at=Subquery(saved_at))
+    )
+    cursor = request.GET.get("antes", "")
+    batch, next_cursor = post_batch(posts, viewer, cursor, field="saved_at")
+    context = {"posts": batch, "show_user": True}
+    if next_cursor:
+        context["more_url"] = context["more_href"] = f"{reverse('social:saved')}?{urlencode({'antes': next_cursor})}"
+    if cursor and request.headers.get("HX-Request"):
+        return render(request, "social/_posts.html", context)
+    return render(request, "social/saved.html", context)
 
 
 @require_POST

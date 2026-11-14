@@ -1,5 +1,6 @@
-"""Vista del Perfil (u/<usuario>/): cabecera, escaparate y pestañas Biblioteca, Reseñas, Listas, Tier lists y Actividad. Lo
-mismo pinta la vista previa de Editar perfil (editar_perfil.profile_preview).
+"""Vista del Perfil (u/<usuario>/): cabecera, escaparate y pestañas Biblioteca, Reseñas, Publicaciones, Listas, Tier lists,
+Actividad, Diario, Estadísticas y En común. Lo mismo pinta la vista previa de Editar perfil
+(editar_perfil.profile_preview).
 """
 
 from collections import Counter
@@ -17,7 +18,7 @@ from library.models import HOURS_SOURCES, LibraryEntry, Review
 from library.views import mark_liked
 from lists.views import SHOWCASE_LISTS, SHOWCASE_TIER_LISTS, mark_boards, profile_lists
 from social import affinity
-from social.views import activity_context, follow_context
+from social.views import activity_context, follow_context, posts_context
 
 from .. import achievements
 from ..models import FavoriteGame
@@ -33,7 +34,8 @@ def profile(request, username):
     orden y con las secciones que haya elegido. La biblioteca tiene pestañas por estado (Jugando,
     Completado...) con su contador y se filtra con ?estado= y por idioma con ?idioma= (voces o textos en
     castellano); se ordena con ?orden= (recientes, nota, horas o nombre). Con ?vista=resenas muestra sus
-    reseñas en vez de la biblioteca, con ?vista=listas sus listas, con ?vista=tier-lists sus tier lists, con
+    reseñas en vez de la biblioteca, con ?vista=publicaciones sus publicaciones (desde ?antes=, el cursor de «Cargar
+    más»), con ?vista=listas sus listas, con ?vista=tier-lists sus tier lists, con
     ?vista=actividad lo que ha hecho (desde ?antes=, el cursor de «Cargar más»), con ?vista=diario su diario de
     partidas del año ?anio= (si no lo ha ocultado), con ?vista=estadisticas sus estadísticas y con ?vista=comun, a quien
     mira con sesión, lo que tiene en común con él. Un perfil privado da 404 a cualquiera que no sea su dueño.
@@ -75,7 +77,8 @@ def _profile_context(request, owner, favorites=None, preview=False):
     La pestaña Diario solo sale si quien mira puede verla (library.diary.can_see; en la vista previa, como la verían
     los demás) y lleva el calendario del año de ?anio=, la última partida y las últimas sesiones (diary.page). La
     pestaña En común solo sale a quien mira con sesión un perfil que no es el suyo, con cuántos juegos tienen los dos
-    (social.affinity.common_count) y, en ella, lo compatibles que son y esos juegos (affinity.in_common).
+    (social.affinity.common_count) y, en ella, lo compatibles que son y esos juegos (affinity.in_common). La pestaña
+    Publicaciones lleva cuántas tiene (post_count) y, en ella, la tanda que toca (social.views.posts_context).
 
     Pantallas: Perfil (cabecera, escaparate y pestañas), Editar perfil (vista previa).
     """
@@ -121,11 +124,13 @@ def _profile_context(request, owner, favorites=None, preview=False):
     show_diary = diary.can_see(owner, AnonymousUser() if preview else request.user)
     # «En común» solo tiene sentido para alguien con sesión que mira el perfil de otro.
     show_common = request.user.is_authenticated and request.user != owner and not preview
-    tabs_allowed = ("resenas", "listas", "tier-lists", "actividad", "diario", "estadisticas", "comun")
+    tabs_allowed = ("resenas", "publicaciones", "listas", "tier-lists", "actividad", "diario", "estadisticas", "comun")
     if view not in tabs_allowed or (view == "diario" and not show_diary) or (view == "comun" and not show_common):
         view = ""
     # La actividad solo se pide en su pestaña.
     activity_tab = activity_context(owner, request.user, request.GET.get("antes", "")) if view == "actividad" else {}
+    # Y las publicaciones, en la suya.
+    posts_tab = posts_context(owner, request.user, request.GET.get("antes", "")) if view == "publicaciones" else {}
     # En la vista previa, las listas como las vería cualquiera: solo las públicas y sin el progreso de quien mira.
     lists = profile_lists(owner, AnonymousUser() if preview else request.user, public_only=preview)
     # Las tier lists van aparte; el tablero en miniatura, solo el de las que se enseñan (todas en su pestaña).
@@ -158,6 +163,9 @@ def _profile_context(request, owner, favorites=None, preview=False):
         "activities": [],
         "next_cursor": "",
         **activity_tab,
+        "posts": [],
+        **posts_tab,
+        "post_count": owner.posts.count(),
         "show_diary": show_diary,
         "diary": diary.page(owner, _year(request.GET.get("anio", ""))) if view == "diario" else None,
         # La pestaña Estadísticas, con sus barras y los años que tienen resumen (library.stats.overview).

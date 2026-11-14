@@ -20,11 +20,17 @@ class PostCommentForm(CommentForm):
 
 class PostForm(forms.ModelForm):
     """Publicación nueva: el texto (con el formato sencillo de las reseñas), el juego del que habla si quiere,
-    si es un spoiler y hasta POST_MAX_IMAGES imágenes, que se pasan a WebP y sin EXIF con su miniatura
-    (accounts.images). Tiene que llevar texto o alguna imagen.
+    si toda ella es un spoiler y hasta POST_MAX_IMAGES imágenes, que se pasan a WebP y sin EXIF con su miniatura
+    (accounts.images) y que se pueden marcar como spoiler una a una (spoiler_nueva). Tiene que llevar texto o alguna
+    imagen.
     """
 
     imagenes = MultipleImageField(label="Imágenes")
+    # Posiciones (0, 1...) de las imágenes que son spoiler, en el orden en que llegan: las casillas de cada miniatura
+    # de la caja de publicar. Las miniaturas las pinta el JavaScript, así que sin él solo queda el spoiler de toda ella.
+    spoiler_nueva = forms.MultipleChoiceField(
+        required=False, choices=[(str(i), str(i)) for i in range(POST_MAX_IMAGES)]
+    )
 
     class Meta:
         model = Post
@@ -65,13 +71,18 @@ class PostForm(forms.ModelForm):
         return data
 
     def save(self, user):
-        """Guarda la publicación de user con sus imágenes en el orden en que llegaron y la devuelve.
+        """Guarda la publicación de user con sus imágenes en el orden en que llegaron, cada una marcada como spoiler si
+        su casilla iba marcada (spoiler_nueva), y la devuelve.
 
-        Pantallas: Inicio (caja para publicar y feed), Publicar, Página de la publicación, Perfil (pestaña Actividad).
+        Pantallas: Inicio (caja para publicar y feed), Publicar, Página de la publicación, Perfil (pestañas Actividad y
+        Publicaciones), Ficha del juego (publicaciones), Guardados.
         """
         post = super().save(commit=False)
         post.user = user
         post.save()
+        spoilers = set(self.cleaned_data.get("spoiler_nueva") or [])
         for position, (full, thumb) in enumerate(self.cleaned_data["processed"]):
-            PostImage.objects.create(post=post, image=full, thumb=thumb, position=position)
+            PostImage.objects.create(
+                post=post, image=full, thumb=thumb, position=position, is_spoiler=str(position) in spoilers
+            )
         return post

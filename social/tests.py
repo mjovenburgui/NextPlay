@@ -21,7 +21,7 @@ from library.models import LibraryEntry, Report, Review, WishlistItem
 from lists.models import GameList
 
 from . import activity, affinity
-from .models import Activity, Follow, Post, PostComment, PostLike
+from .models import Activity, Follow, Post, PostComment, PostImage, PostLike, SavedPost
 
 User = get_user_model()
 # Carpeta temporal para las imágenes que suben los tests de publicaciones (se borra al terminar la clase).
@@ -679,6 +679,147 @@ class PostTests(TestCase):
         self.assertEqual((report.target, report.reporter, report.target_kind), (post, self.luis, "publicación"))
         self.assertTrue(Notification.objects.filter(user=admin_user, kind="report").exists())
         self.assertContains(self.client.get(post.get_absolute_url()), "Ya lo has denunciado")
+
+
+@override_settings(MEDIA_ROOT=TEST_MEDIA)
+class PostPagesTests(TestCase):
+    """Las publicaciones fuera del feed: el spoiler de cada imagen, la pestaña Publicaciones del perfil, las de la ficha
+    del juego y Guardados."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.luis = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.hades = Game.objects.create(name="Hades", slug="hades")
+
+    @classmethod
+    def tearDownClass(cls):
+        """Borra las imágenes que han subido los tests."""
+        super().tearDownClass()
+        shutil.rmtree(TEST_MEDIA, ignore_errors=True)
+
+    def make_private(self, user):
+        user.profile.is_public = False
+        user.profile.save()
+
+    def test_each_image_can_be_a_spoiler(self):
+        self.client.force_login(self.ana)
+        self.client.post(reverse("social:post_new"), {
+            "text": "Mis capturas", "game": "", "spoiler_nueva": ["1"],
+            "imagenes": [image_upload("a.png", (400, 300)), image_upload("b.png", (400, 300))],
+        })
+        post = Post.objects.get()
+        first, second = post.images.all()
+        self.assertEqual((first.is_spoiler, second.is_spoiler, post.has_spoilers), (False, True, False))
+        response = self.client.get(post.get_absolute_url())
+        self.assertContains(response, 'class="gallery-tile is-spoiler"', count=1)
+        self.assertContains(response, "Imagen 2: es un spoiler, púlsala para verla")
+        # Las casillas de cada miniatura las pinta el script de la caja de publicar.
+        self.assertContains(self.client.get(reverse("social:post_new")), 'box.name = "spoiler_nueva"')
+
+    def test_profile_tab_lists_posts_in_batches(self):
+        for n in range(12):
+            Post.objects.create(user=self.ana, text=f"Texto-{n:02d}", game=self.hades if n % 2 else None)
+        self.client.force_login(self.luis)
+        response = self.client.get(reverse("profile", args=["ana"]), {"vista": "publicaciones"})
+        self.assertContains(response, "Publicaciones <span>12</span>")
+        self.assertEqual([post.text for post in response.context["posts"]], [f"Texto-{n:02d}" for n in range(11, 1, -1)])
+        self.assertContains(response, "Publicó sobre")
+        more = response.context["more_url"]
+        self.assertContains(response, f'hx-get="{more}"')
+        # Sin HTMX, «Cargar más» lleva a la pestaña desde ese punto.
+        self.assertIn("vista=publicaciones", self.client.get(more)["Location"])
+        response = self.client.get(more, HTTP_HX_REQUEST="true")
+        self.assertEqual([post.text for post in response.context["posts"]], ["Texto-01", "Texto-00"])
+        self.assertNotContains(response, "Cargar más")
+        # A su dueño le dice cómo empezar; a los demás, que aún no hay nada.
+        response = self.client.get(reverse("profile", args=["luis"]), {"vista": "publicaciones"})
+        self.assertContains(response, "Aún no has publicado nada.")
+        self.assertContains(response, reverse("social:post_new"))
+        # Un perfil privado no enseña las suyas ni por la dirección de «Cargar más».
+        self.make_private(self.ana)
+        self.assertEqual(self.client.get(more, HTTP_HX_REQUEST="true").status_code, 404)
+
+    def test_game_page_loads_its_posts_when_reached(self):
+        Post.objects.create(user=self.ana, text="Sin imágenes", game=self.hades)
+        pictured = Post.objects.create(user=self.luis, text="Con captura", game=self.hades)
+        PostImage.objects.create(post=pictured, igdb_image_id="sc6abc", position=0)
+        celeste = Game.objects.create(name="Celeste", slug="celeste")
+        Post.objects.create(user=self.ana, text="De otro juego", game=celeste)
+        hidden = User.objects.create_user("oculta", "oculta@example.com", "x")
+        self.make_private(hidden)
+        Post.objects.create(user=hidden, text="Secreta", game=self.hades)
+
+        response = self.client.get(self.hades.get_absolute_url())
+        self.assertContains(response, 'Publicaciones <span class="muted">2</span>')
+        url = reverse("social:game_posts", args=["hades"])
+        self.assertContains(response, f'hx-get="{url}" hx-trigger="intersect once"')
+        self.assertNotContains(response, "Sin imágenes")  # llegan después, con HTMX
+        self.assertRedirects(self.client.get(url), f"{self.hades.get_absolute_url()}#publicaciones", fetch_redirect_response=False)
+        response = self.client.get(url, HTTP_HX_REQUEST="true")
+        self.assertEqual([post.text for post in response.context["posts"]], ["Con captura", "Sin imágenes"])
+        self.assertContains(response, 'Con imágenes <span class="muted">1</span>')
+        # En su propia ficha no se repite el juego, pero sí quién la ha publicado.
+        self.assertNotContains(response, 'class="activity-game"')
+        self.assertContains(response, 'class="activity-author"')
+        response = self.client.get(url, {"imagenes": "1"}, HTTP_HX_REQUEST="true")
+        self.assertEqual([post.text for post in response.context["posts"]], ["Con captura"])
+        # La del perfil privado solo la ve su autora.
+        self.client.force_login(hidden)
+        self.assertContains(self.client.get(self.hades.get_absolute_url()), 'Publicaciones <span class="muted">3</span>')
+
+    def test_empty_game_page_says_so(self):
+        celeste = Game.objects.create(name="Celeste", slug="celeste")
+        response = self.client.get(celeste.get_absolute_url())
+        self.assertContains(response, "Aún nadie ha publicado sobre Celeste.")
+        self.assertNotContains(response, reverse("social:game_posts", args=["celeste"]))
+
+    def test_saving_posts(self):
+        post = Post.objects.create(user=self.ana, text="Guía de los jefes", game=self.hades)
+        other = Post.objects.create(user=self.ana, text="Otra cosa")
+        activity.post_published(post)
+        url = reverse("social:save_post", args=[post.pk])
+        self.assertEqual(self.client.post(url).status_code, 302)  # sin sesión, a iniciarla
+        self.assertFalse(SavedPost.objects.exists())
+        self.client.force_login(self.luis)
+        response = self.client.post(url, HTTP_HX_REQUEST="true")
+        self.assertContains(response, "save-btn is-on")
+        self.assertTrue(SavedPost.objects.filter(user=self.luis, post=post).exists())
+        self.assertFalse(Notification.objects.filter(user=self.ana).exists())  # su autora no se entera
+        self.assertContains(self.client.get(reverse("home"), {"ver": "descubrir"}), "save-btn is-on")
+        self.assertContains(self.client.get(post.get_absolute_url()), "save-btn is-on")
+        self.client.post(reverse("social:save_post", args=[other.pk]))
+        response = self.client.get(reverse("social:saved"))
+        # La última que ha guardado, primero.
+        self.assertEqual([saved.text for saved in response.context["posts"]], ["Otra cosa", "Guía de los jefes"])
+        self.assertContains(response, "save-btn is-on", count=2)
+        # Pulsar otra vez la quita, y sin HTMX vuelve a donde estaba.
+        self.assertRedirects(self.client.post(url, {"next": reverse("social:saved")}), reverse("social:saved"))
+        self.assertEqual([saved.text for saved in self.client.get(reverse("social:saved")).context["posts"]], ["Otra cosa"])
+        # Si su autora hace privado su perfil, desaparece de Guardados y ya no se puede guardar.
+        self.make_private(self.ana)
+        self.assertEqual(self.client.get(reverse("social:saved")).context["posts"], [])
+        self.assertEqual(self.client.post(url).status_code, 404)
+        # También se pueden guardar las propias.
+        self.client.force_login(self.ana)
+        self.client.post(url)
+        self.assertEqual([saved.text for saved in self.client.get(reverse("social:saved")).context["posts"]], ["Guía de los jefes"])
+        self.assertContains(self.client.get(reverse("home")), reverse("social:saved"))  # en el menú
+
+    def test_saved_page_goes_in_batches_by_when_you_saved_them(self):
+        start = timezone.now() - timedelta(days=1)
+        posts = [Post.objects.create(user=self.ana, text=f"Guardada-{n:02d}") for n in range(12)]
+        # La primera publicada es la última guardada.
+        for minutes, post in enumerate(reversed(posts)):
+            saved = SavedPost.objects.create(user=self.luis, post=post)
+            SavedPost.objects.filter(pk=saved.pk).update(created_at=start + timedelta(minutes=minutes))
+        self.client.force_login(self.luis)
+        response = self.client.get(reverse("social:saved"))
+        self.assertEqual([post.text for post in response.context["posts"]], [f"Guardada-{n:02d}" for n in range(10)])
+        response = self.client.get(response.context["more_url"], HTTP_HX_REQUEST="true")
+        self.assertEqual([post.text for post in response.context["posts"]], ["Guardada-10", "Guardada-11"])
+        self.assertIsNone(response.context.get("more_url"))
+        self.assertEqual(self.client.get(reverse("social:saved")).status_code, 200)
 
 
 class PostCommentTests(TestCase):

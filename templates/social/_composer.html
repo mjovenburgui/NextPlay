@@ -1,5 +1,6 @@
 {# Caja para publicar (en la portada y en /publicar/): el texto, de qué juego va si se quiere, imágenes y si es un spoiler. #}
-{# Necesita las variables de social.views.composer_context. Funciona sin JavaScript; con él enseña las imágenes elegidas y reduce las muy grandes antes de subirlas. #}
+{# Necesita las variables de social.views.composer_context. Funciona sin JavaScript; con él enseña las imágenes elegidas, #}
+{# cada una con su casilla «Spoiler» (spoiler_nueva), y reduce las muy grandes antes de subirlas. #}
 <form class="composer" method="post" action="{% url 'social:post_new' %}" enctype="multipart/form-data" data-composer
       data-max="{{ post_max_images }}" data-max-width="{{ post_image_kind.width }}" data-max-height="{{ post_image_kind.height }}" data-max-mb="{{ post_image_kind.max_mb }}">
   {% csrf_token %}
@@ -30,13 +31,14 @@
       {% include "_icon.html" with name="image" %} Imágenes
       <input class="visually-hidden" type="file" name="imagenes" multiple accept="image/png,image/jpeg,image/webp,image/gif" data-images>
     </label>
-    <label class="check small"><input type="checkbox" name="has_spoilers"{% if post_form.has_spoilers.value %} checked{% endif %}> Es un spoiler</label>
+    <label class="check small" title="Se plegará entera, con el texto y las imágenes"><input type="checkbox" name="has_spoilers"{% if post_form.has_spoilers.value %} checked{% endif %}> Es un spoiler</label>
     <button class="btn btn-primary composer-send" type="submit" data-busy="Publicando…">Publicar</button>
   </div>
 </form>
 <script>
-  // Caja de publicar: enseña las imágenes elegidas (como mucho data-max, que se pueden elegir en varias veces y quitar) y
-  // reduce las que no caben o pesan demasiado antes de subirlas, como hace el editor de reseñas.
+  // Caja de publicar: enseña las imágenes elegidas (como mucho data-max, que se pueden elegir en varias veces y quitar),
+  // cada una con su casilla «Spoiler», y reduce las que no caben o pesan demasiado antes de subirlas, como hace el editor
+  // de reseñas.
   // Pantallas: Inicio (caja para publicar), Publicar.
   (function () {
     var form = document.querySelector("[data-composer]");
@@ -44,7 +46,7 @@
     var previews = form.querySelector("[data-previews]");
     var note = form.querySelector("[data-images-note]");
     var max = Number(form.dataset.max);
-    var files = [];
+    var chosen = [];  // {file, spoiler}: las que se subirán, en orden
     var urls = [];
 
     // Devuelve (en una promesa) el archivo que se subirá: el mismo o, si es más grande de lo que se guarda o pesa
@@ -76,42 +78,55 @@
       });
     }
 
-    // Pone en el selector los archivos elegidos (el servidor recibe esos) y pinta sus miniaturas con un botón para quitarlas.
+    // Pone en el selector los archivos elegidos (el servidor recibe esos) y pinta sus miniaturas, cada una con su casilla
+    // «Spoiler» (con el número de su sitio, que es el que mira el servidor) y un botón para quitarla.
     function sync() {
       var transfer = new DataTransfer();
-      files.forEach(function (file) { transfer.items.add(file); });
+      chosen.forEach(function (item) { transfer.items.add(item.file); });
       input.files = transfer.files;
       urls.forEach(function (url) { URL.revokeObjectURL(url); });
       urls = [];
       previews.replaceChildren();
-      previews.hidden = !files.length;
-      files.forEach(function (file, i) {
-        var item = document.createElement("li");
+      previews.hidden = !chosen.length;
+      chosen.forEach(function (item, i) {
+        var slot = document.createElement("li");
         var img = document.createElement("img");
-        img.alt = file.name;
-        img.src = URL.createObjectURL(file);
+        img.alt = item.file.name;
+        img.src = URL.createObjectURL(item.file);
         urls.push(img.src);
+        var spoiler = document.createElement("label");
+        spoiler.className = "composer-spoiler";
+        spoiler.title = "Se verá borrosa hasta que se pulse";
+        var box = document.createElement("input");
+        box.type = "checkbox";
+        box.name = "spoiler_nueva";
+        box.value = i;
+        // Cada casilla dice de qué imagen es, para que un lector de pantalla no oiga varias «Spoiler» iguales.
+        box.setAttribute("aria-label", "La imagen " + (i + 1) + " (" + item.file.name + ") es un spoiler");
+        box.checked = item.spoiler;
+        box.addEventListener("change", function () { item.spoiler = box.checked; });
+        spoiler.append(box, " Spoiler");
         var remove = document.createElement("button");
         remove.type = "button";
         remove.className = "composer-remove";
-        remove.setAttribute("aria-label", "Quitar " + file.name);
+        remove.setAttribute("aria-label", "Quitar " + item.file.name);
         remove.textContent = "×";
         remove.addEventListener("click", function () {
-          files.splice(i, 1);
+          chosen.splice(i, 1);
           note.hidden = true;
           sync();
         });
-        item.append(img, remove);
-        previews.append(item);
+        slot.append(img, spoiler, remove);
+        previews.append(slot);
       });
     }
 
     input.addEventListener("change", function () {
       Promise.all(Array.prototype.slice.call(input.files).map(shrink)).then(function (picked) {
-        files = files.concat(picked);
+        chosen = chosen.concat(picked.map(function (file) { return { file: file, spoiler: false }; }));
         note.textContent = "Caben " + max + " imágenes por publicación: se han quedado fuera las últimas.";
-        note.hidden = files.length <= max;
-        files = files.slice(0, max);
+        note.hidden = chosen.length <= max;
+        chosen = chosen.slice(0, max);
         sync();
       });
     });

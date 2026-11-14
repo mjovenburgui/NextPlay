@@ -1,0 +1,18 @@
+{# Las publicaciones sobre un juego en su ficha, de la más nueva a la más vieja, con su filtro: todas o solo las que llevan imágenes. #}
+{# La ficha la pide con HTMX al llegar a ella (social.views.game_posts) y cada filtro la cambia entera. Necesita game, posts, #}
+{# post_filters ((nombre, dirección, si es el elegido, cuántas)) y, si hay más, more_url y more_href. #}
+<div class="game-posts-list" id="publicaciones-lista">
+  <nav class="chip-links" aria-label="Filtrar las publicaciones">
+    {% for label, url, active, count in post_filters %}
+      <a class="chip-link{% if active %} is-active{% endif %}" href="{{ url }}"{% if active %} aria-current="true"{% endif %}
+         hx-get="{{ url }}" hx-target="#publicaciones-lista" hx-swap="outerHTML">{{ label }} <span class="muted">{{ count }}</span></a>
+    {% endfor %}
+  </nav>
+  {% if posts %}
+    <div class="card-box"><ol class="activities">{% include "social/_posts.html" %}</ol></div>
+  {% elif only_images %}
+    <p class="empty">Aún nadie ha subido imágenes de {{ game.name }}.</p>
+  {% else %}
+    <p class="empty">Aún nadie ha publicado sobre {{ game.name }}.</p>
+  {% endif %}
+</div>

@@ -343,7 +343,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .import { display: flex; align-items: center; justify-content: center; gap: .75rem; flex-wrap: wrap; margin-top: 2rem; }
 
 /* Ficha del juego en columnas (templates/games/detail.html). Tres bloques: .game-side (carátula, notas, Cuánto dura y
-   tus logros), .game-body (tu biblioteca, sinopsis, imágenes, precios, expansiones y DLC, ediciones y reseñas) y
+   tus logros), .game-body (tu biblioteca, sinopsis, imágenes, precios, expansiones y DLC, ediciones, reseñas y
+   publicaciones) y
    .game-facts (ficha técnica, idiomas, juegos parecidos y listas). En las pantallas medianas van en dos columnas y los datos bajan debajo de la
    carátula: el bloque del medio ocupa las dos filas, y la segunda (1fr) se queda con lo que sobra, para que no quede
    hueco entre la carátula y los datos. Desde 1280 px, tres columnas en el contenedor ancho. En el móvil, una sola. */
@@ -375,7 +376,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   /* En el móvil, una sola columna: los tres bloques se deshacen (display: contents) y sus piezas van en este orden: la
      carátula, pequeña, al lado de las notas; tu biblioteca (y el aviso de la edición); Cuánto dura; la sinopsis; las
      imágenes; los precios y las expansiones y DLC; la ficha técnica y los idiomas; las ediciones; los juegos parecidos;
-     las reseñas; y al final tus logros y las listas en las que está. */
+     las reseñas y las publicaciones; y al final tus logros y las listas en las que está. */
   .game { grid-template-columns: 104px minmax(0, 1fr); grid-template-rows: none; gap: 1rem .75rem; }
   .game-side, .game-body, .game-facts { display: contents; }
   .game :is(.game-side, .game-body, .game-facts) > * { grid-column: 1 / -1; order: 3; }
@@ -393,7 +394,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   .game :is(#ficha-tecnica, .languages) { order: 6; }
   .game #versiones { order: 7; }
   .game #parecidos { order: 8; }
-  .game #resenas { order: 9; }
+  .game :is(#resenas, #publicaciones) { order: 9; }
   .game :is(.side-achievements, .side-lists) { order: 10; }
 }
 .cover-lg .cover-fallback { font-size: 1.2rem; }
@@ -465,6 +466,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
   .sort select { width: 100%; }
 }
 .tabs-main .tab { font-size: 1.05rem; font-weight: 600; }
+/* El perfil de otro tiene nueve pestañas: hasta 1200 px, un poco menos de aire entre ellas para que quepan en una
+   pantalla de 1024 sin barra de desplazamiento. Más estrecho, la barra se desplaza como siempre. */
+@media (max-width: 1200px) {
+  .tabs-main .tab { padding-inline: .7rem; }
+}
 /* Estrellas y horas de una portada del perfil: si no caben juntas (tres columnas en el móvil), las horas bajan. */
 .card-extra { display: flex; flex-wrap: wrap; gap: .1rem .5rem; }
 /* Logos de las plataformas de las que salen las horas (library/_platform_mark.html), dibujados una vez por página. */
@@ -550,7 +556,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .spoiler { margin-top: .75rem; }
 .spoiler summary { color: var(--pink); cursor: pointer; font-size: .9rem; }
 
-.tabs { display: flex; gap: .25rem; overflow-x: auto; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+.tabs {
+  display: flex; gap: .25rem; overflow-x: auto; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border);
+  /* Si no caben, la barra para desplazarlas es fina y discreta, como la de los demás carriles de la web. */
+  scrollbar-width: thin; scrollbar-color: var(--surface-3) transparent;
+}
 .tab { padding: .6rem .9rem; color: var(--muted); white-space: nowrap; border-bottom: 2px solid transparent; }
 .tab:hover { color: var(--text); text-decoration: none; }
 .tab.is-active { color: var(--violet-text); border-bottom-color: var(--violet); font-weight: 600; }
@@ -1653,6 +1663,9 @@ div.review-text { margin: .35rem 0 0; }
 a.review-action:hover, button.review-action:hover { color: var(--text); text-decoration: none; }
 .like-btn.is-on { color: var(--pink); }
 .like-btn.is-on .icon { fill: currentColor; }
+/* «Guardar» de las publicaciones: marcado, el marcador se rellena con el violeta de NextPlay. */
+.save-btn.is-on { color: var(--violet-text); }
+.save-btn.is-on .icon { fill: currentColor; }
 .feed-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .25rem .9rem; margin: .5rem 0 0; }
 /* ||Spoilers|| dentro del texto: tapados hasta que se pulsan (el script está en base.html). */
 .spoiler-inline { padding: 0 .2em; border-radius: 4px; background: var(--surface-3); color: transparent; cursor: pointer; transition: background .2s, color .2s; }
@@ -1897,6 +1910,11 @@ p.update-hint { display: flex; border-left-color: var(--gold); }
 .activity-covers .review-thumb { display: block; width: 52px; }
 .activity-cover { width: 48px; }
 .activity-more { display: flex; justify-content: center; padding-top: 1rem; }
+.activity-time a { color: inherit; }
+/* Publicaciones sueltas (pestaña Publicaciones del perfil, ficha del juego y Guardados), con el aspecto de las del feed:
+   en la ficha, los filtros encima de la caja, como en las reseñas. */
+.game-posts .chip-links { margin: 0 0 .9rem; }
+.saved-page .activities { margin-top: 1.25rem; }
 /* El feed de la portada: pestañas Siguiendo y Descubrir y, si no sigues a nadie, gente a la que seguir */
 .feed-tabs { margin: -.25rem 0 1rem; }
 .feed-suggest { margin-bottom: 1rem; padding: .9rem 1rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; }
@@ -1928,6 +1946,11 @@ p.update-hint { display: flex; border-left-color: var(--gold); }
 .composer-previews li { position: relative; width: 84px; aspect-ratio: 1; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; }
 .composer-previews img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .composer-remove { position: absolute; top: .2rem; right: .2rem; width: 1.5rem; height: 1.5rem; padding: 0; border: 0; border-radius: 50%; background: rgba(7, 9, 18, .8); color: #fff; font-size: 1rem; line-height: 1; cursor: pointer; }
+/* La casilla «Spoiler» de cada miniatura, abajo a la izquierda: marcada, la miniatura ya se ve borrosa, como saldrá. */
+.composer-spoiler { position: absolute; left: .2rem; bottom: .2rem; display: inline-flex; align-items: center; gap: .25rem; padding: .1rem .4rem .1rem .3rem; border-radius: 999px; background: rgba(7, 9, 18, .8); color: #fff; font-size: .72rem; line-height: 1.4; cursor: pointer; }
+.composer-spoiler input { width: .8rem; height: .8rem; margin: 0; accent-color: var(--violet); }
+.composer-spoiler:has(input:focus-visible) { outline: 2px solid var(--cyan); outline-offset: 1px; }
+.composer-previews li:has(.composer-spoiler input:checked) img { filter: blur(6px) brightness(.6); transform: scale(1.1); }
 .composer-foot { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem 1rem; margin-top: .7rem; }
 .composer-foot .check { display: inline-flex; align-items: center; gap: .35rem; cursor: pointer; }
 .composer-attach { display: inline-flex; align-items: center; gap: .35rem; cursor: pointer; }

@@ -5,7 +5,7 @@
 {% block description %}{{ post.text|review_plain|truncatechars:155 }}{% endblock %}
 
 {% block content %}
-  {# Página propia de una publicación, para enlazarla: quién, cuándo, de qué juego, el texto entero y sus imágenes. #}
+  {# Página propia de una publicación, para enlazarla: quién, cuándo, de qué juego, el texto entero y sus imágenes, y guardarla. #}
   <article class="panel panel-wide post-page">
     <header class="post-head">
       {% include "accounts/_avatar.html" with profile=post.user.profile size="md" %}
@@ -24,6 +24,7 @@
     <footer class="review-foot">
       {% include "social/_post_like.html" with liked=post.liked like_count=post.like_count %}
       <a class="review-action" href="#comentarios">{% include "_icon.html" with name="comment" %} <span id="post-comment-count-{{ post.pk }}">{{ post.comment_count|default:0 }}</span><span class="visually-hidden"> comentarios</span></a>
+      {% include "social/_post_save.html" with saved=post.saved %}
       <button class="review-action" type="button" data-copy-link="{{ request.scheme }}://{{ request.get_host }}{{ post.get_absolute_url }}">{% include "_icon.html" with name="link" %} <span data-copy-label>Copiar enlace</span></button>
       {% if is_author %}
         <form class="post-delete" method="post" action="{% url 'social:post_delete' post.pk %}"
