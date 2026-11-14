@@ -13,10 +13,11 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Todo está en `main` salvo tres ramas del 14/11, locales y sin subir, una encima de otra: `publicaciones`, `primer-uso` y `avisos-que-llegan`. Las cinco ramas del 12 y el 13/11 (`playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica`, `playnite-sync` y `gog-y-epic`) entraron el 13/11 con los PR #40 a #44, sin que las hubieras probado: me pediste fusionarlas y dejarlas pendientes de revisión. Qué falta probar, y en qué servidor, está en la primera entrada de abajo. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
+Todo está en `main` salvo cuatro ramas locales y sin subir, una encima de otra: `publicaciones`, `primer-uso` y `avisos-que-llegan`, del 14/11, y `comunidad-del-juego`, del 15/11. Las cinco ramas del 12 y el 13/11 (`playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica`, `playnite-sync` y `gog-y-epic`) entraron el 13/11 con los PR #40 a #44, sin que las hubieras probado: me pediste fusionarlas y dejarlas pendientes de revisión. Qué falta probar, y en qué servidor, está en la primera entrada de abajo. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
+| `comunidad-del-juego` | La Comunidad de cada juego: hilos y preguntas con respuestas, las horas de quien escribe, lo que destripa plegado según lo que llevas jugado y «¿Cómo se consigue?» desde tus logros | Commit local, sin subir, encima de `avisos-que-llegan`. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae las migraciones `social.0012` y `accounts.0035`. |
 | `avisos-que-llegan` | NextPlay instalable y avisos que llegan: como notificación en el móvil o el ordenador y, los de los retos, por correo | Commit local, sin subir, encima de `primer-uso`. **Pendiente de tu revisión**, sobre todo el push en tu Chrome. Trae la migración `accounts.0034` y necesita las claves VAPID en `.env`. |
 | `primer-uso` | Primer uso: al registrarte, Inicio empieza por «Trae tus juegos» con «¿Dónde juegas?», y «Vincular cuentas» enseña solo la forma recomendada de cada plataforma | Commit local, sin subir, encima de `publicaciones`. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae la migración `accounts.0033`. |
 | `publicaciones` | El repaso de las propuestas (11 nuevas) y Publicaciones: spoiler por imagen, pestaña del perfil, sección en la ficha y Guardados | Commits locales, sin subir. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae la migración `social.0011`. |
@@ -48,6 +49,116 @@ Todo está en `main` salvo tres ramas del 14/11, locales y sin subir, una encima
 - `challenges.0002`;
 - `social.0008` y `social.0009`;
 - `library.0014`.
+
+---
+
+## 15/11/2026 · Comunidad de cada juego: hilos, preguntas y spoilers según lo que llevas jugado
+
+**Rama:** `comunidad-del-juego`, encima de `avisos-que-llegan`. Commit local, sin subir.
+
+**Por qué:** te pregunté «¿Sigo con la comunidad de cada juego (hilos y preguntas)?» y contestaste «Sí, sigue». Era tu petición del 14/11: que dentro de cada juego haya una pestaña de comunidad con todo lo que se publica de él, y poder hacer hilos.
+
+**Qué cambia para ti:**
+- **Una barra en cada juego**, debajo de la cabecera de la ficha: «Ficha · Comunidad · Listas», con cuántas cosas hay en las dos últimas. Las Listas del juego llevan la misma barra.
+- **La pestaña Comunidad** (`/juegos/<juego>/comunidad/`):
+  - todo lo que se publica sobre el juego, sus hilos y sus preguntas, de lo que tiene actividad más reciente a lo que menos;
+  - las pestañas Todo, Hilos, Preguntas y Con imágenes, con «Cargar más»;
+  - lo fijado por un administrador, arriba;
+  - «Abrir un hilo», «Preguntar» y «Publicar»;
+  - a la derecha, «Lo que llevas»: tus horas y qué se te pliega por ir por detrás.
+- **Cada mensaje dice cómo iba quien lo escribió**, con lo que tenía al escribirlo: sus horas verificadas con el logo de donde salen, si lo había terminado y su «Platino» o «100 %».
+- **Lo que destripa se pliega solo**, diciendo por qué, y se abre con un clic:
+  - lo que se escribió con 10 h o más de las que llevas tú, si no lo has terminado (la misma regla que las reseñas);
+  - lo que su autor marca como que destripa hasta un logro que aún no tienes. Al abrir un hilo, lo eliges entre los logros que tienes tú, en el orden del juego.
+- **Las respuestas** pueden contestar a otra respuesta: salen con su cita, sin anidarse. Cada respuesta sube el hilo en la comunidad.
+- **En las preguntas**, quien pregunta pulsa «Me ha servido» en una respuesta: sale la primera y la pregunta queda «Resuelta».
+- **«¿Cómo se consigue?»**: en «Tus logros» de la ficha, cada logro que te falta lo lleva.
+  - Si ya hay una pregunta sobre ese logro, te lleva a ella. Si no, a hacerla, con el título puesto.
+  - En los logros ocultos, el título no destapa el nombre.
+  - Las respuestas de quien tiene ese logro llevan «Lo tiene».
+- **En la ficha**, la sección Publicaciones pasa a ser «Comunidad»: lo último (tres cosas) y «Ver toda la comunidad».
+- **En el feed, el perfil y Guardados**, los hilos y las preguntas salen con su título y sin su texto, para no destripar nada fuera de su comunidad.
+- **Avisos nuevos**, en el grupo «Hilos y preguntas» de Editar perfil › Avisos:
+  - cuando responden en tu hilo o a tu pregunta;
+  - cuando contestan a una respuesta tuya;
+  - cuando tu respuesta le ha servido a quien preguntó.
+
+  Llegan a la campana y como notificación.
+
+**Lo que he decidido yo (cámbialo si no te convence):**
+- **Los hilos y las preguntas son publicaciones** con título, no un modelo aparte. Así tienen ya imágenes, «me gusta», guardar, denuncias y feed.
+- **Las respuestas de las preguntas también se pliegan** si van por delante de ti, aunque las hayas pedido tú. En «¿Cómo se consigue?» quizá prefieras verlas abiertas: es un cambio pequeño.
+- **El plegado por logro solo vale dentro de una plataforma.** Si el autor marca un logro de Steam, quien juega en PlayStation lo verá plegado aunque haya llegado más lejos. Emparejar los logros por su nombre está apuntado en la propuesta.
+- **Sin correo para las respuestas**, de momento: llegan a la campana y como notificación. Por correo podrían ser demasiados.
+- **No he hecho «Tu partida como hilo»**, el quinto paso de la propuesta (un hilo tuyo por juego con tus horas de cada momento). Es una pieza aparte y lo dejo para otra rama.
+
+**Qué he tocado:**
+- `social`:
+  - `community.py`, nuevo: la comunidad, el hilo, abrir uno, responder, «Me ha servido», «¿Cómo se consigue?» y el plegado;
+  - los modelos: `Post` gana tipo, título, última actividad, fijado, cerrado, el logro por el que pregunta y la respuesta elegida, y `PostComment` gana a qué respuesta contesta. Los dos guardan cómo iba su autor (`PlaySnapshot`). Migración `social.0012`;
+  - los formularios `ThreadForm` y `ReplyForm`, el admin (con «Fijar» y «Cerrar») y las direcciones.
+- `accounts`: los cuatro tipos de aviso nuevos y su grupo (migración `accounts.0035`).
+- `library/models.py`: lo que guarda las horas de las reseñas, ahora compartido con la comunidad.
+- La ficha (barra y sección Comunidad), Listas del juego, «Tus logros» y las tarjetas del feed.
+- Plantillas nuevas: `social/community.html`, `thread.html`, `thread_form.html` y sus trozos, y `games/_tabs.html`.
+- `app.css`, `README.md`, `docs/pantallas.json` (tres pantallas nuevas: Comunidad del juego, Hilo o pregunta y Nuevo hilo o pregunta), las propuestas y los dos PDF.
+
+**Cómo lo he comprobado:**
+- Los tests, sin claves y con claves falsas: 673 en cada modo, todos bien. Hay 9 nuevos:
+  - las pestañas;
+  - responder con cita y los avisos;
+  - los hilos cerrados;
+  - el plegado por horas y por logro;
+  - «Me ha servido»;
+  - «¿Cómo se consigue?»;
+  - lo fijado con «Cargar más»;
+  - borrar.
+- En el navegador de Claude, en la copia de revisión, con `tester_steam` y la comunidad de prueba de Clair Obscur: Expedition 33:
+  - la comunidad, el hilo plegado por horas y el plegado por un logro oculto;
+  - responder a una respuesta: sale al momento, con su cita y tus horas;
+  - la pregunta resuelta con «Lo tiene»;
+  - «¿Cómo se consigue?» desde «Tus logros», tanto a una pregunta que ya existe como a una nueva;
+  - el formulario para abrir un hilo y lo último de la comunidad en la ficha;
+  - a 375 px no se sale nada;
+  - la consola no da errores.
+
+**Qué falta (depende de ti):**
+- Revisarlo.
+- Al fusionarlo con `main`, tu base de datos necesitará `social.0012` y `accounts.0035`, además de las de las otras tres ramas.
+
+**Cómo comprobarlo tú (guion):** en http://localhost:8001/, la copia de revisión, con `tester_steam`. La comunidad de Clair Obscur: Expedition 33 ya tiene hilos y preguntas de prueba de `demo1`, `demo2`, `demo3` y `tester`.
+1. **La barra.** Abre http://localhost:8001/juegos/clair-obscur-expedition-33/.
+   - Debajo de la cabecera está «Ficha · Comunidad 6 · Listas 0».
+   - Baja hasta «Comunidad»: salen las tres cosas más recientes y «Ver toda la comunidad (6)».
+2. **La comunidad.** Pulsa la pestaña Comunidad.
+   - Prueba las pestañas Todo, Hilos, Preguntas y Con imágenes.
+   - La guía de `demo1` va arriba, «Fijado», y dice «Va por delante de ti»: la escribió con 95 h y tú llevas 53,2.
+   - El hilo de `demo3` dice «Destripa un logro que no tienes».
+   - A la derecha, «Lo que llevas».
+3. **Lo plegado.** Abre la guía.
+   - Va plegada: «Se escribió a las 95 h y tú llevas 53,2 h…». Ábrela.
+   - En las respuestas, la de `demo3` (120 h) también va plegada.
+4. **Responder a una respuesta.** En la de `demo2`, pulsa «Responder».
+   - Encima del cuadro sale «Respondiendo a demo2».
+   - Escribe algo y pulsa «Responder»: sale al momento, con la cita y tus 53,2 h.
+5. **Una pregunta resuelta.** Abre «¿Cómo se consigue «Seguir el rastro»?».
+   - Arriba, el logro, con «Aún no lo tienes».
+   - La respuesta de `demo1` va la primera, con «Le ha servido a demo2» y «Lo tiene».
+6. **«¿Cómo se consigue?».** En la ficha, despliega «Tus logros» › «Ver tus logros de Steam». Cada logro que te falta lleva «¿Cómo se consigue?».
+   - En «Seguir el rastro», te lleva a la pregunta del paso 5.
+   - En uno oculto, a «Preguntar», con el título «¿Cómo se consigue este logro oculto?» y el nombre tapado.
+7. **Abre un hilo.** Pulsa «Abrir un hilo».
+   - Ponle título y texto, y en «¿Hasta dónde destripa?» elige uno de tus logros, por ejemplo «El final».
+   - En una ventana de incógnito, entra con `tester` y ábrelo: le sale plegado, porque no tiene ese logro.
+   - Si `tester` responde, a `tester_steam` le llega el aviso.
+8. **Haz una pregunta** y respóndela con `tester`.
+   - Vuelve a `tester_steam` y pulsa «Me ha servido» en esa respuesta.
+   - Sale la primera, y en la comunidad la pregunta pasa a «Resuelta».
+9. **Si el servidor no responde**, levántalo:
+
+   ```bash
+   C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/NextPlay/.claude/worktrees/revision-tareas-pendientes-d85f54/manage.py runserver 8001
+   ```
 
 ---
 

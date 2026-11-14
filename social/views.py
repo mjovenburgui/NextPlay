@@ -1,6 +1,7 @@
 """Vistas de lo social: el botón de seguir y Seguidores y seguidos, el feed de Inicio y las pestañas Actividad y
-Publicaciones del Perfil (con su «Cargar más»), la caja para publicar de Inicio y Publicar, las publicaciones de la Ficha
-del juego, la Página de la publicación con sus «me gusta», comentarios y denuncias, y Guardados.
+Publicaciones del Perfil (con su «Cargar más»), la caja para publicar de Inicio y Publicar, la Página de la publicación
+con sus «me gusta», comentarios y denuncias, y Guardados. La comunidad de cada juego (sus hilos y preguntas, y lo que
+sale de ella en la ficha) va en social.community.
 """
 
 from datetime import datetime, timedelta
@@ -12,7 +13,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
 from django.core.paginator import Paginator
-from django.db.models import Count, Exists, OuterRef, Prefetch, Q, Subquery
+from django.db.models import Count, OuterRef, Prefetch, Q, Subquery
 from django.db.models.functions import Coalesce
 from django.http import Http404, HttpResponseBadRequest, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
@@ -32,17 +33,15 @@ from lists.views import mark_liked_lists, mark_progress
 
 from .activity import post_published
 from .forms import PostCommentForm, PostForm
-from .models import POST_MAX_IMAGES, Activity, Follow, Post, PostComment, PostImage, PostLike, SavedPost
+from .models import POST_MAX_IMAGES, Activity, Follow, Post, PostComment, PostLike, SavedPost
 
 User = get_user_model()
 # Personas por página en las listas de seguidores y seguidos.
 PEOPLE_PER_PAGE = 30
 # Actividades por tanda en la pestaña Actividad del perfil y en el feed de la portada; «Cargar más» trae la siguiente.
 ACTIVITY_PAGE = 20
-# Publicaciones por tanda en la pestaña Publicaciones del perfil y en Guardados, y en la ficha del juego, donde van menos
-# para que no la alarguen; «Cargar más» trae la siguiente.
+# Publicaciones por tanda en la pestaña Publicaciones del perfil y en Guardados; «Cargar más» trae la siguiente.
 POSTS_PAGE = 10
-GAME_POSTS_PAGE = 5
 # Pestañas del feed de la portada: valor de ?ver= → nombre. La primera es la de por defecto.
 FEED_TABS = {"siguiendo": "Siguiendo", "descubrir": "Descubrir"}
 # Gente que se sugiere seguir a quien no sigue a nadie, y cuántos días cuenta la actividad reciente para elegirla.
@@ -373,14 +372,16 @@ def feed(request):
 
 
 def _posts():
-    """Publicaciones con lo que enseñan sus tarjetas ya cargado: autor (con su foto), juego, imágenes, «me gusta»
-    (like_count) y comentarios (comment_count).
+    """Publicaciones con lo que enseñan sus tarjetas ya cargado: autor (con su foto), juego, imágenes, los logros hasta el
+    que destripan y por el que preguntan, «me gusta» (like_count) y comentarios o respuestas (comment_count).
 
-    Pantallas: Inicio (feed), Perfil (pestaña Actividad), Página de la publicación (las tarjetas de las
-    publicaciones).
+    Pantallas: Inicio (feed), Perfil (pestaña Actividad), Página de la publicación, Comunidad del juego, Hilo o pregunta
+    (las tarjetas de las publicaciones).
     """
     return (
-        Post.objects.select_related("user__profile", "user__psn_account", "user__xbox_account", "game")
+        Post.objects.select_related(
+            "user__profile", "user__psn_account", "user__xbox_account", "game", "spoiler_achievement", "achievement",
+        )
         .prefetch_related("images", "user__steam_accounts")
         .annotate(like_count=Count("likes", distinct=True), comment_count=Count("comments", distinct=True))
     )
@@ -423,7 +424,7 @@ def post_batch(posts, viewer, cursor, size=POSTS_PAGE, field="created_at"):
     (publicaciones, cursor de la tanda siguiente o "" si no hay más); cursor dice desde dónde seguir, como en las
     actividades (_cursor), y vacío (o roto) es desde el principio.
 
-    Pantallas: Perfil (pestaña Publicaciones), Ficha del juego (publicaciones), Guardados.
+    Pantallas: Perfil (pestaña Publicaciones), Comunidad del juego, Guardados.
     """
     posts = posts.order_by(f"-{field}", "-pk")
     start = _parse_cursor(cursor)
@@ -473,43 +474,6 @@ def user_posts(request, username):
             f"{reverse('profile', args=[username])}?{urlencode({'vista': 'publicaciones', 'antes': cursor})}"
         )
     return render(request, "social/_posts.html", posts_context(owner, request.user, cursor))
-
-
-def game_posts(request, slug):
-    """Publicaciones de la comunidad sobre el juego slug, para su ficha: de la más nueva a la más vieja, en tandas de
-    GAME_POSTS_PAGE (?antes=, el cursor de «Cargar más») y, con ?imagenes=1, solo las que llevan imágenes.
-
-    Solo salen las de los perfiles que puede ver quien mira (Profile.visible_filter). Con HTMX devuelve la lista con sus
-    dos filtros y lo que hay en cada uno (la ficha la pide al llegar a ella) o, con ?antes=, solo la tanda siguiente;
-    sin HTMX lleva a la ficha, a su sección de publicaciones.
-
-    Pantallas: Ficha del juego (publicaciones).
-    """
-    game = get_object_or_404(Game, slug=slug)
-    if not request.headers.get("HX-Request"):
-        return redirect(f"{game.get_absolute_url()}#publicaciones")
-    visible = Profile.visible_filter(request.user)
-    with_images = Exists(PostImage.objects.filter(post=OuterRef("pk")))
-    only_images = request.GET.get("imagenes") == "1"
-    posts = _posts().filter(visible, game=game)
-    if only_images:
-        posts = posts.filter(with_images)
-    cursor = request.GET.get("antes", "")
-    batch, next_cursor = post_batch(posts, request.user, cursor, size=GAME_POSTS_PAGE)
-    base = reverse("social:game_posts", args=[game.slug])
-    context = {"game": game, "posts": batch, "show_user": True, "hide_game": True}
-    if next_cursor:
-        query = {"antes": next_cursor, **({"imagenes": "1"} if only_images else {})}
-        context["more_url"] = context["more_href"] = f"{base}?{urlencode(query)}"
-    if cursor:
-        return render(request, "social/_posts.html", context)
-    counted = Post.objects.filter(visible, game=game)
-    context["post_filters"] = [
-        ("Todas", base, not only_images, counted.count()),
-        ("Con imágenes", f"{base}?imagenes=1", only_images, counted.filter(with_images).count()),
-    ]
-    context["only_images"] = only_images
-    return render(request, "social/_game_posts.html", context)
 
 
 def composer_context(user, game=None, form=None):
@@ -573,13 +537,16 @@ def post_detail(request, username, post_id):
     y sus comentarios.
 
     La ve quien puede ver el perfil de su autor (si no, 404). Quien tiene sesión puede guardarla en Guardados; su autor
-    puede borrarla y los demás, denunciarla (con ?denunciar llega abierto el formulario).
+    puede borrarla y los demás, denunciarla (con ?denunciar llega abierto el formulario). Los hilos y las preguntas llevan
+    a su página en la comunidad de su juego.
 
-    Pantallas: Página de la publicación.
+    Pantallas: Página de la publicación, Hilo o pregunta.
     """
     post = _readable_post(request, post_id)
     if post.user.username != username:
         raise Http404
+    if post.is_thread and post.game_id:
+        return redirect(post)
     mark_saved_posts(mark_liked_posts([post], request.user), request.user)
     viewer = request.user
     is_author = viewer == post.user
@@ -608,18 +575,24 @@ def _post_comments(post, viewer):
 @require_POST
 @login_required
 def post_comment(request, post_id):
-    """Publica un comentario en una publicación (avisando a su autor si no es él) y vuelve a sus comentarios.
+    """Publica un comentario en una publicación (avisando a su autor si no es él) y vuelve a sus comentarios. Guarda cómo
+    iba con el juego quien comenta y sube la publicación en la comunidad de su juego. En los hilos y las preguntas se
+    responde desde su página (social.community.thread_reply): aquí dan 400.
 
     Con HTMX devuelve los comentarios ya con el nuevo (o el formulario con el error) y el contador de la página.
 
-    Pantallas: Página de la publicación (comentarios), Avisos (aviso a su autor).
+    Pantallas: Página de la publicación (comentarios), Comunidad del juego (lo último arriba), Avisos (aviso a su autor).
     """
     post = _readable_post(request, post_id)
+    if post.is_thread:
+        return HttpResponseBadRequest("En los hilos y las preguntas se responde desde su página.")
     form = PostCommentForm(request.POST)
     if form.is_valid():
         comment = form.save(commit=False)
         comment.post, comment.user = post, request.user
+        comment.take_snapshot(request.user, post.game)
         comment.save()
+        Post.objects.filter(pk=post.pk).update(last_activity_at=comment.created_at)
         if post.user_id != request.user.pk:
             _notify_post_comment(post, request.user)
         form = PostCommentForm()
@@ -680,12 +653,17 @@ def post_comment_report(request, comment_id):
 @login_required
 def post_delete(request, post_id):
     """Borra una publicación del usuario, con sus imágenes, sus «me gusta» y su actividad, y vuelve a la portada; las de otros dan 404.
+    Un hilo o una pregunta se borra con sus respuestas y vuelve a la comunidad de su juego.
 
-    Pantallas: Página de la publicación (botón «Borrar»), Inicio (feed), Perfil (pestaña Actividad).
+    Pantallas: Página de la publicación (botón «Borrar»), Hilo o pregunta (botón «Borrar»), Comunidad del juego, Inicio
+    (feed), Perfil (pestaña Actividad).
     """
-    get_object_or_404(Post, pk=post_id, user=request.user).delete()
-    messages.success(request, "Publicación borrada.")
-    return redirect("home")
+    post = get_object_or_404(Post.objects.select_related("game"), pk=post_id, user=request.user)
+    back = reverse("social:community", args=[post.game.slug]) if post.is_thread and post.game_id else reverse("home")
+    done = {Post.Kind.THREAD: "Hilo borrado.", Post.Kind.QUESTION: "Pregunta borrada."}.get(post.kind, "Publicación borrada.")
+    post.delete()
+    messages.success(request, done)
+    return redirect(back)
 
 
 @require_POST

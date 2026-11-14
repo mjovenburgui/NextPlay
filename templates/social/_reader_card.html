@@ -1,0 +1,22 @@
+{# «Lo que llevas» en la comunidad de un juego: cómo va quien mira con él y qué se le pliega por eso (social.community.Reader). Necesita reader y game. #}
+<section class="widget reader-card" aria-labelledby="lo-que-llevas">
+  <h2 class="widget-label" id="lo-que-llevas">Lo que llevas</h2>
+  {% if not user.is_authenticated %}
+    <p><a href="{% url 'login' %}?next={{ request.path|urlencode }}">Inicia sesión</a> y te plegaremos lo que va por delante de lo que llevas jugado.</p>
+  {% elif not reader.entry %}
+    <p>Aún no tienes {{ game.name }} en tu biblioteca. Te plegamos lo que destripa logros que no tienes; con tus horas importadas, también lo que va por delante de ti.</p>
+  {% else %}
+    <p class="reader-facts">
+      {% if reader.hours is not None %}<span class="played-fact">{% include "_icon.html" with name="clock" %} {{ reader.hours|floatformat:"-1" }} h</span>{% endif %}
+      <span class="played-fact{% if reader.finished %} is-done{% endif %}">{% if reader.finished %}{% include "_icon.html" with name="check" %} {% endif %}{{ reader.entry.get_status_display }}</span>
+      {% if reader.achievements %}<span class="played-fact">{% include "_icon.html" with name="trophy" %} {{ reader.achievements|length }} logro{{ reader.achievements|length|pluralize }}</span>{% endif %}
+    </p>
+    {% if reader.finished %}
+      <p>Lo has terminado: ya no te plegamos nada por horas. Solo lo que su autor marca como spoiler o hasta un logro que no tienes.</p>
+    {% elif reader.ahead_from is not None %}
+      <p>Te plegamos lo que se escribió a partir de las <strong>{{ reader.ahead_from|floatformat:"-1" }} h</strong>, por si cuenta lo que te queda, y lo que destripa logros que aún no tienes. Ábrelo cuando quieras.</p>
+    {% else %}
+      <p>No sabemos cuántas horas llevas: con las de Steam, PlayStation o Xbox importadas te plegaríamos lo que va por delante de ti. Ya te plegamos lo que destripa logros que no tienes.</p>
+    {% endif %}
+  {% endif %}
+</section>

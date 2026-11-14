@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}{% if kind == "question" %}Preguntar{% else %}Abrir un hilo{% endif %} · Comunidad de {{ game.name }} · NextPlay{% endblock %}
+{% block container_class %} container-wide{% endblock %}
+
+{% block content %}
+  {# Abrir un hilo o hacer una pregunta en la comunidad de un juego (social.community.thread_new): el tipo, el título, el texto si se quiere, imágenes y hasta dónde destripa. #}
+  {# Desde «¿Cómo se consigue?» llega ya como pregunta, con su logro y su título. Funciona sin JavaScript; con él, las imágenes se ven y se reducen como en la caja de publicar. #}
+  {% include "social/_community_head.html" with active_tab="comunidad" subpage=True %}
+  <section class="panel panel-wide thread-new">
+    <h1>{% include "_icon.html" with name="comment" %} {% if kind == "question" %}Preguntar{% else %}Abrir un hilo{% endif %}</h1>
+    <form class="thread-form" method="post" action="{% url 'social:thread_new' game.slug %}" enctype="multipart/form-data" data-composer
+          data-max="{{ post_max_images }}" data-max-width="{{ post_image_kind.width }}" data-max-height="{{ post_image_kind.height }}" data-max-mb="{{ post_image_kind.max_mb }}">
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="errorlist composer-errors">{% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}</div>{% endif %}
+      <fieldset class="thread-kinds">
+        <legend class="visually-hidden">Qué es</legend>
+        {% for radio in form.kind %}
+          <label class="thread-kind-pick">
+            {{ radio.tag }}
+            <span>
+              <strong>{{ radio.choice_label }}</strong>
+              <span class="muted small">{% if radio.data.value == "question" %}Para que te ayuden: eliges la respuesta que te sirve y sale la primera.{% else %}Para hablar de algo con quien lo juega.{% endif %}</span>
+            </span>
+          </label>
+        {% endfor %}
+      </fieldset>
+      {{ form.kind.errors }}
+      {% if achievement %}{% include "social/_thread_achievement.html" with has_achievement=False label="Preguntas por el logro" %}{% endif %}
+      {{ form.achievement }}
+      {{ form.achievement.errors }}
+      <div class="field">
+        <label for="{{ form.title.id_for_label }}">Título</label>
+        {{ form.title }}
+        <p class="help">Se ve siempre, también en la lista de la comunidad: que no destripe nada.</p>
+        {{ form.title.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ form.text.id_for_label }}">{{ form.text.label }} <span class="muted small">(si quieres)</span></label>
+        {{ form.text }}
+        <p class="help">Puedes usar **negrita**, *cursiva* y ||spoiler||. Junto a lo que escribas saldrán tus horas de ahora.</p>
+        {{ form.text.errors }}
+      </div>
+      <ul class="composer-previews" data-previews hidden></ul>
+      <p class="help" data-images-note hidden></p>
+      {{ form.imagenes.errors }}
+      <div class="thread-spoilers">
+        <label class="check"><input type="checkbox" name="has_spoilers"{% if form.has_spoilers.value %} checked{% endif %}> Todo es un spoiler <span class="muted small">(se plegará entero a todos)</span></label>
+        {% if can_mark_achievement %}
+          <div class="field">
+            <label for="{{ form.spoiler_achievement.id_for_label }}">{{ form.spoiler_achievement.label }}</label>
+            {{ form.spoiler_achievement }}
+            <p class="help">Quien aún no tenga ese logro lo verá plegado. Salen los logros que tienes tú, en el orden del juego.</p>
+          </div>
+        {% endif %}
+        {# Fuera del desplegable: también sale si llega un logro que no tienes y por eso no se enseña. #}
+        {{ form.spoiler_achievement.errors }}
+      </div>
+      <div class="composer-foot">
+        <label class="btn btn-small composer-attach">
+          {% include "_icon.html" with name="image" %} Imágenes
+          <input class="visually-hidden" type="file" name="imagenes" multiple accept="image/png,image/jpeg,image/webp,image/gif" data-images>
+        </label>
+        <a class="btn btn-small" href="{% url 'social:community' game.slug %}">Cancelar</a>
+        <button class="btn btn-primary composer-send" type="submit" data-busy="Publicando…">Publicar</button>
+      </div>
+    </form>
+  </section>
+  {% include "social/_composer_script.html" %}
+{% endblock %}

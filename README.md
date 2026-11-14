@@ -391,6 +391,35 @@ Los comentarios son los mismos que los de las reseñas (`library/_comments.html`
 (salvo si ya tiene un aviso igual sin leer), los borran quien los escribió y el autor de la publicación, y
 los demás pueden denunciarlos.
 
+### Comunidad de cada juego
+
+Debajo de la cabecera de cada ficha hay una barra **Ficha · Comunidad · Listas**. La Comunidad
+(`/juegos/<juego>/comunidad/`, `social.community`) junta lo que se publica sobre el juego, sus **hilos** y sus
+**preguntas**, de lo que tiene actividad más reciente a lo que menos, con las pestañas Todo, Hilos, Preguntas y
+Con imágenes. En la ficha queda lo último (tres cosas) y el enlace a todo.
+
+Los hilos y las preguntas son publicaciones (`Post.kind`) con título y de un juego. Sus respuestas son
+comentarios que pueden contestar a otro (`PostComment.reply_to`): salen con su cita, sin anidarse, y cada
+respuesta sube el hilo (`Post.last_activity_at`). Un administrador puede fijarlos arriba o cerrarlos desde el
+admin. En las preguntas, quien pregunta marca «Me ha servido» en una respuesta, que sale la primera, y la
+pregunta queda resuelta.
+
+Cada publicación, hilo y respuesta guarda **cómo iba su autor** al escribirla (`PlaySnapshot`): su estado, sus
+horas verificadas y su insignia de logros («Platino» o «100 %»), que salen a su lado. A quien lee se le
+**pliega**, diciendo por qué y con un clic para abrirlo:
+
+- lo escrito con 10 h o más de las que lleva él, si no lo ha terminado (la misma regla que las reseñas);
+- lo que su autor marca como que destripa hasta un logro que quien lee aún no tiene. El autor lo elige entre
+  los suyos, en el orden del juego.
+
+«Lo que llevas», a la derecha, le explica qué se le pliega. En «Tus logros» de la ficha, cada logro que te
+falta lleva **«¿Cómo se consigue?»**: abre su pregunta o la hace, con un título que no destapa los logros
+ocultos. Las respuestas de quien lo tiene llevan «Lo tiene». En el feed, el perfil y Guardados los hilos salen
+con su título y sin su texto, para no destripar nada fuera de su comunidad.
+
+Las respuestas avisan, en el grupo «Hilos y preguntas» de Editar perfil › Avisos: a quien abrió el hilo o
+hizo la pregunta, a quien escribió la respuesta que se contesta y a quien le eligen la respuesta.
+
 ## Listas de juegos
 
 Cada jugador hace las listas que quiera («Mejores metroidvanias», «Para jugar en pareja»): título, una descripción

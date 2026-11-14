@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% load reviews %}
+
+{% block title %}{{ post.title }} · Comunidad de {{ game.name }} · NextPlay{% endblock %}
+{# Sin su texto: la descripción sale al compartir el enlace, y ahí no se sabe cuánto lleva jugado quien lo ve. #}
+{% block description %}{{ post.get_kind_display }} de {{ post.user.profile.name }} en la comunidad de {{ game.name }} en NextPlay: «{{ post.title }}».{% endblock %}
+{% block container_class %} container-wide{% endblock %}
+
+{% block content %}
+  {# Un hilo o una pregunta de la comunidad de un juego (social.community.thread): quién lo abrió y cómo iba con el juego, lo que cuenta (plegado si va por delante de quien lee) y sus respuestas. #}
+  {% include "social/_community_head.html" with active_tab="comunidad" subpage=True %}
+  <div class="community-layout">
+    <div class="community-main">
+      <article class="card-box thread-page">
+        <p class="thread-back"><a href="{% url 'social:community' game.slug %}">{% include "_icon.html" with name="back" %} Comunidad de {{ game.name }}</a></p>
+        <p class="thread-flags">
+          <span class="thread-kind{% if post.is_question %} is-question{% endif %}">{{ post.get_kind_display }}</span>
+          {% if post.is_question %}
+            {% if post.answer_id %}<span class="thread-flag is-solved">{% include "_icon.html" with name="check" %} Resuelta</span>{% else %}<span class="thread-flag">Sin resolver</span>{% endif %}
+          {% endif %}
+          {% if post.pinned %}<span class="thread-flag">{% include "_icon.html" with name="pin" %} Fijado</span>{% endif %}
+          {% if post.closed %}<span class="thread-flag">Cerrado</span>{% endif %}
+        </p>
+        <h1 class="thread-heading">{{ post.title }}</h1>
+        <header class="post-head thread-author">
+          {% include "accounts/_avatar.html" with profile=post.user.profile size="md" %}
+          <div>
+            <p><a class="activity-author" href="{{ post.user.profile.get_absolute_url }}">{{ post.user.profile.name }}</a> <span class="muted small">@{{ post.user.username }} · <time datetime="{{ post.created_at|date:'c' }}">{{ post.created_at|date:"j \d\e F \d\e Y, H:i" }}</time></span></p>
+            {% include "social/_played.html" with item=post %}
+          </div>
+        </header>
+        {% if post.achievement %}{% include "social/_thread_achievement.html" with achievement=post.achievement label="Pregunta por el logro" %}{% endif %}
+        {% if post.text or post.images.all %}{% include "social/_post_body.html" %}{% endif %}
+        {% if post.spoiler_achievement and not post.fold %}
+          <p class="help thread-limit">{% include "_icon.html" with name="trophy" %} {% if post.user == user %}Has dicho que destripa{% else %}Destripa{% endif %} hasta «{{ post.spoiler_achievement.name }}»: lo ve plegado quien aún no tiene ese logro.</p>
+        {% endif %}
+        <footer class="review-foot">
+          {% include "social/_post_like.html" with liked=post.liked like_count=post.like_count %}
+          <a class="review-action" href="#respuestas">{% include "_icon.html" with name="comment" %} <span id="thread-reply-count-{{ post.pk }}">{{ reply_count }}</span><span class="visually-hidden"> respuestas</span></a>
+          {% include "social/_post_save.html" with saved=post.saved %}
+          <button class="review-action" type="button" data-copy-link="{{ request.scheme }}://{{ request.get_host }}{{ post.get_absolute_url }}">{% include "_icon.html" with name="link" %} <span data-copy-label>Copiar enlace</span></button>
+          {% if is_author %}
+            <form class="post-delete" method="post" action="{% url 'social:post_delete' post.pk %}"
+                  onsubmit="return confirm('¿Borrar {% if post.is_question %}esta pregunta{% else %}este hilo{% endif %} con sus respuestas? No se puede deshacer.');">
+              {% csrf_token %}
+              <button class="review-action post-delete-btn" type="submit">{% include "_icon.html" with name="close" %} Borrar</button>
+            </form>
+          {% elif user.is_authenticated %}
+            {% url 'social:post_report' post.pk as report_url %}
+            {% if post.is_question %}{% include "library/_report.html" with kind="publicacion" target=post noun="esta pregunta" open=open_report %}{% else %}{% include "library/_report.html" with kind="publicacion" target=post noun="este hilo" open=open_report %}{% endif %}
+          {% endif %}
+        </footer>
+      </article>
+      <section class="card-box thread-replies" id="respuestas">{% include "social/_replies.html" %}</section>
+    </div>
+    <aside class="community-side">
+      {% include "social/_reader_card.html" %}
+    </aside>
+  </div>
+  <script>
+    // Botones «Responder» de las respuestas: ponen en el formulario a cuál contestas (con su nombre y un «Quitar») y
+    // llevan a él sin recargar. Sin JavaScript, el enlace abre el hilo con ?responder= y el formulario llega igual. Va
+    // en la página y no en las respuestas, que HTMX cambia enteras al responder.
+    // Pantallas: Hilo o pregunta (responder a una respuesta).
+    document.addEventListener("click", function (event) {
+      var answer = event.target.closest("[data-reply-to]");
+      var cancel = event.target.closest("[data-reply-cancel]");
+      var form = document.getElementById("responder");
+      if ((!answer && !cancel) || !form) return;
+      event.preventDefault();
+      var target = form.querySelector("[data-reply-target]");
+      var field = form.querySelector("input[name=reply_to]");
+      if (cancel) {
+        field.value = "";
+        target.hidden = true;
+        return;
+      }
+      field.value = answer.dataset.replyTo;
+      target.querySelector("[data-reply-target-name]").textContent = answer.dataset.replyName;
+      target.hidden = false;
+      form.scrollIntoView({ block: "center" });
+      form.querySelector("textarea").focus({ preventScroll: true });
+    });
+  </script>
+{% endblock %}

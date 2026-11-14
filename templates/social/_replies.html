@@ -1,0 +1,83 @@
+{% load reviews %}
+{# Respuestas de un hilo o de una pregunta (social.community.replies_context) y el formulario para responder. En las preguntas, la que le ha servido a quien pregunta va la primera. #}
+{# Cada una lleva cómo iba su autor con el juego, la cita de lo que contesta y, si va por delante de quien lee, va plegada. Con HTMX se cambia entero al responder, borrar o elegir la que ha servido #}
+{# y, con oob, también el contador de la cabecera del hilo. Necesita post, replies, reply_count y reply_form; reply_target es la respuesta a la que contesta el formulario (con ?responder=). #}
+{% if oob %}<span id="thread-reply-count-{{ post.pk }}" hx-swap-oob="true">{{ reply_count }}</span>{% endif %}
+<div class="replies" id="replies-box">
+  <h2>Respuestas <span class="muted">{{ reply_count }}</span></h2>
+  {% for reply in replies %}
+    <article class="reply{% if reply.is_answer %} is-answer{% endif %}" id="respuesta-{{ reply.pk }}">
+      {% include "accounts/_avatar.html" with profile=reply.user.profile size="sm" %}
+      <div class="reply-body">
+        {% if reply.is_answer %}<p class="reply-answer">{% include "_icon.html" with name="check" %} Le ha servido a {{ post.user.profile.name }}</p>{% endif %}
+        <p class="comment-meta">
+          <a class="review-author" href="{{ reply.user.profile.get_absolute_url }}">{{ reply.user.profile.name }}</a>
+          {% if reply.user_id == post.user_id %}<span class="own-tag">{% if post.is_question %}Pregunta{% else %}Abrió el hilo{% endif %}</span>{% endif %}
+          {% if reply.has_achievement %}<span class="own-tag has-tag" title="Tiene el logro por el que se pregunta">{% include "_icon.html" with name="trophy" %} Lo tiene</span>{% endif %}
+          <span class="muted small">· <a class="reply-time" href="#respuesta-{{ reply.pk }}"><time datetime="{{ reply.created_at|date:'c' }}">hace {{ reply.created_at|timesince }}</time></a></span>
+        </p>
+        {% include "social/_played.html" with item=reply %}
+        {% if reply.reply_to %}
+          <blockquote class="reply-quote">
+            <a href="#respuesta-{{ reply.reply_to_id }}">En respuesta a {{ reply.reply_to.user.profile.name }}</a>
+            {% if reply.quote_fold %}<span class="muted">(va plegada: puede contar lo que te queda)</span>{% else %}<span>{{ reply.reply_to.text|review_plain|truncatechars:140 }}</span>{% endif %}
+          </blockquote>
+        {% endif %}
+        {% if reply.fold %}<details class="spoiler spoiler-progress"><summary>{% include "social/_fold_reason.html" with item=reply %} · Verla</summary>{% endif %}
+        <div class="comment-text">{{ reply.text|review_html }}</div>
+        {% if reply.fold %}</details>{% endif %}
+        <div class="comment-actions">
+          {% if user.is_authenticated and not post.closed %}
+            <a class="link small" href="{{ post.get_absolute_url }}?responder={{ reply.pk }}#responder" data-reply-to="{{ reply.pk }}" data-reply-name="{{ reply.user.profile.name }}">Responder</a>
+          {% endif %}
+          {% if post.is_question and user == post.user %}
+            <form action="{% url 'social:choose_answer' reply.pk %}" method="post"
+                  hx-post="{% url 'social:choose_answer' reply.pk %}" hx-target="#replies-box" hx-swap="outerHTML">
+              {% csrf_token %}
+              <button class="link small answer-btn{% if reply.is_answer %} is-on{% endif %}" type="submit" aria-pressed="{% if reply.is_answer %}true{% else %}false{% endif %}">{% if reply.is_answer %}Ya no me sirve{% else %}Me ha servido{% endif %}</button>
+            </form>
+          {% endif %}
+          {# La borran quien la escribió y quien abrió el hilo; los demás pueden denunciarla. #}
+          {% if reply|can_delete:user %}
+            <form action="{% url 'social:reply_delete' reply.pk %}" method="post"
+                  hx-post="{% url 'social:reply_delete' reply.pk %}" hx-target="#replies-box" hx-swap="outerHTML"
+                  hx-confirm="¿Borrar esta respuesta?">
+              {% csrf_token %}
+              <button class="link small" type="submit">Borrar</button>
+            </form>
+          {% endif %}
+          {% if user.is_authenticated and reply.user_id != user.pk %}
+            {% url 'social:post_comment_report' reply.pk as report_url %}
+            {% include "library/_report.html" with kind="comentario" target=reply noun="esta respuesta" reported=reply.reported open=False %}
+          {% endif %}
+        </div>
+      </div>
+    </article>
+  {% empty %}
+    <p class="muted">{% if post.is_question %}Aún nadie ha respondido. ¿Lo sabes tú?{% else %}Aún no hay respuestas.{% endif %}</p>
+  {% endfor %}
+
+  {% if post.closed %}
+    <p class="widget">Este hilo está cerrado y ya no admite respuestas.</p>
+  {% elif user.is_authenticated %}
+    <form class="comment-form reply-form" id="responder" action="{% url 'social:thread_reply' post.pk %}" method="post"
+          hx-post="{% url 'social:thread_reply' post.pk %}" hx-target="#replies-box" hx-swap="outerHTML">
+      {% csrf_token %}
+      <p class="reply-target" data-reply-target{% if not reply_target %} hidden{% endif %}>
+        Respondiendo a <strong data-reply-target-name>{{ reply_target.user.profile.name }}</strong>
+        <a class="link small" href="{{ post.get_absolute_url }}#responder" data-reply-cancel>Quitar</a>
+      </p>
+      {{ reply_form.reply_to }}
+      {{ reply_form.reply_to.errors }}
+      <label class="visually-hidden" for="{{ reply_form.text.id_for_label }}">Tu respuesta</label>
+      {{ reply_form.text }}
+      {{ reply_form.text.errors }}
+      <div class="comment-form-foot">
+        <span class="help">Junto a tu respuesta saldrán tus horas de ahora. Puedes usar **negrita**, *cursiva* y ||spoiler||.</span>
+        <button class="btn btn-primary" type="submit">Responder</button>
+      </div>
+    </form>
+  {% else %}
+    <p class="widget"><a href="{% url 'login' %}?next={{ post.get_absolute_url|urlencode }}">Inicia sesión</a> para responder.</p>
+  {% endif %}
+</div>

@@ -1,13 +1,15 @@
 """Direcciones de lo social. Pantallas: Seguidores y seguidos (u/<usuario>/seguidores/ y siguiendo/), Página de la
-publicación (u/<usuario>/publicaciones/<id>/), Publicar (publicar/) y Guardados (guardados/); actividad/,
-u/<usuario>/actividad/ y u/<usuario>/publicaciones/ son el «Cargar más» del feed de Inicio y de las pestañas Actividad
-y Publicaciones del Perfil, y juegos/<juego>/publicaciones/, las publicaciones de la Ficha del juego. El resto son
-acciones de botones: seguir, borrar, «me gusta», guardar, comentar y denunciar.
+publicación (u/<usuario>/publicaciones/<id>/), Publicar (publicar/), Guardados (guardados/), Comunidad del juego
+(juegos/<juego>/comunidad/), Hilo o pregunta (juegos/<juego>/comunidad/<id>/) y Nuevo hilo o pregunta
+(juegos/<juego>/comunidad/nuevo/); actividad/, u/<usuario>/actividad/ y u/<usuario>/publicaciones/ son el «Cargar más»
+del feed de Inicio y de las pestañas Actividad y Publicaciones del Perfil, y juegos/<juego>/publicaciones/, lo último de
+la comunidad en la Ficha del juego. El resto son acciones de botones: seguir, borrar, «me gusta», guardar, comentar,
+responder, elegir la respuesta que te ha servido, «¿Cómo se consigue?» y denunciar.
 """
 
 from django.urls import path
 
-from . import views
+from . import community, views
 
 app_name = "social"
 
@@ -19,7 +21,18 @@ urlpatterns = [
     path("u/<str:username>/actividad/", views.activity, name="activity"),
     path("u/<str:username>/publicaciones/", views.user_posts, name="posts"),
     path("u/<str:username>/publicaciones/<int:post_id>/", views.post_detail, name="post"),
-    path("juegos/<slug:slug>/publicaciones/", views.game_posts, name="game_posts"),
+    path("juegos/<slug:slug>/publicaciones/", community.game_posts, name="game_posts"),
+    # La comunidad de cada juego, que cuelga de su ficha (/juegos/<juego>/).
+    path("juegos/<slug:slug>/comunidad/", community.community, name="community"),
+    path("juegos/<slug:slug>/comunidad/nuevo/", community.thread_new, name="thread_new"),
+    path("juegos/<slug:slug>/comunidad/<int:post_id>/", community.thread, name="thread"),
+    path(
+        "juegos/<slug:slug>/comunidad/logro/<int:achievement_id>/", community.achievement_question,
+        name="achievement_question",
+    ),
+    path("publicaciones/<int:post_id>/responder/", community.thread_reply, name="thread_reply"),
+    path("publicaciones/respuestas/<int:comment_id>/servido/", community.choose_answer, name="choose_answer"),
+    path("publicaciones/respuestas/<int:comment_id>/borrar/", community.reply_delete, name="reply_delete"),
     path("guardados/", views.saved_posts, name="saved"),
     # «Cargar más» del feed de la portada.
     path("actividad/", views.feed, name="feed"),

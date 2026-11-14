@@ -1,0 +1,2 @@
+{# Una cosa de la comunidad de un juego: un hilo o una pregunta en su fila (social/_thread_row.html) o una publicación con su tarjeta, como en el feed. Necesita post. #}
+{% if post.is_thread %}{% include "social/_thread_row.html" %}{% else %}{% include "social/_post_card.html" %}{% endif %}

@@ -1,0 +1,9 @@
+{# Una tanda de la comunidad de un juego (social.community.community): lo fijado arriba (pinned, solo en la primera) y lo demás por su última actividad, y «Cargar más» si quedan: HTMX pide more_url y cambia el botón por la tanda siguiente; sin JavaScript abre more_href. #}
+{# Va dentro de <ol class="activities">. Necesita posts y, si los hay, pinned, more_url y more_href. #}
+{% for post in pinned %}{% include "social/_community_item.html" %}{% endfor %}
+{% for post in posts %}{% include "social/_community_item.html" %}{% endfor %}
+{% if more_url %}
+  <li class="activity-more">
+    <a class="btn" href="{{ more_href }}" hx-get="{{ more_url }}" hx-target="closest li" hx-swap="outerHTML">Cargar más</a>
+  </li>
+{% endif %}
