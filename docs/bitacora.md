@@ -13,10 +13,11 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Todo está en `main`. Las cinco ramas del 12 y el 13/11 (`playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica`, `playnite-sync` y `gog-y-epic`) entraron el 13/11 con los PR #40 a #44, sin que las hubieras probado: me pediste fusionarlas y dejarlas pendientes de revisión. Qué falta probar, y en qué servidor, está en la primera entrada de abajo. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
+Todo está en `main` salvo la rama `publicaciones`, del 14/11: es local y no está subida. Las cinco ramas del 12 y el 13/11 (`playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica`, `playnite-sync` y `gog-y-epic`) entraron el 13/11 con los PR #40 a #44, sin que las hubieras probado: me pediste fusionarlas y dejarlas pendientes de revisión. Qué falta probar, y en qué servidor, está en la primera entrada de abajo. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
+| `publicaciones` | El repaso de las propuestas (11 nuevas) y Publicaciones: spoiler por imagen, pestaña del perfil, sección en la ficha y Guardados | Commits locales, sin subir. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae la migración `social.0011`. |
 | `gog-y-epic` | Importar GOG (desde el perfil público, cada noche) y Epic Games (pegando un código cada vez) sin instalar nada | Fusionada con `main` el 13/11: [PR #44](https://github.com/mjovenburgui/NextPlay/pull/44). **Pendiente de revisión**, sobre todo Epic con tu cuenta. Trae la migración `accounts.0032`. |
 | `playnite-sync` | La extensión de Playnite NextPlay Sync: tus juegos y horas de Epic, GOG, EA… se actualizan solos cada día y con cada partida | Fusionada con `main` el 13/11: [PR #43](https://github.com/mjovenburgui/NextPlay/pull/43). **Pendiente de revisión**, sobre todo dentro de Playnite. Trae la migración `accounts.0031`. |
 | `cabecera-automatica` | Cabecera «Lo que estoy jugando», que sigue sola al juego al que juegas, y el color del perfil sacado de la cabecera | Fusionada con `main` el 13/11: [PR #42](https://github.com/mjovenburgui/NextPlay/pull/42), con las columnas que hay que marcar en Library Exporter. **Pendiente de revisión.** Trae las migraciones `accounts.0030` y `library.0018`. |
@@ -45,6 +46,31 @@ Todo está en `main`. Las cinco ramas del 12 y el 13/11 (`playnite-y-csv`, `form
 - `challenges.0002`;
 - `social.0008` y `social.0009`;
 - `library.0014`.
+
+---
+
+## 14/11/2026 · Repaso de las propuestas: lo gordo, lo que vería un cliente y 11 nuevas
+
+**Rama:** `publicaciones`, encima de `main` (`b0402ce`). Commit local, sin subir. Solo cambia la documentación.
+
+**Por qué:** me pediste revisar las propuestas gordas pendientes y, después, analizar NextPlay desde el punto de vista del cliente.
+
+**Qué cambia para ti:**
+- **El PDF de propuestas dice el estado real:** siete propuestas seguían diciendo «sin fusionar» cuando ya estaban en `main`.
+- **11 propuestas nuevas**, y el PDF ya tiene 103:
+  - «Cuando Steam no da la última partida: que el juego entre en «Jugando» y sus logros se relean»;
+  - «Comunidad de cada juego: hilos, preguntas y spoilers según lo que llevas jugado», la que me contaste;
+  - las nueve del repaso como cliente: probar con tu perfil de Steam sin crear la cuenta, vincular empezando por «¿Dónde juegas?», precios y horas del país de cada uno, NextPlay instalable en el móvil, el botón «Jugar», la lista de regalos, «¿Algo está mal?» en cada ficha, que la comunidad no parezca vacía, y confirmar el correo y frenar el spam.
+- **El orden de revisión** (`propuestas_revision.json`) las tiene cada una en su fase.
+
+**Qué he tocado:** `docs/propuestas.json`, `docs/propuestas_revision.json` y el PDF de propuestas.
+
+**Cómo lo he comprobado:**
+- Registré una cuenta nueva en la copia de revisión y recorrí sus pantallas.
+- Abrí la portada sin sesión.
+- El PDF se genera sin errores.
+
+**Qué falta (depende de ti):** leer las nuevas en el PDF y decirme cuáles no te convencen.
 
 ---
 
