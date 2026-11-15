@@ -163,8 +163,8 @@
     },
     {
       "nombre": "Configurar NextPlay",
-      "urls": ["setup", "setup_games", "setup_shops", "setup_done"],
-      "que_es": "Lo primero tras crear la cuenta (/cuenta/configurar/), en tres pasos con su barra arriba: Dónde juegas (las plataformas), Tus juegos (la forma recomendada de traerlos, con sus horas, de cada sitio en el que juegas, como en Vincular cuentas, y cuántos tienes ya) y Dónde compras (las tiendas de las que quieres precios, historial y avisos, marcadas de entrada según dónde juegas, y si quieres las bajadas de tu lista de deseos también por correo). El final, Listo, resume lo que ha quedado y lleva a Inicio. Cada paso se puede saltar, y todo se puede repasar cuando quieras desde Editar perfil."
+      "urls": ["setup", "setup_games", "setup_shops", "setup_profile", "setup_done"],
+      "que_es": "Lo primero tras crear la cuenta (/cuenta/configurar/), en cuatro pasos con su barra arriba: Dónde juegas (las plataformas), Tus juegos (la forma recomendada de traerlos, con sus horas, de cada sitio en el que juegas, como en Vincular cuentas, y cuántos tienes ya), Dónde compras (las tiendas de las que quieres precios, historial y avisos, marcadas de entrada según dónde juegas, y si quieres las bajadas de tu lista de deseos también por correo) y Tu perfil (tu foto: la de Steam, PlayStation o Xbox, una tuya o tu inicial; tu nombre, con los de tus cuentas a un clic; unas líneas sobre ti; hasta cinco favoritos entre los juegos que más has jugado, y los avisos en el móvil o el ordenador desde el que estás). El final, Listo, resume lo que ha quedado y lleva a Inicio. Cada paso se puede saltar, y todo se puede repasar cuando quieras desde Editar perfil."
     },
     {
       "nombre": "Iniciar sesión",

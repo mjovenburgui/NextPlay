@@ -1,6 +1,7 @@
 """Formularios de las cuentas: el de Registro (SignupForm), el de Editar perfil (ProfileForm: datos, apariencia,
-escaparate, redes, privacidad y avisos, también para su vista previa) y el de la cuenta de otra plataforma
-(PlatformAccountForm), en Cuentas vinculadas de Editar perfil y en el modal «Vincular cuentas» del Perfil.
+escaparate, redes, privacidad y avisos, también para su vista previa), el del paso «Tu perfil» de Configurar NextPlay
+(SetupProfileForm) y el de la cuenta de otra plataforma (PlatformAccountForm), en Cuentas vinculadas de Editar perfil y
+en el modal «Vincular cuentas» del Perfil.
 """
 
 import re
@@ -9,11 +10,11 @@ from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import UserCreationForm
 from django.core.files.uploadedfile import UploadedFile
-from django.db.models import Q
+from django.db.models import F, Q
 from django.urls import reverse
 
 from games.models import Game
-from library.models import Review
+from library.models import LibraryEntry, Review
 
 from . import banner, images, notices
 from .models import (
@@ -394,6 +395,204 @@ class ProfileForm(forms.ModelForm):
         order += [favorite.game_id for favorite in kept if favorite.game_id not in order]
         kept.sort(key=lambda favorite: order.index(favorite.game_id))
         return removed, kept
+
+
+class SetupProfileForm(forms.ModelForm):
+    """El paso «Tu perfil» de Configurar NextPlay: el nombre visible, la biografía, qué foto se enseña y hasta
+    FavoriteGame.MAX_PER_USER juegos favoritos. Lo demás del perfil (la cabecera, el color, el escaparate, las redes…)
+    se queda en Editar perfil.
+
+    La foto (campo «foto») se elige entre las de sus cuentas vinculadas, una subida y la inicial. Si la elegida es la que
+    ya pondría la automática, se queda en automática, para que siga sola lo que cambie (p. ej. una foto subida más
+    adelante). Los favoritos se eligen entre los que ya lo son y los juegos que más ha jugado.
+    """
+
+    # Juegos que se proponen como favoritos, contando los que ya lo son.
+    SUGGESTIONS = 10
+    # Las fotos que se pueden elegir, en este orden: (clave, texto, avatar_source). Las de las cuentas solo salen si las
+    # tiene; «upload» sale siempre, para subir una.
+    PHOTOS = (
+        ("steam", "La de Steam", Profile.AvatarSource.STEAM),
+        ("psn", "La de PlayStation", Profile.AvatarSource.PSN),
+        ("xbox", "La de Xbox", Profile.AvatarSource.XBOX),
+        ("upload", "Una tuya", Profile.AvatarSource.UPLOAD),
+        ("initial", "Tu inicial", Profile.AvatarSource.INITIAL),
+    )
+    # Las que mira la automática, en su orden (ver Profile.avatar_url): pone la primera que tenga.
+    AUTOMATIC = ("upload", "steam", "psn", "xbox")
+
+    foto = forms.ChoiceField(label="Tu foto", widget=forms.RadioSelect, required=False)
+    favoritos = forms.TypedMultipleChoiceField(label="Tus favoritos", coerce=int, required=False)
+
+    class Meta:
+        model = Profile
+        fields = ("display_name", "bio", "avatar")
+        widgets = {
+            "bio": forms.Textarea(attrs={"rows": 3, "placeholder": "Qué juegas, qué buscas, dónde encontrarte."}),
+            "avatar": forms.FileInput(attrs={"accept": "image/png,image/jpeg,image/webp,image/gif"}),
+        }
+
+    def __init__(self, *args, user, **kwargs):
+        """Prepara el paso para user: las fotos que puede elegir (marcada la que se ve ahora), los nombres de sus
+        cuentas vinculadas para usarlos de nombre visible y los juegos que se le proponen como favoritos.
+
+        Pantallas: Configurar NextPlay (Tu perfil).
+        """
+        super().__init__(*args, **kwargs)
+        self.user = user
+        profile = self.instance
+        self.fields["display_name"].widget.attrs.update({"placeholder": user.username, "autocomplete": "nickname"})
+        psn, xbox = profile.psn, profile.xbox
+        self.photo_urls = {
+            "steam": profile.steam_avatar,
+            "psn": psn.avatar if psn else "",
+            "xbox": xbox.avatar if xbox else "",
+            "upload": profile.avatar.url if profile.avatar else "",
+            "initial": "",
+        }
+        field = self.fields["foto"]
+        field.choices = [
+            (key, label) for key, label, _ in self.PHOTOS if self.photo_urls[key] or key in ("upload", "initial")
+        ]
+        field.initial = self._shown_photo()
+        self._old_avatar = profile.avatar.name
+
+        # Los nombres de sus cuentas, por si quiere usar uno: los de Steam, su PSN ID y su gamertag de Xbox.
+        names = [account.persona for account in profile.steam_accounts]
+        names += [psn.online_id if psn else "", xbox.gamertag if xbox else ""]
+        limit = Profile._meta.get_field("display_name").max_length
+        self.name_suggestions = [
+            name for name in dict.fromkeys(name.strip() for name in names)
+            if name and len(name) <= limit and name not in (profile.display_name, user.username)
+        ][:3]
+
+        # Los favoritos que ya tiene, en su orden, y detrás los juegos que más ha jugado.
+        self.favorites = list(user.favorite_games.select_related("game"))
+        favorite_ids = [favorite.game_id for favorite in self.favorites]
+        entries = LibraryEntry.objects.filter(user=user).select_related("game")
+        in_library = {entry.game_id: entry for entry in entries.filter(game_id__in=favorite_ids)}
+        played = entries.exclude(game_id__in=favorite_ids).order_by(F("total_minutes").desc(nulls_last=True), "-pk")
+        self.suggestions = [(favorite.game, in_library.get(favorite.game_id)) for favorite in self.favorites]
+        self.suggestions += [(entry.game, entry) for entry in played[:max(self.SUGGESTIONS - len(self.favorites), 0)]]
+        self.fields["favoritos"].choices = [(game.pk, game.name) for game, _ in self.suggestions]
+        self.fields["favoritos"].initial = favorite_ids
+
+    def _automatic(self, uploaded):
+        """La foto que pondría la automática: la subida (si uploaded), si no la de Steam, PlayStation o Xbox y, si no
+        tiene ninguna, la inicial.
+
+        Pantallas: Configurar NextPlay (Tu perfil › Tu foto).
+        """
+        has = {**{key: bool(url) for key, url in self.photo_urls.items()}, "upload": uploaded}
+        return next((key for key in self.AUTOMATIC if has[key]), "initial")
+
+    def _shown_photo(self):
+        """La foto que se ve ahora (una clave de PHOTOS): la elegida, si aún la tiene, o la que pone la automática.
+
+        Pantallas: Configurar NextPlay (Tu perfil › Tu foto: la marcada de entrada).
+        """
+        source = self.instance.avatar_source
+        if source == Profile.AvatarSource.INITIAL:
+            return "initial"
+        chosen = next((key for key, _, value in self.PHOTOS if value == source), None)
+        if chosen and self.photo_urls[chosen]:
+            return chosen
+        return self._automatic(bool(self.photo_urls["upload"]))
+
+    @property
+    def photo_rows(self):
+        """Las fotos que puede elegir, para pintarlas: (clave, texto, dirección o "" y si va marcada).
+
+        Pantallas: Configurar NextPlay (Tu perfil › Tu foto).
+        """
+        value = self["foto"].value() or self.fields["foto"].initial
+        return [(key, label, self.photo_urls[key], key == value) for key, label in self.fields["foto"].choices]
+
+    @property
+    def favorite_rows(self):
+        """Los juegos que se proponen como favoritos, para pintarlos: (juego, su entrada de la biblioteca o None y si va
+        marcado).
+
+        Pantallas: Configurar NextPlay (Tu perfil › Tus favoritos).
+        """
+        marked = {str(value) for value in self["favoritos"].value() or []}
+        return [(game, entry, str(game.pk) in marked) for game, entry in self.suggestions]
+
+    def clean_avatar(self):
+        """Foto nueva, reducida y en WebP (accounts.images); sin foto nueva deja la que había.
+
+        Pantallas: Configurar NextPlay (Tu perfil › Tu foto: «Subir una foto»).
+        """
+        value = self.cleaned_data.get("avatar")
+        if isinstance(value, UploadedFile):
+            return images.process(value, "avatar")
+        return value
+
+    def clean_favoritos(self):
+        """Los favoritos marcados, sin repetir y como mucho FavoriteGame.MAX_PER_USER.
+
+        Pantallas: Configurar NextPlay (Tu perfil › Tus favoritos).
+        """
+        chosen = list(dict.fromkeys(self.cleaned_data.get("favoritos") or []))
+        if len(chosen) > FavoriteGame.MAX_PER_USER:
+            raise forms.ValidationError(f"Como mucho {FavoriteGame.MAX_PER_USER} favoritos: desmarca alguno.")
+        return chosen
+
+    def clean(self):
+        """Si sube una foto, es la que quiere enseñar; si elige «Una tuya» sin haber subido ninguna, se le pide. Sin foto
+        elegida (p. ej. un envío sin las casillas) se queda la que se ve.
+
+        Pantallas: Configurar NextPlay (Tu perfil › Tu foto).
+        """
+        data = super().clean()
+        if isinstance(self.files.get("avatar"), UploadedFile):
+            data["foto"] = "upload"
+        data["foto"] = data.get("foto") or self.fields["foto"].initial
+        if data["foto"] == "upload" and not data.get("avatar") and "avatar" not in self.errors:
+            self.add_error("avatar", "Elige la foto que quieres subir, o quédate con otra.")
+        return data
+
+    def save(self, commit=True):
+        """Guarda el nombre, la biografía, la foto (centrada y sin zoom si es nueva) y cuál se enseña y, con commit, borra
+        del disco la foto sustituida y guarda los favoritos.
+
+        Pantallas: Configurar NextPlay (Tu perfil: «Guardar y terminar»), Perfil (nombre, foto, biografía y favoritos),
+        todas (tu nombre y tu foto en la barra de arriba).
+        """
+        profile = super().save(commit=False)
+        replaced = profile.avatar.name != self._old_avatar
+        if replaced:
+            # El encuadre de la foto anterior no le vale a la nueva.
+            for name in ("avatar_x", "avatar_y", "avatar_zoom", "avatar_fit"):
+                setattr(profile, name, Profile._meta.get_field(name).default)
+        choice = self.cleaned_data["foto"]
+        if choice == self._automatic(bool(profile.avatar)):
+            profile.avatar_source = Profile.AvatarSource.AUTO
+        else:
+            profile.avatar_source = next(source for key, _, source in self.PHOTOS if key == choice)
+        if commit:
+            profile.save()
+            if replaced and self._old_avatar:
+                profile.avatar.storage.delete(self._old_avatar)
+            self._save_favorites()
+        return profile
+
+    def _save_favorites(self):
+        """Deja como favoritos los marcados: los que ya lo eran, en su orden, y detrás los nuevos, en el de la página.
+        Sin juegos que proponer no toca nada.
+
+        Pantallas: Configurar NextPlay (Tu perfil › Tus favoritos), Perfil (favoritos del escaparate), Ficha del juego
+        (botón de favoritos).
+        """
+        if not self.suggestions:
+            return
+        chosen = self.cleaned_data.get("favoritos", [])
+        current = [favorite.game_id for favorite in self.favorites]
+        FavoriteGame.objects.filter(user=self.user).exclude(game_id__in=chosen).delete()
+        order = [game_id for game_id in current if game_id in chosen]
+        order += [game_id for game_id in chosen if game_id not in current]
+        for position, game_id in enumerate(order):
+            FavoriteGame.objects.update_or_create(user=self.user, game_id=game_id, defaults={"position": position})
 
 
 class PlatformAccountForm(forms.Form):

@@ -2785,7 +2785,7 @@ p.community-game { font-size: 1.2rem; font-weight: 700; }
 .setup { max-width: 820px; margin: 1.25rem auto 0; }
 .setup-head { margin-bottom: 1rem; }
 .setup-eyebrow { margin: 0 0 .6rem; color: var(--muted); font-size: .78rem; font-weight: 600; letter-spacing: .06em; text-align: center; text-transform: uppercase; }
-.setup-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.setup-steps { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: .5rem; margin: 0; padding: 0; list-style: none; }
 .setup-step a { display: flex; align-items: center; gap: .55rem; height: 100%; padding: .55rem .75rem; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--muted); font-size: .9rem; font-weight: 600; }
 .setup-step a:hover { border-color: var(--violet); color: var(--text); text-decoration: none; }
 .setup-step-mark { flex: none; display: grid; place-items: center; width: 1.6rem; height: 1.6rem; border: 1px solid var(--border); border-radius: 50%; font-size: .8rem; }
@@ -2811,8 +2811,8 @@ p.community-game { font-size: 1.2rem; font-weight: 700; }
 .setup-summary > div { display: grid; grid-template-columns: 10rem minmax(0, 1fr); gap: .75rem; padding: .7rem .9rem; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
 .setup-summary dt { color: var(--muted); font-weight: 600; }
 .setup-summary dd { margin: 0; overflow-wrap: anywhere; }
-.setup-next { margin: 1rem 0 0; padding-left: 1.1rem; color: var(--text-2); font-size: .9rem; }
-.setup-next li + li { margin-top: .35rem; }
+.setup-next { margin: 1rem 0 0; color: var(--text-2); font-size: .9rem; }
+.setup-summary-me { display: flex; align-items: center; gap: .6rem; }
 /* Las tiendas: las destacadas en baldosas con su logo y su marca, como las plataformas de «¿Dónde juegas?»; las demás,
    plegadas en «Otras tiendas». Sirve también en Editar perfil. */
 .shop-picker { min-width: 0; margin: 1rem 0 0; padding: 0; border: 0; }
@@ -2838,6 +2838,53 @@ p.community-game { font-size: 1.2rem; font-weight: 700; }
 .shop-others { margin-top: .9rem; }
 .shop-others > summary { color: var(--cyan); font-size: .92rem; cursor: pointer; }
 .shop-others .shop-choices { margin-top: .75rem; }
+/* Configurar NextPlay › Tu perfil: la foto (las de tus cuentas, una tuya o la inicial), el nombre, los favoritos (las
+   portadas de lo que más has jugado) y, en pequeño, los avisos en este dispositivo. */
+.setup-section { min-width: 0; margin: 0; padding: 0; border: 0; }
+.setup-section ~ .setup-section { margin-top: 1.5rem; }
+.setup-section > legend, .setup-section > label, .setup-section > h2 { display: block; margin: 0 0 .55rem; padding: 0; font-size: 1rem; font-weight: 700; }
+.setup-section > legend .muted, .setup-section > label .muted { font-weight: 500; }
+.photo-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.75rem, 1fr)); gap: .6rem; max-width: 34rem; }
+.photo-pick {
+  position: relative; display: grid; justify-items: center; gap: .45rem; padding: .8rem .4rem .7rem;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; cursor: pointer; text-align: center;
+  transition: border-color .15s, background-color .15s;
+}
+.photo-pick input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.photo-pick:hover { border-color: var(--violet); }
+.photo-pick:has(input:focus-visible) { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.photo-pick:has(input:checked) { border-color: var(--violet); background: rgba(157, 92, 255, .14); box-shadow: var(--glow); }
+.photo-pick .avatar { width: 60px; height: 60px; font-size: 1.6rem; }
+.photo-pick .avatar .icon { width: 1.5rem; height: 1.5rem; }
+.photo-pick-label { font-size: .85rem; font-weight: 600; line-height: 1.2; }
+.photo-upload { margin-top: .9rem; }
+.photo-upload > label { display: block; margin-bottom: .35rem; font-weight: 600; }
+.photo-upload[hidden], .name-picks[hidden] { display: none; }
+.name-picks { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: .55rem 0 0; color: var(--muted); font-size: .88rem; }
+.name-picks .choice-chip { padding: .3rem .7rem; color: var(--text); font: inherit; }
+.name-picks .choice-chip:hover { border-color: var(--violet); }
+.fav-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr)); gap: .75rem .6rem; margin-top: .75rem; }
+.fav-pick { position: relative; display: grid; align-content: start; gap: .3rem; min-width: 0; cursor: pointer; }
+.fav-pick input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.fav-pick-cover {
+  position: relative; display: block; aspect-ratio: 3 / 4; overflow: hidden; border: 2px solid var(--border); border-radius: 10px;
+  background: linear-gradient(145deg, #1b1440, #0b2740); transition: border-color .15s, box-shadow .15s;
+}
+.fav-pick-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.fav-pick:hover .fav-pick-cover { border-color: var(--violet); }
+.fav-pick:has(input:focus-visible) .fav-pick-cover { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.fav-pick:has(input:checked) .fav-pick-cover { border-color: var(--violet); box-shadow: var(--glow); }
+/* La marca de elegido: un círculo violeta con su palomita, como en las tiendas. */
+.fav-pick:has(input:checked) .fav-pick-cover::after { content: ""; position: absolute; top: .4rem; right: .4rem; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--violet); box-shadow: 0 0 0 2px rgba(7, 9, 18, .6); }
+.fav-pick:has(input:checked) .fav-pick-cover::before { content: ""; position: absolute; z-index: 1; top: .68rem; right: .89rem; width: .32rem; height: .6rem; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.fav-pick:has(input:disabled) { cursor: not-allowed; opacity: .45; }
+.fav-pick-name { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: .84rem; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.fav-pick-hours { color: var(--muted); font-size: .78rem; }
+.setup-push { padding: 1rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; }
+.setup-push > h2 { margin-bottom: .3rem; }
+.setup-push .device-here { margin-top: .75rem; background: var(--surface); }
+.setup-push .device-install { margin-top: .9rem; }
+.push-devices-line { margin: .6rem 0 0; }
 /* El recordatorio de Inicio, mientras no termines Configurar NextPlay. */
 .setup-reminder { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem 1rem; border-color: rgba(157, 92, 255, .5); background: linear-gradient(90deg, rgba(157, 92, 255, .12), transparent 70%), rgba(14, 18, 34, .88); }
 .setup-reminder h2 { display: flex; align-items: center; gap: .45rem; margin: 0; font-size: 1.05rem; }

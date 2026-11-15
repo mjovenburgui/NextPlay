@@ -28,7 +28,7 @@ from .aplicacion import (
     service_worker,
 )
 from .avisos import notifications
-from .configurar import next_step_url, setup, setup_done, setup_games, setup_later, setup_shops
+from .configurar import next_step_url, setup, setup_done, setup_games, setup_later, setup_profile, setup_shops
 from .cuentas_vinculadas import (
     epic_sync, epic_unlink, gog_sync, gog_unlink, linking_context, platform_add, platform_remove, play_platforms,
     psn_sync, psn_unlink, steam_auto_sync, steam_callback, steam_import, steam_link, steam_unlink, steam_wishlist,

@@ -21,15 +21,26 @@
       <dt>Bajadas de precio</dt>
       <dd>En la campana{% if price_email %} y por correo{% endif %}</dd>
     </div>
+    <div>
+      <dt>Te ven como</dt>
+      <dd class="setup-summary-me">{% include "accounts/_avatar.html" with size="sm" %} <span><strong>{{ profile.name }}</strong> · <a href="{% url 'profile' user.username %}">Ver tu perfil</a></span></dd>
+    </div>
+    <div>
+      <dt>Tus favoritos</dt>
+      <dd>{% if favorite_names %}{{ favorite_names|join:", " }}{% else %}Ninguno todavía · <a href="{% url 'setup_profile' %}">Elegirlos</a>{% endif %}</dd>
+    </div>
+    {% if push_configured %}
+      <div>
+        <dt>En el móvil</dt>
+        <dd>{% if push_count %}Avisos activados en {{ push_count }} dispositivo{{ push_count|pluralize }}{% else %}Sin activar · <a href="{% url 'setup_profile' %}#dispositivos">Activarlos</a>{% endif %}</dd>
+      </div>
+    {% endif %}
   </dl>
   <div class="setup-actions">
     <a class="btn" href="{% url 'games:catalog' %}">Buscar juegos</a>
     <a class="btn btn-primary" href="{% url 'home' %}">Ir a Inicio</a>
   </div>
-  <ul class="setup-next">
-    <li>Añade a tu lista de deseos lo que quieras comprar: te avisaremos cuando baje en tus tiendas.</li>
-    <li><a href="{% url 'edit_profile' %}#dispositivos">Activa los avisos en este dispositivo</a> para que te lleguen aunque no tengas NextPlay abierto.</li>
-  </ul>
+  <p class="setup-next">Añade a tu lista de deseos lo que quieras comprar: te avisaremos cuando baje en tus tiendas.</p>
 {% endblock %}
 
 {% block later %}{% endblock %}

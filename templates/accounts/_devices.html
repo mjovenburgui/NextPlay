@@ -1,10 +1,17 @@
 {# Tarjeta «Avisos en el móvil y el ordenador» de Editar perfil: activar, probar y quitar los avisos push en este #}
 {# dispositivo, la lista de los demás e instalar NextPlay. Necesita las variables de accounts.views.devices_context. #}
-<section class="settings-card devices-card" id="dispositivos"{% if push_configured %} data-push data-vapid-key="{{ vapid_public_key }}"
+{# Con compact (el paso «Tu perfil» de Configurar NextPlay, dentro de su formulario) va en pequeño: sin formularios #}
+{# propios, los demás dispositivos en una línea y sin recargar la página al activarlos, para no perder lo escrito. #}
+<section class="{% if compact %}setup-section setup-push{% else %}settings-card devices-card{% endif %}" id="dispositivos"{% if push_configured %} data-push{% if compact %} data-push-stay{% endif %} data-vapid-key="{{ vapid_public_key }}"
          data-sw="{% url 'service_worker' %}" data-subscribe="{% url 'push_subscribe' %}" data-unsubscribe="{% url 'push_unsubscribe' %}" data-test="{% url 'push_test' %}"{% endif %}>
-  <h2>Avisos en el móvil y el ordenador</h2>
-  <p class="help">Los avisos que marques con «Notificación» te llegan como los de cualquier aplicación, aunque no tengas NextPlay abierta. Se activan en cada dispositivo, desde su navegador.</p>
-  {% csrf_token %}
+  {% if compact %}
+    <h2>Avisos en este dispositivo</h2>
+    <p class="help">Los de la campana (respuestas, seguidores, bajadas de precio…) te llegarán como los de cualquier aplicación, aunque no tengas NextPlay abierta. Se activan en cada móvil u ordenador, desde su navegador; cuáles te llegan, lo eliges en Editar perfil › Avisos.</p>
+  {% else %}
+    <h2>Avisos en el móvil y el ordenador</h2>
+    <p class="help">Los avisos que marques con «Notificación» te llegan como los de cualquier aplicación, aunque no tengas NextPlay abierta. Se activan en cada dispositivo, desde su navegador.</p>
+    {% csrf_token %}
+  {% endif %}
   {% if push_configured %}
     <div class="device-here">
       <p class="device-status" data-push-status role="status">Comprobando este dispositivo…</p>
@@ -20,7 +27,9 @@
     {% if user.is_staff %}<p class="help">Para el equipo de NextPlay: faltan VAPID_PUBLIC_KEY y VAPID_PRIVATE_KEY en el archivo .env. Las genera <code>manage.py vapid_keys</code>.</p>{% endif %}
   {% endif %}
 
-  {% if push_devices %}
+  {% if push_devices and compact %}
+    <p class="help push-devices-line">Ya los tienes en: {% for device in push_devices %}{{ device.device|default:"un navegador" }}{% if not forloop.last %}, {% endif %}{% endfor %}.</p>
+  {% elif push_devices %}
     <h3 class="push-devices-title">Tus dispositivos</h3>
     <ul class="push-devices">
       {% for device in push_devices %}
@@ -49,8 +58,10 @@
 <script>
   // Avisos push en este dispositivo: según lo que deja el navegador, «Activar» (pide permiso, se suscribe con la clave
   // VAPID y se lo dice a NextPlay), «Mandar una prueba» y «Desactivar aquí». Al cambiar, recarga la tarjeta para que la
-  // lista de dispositivos esté al día. En el iPhone, el push solo funciona con NextPlay en la pantalla de inicio.
-  // Pantallas: Editar perfil (Avisos en el móvil y el ordenador).
+  // lista de dispositivos esté al día, salvo en pequeño (data-push-stay), que solo cambia lo que dice. En el iPhone, el
+  // push solo funciona con NextPlay en la pantalla de inicio.
+  // Pantallas: Editar perfil (Avisos en el móvil y el ordenador), Configurar NextPlay (Tu perfil › Avisos en este
+  // dispositivo).
   (function () {
     var card = document.querySelector("[data-push]");
     var ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -66,7 +77,9 @@
       test: card.querySelector("[data-push-test]"),
       off: card.querySelector("[data-push-off]"),
     };
-    var token = card.querySelector("[name=csrfmiddlewaretoken]").value;
+    // En pequeño va dentro de un formulario que ya lleva el suyo.
+    var token = (card.querySelector("[name=csrfmiddlewaretoken]") || document.querySelector("[name=csrfmiddlewaretoken]")).value;
+    var stay = card.hasAttribute("data-push-stay");
     var TEXTS = {
       insecure: "Este navegador solo deja activarlos en una dirección segura (https://). En tu ordenador, abre NextPlay desde localhost.",
       unsupported: ios && !installed
@@ -131,6 +144,7 @@
         var data = subscription.toJSON();
         return post(card.dataset.subscribe, {endpoint: data.endpoint, keys: data.keys});
       }).then(function () {
+        if (stay) return show("on", "Activados en este dispositivo: ya te llegarán aunque no tengas NextPlay abierta.");
         location.hash = "dispositivos";
         location.reload();
       }).catch(function (error) {
@@ -160,6 +174,7 @@
           return subscription.unsubscribe().then(function () { return post(card.dataset.unsubscribe, {endpoint: endpoint}); });
         })
         .then(function () {
+          if (stay) return show("off");
           location.hash = "dispositivos";
           location.reload();
         })

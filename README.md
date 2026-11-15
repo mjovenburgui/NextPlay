@@ -103,8 +103,8 @@ Steam. Se desactiva desde el panel de Steam del perfil.
 
 ## Primer uso: Configurar NextPlay
 
-Al registrarse se va a **Configurar NextPlay** (`/cuenta/configurar/`, `accounts/views/configurar.py`): tres pasos con
-su barra arriba.
+Al registrarse se va a **Configurar NextPlay** (`/cuenta/configurar/`, `accounts/views/configurar.py`): cuatro pasos
+con su barra arriba.
 
 1. **Dónde juegas**: las plataformas de `PLAY_PLATFORMS` (`accounts/models.py`), guardadas en `Profile.play_platforms`.
    Las cuentas ya vinculadas también cuentan (`Profile.where_you_play`).
@@ -117,6 +117,13 @@ su barra arriba.
    salen en baldosas con su logo y las demás, plegadas (`templates/accounts/_shop_picker.html`, el mismo selector que
    Editar perfil). Si aún no has elegido, van marcadas las de los sitios en los que juegas (`SUGGESTED_SHOPS`). Aquí
    también se elige si las bajadas de la lista de deseos llegan por correo.
+4. **Tu perfil** (`SetupProfileForm`, en `accounts/forms.py`): cómo te ven los demás.
+   - La foto: la de Steam, PlayStation o Xbox, una tuya o tu inicial. Si eliges la que ya pondría la automática, se
+     queda en automática, para que siga sola lo que cambie.
+   - El nombre visible, con los de tus cuentas vinculadas a un clic, y unas líneas sobre ti.
+   - Hasta cinco favoritos: los que ya tienes y, detrás, los juegos que más has jugado.
+   - Los avisos en este dispositivo: la tarjeta de Editar perfil (`templates/accounts/_devices.html`) en pequeño, que no
+     recarga la página al activarlos para no perder lo escrito.
 
 El final, **Listo**, resume lo elegido y apunta `Profile.setup_done_at`. Hasta entonces, Inicio enseña un recordatorio
 con «Seguir», que lleva al paso que falta, y «No me hace falta». Cada paso se puede saltar y Editar perfil enlaza a la

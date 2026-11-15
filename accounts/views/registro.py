@@ -21,6 +21,6 @@ def signup(request):
     if request.method == "POST" and form.is_valid():
         user = form.save()
         login(request, user)
-        messages.success(request, "Cuenta creada. Antes de empezar, deja NextPlay a tu gusto: son tres pasos.")
+        messages.success(request, "Cuenta creada. Antes de empezar, deja NextPlay a tu gusto: son cuatro pasos.")
         return redirect("setup")
     return render(request, "registration/signup.html", {"form": form})

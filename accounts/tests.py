@@ -1083,8 +1083,8 @@ class WhereYouPlayTests(TestCase):
 
 
 class SetupTests(TestCase):
-    """Configurar NextPlay: los tres pasos tras crear la cuenta (dónde juegas, tus juegos y dónde compras), su final y su
-    recordatorio en Inicio."""
+    """Configurar NextPlay: los cuatro pasos tras crear la cuenta (dónde juegas, tus juegos, dónde compras y tu perfil),
+    su final y su recordatorio en Inicio."""
 
     @classmethod
     def setUpTestData(cls):
@@ -1105,7 +1105,7 @@ class SetupTests(TestCase):
 
     def test_it_needs_a_session(self):
         self.client.logout()
-        for name in ("setup", "setup_games", "setup_shops", "setup_done"):
+        for name in ("setup", "setup_games", "setup_shops", "setup_profile", "setup_done"):
             self.assertRedirects(
                 self.client.get(reverse(name)), f"{reverse('login')}?next={reverse(name)}", fetch_redirect_response=False
             )
@@ -1118,6 +1118,10 @@ class SetupTests(TestCase):
         self.assertContains(self.client.get(home), f'href="{reverse("setup_games")}">Seguir')
         LibraryEntry.objects.create(user=self.user, game=self.hades)
         self.assertContains(self.client.get(home), f'href="{reverse("setup_shops")}">Seguir')
+        # Con todas las tiendas, Profile.shops se queda vacío, pero ya ha pasado por Dónde compras.
+        self.client.post(reverse("setup_shops"), {"shops": ["61", "16", "35", "1000", "6"]})
+        self.assertEqual(self.profile().shops, [])
+        self.assertContains(self.client.get(home), f'href="{reverse("setup_profile")}">Seguir')
         # «No me hace falta» la da por terminada.
         self.assertRedirects(self.client.post(reverse("setup_later")), home, fetch_redirect_response=False)
         self.assertIsNotNone(self.profile().setup_done_at)
@@ -1159,7 +1163,7 @@ class SetupTests(TestCase):
         self.assertContains(response, "De PlayStation Store aún no tenemos precios")
         self.assertEqual([name for _, name, _ in response.context["other_shops"]], ["Fanatical"])
         response = self.client.post(reverse("setup_shops"), {"shops": ["61", "6", "999"]})
-        self.assertRedirects(response, reverse("setup_done"), fetch_redirect_response=False)
+        self.assertRedirects(response, reverse("setup_profile"), fetch_redirect_response=False)
         profile = self.profile()
         self.assertEqual(profile.shops, [6, 61])
         self.assertEqual(profile.notification_prefs["precios"]["correo"], False)
@@ -1180,6 +1184,99 @@ class SetupTests(TestCase):
         response = self.client.get(reverse("setup_done"))
         self.assertContains(response, "Todas las tiendas")
         self.assertContains(response, "En la campana y por correo")
+
+    def test_step_four_offers_your_photos_names_and_most_played_games(self):
+        SteamAccount.objects.create(
+            user=self.user, steam_id="76561190000000001", persona="Anita", avatar="https://avatars.steam.test/ana.jpg"
+        )
+        games = [Game.objects.create(name=f"Juego {i}", slug=f"juego-{i}") for i in range(12)]
+        for hours, game in enumerate(games):
+            LibraryEntry.objects.create(user=self.user, game=game, steam_playtime_minutes=hours * 60 or None)
+        FavoriteGame.objects.create(user=self.user, game=games[0], position=0)
+        response = self.client.get(reverse("setup_profile"))
+        self.assertContains(response, 'aria-current="step"')
+        form = response.context["form"]
+        # La de Steam, una tuya y la inicial; marcada la de Steam, que es la que pone la automática.
+        self.assertEqual(
+            [(key, checked) for key, _, _, checked in form.photo_rows],
+            [("steam", True), ("upload", False), ("initial", False)],
+        )
+        self.assertContains(response, 'src="https://avatars.steam.test/ana.jpg"')
+        self.assertEqual(form.name_suggestions, ["Anita"])
+        # Primero el que ya es favorito y después los que más ha jugado, hasta diez.
+        rows = form.favorite_rows
+        self.assertEqual([game.name for game, _, _ in rows], ["Juego 0", *(f"Juego {i}" for i in range(11, 2, -1))])
+        self.assertEqual([checked for _, _, checked in rows], [True] + [False] * 9)
+        self.assertContains(response, "11 h")
+
+    def test_step_four_saves_your_name_and_favorites(self):
+        games = [Game.objects.create(name=f"Juego {i}", slug=f"juego-{i}") for i in range(7)]
+        for game in games:
+            LibraryEntry.objects.create(user=self.user, game=game)
+        FavoriteGame.objects.create(user=self.user, game=games[6], position=0)
+        url = reverse("setup_profile")
+        # Más de cinco favoritos: no se guarda nada.
+        response = self.client.post(url, {"display_name": "Ana", "favoritos": [game.pk for game in games[:6]]})
+        self.assertContains(response, "Como mucho 5 favoritos")
+        self.assertEqual(self.profile().display_name, "")
+        response = self.client.post(url, {
+            "display_name": "Ana", "bio": "Metroidvanias y RPG.", "foto": "initial",
+            "favoritos": [games[6].pk, games[2].pk, games[0].pk],
+        })
+        self.assertRedirects(response, reverse("setup_done"), fetch_redirect_response=False)
+        profile = self.profile()
+        self.assertEqual((profile.display_name, profile.bio), ("Ana", "Metroidvanias y RPG."))
+        # Sin fotos de cuentas ni subida, la inicial es lo que ya pone la automática: se queda en automática.
+        self.assertEqual(profile.avatar_source, Profile.AvatarSource.AUTO)
+        # El que ya era favorito sigue el primero; los nuevos van detrás.
+        names = list(FavoriteGame.objects.filter(user=self.user).values_list("game__name", flat=True))
+        self.assertEqual(names, ["Juego 6", "Juego 2", "Juego 0"])
+        response = self.client.get(reverse("setup_done"))
+        self.assertContains(response, "Juego 6, Juego 2, Juego 0")
+        self.assertContains(response, "<strong>Ana</strong>")
+
+    def test_step_four_uploads_your_photo_and_stays_automatic_when_it_is_the_same(self):
+        media = tempfile.mkdtemp(prefix="nextplay-media-")
+        self.addCleanup(shutil.rmtree, media, True)
+        SteamAccount.objects.create(user=self.user, steam_id="76561190000000002", avatar="https://avatars.steam.test/a.jpg")
+        url = reverse("setup_profile")
+        with self.settings(MEDIA_ROOT=media):
+            # «Una tuya» sin subir ninguna: se pide.
+            self.assertContains(self.client.post(url, {"foto": "upload"}), "Elige la foto que quieres subir")
+            # Quedarse con la de Steam, que es la que pone la automática, la deja en automática; la inicial no.
+            self.client.post(url, {"foto": "steam"})
+            self.assertEqual(self.profile().avatar_source, Profile.AvatarSource.AUTO)
+            self.client.post(url, {"foto": "initial"})
+            self.assertEqual(self.profile().avatar_source, Profile.AvatarSource.INITIAL)
+            # Subir una la elige, aunque estuviera marcada otra, y la deja centrada y sin zoom.
+            Profile.objects.filter(user=self.user).update(avatar_x=10, avatar_zoom=180)
+            response = self.client.post(url, {"foto": "initial", "avatar": image_upload()})
+            self.assertRedirects(response, reverse("setup_done"), fetch_redirect_response=False)
+            profile = self.profile()
+            self.assertTrue(profile.avatar.name.endswith(".webp"))
+            self.assertEqual(profile.avatar_source, Profile.AvatarSource.AUTO)
+            self.assertEqual((profile.avatar_x, profile.avatar_zoom), (50, 100))
+            self.assertEqual(profile.avatar_url, profile.avatar.url)
+            # Otra la sustituye, y la anterior se borra del disco.
+            first = profile.avatar.name
+            self.client.post(url, {"foto": "upload", "avatar": image_upload()})
+            self.assertFalse(default_storage.exists(first))
+            self.assertTrue(default_storage.exists(self.profile().avatar.name))
+
+    def test_step_four_offers_the_notices_on_this_device(self):
+        with self.settings(**TEST_VAPID):
+            response = self.client.get(reverse("setup_profile"))
+            self.assertContains(response, "data-push data-push-stay")
+            self.assertContains(response, "Activar en este dispositivo")
+            self.assertNotContains(response, "Tus dispositivos")
+            PushSubscription.objects.create(user=self.user, endpoint=ENDPOINT, auth="secreto", device="Chrome en Android")
+            self.assertContains(self.client.get(reverse("setup_profile")), "Ya los tienes en: Chrome en Android.")
+            self.assertContains(self.client.get(reverse("setup_done")), "Avisos activados en 1 dispositivo")
+        with self.settings(VAPID_PUBLIC_KEY="", VAPID_PRIVATE_KEY=""):
+            response = self.client.get(reverse("setup_profile"))
+            self.assertNotContains(response, "data-push ")
+            self.assertContains(response, "Pronto podrás recibir los avisos")
+            self.assertNotContains(self.client.get(reverse("setup_done")), "<dt>En el móvil</dt>")
 
 
 def psn_import(user, titles, account_id="111"):

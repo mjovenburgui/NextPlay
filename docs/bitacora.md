@@ -17,7 +17,7 @@ Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: 
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
-| `configurar-nextplay` | El primer uso pasa a ser Configurar NextPlay: una pantalla en tres pasos (dónde juegas, tus juegos y dónde compras) en vez de la tarjeta de Inicio | Commit local, sin subir, encima de `comunidad-del-juego`. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae la migración `accounts.0036`. |
+| `configurar-nextplay` | El primer uso pasa a ser Configurar NextPlay: una pantalla en cuatro pasos (dónde juegas, tus juegos, dónde compras y tu perfil, con los avisos en el móvil) en vez de la tarjeta de Inicio | Dos commits locales, sin subir, encima de `comunidad-del-juego`. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae la migración `accounts.0036`. |
 | `comunidad-del-juego` | La Comunidad de cada juego: hilos y preguntas con respuestas, las horas de quien escribe, lo que destripa plegado según lo que llevas jugado y «¿Cómo se consigue?» desde tus logros | Commit local, sin subir, encima de `avisos-que-llegan`. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae las migraciones `social.0012` y `accounts.0035`. |
 | `avisos-que-llegan` | NextPlay instalable y avisos que llegan: como notificación en el móvil o el ordenador y, los de los retos, por correo | Commit local, sin subir, encima de `primer-uso`. **Pendiente de tu revisión**, sobre todo el push en tu Chrome. Trae la migración `accounts.0034` y necesita las claves VAPID en `.env`. |
 | `primer-uso` | Primer uso: al registrarte, Inicio empieza por «Trae tus juegos» con «¿Dónde juegas?», y «Vincular cuentas» enseña solo la forma recomendada de cada plataforma | Commit local, sin subir, encima de `publicaciones`. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae la migración `accounts.0033`. |
@@ -50,6 +50,77 @@ Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: 
 - `challenges.0002`;
 - `social.0008` y `social.0009`;
 - `library.0014`.
+
+---
+
+## 15/11/2026 · Configurar NextPlay, cuarto paso: tu perfil y los avisos en este dispositivo
+
+**Rama:** `configurar-nextplay`, segundo commit, encima del de la pantalla. Local, sin subir.
+
+**Por qué:** te pregunté «¿Añado un cuarto paso para tu perfil y los avisos en el móvil?» y contestaste «Sí, añádelo».
+
+**Qué cambia para ti:**
+- **Configurar NextPlay tiene ahora cuatro pasos.** Dónde compras ya no termina: su botón pasa a «Seguir» y lleva al cuarto, **Tu perfil** (`/cuenta/configurar/perfil/`), con:
+  - **Tu foto**: la de Steam, PlayStation o Xbox (las que tengas vinculadas, con su imagen), una tuya o tu inicial.
+    - Al elegir «Una tuya» sale el botón para subirla. Si es muy grande, se reduce antes de subirla, como en Editar perfil.
+    - Si eliges la que ya pondría la automática, se queda en automática: si un día subes una foto, se cambia sola.
+  - **Tu nombre**, con los de tus cuentas (tu nombre de Steam, tu PSN ID, tu gamertag) a un clic.
+  - **Sobre ti**: unas líneas, si quieres.
+  - **Tus favoritos**, hasta cinco: los que ya tienes y, detrás, los juegos que más has jugado, con sus portadas y sus horas. Con cinco marcados, los demás se bloquean hasta que desmarques uno.
+  - **Avisos en este dispositivo**: el mismo botón «Activar en este dispositivo» de Editar perfil, en pequeño. Al activarlos no recarga la página, así no pierdes lo que hayas escrito.
+- **El final, «¡Listo!»**, resume también cómo te ven (tu foto y tu nombre), tus favoritos y en cuántos dispositivos tienes los avisos, con «Activarlos» si aún no.
+- **El aviso de Inicio** te lleva a Tu perfil cuando ya has pasado por las tiendas, aunque hayas elegido todas.
+
+**Qué he tocado:**
+- `accounts`:
+  - `forms.py`: el formulario nuevo `SetupProfileForm`;
+  - `views/configurar.py`: el paso nuevo, el resumen del final y el paso que toca después;
+  - `urls.py` y el mensaje del registro, que ahora dice «son cuatro pasos».
+- Las plantillas:
+  - `accounts/setup/perfil.html`, nueva;
+  - `accounts/_devices.html`, la tarjeta de los avisos, que ahora también sabe ir en pequeño;
+  - `accounts/_shrink_image.html`, nueva: la función que reduce las fotos antes de subirlas, sacada de Editar perfil para usarla en los dos sitios;
+  - Dónde compras, el final y el aviso de Inicio.
+- `app.css`, `README.md`, `docs/pantallas.json`, dos propuestas (la del primer uso y la de NextPlay como aplicación) y los dos PDF.
+
+**Cómo lo he comprobado:**
+- Los tests, sin claves y con claves falsas: 683 en cada modo, todos bien. Después volví a pasar los 200 de la documentación, `games` y los pasos con los últimos retoques: todos bien.
+  - 4 nuevos: lo que propone el paso (fotos, nombres y juegos), guardar el nombre y los favoritos (con el tope de cinco), subir una foto (que se reduce, queda centrada y borra la anterior) y los avisos en este dispositivo, con y sin claves;
+  - 3 cambiados: el aviso de Inicio, que haga falta sesión y las tiendas, que ahora siguen a Tu perfil.
+- En el navegador de Claude, con `cliente_nuevo` y ocho juegos de prueba en la copia:
+  - los cuatro pasos seguidos;
+  - una foto de 1600 × 1200 que se redujo a 800 × 600 antes de subirse;
+  - el nombre, con la inicial cambiando a la vez;
+  - el tope de cinco favoritos;
+  - el final, y que el aviso de Inicio se va.
+- El paso 4 de `tester_steam`, solo mirándolo, sin guardar nada: salen su foto de Steam, la de PlayStation, la suya y sus juegos con más horas.
+- A 375 px no se sale nada, y Editar perfil sigue reduciendo las fotos.
+- Lo que no he podido probar: activar de verdad los avisos desde el paso, porque el navegador de Claude no tiene servicio push.
+- Después he dejado `cliente_nuevo` otra vez como recién creada, sin los juegos ni la foto de prueba.
+
+**Qué falta (depende de ti):**
+- Revisarlo, y activar los avisos desde el paso en tu Chrome.
+- Sin migraciones nuevas: al fusionar basta con las de antes (`accounts.0036` de esta rama, más las de las otras).
+
+**Cómo comprobarlo tú (guion):** en http://localhost:8001/, la copia de revisión. Este guion sustituye al de la entrada de abajo.
+1. **Crea una cuenta nueva** en http://localhost:8001/cuenta/registro/, con un correo inventado. Si no quieres crearla, el panel de Claude ya tiene abierta `cliente_nuevo` como recién creada, en Inicio, con el aviso «Termina de configurar NextPlay».
+2. **Dónde juegas.** Marca, por ejemplo, Steam y Nintendo Switch, y pulsa «Seguir».
+3. **Tus juegos.** Vincula Steam si quieres ver tus juegos en los favoritos del paso 4, o pulsa «Saltar por ahora».
+4. **Dónde compras.** Vienen marcadas Steam y la eShop. Pulsa «Seguir»: ahora lleva a Tu perfil.
+5. **Tu perfil.**
+   - En «Tu foto», elige «Una tuya» y sube una foto del móvil o del ordenador: se ve en su casilla al momento.
+   - Escribe tu nombre (o pulsa uno de los de tus cuentas, si vinculaste Steam) y unas líneas sobre ti.
+   - Si tienes juegos, marca hasta cinco favoritos: el sexto no deja.
+   - En «Avisos en este dispositivo», pulsa «Activar en este dispositivo» y acepta el permiso del navegador. Debe decir «Activados en este dispositivo» sin recargar la página ni borrar lo que has escrito.
+   - Pulsa «Guardar y terminar».
+6. **¡Listo!** Comprueba «Te ven como» (tu foto y tu nombre), «Tus favoritos» y «En el móvil». Tu foto también sale ya arriba a la derecha.
+7. **Vuelve a Tu perfil** desde la barra de pasos: sale lo que guardaste. Con «Ver tu perfil» del final, los favoritos están en «Juegos favoritos».
+8. **El aviso de Inicio.** Con otra cuenta nueva, pulsa «Lo termino más tarde» en Tu perfil. El «Seguir» de Inicio te lleva al primer paso que te falte: a Tus juegos si aún no tienes ninguno y, si ya tienes, a Tu perfil.
+9. **Si el servidor no responde**, levántalo:
+
+   ```bash
+   C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/NextPlay/.claude/worktrees/revision-tareas-pendientes-d85f54/manage.py runserver 8001
+   ```
 
 ---
 
@@ -108,7 +179,7 @@ Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: 
 - Revisarlo.
 - Al fusionarlo con `main`, tu base de datos necesitará `accounts.0036`, además de las migraciones de las otras ramas.
 
-**Cómo comprobarlo tú (guion):** en http://localhost:8001/, la copia de revisión.
+**Cómo comprobarlo tú (guion):** en http://localhost:8001/, la copia de revisión. Ya no vale tal cual: desde el cuarto paso, Dónde compras lleva a Tu perfil, y el guion completo es el de la entrada de arriba.
 1. **Crea una cuenta nueva** en http://localhost:8001/cuenta/registro/, con un correo inventado. Si no quieres crearla, el panel de Claude ya tiene abierta la cuenta de prueba `cliente_nuevo` como recién creada.
 2. **Dónde juegas.** Al crearla llegas a Configurar NextPlay. Marca, por ejemplo, Steam, Otras tiendas de PC y Nintendo Switch, y pulsa «Seguir».
 3. **Tus juegos.** Salen los pasos de Steam (desplegado), Otras tiendas de PC y Switch.

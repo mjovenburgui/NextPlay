@@ -18,6 +18,7 @@ urlpatterns = [
     path("cuenta/configurar/", views.setup, name="setup"),
     path("cuenta/configurar/juegos/", views.setup_games, name="setup_games"),
     path("cuenta/configurar/tiendas/", views.setup_shops, name="setup_shops"),
+    path("cuenta/configurar/perfil/", views.setup_profile, name="setup_profile"),
     path("cuenta/configurar/listo/", views.setup_done, name="setup_done"),
     path("cuenta/configurar/mas-tarde/", views.setup_later, name="setup_later"),
     path("cuenta/perfil/", views.edit_profile, name="edit_profile"),
