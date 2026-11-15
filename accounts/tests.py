@@ -73,10 +73,12 @@ class SignupTests(TestCase):
             reverse("signup"),
             {"username": "ana", "email": "Ana@example.com", "password1": "s3gura-clave-larga", "password2": "s3gura-clave-larga"},
         )
-        self.assertRedirects(response, reverse("home"))
+        # Lleva a Configurar NextPlay, con el perfil aún sin configurar.
+        self.assertRedirects(response, reverse("setup"))
         user = User.objects.get(username="ana")
         self.assertEqual(user.email, "ana@example.com")
         self.assertTrue(user.profile.is_public)
+        self.assertIsNone(user.profile.setup_done_at)
         self.assertEqual(int(self.client.session["_auth_user_id"]), user.pk)
 
     def test_signup_rejects_duplicate_email_ignoring_case(self):
@@ -235,6 +237,17 @@ class SteamLinkTests(TestCase):
         self.assertEqual((account.steam_id, account.persona), ("76561197960287930", "Gabe"))
         self.assertEqual(post.call_args.kwargs["data"]["openid.mode"], "check_authentication")
         import_library.assert_called_once()
+
+    @mock.patch.object(steam, "import_library", return_value={"added": 1, "updated": 0, "unmatched": 0, "private": []})
+    @mock.patch.object(steam, "player_summary", return_value={})
+    @mock.patch("accounts.steam.requests.post")
+    def test_callback_goes_back_to_where_linking_started(self, post, summary, import_library):
+        post.return_value = mock.Mock(text="is_valid:true\n")
+        self.client.post(reverse("steam_link"), {"next": reverse("setup_games")})
+        state = self.client.session["steam_openid_state"]
+        response = self.client.get(reverse("steam_callback"), openid_params(state=state))
+        self.assertRedirects(response, reverse("setup_games"), fetch_redirect_response=False)
+        self.assertNotIn("linking_next", self.client.session)
 
     @mock.patch.object(steam, "import_library", return_value={"added": 0, "updated": 0, "unmatched": 0, "private": []})
     @mock.patch.object(steam, "player_summary", return_value={})
@@ -988,22 +1001,17 @@ class WhereYouPlayTests(TestCase):
         headers = {"HTTP_HX_REQUEST": "true"} if htmx else {}
         return self.client.post(reverse("play_platforms"), {"donde": list(keys), "next": next_url}, **headers)
 
-    def test_signing_up_lands_on_home_with_the_question(self):
+    def test_signing_up_starts_configuring_nextplay(self):
         self.client.logout()
         response = self.client.post(
             reverse("signup"),
             {"username": "luis", "email": "luis@example.com", "password1": "s3gura-clave-larga", "password2": "s3gura-clave-larga"},
             follow=True,
         )
-        self.assertRedirects(response, reverse("home"))
-        self.assertContains(response, 'id="trae-tus-juegos"')
+        self.assertRedirects(response, reverse("setup"))
         self.assertContains(response, "¿Dónde juegas?")
         self.assertContains(response, 'name="donde" value="switch"')
-
-    def test_the_card_goes_away_with_the_first_game(self):
-        self.assertContains(self.client.get(reverse("home")), 'id="trae-tus-juegos"')
-        LibraryEntry.objects.create(user=self.user, game=Game.objects.create(name="Hades", slug="hades"))
-        self.assertNotContains(self.client.get(reverse("home")), 'id="trae-tus-juegos"')
+        self.assertContains(response, 'aria-current="step"')
 
     def test_choosing_keeps_the_known_platforms_in_their_order(self):
         response = self.choose("switch", "steam", "atari", next_url=reverse("home"))
@@ -1056,11 +1064,14 @@ class WhereYouPlayTests(TestCase):
 
     def test_switch_asks_for_the_friend_code_and_then_shows_it(self):
         self.choose("switch")
-        response = self.client.get(reverse("home"))
+        response = self.client.get(reverse("setup_games"))
         self.assertContains(response, "Nintendo no deja leer desde fuera")
         self.assertContains(response, 'name="platform" value="nintendo"')
-        self.client.post(reverse("platform_add"), {"platform": "nintendo", "handle": "1234 5678 9012", "next": "/"})
-        response = self.client.get(reverse("home"))
+        response = self.client.post(
+            reverse("platform_add"), {"platform": "nintendo", "handle": "1234 5678 9012", "next": reverse("setup_games")}
+        )
+        self.assertRedirects(response, reverse("setup_games"))
+        response = self.client.get(reverse("setup_games"))
         self.assertContains(response, "SW-1234-5678-9012")
         self.assertNotContains(response, 'id="handle-nintendo"')
 
@@ -1069,6 +1080,106 @@ class WhereYouPlayTests(TestCase):
         self.assertContains(response, "Traer mis juegos")
         # El botón de la cabecera y el del vacío abren la misma ventana.
         self.assertContains(response, 'data-open-dialog="link-dialog" aria-haspopup="dialog"', count=2)
+
+
+class SetupTests(TestCase):
+    """Configurar NextPlay: los tres pasos tras crear la cuenta (dónde juegas, tus juegos y dónde compras), su final y su
+    recordatorio en Inicio."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.hades = Game.objects.create(name="Hades", slug="hades")
+        # Las tiendas con precios en el catálogo: cuatro destacadas y una de claves.
+        for shop_id, name in ((61, "Steam"), (16, "Epic Game Store"), (35, "GOG"), (1000, "Nintendo eShop"), (6, "Fanatical")):
+            GamePrice.objects.create(
+                game=cls.hades, shop_id=shop_id, shop_name=name, price=Decimal("9.99"), regular_price=Decimal("19.99"),
+                currency="EUR", url=f"https://shop.test/{shop_id}",
+            )
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def profile(self):
+        return Profile.objects.get(user=self.user)
+
+    def test_it_needs_a_session(self):
+        self.client.logout()
+        for name in ("setup", "setup_games", "setup_shops", "setup_done"):
+            self.assertRedirects(
+                self.client.get(reverse(name)), f"{reverse('login')}?next={reverse(name)}", fetch_redirect_response=False
+            )
+
+    def test_home_reminds_where_to_go_on_until_it_is_done(self):
+        self.assertIsNone(self.profile().setup_done_at)  # las cuentas nuevas empiezan sin configurar
+        home = reverse("home")
+        self.assertContains(self.client.get(home), f'class="btn btn-primary" href="{reverse("setup")}">Seguir')
+        self.client.post(reverse("setup"), {"donde": ["steam"]})
+        self.assertContains(self.client.get(home), f'href="{reverse("setup_games")}">Seguir')
+        LibraryEntry.objects.create(user=self.user, game=self.hades)
+        self.assertContains(self.client.get(home), f'href="{reverse("setup_shops")}">Seguir')
+        # «No me hace falta» la da por terminada.
+        self.assertRedirects(self.client.post(reverse("setup_later")), home, fetch_redirect_response=False)
+        self.assertIsNotNone(self.profile().setup_done_at)
+        self.assertNotContains(self.client.get(home), 'id="configurar"')
+
+    def test_step_one_saves_where_you_play(self):
+        response = self.client.get(reverse("setup"))
+        self.assertContains(response, 'name="donde" value="playstation"')
+        self.assertContains(response, f'href="{reverse("setup_games")}">Saltar')
+        response = self.client.post(reverse("setup"), {"donde": []})
+        self.assertContains(response, "Marca al menos una plataforma")
+        response = self.client.post(reverse("setup"), {"donde": ["switch", "steam", "atari"]})
+        self.assertRedirects(response, reverse("setup_games"), fetch_redirect_response=False)
+        self.assertEqual(self.profile().play_platforms, ["steam", "switch"])
+
+    def test_step_two_brings_your_games_and_comes_back_here(self):
+        self.client.post(reverse("setup"), {"donde": ["steam", "playstation"]})
+        url = reverse("setup_games")
+        response = self.client.get(url)
+        self.assertContains(response, 'id="donde-steam" open')
+        self.assertContains(response, 'id="donde-playstation">')
+        self.assertNotContains(response, 'id="donde-xbox"')
+        self.assertContains(response, f'name="next" value="{url}"')
+        self.assertContains(response, "Saltar por ahora")
+        # Steam se vincula iniciando sesión en su web: la vuelta (SteamLinkTests) vuelve aquí.
+        self.client.post(reverse("steam_link"), {"next": url})
+        self.assertEqual(self.client.session["linking_next"], url)
+        self.client.post(reverse("steam_link"), {"next": "https://evil.example/"})
+        self.assertNotIn("linking_next", self.client.session)
+        LibraryEntry.objects.create(user=self.user, game=self.hades)
+        self.assertContains(self.client.get(url), "Ya tienes <strong>1 juego</strong>")
+
+    def test_step_three_suggests_the_shops_of_where_you_play(self):
+        self.client.post(reverse("setup"), {"donde": ["steam", "switch", "playstation"]})
+        response = self.client.get(reverse("setup_shops"))
+        checked = [shop_id for shop_id, _, _, is_checked in response.context["featured_shops"] if is_checked]
+        self.assertEqual(checked, [61, 1000])
+        self.assertContains(response, "Las hemos marcado según dónde juegas")
+        self.assertContains(response, "De PlayStation Store aún no tenemos precios")
+        self.assertEqual([name for _, name, _ in response.context["other_shops"]], ["Fanatical"])
+        response = self.client.post(reverse("setup_shops"), {"shops": ["61", "6", "999"]})
+        self.assertRedirects(response, reverse("setup_done"), fetch_redirect_response=False)
+        profile = self.profile()
+        self.assertEqual(profile.shops, [6, 61])
+        self.assertEqual(profile.notification_prefs["precios"]["correo"], False)
+        response = self.client.get(reverse("setup_done"))
+        self.assertContains(response, "Steam, Fanatical")  # las destacadas, primero
+        self.assertContains(response, "<dd>En la campana</dd>")
+        self.assertIsNotNone(self.profile().setup_done_at)
+        # Volver al paso enseña lo elegido, sin proponer nada.
+        response = self.client.get(reverse("setup_shops"))
+        self.assertNotContains(response, "Las hemos marcado")
+        self.assertTrue(response.context["others_open"])
+
+    def test_every_shop_is_the_same_as_all_and_mail_stays_on(self):
+        self.client.post(reverse("setup_shops"), {"shops": ["61", "16", "35", "1000", "6"], "correo": "1"})
+        profile = self.profile()
+        self.assertEqual(profile.shops, [])
+        self.assertTrue(notices.wants(self.user, Notification.Kind.PRICE, notices.EMAIL))
+        response = self.client.get(reverse("setup_done"))
+        self.assertContains(response, "Todas las tiendas")
+        self.assertContains(response, "En la campana y por correo")
 
 
 def psn_import(user, titles, account_id="111"):

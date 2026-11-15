@@ -1,12 +1,14 @@
 """Vistas de las cuentas, un archivo por pantalla:
 
 - registro.py: Registro.
+- configurar.py: Configurar NextPlay, los pasos tras crear la cuenta (dónde juegas, tus juegos y dónde compras), y su
+  recordatorio en Inicio.
 - perfil.py: Perfil (también lo que pinta la vista previa de Editar perfil).
 - editar_perfil.py: Editar perfil (el formulario, su vista previa, las imágenes de un juego para la cabecera y las
   tiendas en las que compras).
 - cuentas_vinculadas.py: vincular, importar y desvincular Steam, PlayStation, Xbox, GOG y Epic Games y las cuentas de
   otras plataformas, y guardar dónde juega cada uno (Editar perfil › Cuentas vinculadas, el modal «Vincular cuentas»
-  del Perfil y la tarjeta «Trae tus juegos» de Inicio).
+  del Perfil y el paso Tus juegos de Configurar NextPlay).
 - juegos_importados.py: Juegos importados.
 - importar_archivo.py: Importar desde un archivo (el CSV de Playnite o de otro tracker).
 - sincronizar_playnite.py: la extensión NextPlay Sync de Playnite (su código y su descarga, en Editar perfil › Cuentas
@@ -16,7 +18,7 @@
   de cada dispositivo (Editar perfil › Avisos en el móvil y el ordenador).
 - ficha_del_juego.py: los botones de las cuentas en la Ficha del juego (favoritos, «Tus logros» y poner de cabecera).
 - resumen_anual.py: Resumen del año (y su imagen para compartir).
-- comun.py: lo que comparten varias (volver a la página desde la que se envió un formulario).
+- comun.py: lo que comparten varias (volver a la página desde la que se envió un formulario y el selector de tiendas).
 
 Aquí se reexportan las vistas y lo que usan otras apps, para que urls.py y quien importa de accounts.views no cambien.
 """
@@ -26,6 +28,7 @@ from .aplicacion import (
     service_worker,
 )
 from .avisos import notifications
+from .configurar import next_step_url, setup, setup_done, setup_games, setup_later, setup_shops
 from .cuentas_vinculadas import (
     epic_sync, epic_unlink, gog_sync, gog_unlink, linking_context, platform_add, platform_remove, play_platforms,
     psn_sync, psn_unlink, steam_auto_sync, steam_callback, steam_import, steam_link, steam_unlink, steam_wishlist,

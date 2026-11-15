@@ -1,8 +1,9 @@
-"""Direcciones de las cuentas. Pantallas: Registro (cuenta/registro/), Editar perfil (cuenta/perfil/, con su vista previa
-y las imágenes de un juego para la cabecera), Juegos importados (cuenta/juegos-importados/), Avisos (avisos/), Iniciar
-sesión y Recuperar contraseña (las de Django, en cuenta/), Importar desde un archivo (cuenta/importar-archivo/) y Perfil
-(u/<usuario>/). La extensión de Playnite manda la biblioteca a api/playnite/. El resto son acciones de botones:
-favoritos, tiendas, logros de la Ficha del juego, dónde juegas («¿Dónde juegas?», en Vincular cuentas y en Inicio) y
+"""Direcciones de las cuentas. Pantallas: Registro (cuenta/registro/), Configurar NextPlay (cuenta/configurar/, con sus
+pasos juegos/, tiendas/ y listo/), Editar perfil (cuenta/perfil/, con su vista previa y las imágenes de un juego para la
+cabecera), Juegos importados (cuenta/juegos-importados/), Avisos (avisos/), Iniciar sesión y Recuperar contraseña (las
+de Django, en cuenta/), Importar desde un archivo (cuenta/importar-archivo/) y Perfil (u/<usuario>/). La extensión de
+Playnite manda la biblioteca a api/playnite/. El resto son acciones de botones: favoritos, tiendas, logros de la Ficha
+del juego, dónde juegas («¿Dónde juegas?», en Vincular cuentas), «No me hace falta» del recordatorio de Inicio y
 vincular, importar o desvincular Steam, PlayStation, Xbox, GOG, Epic Games y otras plataformas. NextPlay como aplicación
 cuelga de la raíz: su manifiesto (manifest.webmanifest), su service worker (sw.js) y Sin conexión (sin-conexion/); los
 avisos push de cada dispositivo, de avisos/push/.
@@ -14,6 +15,11 @@ from . import views
 
 urlpatterns = [
     path("cuenta/registro/", views.signup, name="signup"),
+    path("cuenta/configurar/", views.setup, name="setup"),
+    path("cuenta/configurar/juegos/", views.setup_games, name="setup_games"),
+    path("cuenta/configurar/tiendas/", views.setup_shops, name="setup_shops"),
+    path("cuenta/configurar/listo/", views.setup_done, name="setup_done"),
+    path("cuenta/configurar/mas-tarde/", views.setup_later, name="setup_later"),
     path("cuenta/perfil/", views.edit_profile, name="edit_profile"),
     path("cuenta/perfil/vista-previa/", views.profile_preview, name="profile_preview"),
     path("cuenta/perfil/imagenes-de-juego/", views.banner_arts, name="banner_arts"),

@@ -42,9 +42,10 @@ def _back_to_card():
 @login_required
 def playnite_token(request):
     """Genera el código de la extensión de Playnite (o uno nuevo, y el anterior deja de valer) y lleva a Editar perfil,
-    que lo enseña una sola vez.
+    que lo enseña una sola vez. Si se pide desde Configurar NextPlay, vuelve a su paso Tus juegos, que también lo enseña.
 
-    Pantallas: Editar perfil (Cuentas vinculadas › Playnite: «Generar el código»), Perfil (modal «Vincular cuentas»).
+    Pantallas: Editar perfil (Cuentas vinculadas › Playnite: «Generar el código»), Perfil (modal «Vincular cuentas»),
+    Configurar NextPlay (Tus juegos).
     """
     renewed = PlayniteAccount.objects.filter(user=request.user).exists()
     request.session[SESSION_KEY] = PlayniteAccount.issue(request.user)
@@ -52,6 +53,8 @@ def playnite_token(request):
         messages.success(request, "Código nuevo generado: el anterior ya no vale. Pégalo en la extensión.")
     else:
         messages.success(request, "Código generado: pégalo en la extensión NextPlay Sync de Playnite.")
+    if request.POST.get("next") == reverse("setup_games"):
+        return redirect(f"{reverse('setup_games')}#donde-pc")
     return _back_to_card()
 
 

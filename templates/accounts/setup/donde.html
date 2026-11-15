@@ -1,0 +1,17 @@
+{% extends "accounts/setup/base.html" %}
+
+{% block step %}
+  {# Paso 1 (accounts.views.setup): las plataformas en las que juega, con las casillas de Vincular cuentas (_where_tiles.html). #}
+  <h1 class="setup-title" id="setup-title">¿Dónde juegas?</h1>
+  <p class="setup-lead">Marca todas las que uses. Con eso te enseñamos cómo traer tus juegos de cada una y qué tiendas mirar para los precios.</p>
+  <form class="where-form" method="post" action="{% url 'setup' %}">
+    {% csrf_token %}
+    {% include "accounts/linking/_where_tiles.html" %}
+    {% if where_error %}<p class="errorlist" role="alert">Marca al menos una plataforma, o sáltate este paso.</p>{% endif %}
+    <div class="setup-actions">
+      <a class="btn" href="{{ next_url }}">Saltar</a>
+      <button class="btn btn-primary" type="submit">Seguir</button>
+    </div>
+  </form>
+  <p class="help setup-foot">¿Juegas en físico o en una consola antigua? También podrás apuntar tus juegos a mano desde el catálogo.</p>
+{% endblock %}

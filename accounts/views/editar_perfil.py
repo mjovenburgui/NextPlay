@@ -21,6 +21,7 @@ from .. import banner, images
 from ..forms import IMAGE_FIELDS, ProfileForm
 from ..models import ACCENT_PRESETS, SECTIONS, FavoriteGame, Profile
 from .aplicacion import devices_context
+from .comun import shop_picker
 from .cuentas_vinculadas import linking_context
 from .perfil import _profile_context, _profile_owners
 
@@ -90,7 +91,8 @@ def edit_profile(request):
             "framer_views": FRAMER_VIEWS,
             "uploads": {name: getattr(profile, name).url if getattr(profile, name) else "" for name in IMAGE_FIELDS},
             "sections": _posted_sections(form) or profile.section_layout,
-            "shop_choices": [(shop_id, name, shop_id in chosen) for shop_id, name in known_shops()],
+            # Las tiendas, con las destacadas a la vista y las demás plegadas (comun.shop_picker).
+            **shop_picker(chosen),
             # El juego que pondría ahora la cabecera «Lo que estoy jugando», y con qué imagen.
             "playing_now": (playing := banner.playing_game(request.user)),
             "playing_image": banner.playing_image(playing),

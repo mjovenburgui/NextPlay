@@ -40,9 +40,9 @@ SECTIONS = [
     ("retos", "Retos"),
 ]
 
-# Las plataformas de la pregunta «¿Dónde juegas?» (Vincular cuentas y la tarjeta «Trae tus juegos» de Inicio), en su
+# Las plataformas de la pregunta «¿Dónde juegas?» (Vincular cuentas y el primer paso de Configurar NextPlay), en su
 # orden: (clave, nombre, qué abarca). Con la respuesta, Vincular cuentas enseña solo la forma recomendada de traer los
-# juegos de cada una.
+# juegos de cada una, y Configurar NextPlay propone sus tiendas.
 PLAY_PLATFORMS = [
     ("steam", "Steam", "En PC o en Steam Deck"),
     ("pc", "Otras tiendas de PC", "GOG, Epic, EA, Ubisoft, Battle.net…"),
@@ -172,6 +172,9 @@ class Profile(models.Model):
     not_interested = models.JSONField("juegos que no le interesan", default=list, blank=True)
     # Ids de las tiendas en las que compra (los de GamePrice.shop_id; 0 es Xbox). Vacía = todas.
     shops = models.JSONField("tiendas en las que compro", default=list, blank=True)
+    # Cuándo terminó Configurar NextPlay (o dijo que no le hacía falta). Vacía mientras no: Inicio le recuerda seguir.
+    # Los perfiles que ya existían cuando llegó se dieron por configurados (migración accounts.0036).
+    setup_done_at = models.DateTimeField("configuración inicial terminada", null=True, blank=True)
     # Lo que ha elegido en la sección «Avisos» de Editar perfil, por grupos de accounts.notices.GROUPS, como
     # {"me_gusta": {"campana": false}, "precios": {"campana": true, "correo": false}}. Lo que no está, encendido.
     notification_prefs = models.JSONField("avisos que recibe", default=dict, blank=True)
@@ -407,7 +410,7 @@ class Profile(models.Model):
         """Sus cuentas de otras plataformas por clave de PlatformAccount.Platform ({"xbox": cuenta, ...}), para buscar la
         de una plataforma en las plantillas.
 
-        Pantallas: Inicio (tarjeta «Trae tus juegos»: el gamertag de Xbox y el código de amigo de Switch), Perfil (modal
+        Pantallas: Configurar NextPlay (Tus juegos: el gamertag de Xbox y el código de amigo de Switch), Perfil (modal
         «Vincular cuentas» de su dueño).
         """
         return {account.platform: account for account in self.platforms}
@@ -418,7 +421,8 @@ class Profile(models.Model):
         vinculadas o puestas en su perfil, en el orden de PLAY_PLATFORMS. Así, a quien ya vinculó algo no se le pregunta.
         Vacía si no ha dicho nada ni tiene ninguna: entonces Vincular cuentas empieza por la pregunta.
 
-        Pantallas: Inicio (tarjeta «Trae tus juegos»), Perfil (modal «Vincular cuentas» de su dueño).
+        Pantallas: Configurar NextPlay (Dónde juegas, Tus juegos y las tiendas que propone), Perfil (modal «Vincular
+        cuentas» de su dueño), Inicio (dónde seguir configurando).
         """
         keys = set(self.play_platforms or [])
         if self.steam_accounts:
@@ -447,7 +451,7 @@ class Profile(models.Model):
         gamertag o su código de amigo. Abierto es el primero que no está hecho, para que la ventana despliegue solo lo
         siguiente que hacer y deje plegado lo demás.
 
-        Pantallas: Inicio (tarjeta «Trae tus juegos»), Perfil (modal «Vincular cuentas» de su dueño).
+        Pantallas: Configurar NextPlay (Tus juegos), Perfil (modal «Vincular cuentas» de su dueño).
         """
         shown = self.shown_accounts
         done = {

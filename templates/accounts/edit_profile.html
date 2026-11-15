@@ -7,7 +7,7 @@
   <header class="page-head settings-head">
     <div>
       <h1>Editar perfil</h1>
-      <p class="muted">Cómo te ven los demás, qué tiendas te interesan y de dónde se importan tus juegos.</p>
+      <p class="muted">Cómo te ven los demás, qué tiendas te interesan y de dónde se importan tus juegos. ¿Prefieres ir paso a paso? <a href="{% url 'setup' %}">Configurar NextPlay</a>.</p>
     </div>
     <a class="btn" href="{% url 'profile' user.username %}">Ver mi perfil</a>
   </header>
@@ -320,15 +320,11 @@
 
       <section class="settings-card" id="tiendas">
         <h2>Tiendas en las que compras</h2>
-        {% if shop_choices %}
+        {% if featured_shops or other_shops %}
           <p class="help">NextPlay solo te enseñará precios, historial y avisos de las que marques (en cada ficha puedes ver todas un momento). Sin ninguna marcada, se ven todas.</p>
           <form action="{% url 'shops_update' %}" method="post">
             {% csrf_token %}
-            <div class="shop-choices">
-              {% for shop_id, name, checked in shop_choices %}
-                <label class="shop-choice"><input type="checkbox" name="shops" value="{{ shop_id }}"{% if checked %} checked{% endif %}> {{ name }}</label>
-              {% endfor %}
-            </div>
+            {% include "accounts/_shop_picker.html" %}
             <div class="settings-actions">
               <button class="btn btn-primary" type="submit" data-busy="Guardando…">Guardar tiendas</button>
             </div>

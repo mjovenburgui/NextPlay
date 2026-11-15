@@ -1,0 +1,22 @@
+{% extends "accounts/setup/base.html" %}
+
+{% block step %}
+  {# Paso 3 (accounts.views.setup_shops): las tiendas de las que quiere precios (accounts/_shop_picker.html), marcadas de entrada según dónde juega, y si quiere las bajadas también por correo. #}
+  <h1 class="setup-title" id="setup-title">¿Dónde compras?</h1>
+  <p class="setup-lead">Te enseñaremos los precios, el historial y las bajadas de estas tiendas, y te avisaremos cuando un juego que quieres baje en alguna.</p>
+  <form method="post" action="{% url 'setup_shops' %}">
+    {% csrf_token %}
+    {% if suggested %}<p class="setup-hint">{% include "_icon.html" with name="check" %} Las hemos marcado según dónde juegas: cámbialas si quieres.</p>{% endif %}
+    {% include "accounts/_shop_picker.html" %}
+    <p class="help">Si no marcas ninguna, te enseñamos todas.{% if plays_playstation %} De PlayStation Store aún no tenemos precios: en cada ficha tendrás el enlace para buscarlo allí.{% endif %}</p>
+    <fieldset class="setup-alerts">
+      <legend>Bajadas de precio</legend>
+      <label class="check"><input type="checkbox" name="correo" value="1"{% if price_email %} checked{% endif %}> Avísame también por correo cuando un juego de mi lista de deseos baje de precio</label>
+      <p class="help">Te llegarán a {{ user.email }}, juntas en un solo correo cada noche. En la campana te avisamos siempre, y en el móvil si activas allí los avisos (Editar perfil › En el móvil).</p>
+    </fieldset>
+    <div class="setup-actions">
+      <a class="btn" href="{{ back_url }}">Atrás</a>
+      <button class="btn btn-primary" type="submit">Guardar y terminar</button>
+    </div>
+  </form>
+{% endblock %}

@@ -1,0 +1,24 @@
+{# Selector de tiendas (accounts.views.comun.shop_picker): las destacadas con su logo, a la vista, y las demás plegadas en «Otras tiendas». Todas son casillas «shops». #}
+{# Va en el paso Dónde compras de Configurar NextPlay y en Editar perfil › Tiendas en las que compras, dentro de su formulario. #}
+<fieldset class="shop-picker">
+  <legend class="visually-hidden">Tiendas</legend>
+  <div class="shop-pick-tiles">
+    {% for shop_id, name, logo, checked in featured_shops %}
+      <label class="shop-pick">
+        <input type="checkbox" name="shops" value="{{ shop_id }}"{% if checked %} checked{% endif %}>
+        <span class="shop-pick-logo" aria-hidden="true">{% include "games/shop_icons/"|add:logo|add:".svg" %}</span>
+        <strong>{{ name }}</strong>
+      </label>
+    {% endfor %}
+  </div>
+  {% if other_shops %}
+    <details class="shop-others"{% if others_open %} open{% endif %}>
+      <summary>Otras tiendas <span class="muted small">· {{ other_shops|length }}{% if others_checked %}, {{ others_checked }} marcada{{ others_checked|pluralize }}{% endif %} · de las editoras y de claves, a menudo más baratas</span></summary>
+      <div class="shop-choices">
+        {% for shop_id, name, checked in other_shops %}
+          <label class="shop-choice"><input type="checkbox" name="shops" value="{{ shop_id }}"{% if checked %} checked{% endif %}> {{ name }}</label>
+        {% endfor %}
+      </div>
+    </details>
+  {% endif %}
+</fieldset>

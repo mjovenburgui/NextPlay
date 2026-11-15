@@ -13,10 +13,11 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Todo está en `main` salvo cuatro ramas locales y sin subir, una encima de otra: `publicaciones`, `primer-uso` y `avisos-que-llegan`, del 14/11, y `comunidad-del-juego`, del 15/11. Las cinco ramas del 12 y el 13/11 (`playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica`, `playnite-sync` y `gog-y-epic`) entraron el 13/11 con los PR #40 a #44, sin que las hubieras probado: me pediste fusionarlas y dejarlas pendientes de revisión. Qué falta probar, y en qué servidor, está en la primera entrada de abajo. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
+Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: `publicaciones`, `primer-uso` y `avisos-que-llegan`, del 14/11, y `comunidad-del-juego` y `configurar-nextplay`, del 15/11. Las cinco ramas del 12 y el 13/11 (`playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica`, `playnite-sync` y `gog-y-epic`) entraron el 13/11 con los PR #40 a #44, sin que las hubieras probado: me pediste fusionarlas y dejarlas pendientes de revisión. Qué falta probar, y en qué servidor, está en la primera entrada de abajo. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
+| `configurar-nextplay` | El primer uso pasa a ser Configurar NextPlay: una pantalla en tres pasos (dónde juegas, tus juegos y dónde compras) en vez de la tarjeta de Inicio | Commit local, sin subir, encima de `comunidad-del-juego`. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae la migración `accounts.0036`. |
 | `comunidad-del-juego` | La Comunidad de cada juego: hilos y preguntas con respuestas, las horas de quien escribe, lo que destripa plegado según lo que llevas jugado y «¿Cómo se consigue?» desde tus logros | Commit local, sin subir, encima de `avisos-que-llegan`. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae las migraciones `social.0012` y `accounts.0035`. |
 | `avisos-que-llegan` | NextPlay instalable y avisos que llegan: como notificación en el móvil o el ordenador y, los de los retos, por correo | Commit local, sin subir, encima de `primer-uso`. **Pendiente de tu revisión**, sobre todo el push en tu Chrome. Trae la migración `accounts.0034` y necesita las claves VAPID en `.env`. |
 | `primer-uso` | Primer uso: al registrarte, Inicio empieza por «Trae tus juegos» con «¿Dónde juegas?», y «Vincular cuentas» enseña solo la forma recomendada de cada plataforma | Commit local, sin subir, encima de `publicaciones`. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae la migración `accounts.0033`. |
@@ -49,6 +50,85 @@ Todo está en `main` salvo cuatro ramas locales y sin subir, una encima de otra:
 - `challenges.0002`;
 - `social.0008` y `social.0009`;
 - `library.0014`.
+
+---
+
+## 15/11/2026 · Configurar NextPlay: el primer uso, en una pantalla con sus pasos
+
+**Rama:** `configurar-nextplay`, encima de `comunidad-del-juego`. Commit local, sin subir.
+
+**Por qué:** me dijiste que el primer uso no debería verse así, como una tarjeta en Inicio, sino como «una pantalla de configuración que ya no solo sirva para enlazar cuentas sino para elegir qué tiendas utiliza y tal para el tema de los precios».
+
+**Qué cambia para ti:**
+- **Al crear la cuenta se va a Configurar NextPlay** (`/cuenta/configurar/`), una pantalla propia con una barra de tres pasos arriba:
+  1. **Dónde juegas**: las mismas casillas de siempre (Steam, otras tiendas de PC, PlayStation, Xbox y Switch).
+  2. **Tus juegos**: la forma recomendada de traerlos de cada sitio que has marcado, y cuántos tienes ya. Al vincular Steam o Xbox, que se hace en su web, vuelves a este paso y no al perfil.
+  3. **Dónde compras**: las tiendas de las que quieres precios, historial y avisos.
+     - Las principales salen con su logo; las demás (las de las editoras y las de claves), plegadas.
+     - Ya vienen marcadas según dónde juegas: Steam si juegas en Steam; Epic, GOG, EA, Ubisoft y Blizzard si usas otras tiendas de PC; Xbox y Microsoft Store si juegas en Xbox, y la eShop si juegas en Switch.
+     - Aquí también eliges si las bajadas de tu lista de deseos te llegan por correo.
+     - A quien juega en PlayStation se le dice que de PlayStation Store aún no hay precios.
+- **Un final, «¡Listo!»**: un resumen de lo que ha quedado (dónde juegas, tus juegos, de qué tiendas verás precios y cómo te llegan las bajadas), cada cosa con su enlace para cambiarla, y «Ir a Inicio».
+- **Cada paso se puede saltar**, y «Lo termino más tarde» vuelve a Inicio.
+- **Inicio ya no lleva la tarjeta grande.** Mientras no termines, arriba sale un aviso pequeño, «Termina de configurar NextPlay», con:
+  - «Seguir», que te lleva al paso que te falta;
+  - «No me hace falta», que lo quita.
+- **Editar perfil** enlaza a la pantalla para repasarla, y sus tiendas usan el mismo selector, con logos.
+- **Las cuentas que ya existían** se dan por configuradas: ni tú ni `tester_steam` veréis el aviso.
+
+**Qué he tocado:**
+- `accounts`:
+  - `views/configurar.py`, nuevo: los tres pasos, el final y «No me hace falta»;
+  - el campo `Profile.setup_done_at`, con su migración `accounts.0036`;
+  - el registro, que ahora lleva aquí;
+  - la vuelta de Steam y de Xbox, que regresa a la página desde la que empezaste;
+  - Editar perfil, con el selector de tiendas compartido (`views/comun.py`).
+- Inicio: el aviso en lugar de la tarjeta.
+- Las plantillas:
+  - `accounts/setup/`, nuevas;
+  - `accounts/_shop_picker.html`, nueva;
+  - «¿Dónde juegas?» partido en tres piezas que comparten la ventana «Vincular cuentas» y la pantalla nueva.
+- `app.css`, `README.md`, `docs/pantallas.json` (la pantalla Configurar NextPlay), las dos propuestas del primer uso y los dos PDF.
+
+**Cómo lo he comprobado:**
+- Los tests, sin claves y con claves falsas: 679 en cada modo, todos bien.
+  - 7 nuevos: los tres pasos, el final, el aviso de Inicio, que haga falta sesión y que Steam vuelva al paso;
+  - 4 de antes, cambiados: los dos del registro y el de Switch, que ahora va en Tus juegos (en `accounts`), y el de las tiendas de Editar perfil (en `games`);
+  - 1 quitado: el de la tarjeta de Inicio, que ya no existe.
+  - La última pasada entera dio un fallo, el test del registro que aún esperaba Inicio. Lo cambié y volví a pasar los 255 de `accounts` en los dos modos: todos bien.
+- En el navegador de Claude, con la cuenta de prueba `cliente_nuevo` como recién creada:
+  - el aviso de Inicio;
+  - los tres pasos y el final, con las tiendas marcadas según dónde juega;
+  - que el aviso se va al terminar;
+  - Editar perfil con el selector nuevo;
+  - que los precios de la ficha siguen igual;
+  - que a 375 px no se sale nada.
+
+**Qué falta (depende de ti):**
+- Revisarlo.
+- Al fusionarlo con `main`, tu base de datos necesitará `accounts.0036`, además de las migraciones de las otras ramas.
+
+**Cómo comprobarlo tú (guion):** en http://localhost:8001/, la copia de revisión.
+1. **Crea una cuenta nueva** en http://localhost:8001/cuenta/registro/, con un correo inventado. Si no quieres crearla, el panel de Claude ya tiene abierta la cuenta de prueba `cliente_nuevo` como recién creada.
+2. **Dónde juegas.** Al crearla llegas a Configurar NextPlay. Marca, por ejemplo, Steam, Otras tiendas de PC y Nintendo Switch, y pulsa «Seguir».
+3. **Tus juegos.** Salen los pasos de Steam (desplegado), Otras tiendas de PC y Switch.
+   - El de Switch pide tu código de amigo: pon uno y vuelves al mismo paso.
+   - Pulsa «Saltar por ahora».
+4. **Dónde compras.**
+   - Ya están marcadas Steam, Epic, GOG y la eShop, y en «Otras tiendas», Blizzard, EA y Ubisoft.
+   - Quita alguna, quita el correo si quieres y pulsa «Guardar y terminar».
+5. **¡Listo!** Comprueba el resumen y pulsa «Ir a Inicio»: ya no sale el aviso.
+6. **El aviso de Inicio.**
+   - Con otra cuenta nueva, en vez de terminar pulsa «Lo termino más tarde».
+   - En Inicio sale «Termina de configurar NextPlay»: «Seguir» te lleva al paso que te falta, y «No me hace falta» lo quita.
+7. **Editar perfil.**
+   - Arriba está el enlace «Configurar NextPlay».
+   - En «Tiendas en las que compras» están las mismas baldosas con logo.
+8. **Si el servidor no responde**, levántalo:
+
+   ```bash
+   C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/NextPlay/.claude/worktrees/revision-tareas-pendientes-d85f54/manage.py runserver 8001
+   ```
 
 ---
 

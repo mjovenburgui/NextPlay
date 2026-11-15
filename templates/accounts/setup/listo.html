@@ -1,0 +1,35 @@
+{% extends "accounts/setup/base.html" %}
+
+{% block step %}
+  {# El final (accounts.views.setup_done): cómo ha quedado NextPlay y adónde ir ahora. Cada línea lleva a cambiarla. #}
+  <h1 class="setup-title" id="setup-title">{% include "_icon.html" with name="check" %} ¡Listo!</h1>
+  <p class="setup-lead">Así queda NextPlay. Todo se cambia cuando quieras en <a href="{% url 'edit_profile' %}">Editar perfil</a>.</p>
+  <dl class="setup-summary">
+    <div>
+      <dt>Juegas en</dt>
+      <dd>{% if where_names %}{{ where_names|join:", " }}{% else %}Sin decir · <a href="{% url 'setup' %}">Elegir</a>{% endif %}</dd>
+    </div>
+    <div>
+      <dt>Tu biblioteca</dt>
+      <dd>{% if game_count %}{{ game_count }} juego{{ game_count|pluralize }} · <a href="{% url 'profile' user.username %}">Verla</a>{% else %}Aún vacía · <a href="{% url 'setup_games' %}">Traer mis juegos</a>{% endif %}</dd>
+    </div>
+    <div>
+      <dt>Precios de</dt>
+      <dd>{% if shop_names %}{{ shop_names|join:", " }}{% else %}Todas las tiendas{% endif %} · <a href="{% url 'setup_shops' %}">Cambiar</a></dd>
+    </div>
+    <div>
+      <dt>Bajadas de precio</dt>
+      <dd>En la campana{% if price_email %} y por correo{% endif %}</dd>
+    </div>
+  </dl>
+  <div class="setup-actions">
+    <a class="btn" href="{% url 'games:catalog' %}">Buscar juegos</a>
+    <a class="btn btn-primary" href="{% url 'home' %}">Ir a Inicio</a>
+  </div>
+  <ul class="setup-next">
+    <li>Añade a tu lista de deseos lo que quieras comprar: te avisaremos cuando baje en tus tiendas.</li>
+    <li><a href="{% url 'edit_profile' %}#dispositivos">Activa los avisos en este dispositivo</a> para que te lleguen aunque no tengas NextPlay abierto.</li>
+  </ul>
+{% endblock %}
+
+{% block later %}{% endblock %}
