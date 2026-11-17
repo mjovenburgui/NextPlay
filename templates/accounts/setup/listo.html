@@ -36,6 +36,14 @@
       </div>
     {% endif %}
   </dl>
+  {% if people %}
+    {# Gente a la que seguir: la que tiene más juegos en común contigo, con cuáles, o, si aún no tienes juegos, la más activa (social.views.suggested_people). #}
+    <section class="setup-people" aria-labelledby="setup-people-title">
+      <h2 id="setup-people-title">{% if people_share_games %}Gente que juega a lo mismo que tú{% else %}Gente activa en NextPlay{% endif %}</h2>
+      <p class="help">Síguelos y en Inicio, en «Siguiendo», verás lo que juegan, reseñan y publican.</p>
+      <ul class="people setup-people-list">{% for person in people %}{% include "social/_person.html" %}{% endfor %}</ul>
+    </section>
+  {% endif %}
   <div class="setup-actions">
     <a class="btn" href="{% url 'games:catalog' %}">Buscar juegos</a>
     <a class="btn btn-primary" href="{% url 'home' %}">Ir a Inicio</a>

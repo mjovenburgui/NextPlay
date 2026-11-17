@@ -13,11 +13,11 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: `publicaciones`, `primer-uso` y `avisos-que-llegan`, del 14/11, y `comunidad-del-juego` y `configurar-nextplay`, del 15/11. Las cinco ramas del 12 y el 13/11 (`playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica`, `playnite-sync` y `gog-y-epic`) entraron el 13/11 con los PR #40 a #44, sin que las hubieras probado: me pediste fusionarlas y dejarlas pendientes de revisión. Qué falta probar, y en qué servidor, está en la primera entrada de abajo. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
+Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: `publicaciones`, `primer-uso` y `avisos-que-llegan`, del 14/11, y `comunidad-del-juego` y `configurar-nextplay`, del 15/11 (esta última, con un commit más del 17/11). Las cinco ramas del 12 y el 13/11 (`playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica`, `playnite-sync` y `gog-y-epic`) entraron el 13/11 con los PR #40 a #44, sin que las hubieras probado: me pediste fusionarlas y dejarlas pendientes de revisión. Qué falta probar, y en qué servidor, está en la primera entrada de abajo. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
-| `configurar-nextplay` | El primer uso pasa a ser Configurar NextPlay: una pantalla en cuatro pasos (dónde juegas, tus juegos, dónde compras y tu perfil, con los avisos en el móvil) en vez de la tarjeta de Inicio | Dos commits locales, sin subir, encima de `comunidad-del-juego`. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae la migración `accounts.0036`. |
+| `configurar-nextplay` | El primer uso pasa a ser Configurar NextPlay: una pantalla en cuatro pasos (dónde juegas, tus juegos, dónde compras y tu perfil, con los avisos en el móvil) en vez de la tarjeta de Inicio, y un final que propone gente que juega a lo mismo | Tres commits locales, sin subir, encima de `comunidad-del-juego`. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae la migración `accounts.0036`. |
 | `comunidad-del-juego` | La Comunidad de cada juego: hilos y preguntas con respuestas, las horas de quien escribe, lo que destripa plegado según lo que llevas jugado y «¿Cómo se consigue?» desde tus logros | Commit local, sin subir, encima de `avisos-que-llegan`. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae las migraciones `social.0012` y `accounts.0035`. |
 | `avisos-que-llegan` | NextPlay instalable y avisos que llegan: como notificación en el móvil o el ordenador y, los de los retos, por correo | Commit local, sin subir, encima de `primer-uso`. **Pendiente de tu revisión**, sobre todo el push en tu Chrome. Trae la migración `accounts.0034` y necesita las claves VAPID en `.env`. |
 | `primer-uso` | Primer uso: al registrarte, Inicio empieza por «Trae tus juegos» con «¿Dónde juegas?», y «Vincular cuentas» enseña solo la forma recomendada de cada plataforma | Commit local, sin subir, encima de `publicaciones`. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae la migración `accounts.0033`. |
@@ -50,6 +50,57 @@ Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: 
 - `challenges.0002`;
 - `social.0008` y `social.0009`;
 - `library.0014`.
+
+---
+
+## 17/11/2026 · Configurar NextPlay: gente a la que seguir en el final
+
+**Rama:** `configurar-nextplay`, tercer commit. Local, sin subir.
+
+**Por qué:** te pregunté «¿Añado al final gente a la que seguir que juegue a lo mismo que tú?» y contestaste «Sí, añádelo». Así tu Inicio, en «Siguiendo», no empieza vacío.
+
+**Qué cambia para ti:**
+- **«¡Listo!» propone hasta seis personas a las que seguir**, debajo del resumen y antes de «Ir a Inicio»:
+  - son las de «A quién seguir» de Inicio: perfiles públicos a los que aún no sigues, primero los que tienen más juegos en común contigo;
+  - cada una dice qué juegos tenéis en común, primero tus favoritos y después lo que más has jugado: «En común: Hades, Celeste y 10 más»;
+  - su botón «Seguir» no recarga la página.
+- **Si aún no tienes juegos**, el título pasa a «Gente activa en NextPlay» y propone a quien más ha hecho estos días.
+- Si no hay nadie a quien proponer, la sección no sale.
+
+**Qué he tocado:**
+- `social/views.py`: `name_shared_games`, nueva, que nombra los juegos en común de cada persona propuesta.
+- `accounts/views/configurar.py`: el final pide la gente a `suggested_people`, la misma de Inicio.
+- Las plantillas:
+  - el final;
+  - la línea de cada persona (`social/_person.html`), que dice qué juegos tenéis en común cuando los trae.
+- `app.css`, `README.md`, `docs/pantallas.json`, dos propuestas (la del primer uso y la de la gente que sigues) y los dos PDF.
+
+**Cómo lo he comprobado:**
+- Los tests, sin claves y con claves falsas: 685 en cada modo, todos bien. Después volví a pasar los de la documentación y los de Configurar NextPlay con la documentación ya al día: todos bien.
+  - 2 nuevos:
+    - a quién propone y en qué orden, sin quien ya sigues ni los perfiles privados, con los juegos nombrados (los favoritos primero);
+    - el título de cuando aún no tienes juegos, y que sin nadie a quien proponer no sale nada.
+- En el navegador de Claude, con `cliente_nuevo` y ocho juegos de prueba en la copia:
+  - salen `tester`, `tester_steam`, `demo1`, `demo2`, `demo3` y `probador`, cada uno con lo que tiene en común;
+  - «Seguir» a `demo1` cambia el botón a «Siguiendo» sin salir de la página, y su actividad sale en Inicio, en «Siguiendo»;
+  - en dos columnas en el ordenador y en una a 375 px, sin que se salga nada.
+- Después he dejado `cliente_nuevo` otra vez como recién creada: sin los juegos de prueba, sin seguir a `demo1` y sin el aviso que le llegó a `demo1`.
+
+**Qué falta (depende de ti):**
+- Revisarlo.
+- Sin migraciones nuevas.
+
+**Cómo comprobarlo tú (guion):** en http://localhost:8001/, la copia de revisión. Para los cuatro pasos, sigue el guion de la entrada de abajo; esto es solo el final.
+1. **Sin juegos.** Con una cuenta nueva (o `cliente_nuevo`, que el panel de Claude ya tiene abierta como recién creada), abre http://localhost:8001/cuenta/configurar/listo/. Debajo del resumen sale «Gente activa en NextPlay», con `tester_steam`, `tester` y las cuentas demo.
+   - Ojo: abrir «¡Listo!» da la configuración por terminada y quita el aviso de Inicio. Si quieres probar antes los cuatro pasos y el aviso, hazlo primero.
+2. **Con juegos.**
+   - Añade a tu biblioteca, desde su ficha, un par de juegos que tengan otros (por ejemplo The Witcher 3 y Grand Theft Auto V).
+   - Vuelve a http://localhost:8001/cuenta/configurar/listo/: ahora el título es «Gente que juega a lo mismo que tú», y cada persona dice qué juegos tenéis en común.
+   - Si uno de esos juegos es tu favorito (en Tu perfil), sale el primero en «En común».
+3. **Sigue a alguien.**
+   - Pulsa «Seguir»: el botón pasa a «Siguiendo» sin recargar.
+   - En Inicio, en «Siguiendo», sale lo que hace.
+   - Si recargas «¡Listo!», ya no se te propone.
 
 ---
 

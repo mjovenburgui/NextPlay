@@ -8,9 +8,9 @@
 4. Tu perfil: cómo le ven los demás (la foto, el nombre, la biografía y los favoritos, con SetupProfileForm) y los
    avisos en el móvil o el ordenador desde el que está, con el mismo botón de Editar perfil.
 
-El final (Listo) resume lo que ha dejado configurado y apunta que ha terminado (Profile.setup_done_at): Inicio deja de
-recordárselo. Cada paso se puede saltar, todo se puede volver a hacer cuando se quiera y todo está también en Editar
-perfil.
+El final (Listo) resume lo que ha dejado configurado, le propone gente a la que seguir que juega a lo mismo y apunta que
+ha terminado (Profile.setup_done_at): Inicio deja de recordárselo. Cada paso se puede saltar, todo se puede volver a
+hacer cuando se quiera y todo está también en Editar perfil.
 """
 
 from django.contrib import messages
@@ -22,6 +22,7 @@ from django.views.decorators.http import require_POST
 
 from games.models import NINTENDO_SHOP_ID, STEAM_SHOP_ID, XBOX_SHOP_ID, known_shops
 from library.models import LibraryEntry
+from social.views import name_shared_games, suggested_people
 
 from .. import images, notices, push
 from ..forms import SetupProfileForm
@@ -47,6 +48,8 @@ SUGGESTED_SHOPS = {
     "xbox": (XBOX_SHOP_ID, 48),
     "switch": (NINTENDO_SHOP_ID,),
 }
+# Gente que se le propone seguir en el final: la que juega a lo mismo o, si aún no tiene juegos, la más activa.
+PEOPLE = 6
 
 
 def _context(request, current):
@@ -215,15 +218,19 @@ def setup_profile(request):
 def setup_done(request):
     """El final de Configurar NextPlay: lo que ha dejado configurado (dónde juega, cuántos juegos tiene, de qué tiendas
     verá precios, si le llegarán las bajadas por correo, cómo le ven, sus favoritos y en cuántos dispositivos tiene los
-    avisos) y adónde ir ahora. Apunta que ha terminado (Profile.setup_done_at), así que Inicio deja de recordárselo.
+    avisos), gente a la que seguir (social.views.suggested_people: primero quien tiene más juegos en común, nombrados
+    con name_shared_games, y si no, quien más ha hecho estos días) y adónde ir ahora. Apunta que ha terminado
+    (Profile.setup_done_at), así que Inicio deja de recordárselo.
 
-    Pantallas: Configurar NextPlay (Listo), Inicio (ya no recuerda terminar de configurar).
+    Pantallas: Configurar NextPlay (Listo), Inicio (ya no recuerda terminar de configurar; en «Siguiendo», lo de quien
+    sigas desde aquí).
     """
     profile = request.user.profile
     if profile.setup_done_at is None:
         profile.setup_done_at = timezone.now()
         profile.save(update_fields=["setup_done_at"])
     chosen = set(profile.shops)
+    people = name_shared_games(request.user, suggested_people(request.user, limit=PEOPLE))
     return render(request, "accounts/setup/listo.html", {
         **_context(request, "listo"),
         "profile": profile,
@@ -235,6 +242,8 @@ def setup_done(request):
         "favorite_names": [favorite.game.name for favorite in request.user.favorite_games.select_related("game")],
         "push_configured": push.is_configured(),
         "push_count": request.user.push_subscriptions.count(),
+        "people": people,
+        "people_share_games": any(person.shared for person in people),
     })
 
 

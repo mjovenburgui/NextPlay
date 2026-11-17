@@ -125,7 +125,10 @@ con su barra arriba.
    - Los avisos en este dispositivo: la tarjeta de Editar perfil (`templates/accounts/_devices.html`) en pequeño, que no
      recarga la página al activarlos para no perder lo escrito.
 
-El final, **Listo**, resume lo elegido y apunta `Profile.setup_done_at`. Hasta entonces, Inicio enseña un recordatorio
+El final, **Listo**, resume lo elegido y propone gente a la que seguir: la de «A quién seguir» de Inicio
+(`social.views.suggested_people`, primero quien tiene más juegos en común contigo), cada uno con esos juegos nombrados
+(`social.views.name_shared_games`: primero tus favoritos y después lo que más has jugado). Si aún no tienes juegos,
+propone a la gente más activa. También apunta `Profile.setup_done_at`. Hasta entonces, Inicio enseña un recordatorio
 con «Seguir», que lleva al paso que falta, y «No me hace falta». Cada paso se puede saltar y Editar perfil enlaza a la
 pantalla. La migración que trajo el campo dio por configurados los perfiles que ya existían.
 

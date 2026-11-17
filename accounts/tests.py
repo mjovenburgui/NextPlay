@@ -25,7 +25,7 @@ from PIL import Image
 from games import igdb, prices
 from games.models import Game, GamePrice, Platform
 from library.models import LibraryEntry, PlaySession, Review, WishlistItem
-from social.models import Activity
+from social.models import Activity, Follow
 
 from . import achievements, banner, csv_import, epic, gog, images, matching, notices, psn, push, steam, vapid, xbox
 from .views import importar_archivo, perfil, sincronizar_playnite
@@ -1277,6 +1277,43 @@ class SetupTests(TestCase):
             self.assertNotContains(response, "data-push ")
             self.assertContains(response, "Pronto podrás recibir los avisos")
             self.assertNotContains(self.client.get(reverse("setup_done")), "<dt>En el móvil</dt>")
+
+    def test_the_end_suggests_people_who_play_the_same(self):
+        celeste = Game.objects.create(name="Celeste", slug="celeste")
+        hollow = Game.objects.create(name="Hollow Knight", slug="hollow-knight")
+        for game, hours in ((self.hades, 30), (celeste, 5), (hollow, 12)):
+            LibraryEntry.objects.create(user=self.user, game=game, steam_playtime_minutes=hours * 60)
+        FavoriteGame.objects.create(user=self.user, game=celeste, position=0)
+        luis, mar, eva, zoe, oculto = (
+            User.objects.create_user(name, f"{name}@example.com", "x") for name in ("luis", "mar", "eva", "zoe", "oculto")
+        )
+        for person, games in (
+            (luis, (self.hades, celeste, hollow)), (mar, (self.hades, hollow)), (eva, (self.hades,)),
+            (zoe, (self.hades, celeste)), (oculto, (self.hades, celeste, hollow)),
+        ):
+            for game in games:
+                LibraryEntry.objects.create(user=person, game=game)
+        # A quien ya sigue no se le propone, y un perfil privado tampoco sale.
+        Follow.objects.create(follower=self.user, followed=zoe)
+        Profile.objects.filter(user=oculto).update(is_public=False)
+        response = self.client.get(reverse("setup_done"))
+        self.assertContains(response, "Gente que juega a lo mismo que tú")
+        people = response.context["people"]
+        self.assertEqual([person.username for person in people], ["luis", "mar", "eva"])
+        # Primero su favorito y después lo que más ha jugado; los que no se nombran, contados.
+        self.assertEqual(
+            [person.shared_label for person in people], ["Celeste, Hades y 1 más", "Hades y Hollow Knight", "Hades"]
+        )
+        self.assertContains(response, "En común: Celeste, Hades y 1 más")
+        self.assertContains(response, f'action="{reverse("social:follow", args=["luis"])}"')
+
+    def test_without_games_the_end_suggests_active_people(self):
+        self.assertNotContains(self.client.get(reverse("setup_done")), 'class="setup-people"')
+        luis = User.objects.create_user("luis", "luis@example.com", "x")
+        Activity.objects.create(user=luis, kind="game", game=self.hades, status="playing")
+        response = self.client.get(reverse("setup_done"))
+        self.assertContains(response, "Gente activa en NextPlay")
+        self.assertEqual([(person.username, person.shared_label) for person in response.context["people"]], [("luis", "")])
 
 
 def psn_import(user, titles, account_id="111"):

@@ -2813,6 +2813,13 @@ p.community-game { font-size: 1.2rem; font-weight: 700; }
 .setup-summary dd { margin: 0; overflow-wrap: anywhere; }
 .setup-next { margin: 1rem 0 0; color: var(--text-2); font-size: .9rem; }
 .setup-summary-me { display: flex; align-items: center; gap: .6rem; }
+/* La gente a la que seguir del final: tarjetas como las líneas del resumen, en dos columnas si caben. */
+.setup-people { margin-top: 1.5rem; }
+.setup-people h2 { margin: 0; font-size: 1rem; }
+.setup-people-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr)); gap: .6rem; margin-top: .75rem; }
+.setup-people-list .person { padding: .65rem .8rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; }
+/* Lo que importa aquí es lo que tenéis en común: la biografía, a una línea. */
+.setup-people-list .person-bio + .person-bio { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
 /* Las tiendas: las destacadas en baldosas con su logo y su marca, como las plataformas de «¿Dónde juegas?»; las demás,
    plegadas en «Otras tiendas». Sirve también en Editar perfil. */
 .shop-picker { min-width: 0; margin: 1rem 0 0; padding: 0; border: 0; }

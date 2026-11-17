@@ -283,7 +283,7 @@ def suggested_people(viewer, limit=SUGGESTIONS):
     común (shared) y si sigue a viewer (follows_viewer), y lo que necesitan su foto y el botón de seguir.
     Se cuenta con subconsultas para no cruzar la biblioteca con la actividad de cada uno.
 
-    Pantallas: Inicio (gente a la que podrías seguir).
+    Pantallas: Inicio (gente a la que podrías seguir), Configurar NextPlay (Listo: gente que juega a lo mismo que tú).
     """
     since = timezone.now() - timedelta(days=SUGGESTION_DAYS)
     mine = LibraryEntry.objects.filter(user=viewer).values("game_id")
@@ -312,6 +312,45 @@ def suggested_people(viewer, limit=SUGGESTIONS):
         person.profile_visible = True
         person.viewer_follows = False
         person.follows_viewer = person.pk in followers
+    return people
+
+
+# Juegos en común que se nombran de cada persona propuesta (el resto se cuenta: «y 10 más»).
+SHARED_NAMED = 2
+
+
+def name_shared_games(viewer, people, shown=SHARED_NAMED):
+    """Pone en cada persona de people (de suggested_people) shared_label: los juegos que tiene en común con viewer,
+    hasta shown nombrados y el resto contados («Hades», «Hades y Celeste», «Hades, Celeste y 10 más»), o "" si no
+    tienen ninguno. Primero van los favoritos de viewer y después lo que más ha jugado. Lee los juegos de todos en una
+    sola consulta.
+
+    Pantallas: Configurar NextPlay (Listo: gente que juega a lo mismo que tú).
+    """
+    favorites = {
+        game_id: position for position, game_id in enumerate(viewer.favorite_games.values_list("game_id", flat=True))
+    }
+    mine = LibraryEntry.objects.filter(user=viewer)
+    minutes = dict(mine.values_list("game_id", "total_minutes"))
+    shared = {}
+    rows = LibraryEntry.objects.filter(
+        user_id__in=[person.pk for person in people if person.shared], game_id__in=mine.values("game_id"),
+    ).values_list("user_id", "game_id", "game__name")
+    for user_id, game_id, name in rows:
+        # Orden: los favoritos (en su orden), después de más a menos horas de viewer y, a igualdad, por nombre.
+        key = (game_id not in favorites, favorites.get(game_id, 0), -(minutes.get(game_id) or 0), name)
+        shared.setdefault(user_id, []).append(key)
+    for person in people:
+        names = [key[-1] for key in sorted(shared.get(person.pk, []))[:shown]]
+        rest = person.shared - len(names)
+        if not names:
+            person.shared_label = ""
+        elif rest > 0:
+            person.shared_label = f"{', '.join(names)} y {rest} más"
+        elif len(names) > 1:
+            person.shared_label = f"{', '.join(names[:-1])} y {names[-1]}"
+        else:
+            person.shared_label = names[0]
     return people
 
 
