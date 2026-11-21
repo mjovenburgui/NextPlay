@@ -22,6 +22,6 @@
     </form>
     <p class="help">{% if account %}Para sincronizar se vuelve a iniciar sesión: no guardamos ningún token de Microsoft.{% else %}Algunos juegos antiguos (Xbox 360) no publican los minutos jugados y entran sin horas.{% endif %}</p>
   {% else %}
-    <p class="help">La importación de Xbox no está disponible: faltan XBOX_CLIENT_ID y XBOX_CLIENT_SECRET.</p>
+    <p class="help">Pronto podrás traer tus juegos de Xbox con sus horas.{% if user.is_staff %} Para el equipo de NextPlay: faltan XBOX_CLIENT_ID y XBOX_CLIENT_SECRET en el archivo .env.{% endif %}</p>
   {% endif %}
 {% endwith %}

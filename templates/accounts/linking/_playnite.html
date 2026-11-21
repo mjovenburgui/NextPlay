@@ -15,6 +15,7 @@
     <p class="muted">Con la extensión NextPlay Sync, Playnite te manda tus juegos y horas de Epic, GOG, EA, Ubisoft, Battle.net y Amazon al abrirlo y cada día, y cada partida al cerrar el juego. Sin volver a subir ningún archivo.</p>
   {% endif %}
   <ol class="psn-steps">
+    {% if not account %}<li>Si no lo tienes, instala <a href="https://playnite.link/" target="_blank" rel="noopener">Playnite</a>, un lanzador gratuito para Windows que junta todas tus tiendas, y entra desde él en las tuyas.</li>{% endif %}
     <li><a href="{% url 'playnite_extension' %}">Descarga la extensión</a> y ábrela: Playnite la instala.</li>
     <li>En sus ajustes (Complementos › Ajustes de extensiones › Genéricas › NextPlay Sync), pega la dirección <code>{{ request.scheme }}://{{ request.get_host }}</code> y tu código.</li>
     <li>Listo: se sincroniza al abrir Playnite, una vez al día y cada vez que cierras un juego. También a mano, desde su menú «NextPlay».</li>

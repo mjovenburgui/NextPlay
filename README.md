@@ -101,6 +101,21 @@ dejan de estar en su lista de Steam; lo añadido en NextPlay no se toca. Al sinc
 precios de los nuevos y se avisa de cuántos están en su mínimo histórico o son más baratos fuera de
 Steam. Se desactiva desde el panel de Steam del perfil.
 
+## Primer uso: «¿Dónde juegas?»
+
+Al registrarse se va a Inicio, que mientras la biblioteca esté vacía empieza por la tarjeta «Trae tus juegos». La misma
+pieza (`templates/accounts/linking/_where.html`) es la ventana «Vincular cuentas» del perfil:
+
+- Primero, la pregunta «¿Dónde juegas?», con las plataformas de `PLAY_PLATFORMS` (`accounts/models.py`). Se guarda en
+  `Profile.play_platforms` (`cuenta/donde-juegas/`, con HTMX). Las cuentas ya vinculadas también cuentan
+  (`Profile.where_you_play`), así que a quien ya vinculó algo no se le pregunta.
+- Después, un paso plegable por plataforma, con lo que trae y la forma recomendada de traer los juegos. Solo va
+  desplegado el siguiente que falta (`Profile.where_steps`). Lo demás (un archivo, Epic con un código y las cuentas de
+  otras plataformas) va en «Otras formas». Editar perfil › Cuentas vinculadas sigue teniendo todas las tarjetas.
+
+Lo que no está configurado (`STEAM_API_KEY`, `XBOX_CLIENT_ID`…) se le dice al cliente sin nombres técnicos: Xbox sale
+como «Pronto». Solo el personal (`is_staff`) lee qué falta.
+
 ## Importar de Xbox (aplicación de Azure)
 
 Para el botón «Vincular con Microsoft» hace falta una aplicación de Azure (gratis):

@@ -417,8 +417,13 @@
           {% endfor %}
         </div>
       {% elif is_owner and not total %}
+        {# Vacía: traerlos con sus horas desde donde juega (la ventana «Vincular cuentas») o apuntarlos a mano. #}
         <div class="empty">
-          <p>Tu biblioteca está vacía. <a href="{% url 'games:catalog' %}">Explora el catálogo</a> y añade tus juegos{% if not profile.steam_linked %}, o vincula tu cuenta de Steam para importar los que ya has jugado{% endif %}.</p>
+          <p>Tu biblioteca está vacía. Trae tus juegos con sus horas desde donde juegas, o apúntalos a mano desde el catálogo.</p>
+          <div class="empty-actions">
+            <button class="btn btn-primary" type="button" data-open-dialog="link-dialog" aria-haspopup="dialog">{% include "_icon.html" with name="library" %} Traer mis juegos</button>
+            <a class="btn" href="{% url 'games:catalog' %}">{% include "_icon.html" with name="search" %} Buscar en el catálogo</a>
+          </div>
         </div>
       {% else %}
         <p class="empty">No hay juegos en esta sección.</p>

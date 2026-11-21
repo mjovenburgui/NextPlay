@@ -13,10 +13,11 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Todo está en `main` salvo la rama `publicaciones`, del 14/11: es local y no está subida. Las cinco ramas del 12 y el 13/11 (`playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica`, `playnite-sync` y `gog-y-epic`) entraron el 13/11 con los PR #40 a #44, sin que las hubieras probado: me pediste fusionarlas y dejarlas pendientes de revisión. Qué falta probar, y en qué servidor, está en la primera entrada de abajo. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
+Todo está en `main` salvo dos ramas del 14/11, locales y sin subir: `publicaciones` y, encima, `primer-uso`. Las cinco ramas del 12 y el 13/11 (`playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica`, `playnite-sync` y `gog-y-epic`) entraron el 13/11 con los PR #40 a #44, sin que las hubieras probado: me pediste fusionarlas y dejarlas pendientes de revisión. Qué falta probar, y en qué servidor, está en la primera entrada de abajo. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
+| `primer-uso` | Primer uso: al registrarte, Inicio empieza por «Trae tus juegos» con «¿Dónde juegas?», y «Vincular cuentas» enseña solo la forma recomendada de cada plataforma | Commit local, sin subir, encima de `publicaciones`. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae la migración `accounts.0033`. |
 | `publicaciones` | El repaso de las propuestas (11 nuevas) y Publicaciones: spoiler por imagen, pestaña del perfil, sección en la ficha y Guardados | Commits locales, sin subir. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae la migración `social.0011`. |
 | `gog-y-epic` | Importar GOG (desde el perfil público, cada noche) y Epic Games (pegando un código cada vez) sin instalar nada | Fusionada con `main` el 13/11: [PR #44](https://github.com/mjovenburgui/NextPlay/pull/44). **Pendiente de revisión**, sobre todo Epic con tu cuenta. Trae la migración `accounts.0032`. |
 | `playnite-sync` | La extensión de Playnite NextPlay Sync: tus juegos y horas de Epic, GOG, EA… se actualizan solos cada día y con cada partida | Fusionada con `main` el 13/11: [PR #43](https://github.com/mjovenburgui/NextPlay/pull/43). **Pendiente de revisión**, sobre todo dentro de Playnite. Trae la migración `accounts.0031`. |
@@ -46,6 +47,77 @@ Todo está en `main` salvo la rama `publicaciones`, del 14/11: es local y no est
 - `challenges.0002`;
 - `social.0008` y `social.0009`;
 - `library.0014`.
+
+---
+
+## 14/11/2026 · Primer uso y «¿Dónde juegas?»
+
+**Rama:** `primer-uso`, encima de `publicaciones`. Commit local, sin subir.
+
+**Por qué:** en el repaso como cliente, lo más flojo eran los primeros cinco minutos y la ventana de vincular, y me dijiste «empieza por el primer uso y lo de ¿dónde juegas?».
+
+**Qué cambia para ti:**
+- **Al crear la cuenta vas a Inicio, no al catálogo.** Mientras tu biblioteca esté vacía, arriba del todo está la tarjeta **«Trae tus juegos»**. Se va en cuanto tienes un juego.
+- **«¿Dónde juegas?»:** cinco casillas grandes (Steam, Otras tiendas de PC, PlayStation, Xbox y Nintendo Switch). Se guarda en tu perfil y no se vuelve a preguntar. A quien ya tiene cuentas vinculadas no se le pregunta: se deduce de ellas.
+- **Con la respuesta, un paso por plataforma**, con lo que trae («Horas · Logros · Lista de deseos · Cada noche») y la forma recomendada:
+  - Steam, con su inicio de sesión;
+  - Otras tiendas de PC, con Playnite (Epic, EA, Ubisoft, Battle.net, Amazon y GOG) o, solo para GOG, el perfil público;
+  - PlayStation, con su código;
+  - Xbox, como «Pronto» mientras no tengas la aplicación de Microsoft, con el campo del gamertag;
+  - Switch, que explica que no se puede y pide el código de amigo.
+
+  Solo va desplegado el siguiente que falta, y lo hecho sale en verde. El resto (un archivo, Epic con un código y tus cuentas de otras plataformas) va plegado en «Otras formas».
+- **La ventana «Vincular cuentas» del perfil es lo mismo.** Ya no son las ocho tarjetas una debajo de otra. Si tu biblioteca está vacía, también la abre el botón «Traer mis juegos».
+- **Sin nombres técnicos para los clientes.** «Faltan XBOX_CLIENT_ID…» o «falta STEAM_API_KEY» solo los ve el personal de NextPlay (`is_staff`), también en Editar perfil y en los avisos. «Experimental» ya no sale en la ventana.
+- **Playnite explica qué es:** si no lo tienes, su primer paso dice que es un lanzador gratuito y dónde bajarlo.
+
+**Qué he tocado:**
+- `accounts`:
+  - el campo `Profile.play_platforms`, con su migración `accounts.0033`;
+  - `where_you_play` y `where_steps`, que dicen dónde juegas y qué paso va desplegado;
+  - la vista `play_platforms` (`cuenta/donde-juegas/`);
+  - el registro, que lleva a Inicio;
+  - los avisos de lo que no está configurado.
+- `games/views.py`: la tarjeta de Inicio.
+- Las plantillas:
+  - nuevas: `accounts/linking/_where.html`, `_where_form.html` y `_handle_form.html`;
+  - la ventana, los paneles de Steam, Xbox y Playnite, Inicio y el vacío de la biblioteca del perfil.
+- `app.css`.
+- `docs/pantallas.json`, las dos propuestas y los dos PDF.
+
+**Cómo lo he comprobado:**
+- Los tests, sin claves y con claves falsas: 643 en cada modo, todos bien. Hay 13 nuevos.
+- En el navegador, en la copia de revisión, con una cuenta recién creada:
+  - el registro lleva a Inicio con la tarjeta;
+  - la pregunta;
+  - el paso de cada plataforma;
+  - el código de amigo de Switch;
+  - «Cambiar»;
+  - la ventana del perfil y su botón en la biblioteca vacía.
+- Con `tester_steam`: la ventana no pregunta y enseña Steam y PlayStation hechos.
+- En el móvil, a 375 px: nada se sale por los lados, ni con todo desplegado.
+
+**Qué falta (depende de ti):** revisarlo. Al fusionarlo con `main`, tu base de datos necesitará `accounts.0033` (y `social.0011`, de `publicaciones`). Las aplicaré yo, con una copia de seguridad antes.
+
+**Cómo comprobarlo tú (guion):** en el servidor de revisión, http://localhost:8001/. Es una copia de tu base de datos: lo que hagas no toca la de verdad.
+1. **Una cuenta nueva.** En http://localhost:8001/cuenta/registro/ crea una cuenta cualquiera. Vas a Inicio, y arriba del todo está «Trae tus juegos» con «¿Dónde juegas?».
+2. **La pregunta.** Marca Steam, PlayStation y Nintendo Switch y pulsa «Seguir». Sin recargar, quedan esas tres:
+   - Steam, desplegado, con lo que trae y «Vincular con Steam»;
+   - PlayStation y Switch, plegados.
+3. **Switch.** Despliégalo: explica que Nintendo no deja leer tus juegos y pide el código de amigo.
+   - Escribe `1234 5678 9012` y pulsa «Añadir».
+   - Vuelves a Inicio con el código como `SW-1234-5678-9012`, y el paso queda en verde, «En tu perfil».
+4. **Cambiar.** Pulsa «Cambiar», marca también Xbox y guarda. Sale como «Pronto», con el campo del gamertag y sin nombres técnicos.
+5. **Tu perfil.** La biblioteca vacía tiene «Traer mis juegos», que abre la misma ventana con tus plataformas.
+6. **Con `tester_steam`.** Entra con esa cuenta en el 8001 y abre «Vincular cuentas» en tu perfil.
+   - No pregunta nada: ya sabe que juegas en Steam (2 cuentas) y en PlayStation, y las dos salen con su ✓ y plegadas.
+   - «Otras formas» guarda el archivo, Epic con un código y tus cuentas de otras plataformas.
+7. **Estrecha la ventana del navegador.** Las plataformas pasan a ir de dos en dos, con Switch a lo ancho.
+8. **Si el servidor no responde**, levántalo:
+
+   ```bash
+   C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/NextPlay/.claude/worktrees/revision-tareas-pendientes-d85f54/manage.py runserver 8001
+   ```
 
 ---
 

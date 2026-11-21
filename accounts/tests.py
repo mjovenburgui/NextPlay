@@ -71,7 +71,7 @@ class SignupTests(TestCase):
             reverse("signup"),
             {"username": "ana", "email": "Ana@example.com", "password1": "s3gura-clave-larga", "password2": "s3gura-clave-larga"},
         )
-        self.assertRedirects(response, reverse("games:catalog"))
+        self.assertRedirects(response, reverse("home"))
         user = User.objects.get(username="ana")
         self.assertEqual(user.email, "ana@example.com")
         self.assertTrue(user.profile.is_public)
@@ -592,15 +592,23 @@ class SteamImportTests(TestCase):
         self.assertIsNone(Game.objects.get(pk=self.portal.pk).prices_updated_at)
 
 
+@override_settings(STEAM_API_KEY="")
 class SteamWithoutKeyTests(TestCase):
-    @override_settings(STEAM_API_KEY="")
-    def test_import_without_api_key_explains_what_is_missing(self):
-        user = User.objects.create_user("ana", "ana@example.com", "x")
+    def sync(self, **extra):
+        """Intenta sincronizar Steam sin clave con una usuaria que tiene una cuenta vinculada."""
+        user = User.objects.create_user("ana", "ana@example.com", "x", **extra)
         SteamAccount.objects.create(user=user, steam_id="76561197960287930")
         self.client.force_login(user)
-        response = self.client.post(reverse("steam_import"), follow=True)
-        self.assertContains(response, "falta STEAM_API_KEY")
+        return self.client.post(reverse("steam_import"), follow=True)
+
+    def test_import_without_api_key_says_so_without_technical_names(self):
+        response = self.sync()
+        self.assertContains(response, "Ahora mismo no se pueden importar los juegos de Steam")
+        self.assertNotContains(response, "STEAM_API_KEY")
         self.assertNotContains(response, "Sincronizar Steam")
+
+    def test_staff_also_reads_what_is_missing(self):
+        self.assertContains(self.sync(is_staff=True), "Falta STEAM_API_KEY en el archivo .env.")
 
 
 NPSSO = "a" * 64
@@ -926,9 +934,10 @@ class XboxTests(TestCase):
         self.assertEqual(list(fetch.call_args.args[0]), [self.halo])
 
     @override_settings(XBOX_CLIENT_ID="", XBOX_CLIENT_SECRET="")
-    def test_link_without_azure_app_explains_what_is_missing(self):
+    def test_link_without_azure_app_says_it_is_not_there_yet(self):
         response = self.client.post(reverse("xbox_link"), follow=True)
-        self.assertContains(response, "faltan XBOX_CLIENT_ID")
+        self.assertContains(response, "Todavía no se pueden traer los juegos de Xbox.")
+        self.assertNotContains(response, "XBOX_CLIENT_ID")
 
 
 class LinkDialogTests(TestCase):
@@ -937,13 +946,14 @@ class LinkDialogTests(TestCase):
         cls.user = User.objects.create_user("ana", "ana@example.com", "x")
         cls.other = User.objects.create_user("luis", "luis@example.com", "x")
 
-    def test_owner_sees_the_dialog_with_every_platform(self):
+    def test_owner_sees_the_dialog_starting_with_where_you_play(self):
         self.client.force_login(self.user)
         response = self.client.get(reverse("profile", args=["ana"]))
         self.assertContains(response, "Vincular cuentas")
         self.assertContains(response, 'id="link-dialog"')
-        for text in ("Steam", "Xbox", "PlayStation", "Otras plataformas"):
-            self.assertContains(response, text)
+        self.assertContains(response, "¿Dónde juegas?")
+        for key in ("steam", "pc", "playstation", "xbox", "switch"):
+            self.assertContains(response, f'name="donde" value="{key}"')
 
     def test_visitors_do_not_see_it(self):
         self.client.force_login(self.other)
@@ -958,6 +968,105 @@ class LinkDialogTests(TestCase):
         self.assertRedirects(response, profile_url)
         response = self.client.post(reverse("platform_remove", args=["gog"]), {"next": "https://evil.example/"})
         self.assertRedirects(response, f"{reverse('edit_profile')}#plataformas", fetch_redirect_response=False)
+
+
+@override_settings(XBOX_CLIENT_ID="", XBOX_CLIENT_SECRET="")
+class WhereYouPlayTests(TestCase):
+    """«¿Dónde juegas?»: la pregunta del primer uso (Inicio) y de Vincular cuentas, y lo que se enseña con la respuesta."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("ana", "ana@example.com", "x")
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def choose(self, *keys, htmx=False, next_url=""):
+        """Contesta a «¿Dónde juegas?» con esas plataformas, con HTMX o como un formulario normal."""
+        headers = {"HTTP_HX_REQUEST": "true"} if htmx else {}
+        return self.client.post(reverse("play_platforms"), {"donde": list(keys), "next": next_url}, **headers)
+
+    def test_signing_up_lands_on_home_with_the_question(self):
+        self.client.logout()
+        response = self.client.post(
+            reverse("signup"),
+            {"username": "luis", "email": "luis@example.com", "password1": "s3gura-clave-larga", "password2": "s3gura-clave-larga"},
+            follow=True,
+        )
+        self.assertRedirects(response, reverse("home"))
+        self.assertContains(response, 'id="trae-tus-juegos"')
+        self.assertContains(response, "¿Dónde juegas?")
+        self.assertContains(response, 'name="donde" value="switch"')
+
+    def test_the_card_goes_away_with_the_first_game(self):
+        self.assertContains(self.client.get(reverse("home")), 'id="trae-tus-juegos"')
+        LibraryEntry.objects.create(user=self.user, game=Game.objects.create(name="Hades", slug="hades"))
+        self.assertNotContains(self.client.get(reverse("home")), 'id="trae-tus-juegos"')
+
+    def test_choosing_keeps_the_known_platforms_in_their_order(self):
+        response = self.choose("switch", "steam", "atari", next_url=reverse("home"))
+        self.assertRedirects(response, reverse("home"))
+        self.assertEqual(Profile.objects.get(user=self.user).play_platforms, ["steam", "switch"])
+
+    def test_with_htmx_only_those_platforms_come_back_and_the_first_one_open(self):
+        response = self.choose("playstation", "switch", htmx=True, next_url="/")
+        self.assertTemplateUsed(response, "accounts/linking/_where.html")
+        self.assertContains(response, 'id="donde-playstation" open')
+        self.assertContains(response, 'id="donde-switch">')
+        self.assertNotContains(response, 'id="donde-steam"')
+        self.assertContains(response, 'name="next" value="/"')
+
+    def test_with_htmx_a_next_from_another_site_is_dropped(self):
+        self.assertNotContains(self.choose("steam", htmx=True, next_url="https://evil.example/"), "evil.example")
+
+    def test_choosing_nothing_keeps_what_there_was(self):
+        self.choose("steam")
+        response = self.choose(htmx=True)
+        self.assertContains(response, "Marca al menos una plataforma.")
+        self.assertContains(response, '<details class="where-change" open>')
+        self.assertEqual(Profile.objects.get(user=self.user).play_platforms, ["steam"])
+
+    def test_linked_accounts_count_as_where_you_play(self):
+        SteamAccount.objects.create(user=self.user, steam_id="76561197960287930")
+        PlatformAccount.objects.create(user=self.user, platform="nintendo", handle="SW-1234-5678-9012")
+        profile = Profile.objects.get(user=self.user)
+        self.assertEqual(profile.where_you_play, ["steam", "switch"])
+        # Las dos ya tienen lo que piden: no se despliega ninguna.
+        self.assertEqual(profile.where_steps, [("steam", True, False), ("switch", True, False)])
+
+    def test_the_open_step_is_the_first_one_missing(self):
+        self.choose("steam", "playstation", "xbox")
+        SteamAccount.objects.create(user=self.user, steam_id="76561197960287930")
+        steps = Profile.objects.get(user=self.user).where_steps
+        self.assertEqual(steps, [("steam", True, False), ("playstation", False, True), ("xbox", False, False)])
+
+    def test_xbox_without_its_app_is_soon_and_asks_for_the_gamertag(self):
+        self.choose("xbox")
+        response = self.client.get(reverse("profile", args=["ana"]))
+        self.assertContains(response, "Pronto podrás traer tus juegos de Xbox")
+        self.assertContains(response, 'id="handle-xbox"')
+        self.assertNotContains(response, "XBOX_CLIENT_ID")
+
+    def test_staff_reads_what_xbox_is_missing(self):
+        User.objects.filter(pk=self.user.pk).update(is_staff=True)
+        self.choose("xbox")
+        self.assertContains(self.client.get(reverse("profile", args=["ana"])), "faltan XBOX_CLIENT_ID")
+
+    def test_switch_asks_for_the_friend_code_and_then_shows_it(self):
+        self.choose("switch")
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, "Nintendo no deja leer desde fuera")
+        self.assertContains(response, 'name="platform" value="nintendo"')
+        self.client.post(reverse("platform_add"), {"platform": "nintendo", "handle": "1234 5678 9012", "next": "/"})
+        response = self.client.get(reverse("home"))
+        self.assertContains(response, "SW-1234-5678-9012")
+        self.assertNotContains(response, 'id="handle-nintendo"')
+
+    def test_the_empty_library_offers_to_bring_your_games(self):
+        response = self.client.get(reverse("profile", args=["ana"]))
+        self.assertContains(response, "Traer mis juegos")
+        # El botón de la cabecera y el del vacío abren la misma ventana.
+        self.assertContains(response, 'data-open-dialog="link-dialog" aria-haspopup="dialog"', count=2)
 
 
 def psn_import(user, titles, account_id="111"):

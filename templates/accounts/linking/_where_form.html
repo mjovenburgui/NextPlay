@@ -1,0 +1,19 @@
+{# Las casillas de «¿Dónde juegas?» (PLAY_PLATFORMS), con marcadas las de where (Profile.where_you_play). Con HTMX, la #}
+{# respuesta de accounts.views.play_platforms cambia la pregunta en su sitio; sin JavaScript, guarda y vuelve a next. #}
+<form class="where-form" action="{% url 'play_platforms' %}" method="post"
+      hx-post="{% url 'play_platforms' %}" hx-target="#donde-juegas" hx-swap="outerHTML">
+  {% csrf_token %}{% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+  <fieldset class="where-tiles">
+    <legend class="visually-hidden">¿Dónde juegas?</legend>
+    {% for key, name, sub in play_platform_choices %}
+      <label class="where-tile where-{{ key }}">
+        <input type="checkbox" name="donde" value="{{ key }}"{% if key in where %} checked{% endif %}>
+        <span class="where-tile-logo" aria-hidden="true">{% if key == "steam" %}{% include "games/shop_icons/steam.svg" %}{% elif key == "pc" %}{% include "_icon.html" with name="monitor" %}{% elif key == "playstation" %}{% include "games/shop_icons/playstation.svg" %}{% elif key == "xbox" %}{% include "games/shop_icons/xbox.svg" %}{% else %}{% include "games/shop_icons/nintendo.svg" %}{% endif %}</span>
+        <strong>{{ name }}</strong>
+        <span class="where-tile-sub">{{ sub }}</span>
+      </label>
+    {% endfor %}
+  </fieldset>
+  {% if where_error %}<p class="errorlist" role="alert">Marca al menos una plataforma.</p>{% endif %}
+  <button class="btn btn-primary where-send" type="submit">{% if where %}Guardar{% else %}Seguir{% endif %}</button>
+</form>

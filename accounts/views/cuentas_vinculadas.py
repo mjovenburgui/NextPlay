@@ -1,7 +1,7 @@
-"""Vistas de las cuentas vinculadas: vincular, importar y desvincular Steam, PlayStation, Xbox, GOG y Epic Games y
-añadir o quitar las cuentas de otras plataformas. Se pulsan en Editar perfil › Cuentas vinculadas y en el modal
-«Vincular cuentas» del Perfil, y lo que importan sale en el Perfil, la Ficha del juego, Juegos importados, Inicio y los
-retos.
+"""Vistas de las cuentas vinculadas: vincular, importar y desvincular Steam, PlayStation, Xbox, GOG y Epic Games,
+añadir o quitar las cuentas de otras plataformas y guardar dónde juega cada uno (la pregunta «¿Dónde juegas?»). Se
+pulsan en Editar perfil › Cuentas vinculadas, en el modal «Vincular cuentas» del Perfil y en la tarjeta «Trae tus
+juegos» de Inicio, y lo que importan sale en el Perfil, la Ficha del juego, Juegos importados, Inicio y los retos.
 """
 
 import logging
@@ -10,10 +10,11 @@ from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.template.defaultfilters import pluralize
 from django.urls import reverse
 from django.utils.html import format_html
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.debug import sensitive_post_parameters
 from django.views.decorators.http import require_POST
 
@@ -23,29 +24,43 @@ from library import wishlist
 
 from .. import epic, gog, psn, steam, xbox
 from ..forms import PlatformAccountForm
-from ..models import EpicAccount, GOGAccount, PlatformAccount, PSNAccount, SteamAccount, XboxAccount
+from ..models import PLAY_PLATFORMS, EpicAccount, GOGAccount, PlatformAccount, PSNAccount, SteamAccount, XboxAccount
 from .comun import _back
 
 STEAM_STATE_KEY = "steam_openid_state"
-STEAM_KEY_MISSING = (
-    "La importación de juegos de Steam no está configurada: falta STEAM_API_KEY en el archivo .env."
-)
+# Lo que no está disponible se le dice al cliente sin nombres técnicos. Lo que falta configurar (el segundo texto)
+# solo lo lee el personal de NextPlay (is_staff): ver _unavailable.
+STEAM_KEY_MISSING = "Ahora mismo no se pueden importar los juegos de Steam. Inténtalo más tarde."
+STEAM_KEY_DETAIL = "Falta STEAM_API_KEY en el archivo .env."
 STEAM_PRIVATE_HINT = (
     "En Steam ve a Perfil › Editar perfil › Privacidad, pon «Detalles del juego» en Público y después "
     "pulsa «Sincronizar Steam»."
 )
-XBOX_NOT_CONFIGURED = (
-    "La importación de Xbox no está configurada: faltan XBOX_CLIENT_ID y XBOX_CLIENT_SECRET en el archivo .env."
-)
+XBOX_NOT_CONFIGURED = "Todavía no se pueden traer los juegos de Xbox."
+XBOX_DETAIL = "Faltan XBOX_CLIENT_ID y XBOX_CLIENT_SECRET en el archivo .env."
 logger = logging.getLogger(__name__)
 
 
-def linking_context():
-    """Variables que necesitan los paneles de vinculación de cuentas (en Editar perfil y en el modal del perfil).
+def _unavailable(request, text, detail):
+    """Avisa de que una importación no está disponible: al cliente, con text, sin nombres técnicos; al personal de
+    NextPlay (is_staff), también con detail, lo que falta configurar.
 
-    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño).
+    Pantallas: Editar perfil (Cuentas vinculadas: Steam y Xbox), Perfil (modal «Vincular cuentas» de su dueño), Inicio
+    (tarjeta «Trae tus juegos»).
+    """
+    messages.error(request, f"{text} {detail}" if request.user.is_staff else text)
+
+
+def linking_context():
+    """Variables que necesitan los paneles de vinculación de cuentas (en Editar perfil, en el modal del perfil y en la
+    tarjeta «Trae tus juegos» de Inicio).
+
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño), Inicio (tarjeta «Trae
+    tus juegos»).
     """
     return {
+        # (clave, nombre, qué abarca) de cada plataforma de la pregunta «¿Dónde juegas?».
+        "play_platform_choices": PLAY_PLATFORMS,
         "steam_configured": steam.is_configured(),
         "xbox_configured": xbox.is_configured(),
         "max_steam_accounts": SteamAccount.MAX_PER_USER,
@@ -183,7 +198,7 @@ def _import_steam(request, include_unplayed=False):
     (progreso), Lista de deseos.
     """
     if not steam.is_configured():
-        messages.error(request, STEAM_KEY_MISSING)
+        _unavailable(request, STEAM_KEY_MISSING, STEAM_KEY_DETAIL)
         return
     try:
         _report_import(request, steam.import_library(request.user, include_unplayed=include_unplayed))
@@ -564,6 +579,38 @@ def epic_unlink(request):
 
 @require_POST
 @login_required
+def play_platforms(request):
+    """Guarda dónde juega el usuario: las plataformas que marca en «¿Dónde juegas?» (claves de PLAY_PLATFORMS, en
+    «donde»). Con eso, Vincular cuentas le enseña solo la forma recomendada de traer los juegos de cada una, y no se lo
+    vuelve a preguntar. Las claves que no existen se ignoran; si no marca ninguna, no cambia nada y se le pide que elija.
+
+    Con HTMX devuelve la pregunta ya contestada (accounts/linking/_where.html) para ponerla en su sitio; sin JavaScript,
+    vuelve a la página del formulario (campo «next»).
+
+    Pantallas: Inicio (tarjeta «Trae tus juegos»), Perfil (modal «Vincular cuentas» de su dueño).
+    """
+    picked = set(request.POST.getlist("donde"))
+    chosen = [key for key, _, _ in PLAY_PLATFORMS if key in picked]
+    profile = request.user.profile
+    if chosen:
+        profile.play_platforms = chosen
+        profile.save(update_fields=["play_platforms"])
+    if request.headers.get("HX-Request"):
+        target = request.POST.get("next", "")
+        if not url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}):
+            target = ""
+        return render(
+            request,
+            "accounts/linking/_where.html",
+            {"profile": profile, "next": target, "where_error": not chosen, **linking_context()},
+        )
+    if not chosen:
+        messages.error(request, "Marca al menos una plataforma.")
+    return _back(request, "edit_profile")
+
+
+@require_POST
+@login_required
 def platform_add(request):
     """Añade la cuenta de otra plataforma (Xbox, Switch, Epic, GOG, Battle.net) o cambia la que ya tenía.
 
@@ -621,7 +668,7 @@ def xbox_link(request):
     dueño).
     """
     if not xbox.is_configured():
-        messages.error(request, XBOX_NOT_CONFIGURED)
+        _unavailable(request, XBOX_NOT_CONFIGURED, XBOX_DETAIL)
         return _back(request, f"{reverse('edit_profile')}#xbox")
     state = request.session[XBOX_STATE_KEY] = secrets.token_urlsafe(16)
     return redirect(xbox.login_url(_xbox_redirect_uri(request), state))

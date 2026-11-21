@@ -538,6 +538,103 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .steam-account > div { flex: 1; min-width: 0; }
 .steam-account p { margin: 0; }
 .steam-account form { margin: 0 !important; }
+.link-dialog-foot { margin: 1rem 0 0; }
+
+/* «¿Dónde juegas?» (accounts/linking/_where.html), en el modal y en la tarjeta «Trae tus juegos» de Inicio: las cinco
+   plataformas como casillas grandes y, con la respuesta, un paso plegable por plataforma con lo que trae. Desplegado,
+   solo el siguiente que falta. */
+.where-title { margin: 1rem 0 .2rem; font-size: 1.05rem; }
+.where-lead { margin: 0 0 .9rem; }
+/* Las cinco, según el ancho que tengan (en el modal o en Inicio): en una fila si caben; si no, tres y dos; y en el
+   móvil, de dos en dos con la última a lo ancho. Nunca una sola descolgada. */
+.where-form { margin: 0; container-type: inline-size; }
+.where-tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .6rem; margin: 0 0 .9rem; padding: 0; border: 0; min-width: 0; }
+/* (Con nth-of-type: el primer hijo del fieldset es su legend.) */
+.where-tile { grid-column: span 2; }
+.where-tile:nth-of-type(n+4) { grid-column: span 3; }
+@container (min-width: 44rem) {
+  .where-tiles { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .where-tile, .where-tile:nth-of-type(n+4) { grid-column: auto; }
+}
+@container (max-width: 26rem) {
+  .where-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .where-tile, .where-tile:nth-of-type(n+4) { grid-column: auto; }
+  .where-tile:last-of-type { grid-column: 1 / -1; }
+}
+.where-tile {
+  position: relative; display: grid; justify-items: start; align-content: start; gap: .1rem;
+  padding: .75rem 2rem .75rem .8rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+  cursor: pointer; transition: border-color .15s, background-color .15s;
+}
+.where-tile input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.where-tile:hover { border-color: var(--violet); }
+.where-tile:has(input:focus-visible) { outline: 2px solid var(--cyan); outline-offset: 2px; }
+/* La marca de arriba a la derecha: un círculo vacío que, al elegirla, se rellena de violeta con su visto. */
+.where-tile::after { content: ""; position: absolute; top: .6rem; right: .6rem; width: 1.05rem; height: 1.05rem; border: 1px solid var(--star-off); border-radius: 50%; }
+.where-tile:has(input:checked) { border-color: var(--violet); background: rgba(157, 92, 255, .14); box-shadow: var(--glow); }
+.where-tile:has(input:checked)::after { background: var(--violet); border-color: var(--violet); }
+.where-tile:has(input:checked)::before {
+  content: ""; position: absolute; z-index: 1; top: .8rem; right: .97rem; width: .3rem; height: .55rem;
+  border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.where-tile-logo { display: flex; margin-bottom: .3rem; color: var(--text-2); }
+.where-tile-logo .shop-logo, .where-tile-logo .icon { width: 1.6rem; height: 1.6rem; }
+.where-tile strong { font-size: .95rem; line-height: 1.25; }
+.where-tile-sub { color: var(--muted); font-size: .78rem; line-height: 1.3; }
+.where-file { margin: .9rem 0 0; }
+
+.where-summary { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .75rem; margin: 1rem 0 0; }
+.where-chips { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin: 0; }
+.where-chip { padding: .1rem .55rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; font-size: .8rem; font-weight: 600; }
+.where-change > summary { color: var(--cyan); font-size: .85rem; cursor: pointer; list-style: none; }
+.where-change > summary::-webkit-details-marker { display: none; }
+.where-change[open] { flex-basis: 100%; }
+.where-change[open] > summary { margin-bottom: .6rem; }
+
+/* Cada plataforma es un .link-block plegable: la cabecera es el resumen, con su estado y una flecha. */
+.where-block { padding: 0 1rem; }
+.where-block > summary { margin: 0 -1rem; padding: .85rem 1rem; cursor: pointer; list-style: none; border-radius: 10px; }
+.where-block > summary::-webkit-details-marker { display: none; }
+.where-block > summary:hover h3 { color: #fff; }
+.where-block > summary h3 { margin: 0; }
+.where-block > summary h3::after {
+  content: ""; flex: none; width: .45rem; height: .45rem; margin: 0 .2rem 0 .1rem;
+  border: solid var(--muted); border-width: 0 2px 2px 0; transform: translateY(-.15rem) rotate(45deg); transition: transform .15s;
+}
+.where-block[open] > summary h3::after { transform: translateY(.1rem) rotate(-135deg); }
+.where-block[open] { padding-bottom: 1rem; }
+.where-block[open] > summary { margin-bottom: .1rem; }
+.where-block > summary h3 > .icon:first-child { width: 1.3rem; height: 1.3rem; color: var(--gold); }
+.where-block.is-done .link-status { color: var(--green); }
+.link-status .icon { width: .95rem; height: .95rem; margin-right: .2rem; vertical-align: -.18rem; }
+.where-brings { display: flex; flex-wrap: wrap; gap: .35rem; margin: 0 0 .75rem; padding: 0; list-style: none; }
+.where-brings li { padding: .1rem .55rem; background: rgba(34, 224, 240, .1); border-radius: 999px; color: var(--cyan-text); font-size: .75rem; font-weight: 600; }
+.where-brings .where-when { display: inline-flex; align-items: center; gap: .3rem; background: var(--surface-3); color: var(--text-2); }
+.where-brings .icon { width: .85rem; height: .85rem; }
+.where-option { margin-top: .6rem; padding: .7rem .8rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+.where-option > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .4rem; font-size: .9rem; cursor: pointer; list-style: none; }
+.where-option > summary::-webkit-details-marker { display: none; }
+.where-option > summary .link-status { margin-left: auto; }
+.where-option > summary::after {
+  content: ""; flex: none; align-self: center; width: .4rem; height: .4rem; margin: 0 .15rem 0 .35rem;
+  border: solid var(--muted); border-width: 0 2px 2px 0; transform: translateY(-.1rem) rotate(45deg); transition: transform .15s;
+}
+.where-option[open] > summary::after { transform: translateY(.1rem) rotate(-135deg); }
+.where-option[open] > summary { margin-bottom: .7rem; }
+.where-option .psn-steps { margin-top: .5rem; }
+.where-more { margin-top: 1rem; }
+.where-more > summary { color: var(--cyan); font-size: .9rem; cursor: pointer; }
+.handle-form { margin: .75rem 0 0; }
+.handle-form label { display: block; margin-bottom: .3rem; font-size: .9rem; font-weight: 600; }
+.handle-row { display: flex; gap: .5rem; }
+.handle-row input { flex: 1; min-width: 0; }
+
+/* Tarjeta «Trae tus juegos» de Inicio, mientras la biblioteca esté vacía: la primera cosa que hacer, con el violeta. */
+.first-steps { border-color: rgba(157, 92, 255, .5); background: linear-gradient(180deg, rgba(157, 92, 255, .12), transparent 14rem), rgba(14, 18, 34, .88); }
+.first-steps-head h2 { display: flex; align-items: center; gap: .5rem; margin: 0 0 .3rem; font-size: 1.2rem; }
+.first-steps-head h2 .icon { color: var(--violet); }
+.first-steps-head p { margin: 0; }
+.first-steps-manual { margin: 1rem 0 0; color: var(--muted); }
 
 /* Reseñas */
 .reviews { margin-top: 2rem; }
