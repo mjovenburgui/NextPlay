@@ -13,15 +13,15 @@ El detalle de cada función está en `NextPlay-funciones.pdf`, y el de cada prop
 
 ## Estado de las ramas
 
-Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: `publicaciones`, `primer-uso` y `avisos-que-llegan`, del 14/11, y `comunidad-del-juego` y `configurar-nextplay`, del 15/11 (esta última, con un commit más del 17/11). Las cinco ramas del 12 y el 13/11 (`playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica`, `playnite-sync` y `gog-y-epic`) entraron el 13/11 con los PR #40 a #44, sin que las hubieras probado: me pediste fusionarlas y dejarlas pendientes de revisión. Qué falta probar, y en qué servidor, está en la primera entrada de abajo. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
+Todo está en `main`. Las cinco ramas del 14 al 17/11 (`publicaciones`, `primer-uso`, `avisos-que-llegan`, `comunidad-del-juego` y `configurar-nextplay`) entraron el 21/11 con los PR #45 a #49, sin que las hubieras probado: me pediste «fusiónalo todo, ya lo probaré». Qué falta probar, y en qué servidor, está en la primera entrada de abajo. Las cinco ramas del 12 y el 13/11 (`playnite-y-csv`, `formularios-que-avisan`, `cabecera-automatica`, `playnite-sync` y `gog-y-epic`) entraron el 13/11 con los PR #40 a #44, también sin probar: su resumen es la entrada «Las cinco ramas, en main y pendientes de revisión» del 13/11. Las siete ramas de `sesiones-segunda-cuenta` a `que-jugar-despues` entraron en `main` el 11/11 por la noche, sin PR, junto con un commit («Cambios de Claude para NextPlay», `5e4bd89`) que traía a medias la importación desde un archivo. A tu base de datos de verdad le faltaban sus seis migraciones: se las apliqué el 12/11, con una copia de seguridad antes. Las de las ramas anteriores ya estaban (comprobado el 08/11 y el 09/11). Si un servidor de `main` da error de columnas que no existen, es que a esa base de datos le faltan migraciones: `manage.py migrate`.
 
 | Rama | Qué lleva | Estado |
 |---|---|---|
-| `configurar-nextplay` | El primer uso pasa a ser Configurar NextPlay: una pantalla en cuatro pasos (dónde juegas, tus juegos, dónde compras y tu perfil, con los avisos en el móvil) en vez de la tarjeta de Inicio, y un final que propone gente que juega a lo mismo | Tres commits locales, sin subir, encima de `comunidad-del-juego`. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae la migración `accounts.0036`. |
-| `comunidad-del-juego` | La Comunidad de cada juego: hilos y preguntas con respuestas, las horas de quien escribe, lo que destripa plegado según lo que llevas jugado y «¿Cómo se consigue?» desde tus logros | Commit local, sin subir, encima de `avisos-que-llegan`. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae las migraciones `social.0012` y `accounts.0035`. |
-| `avisos-que-llegan` | NextPlay instalable y avisos que llegan: como notificación en el móvil o el ordenador y, los de los retos, por correo | Commit local, sin subir, encima de `primer-uso`. **Pendiente de tu revisión**, sobre todo el push en tu Chrome. Trae la migración `accounts.0034` y necesita las claves VAPID en `.env`. |
-| `primer-uso` | Primer uso: al registrarte, Inicio empieza por «Trae tus juegos» con «¿Dónde juegas?», y «Vincular cuentas» enseña solo la forma recomendada de cada plataforma | Commit local, sin subir, encima de `publicaciones`. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae la migración `accounts.0033`. |
-| `publicaciones` | El repaso de las propuestas (11 nuevas) y Publicaciones: spoiler por imagen, pestaña del perfil, sección en la ficha y Guardados | Commits locales, sin subir. **Pendiente de tu revisión** en el servidor de revisión (8001). Trae la migración `social.0011`. |
+| `configurar-nextplay` | El primer uso pasa a ser Configurar NextPlay: una pantalla en cuatro pasos (dónde juegas, tus juegos, dónde compras y tu perfil, con los avisos en el móvil) en vez de la tarjeta de Inicio, y un final que propone gente que juega a lo mismo | Fusionada con `main` el 21/11: [PR #49](https://github.com/mjovenburgui/NextPlay/pull/49). **Pendiente de revisión.** Trae la migración `accounts.0036`. |
+| `comunidad-del-juego` | La Comunidad de cada juego: hilos y preguntas con respuestas, las horas de quien escribe, lo que destripa plegado según lo que llevas jugado y «¿Cómo se consigue?» desde tus logros | Fusionada con `main` el 21/11: [PR #48](https://github.com/mjovenburgui/NextPlay/pull/48). **Pendiente de revisión.** Trae las migraciones `social.0012` y `accounts.0035`. |
+| `avisos-que-llegan` | NextPlay instalable y avisos que llegan: como notificación en el móvil o el ordenador y, los de los retos, por correo | Fusionada con `main` el 21/11: [PR #47](https://github.com/mjovenburgui/NextPlay/pull/47). **Pendiente de revisión**, sobre todo el push en tu Chrome. Trae la migración `accounts.0034`; las claves VAPID ya están en el `.env` de `main`. |
+| `primer-uso` | Primer uso: al registrarte, Inicio empieza por «Trae tus juegos» con «¿Dónde juegas?», y «Vincular cuentas» enseña solo la forma recomendada de cada plataforma | Fusionada con `main` el 21/11: [PR #46](https://github.com/mjovenburgui/NextPlay/pull/46). **Pendiente de revisión.** Trae la migración `accounts.0033`. |
+| `publicaciones` | El repaso de las propuestas (11 nuevas) y Publicaciones: spoiler por imagen, pestaña del perfil, sección en la ficha y Guardados | Fusionada con `main` el 21/11: [PR #45](https://github.com/mjovenburgui/NextPlay/pull/45). **Pendiente de revisión.** Trae la migración `social.0011`. |
 | `gog-y-epic` | Importar GOG (desde el perfil público, cada noche) y Epic Games (pegando un código cada vez) sin instalar nada | Fusionada con `main` el 13/11: [PR #44](https://github.com/mjovenburgui/NextPlay/pull/44). **Pendiente de revisión**, sobre todo Epic con tu cuenta. Trae la migración `accounts.0032`. |
 | `playnite-sync` | La extensión de Playnite NextPlay Sync: tus juegos y horas de Epic, GOG, EA… se actualizan solos cada día y con cada partida | Fusionada con `main` el 13/11: [PR #43](https://github.com/mjovenburgui/NextPlay/pull/43). **Pendiente de revisión**, sobre todo dentro de Playnite. Trae la migración `accounts.0031`. |
 | `cabecera-automatica` | Cabecera «Lo que estoy jugando», que sigue sola al juego al que juegas, y el color del perfil sacado de la cabecera | Fusionada con `main` el 13/11: [PR #42](https://github.com/mjovenburgui/NextPlay/pull/42), con las columnas que hay que marcar en Library Exporter. **Pendiente de revisión.** Trae las migraciones `accounts.0030` y `library.0018`. |
@@ -41,6 +41,10 @@ Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: 
 | `repaso-de-la-biblioteca` | Repaso de la biblioteca y valor del pendiente | Fusionada con `main`: [PR #36](https://github.com/mjovenburgui/NextPlay/pull/36). |
 | `remates-rapidos` | Siete remates rápidos, un commit por cada uno, y los PDF al día | Fusionada con `main`: [PR #37](https://github.com/mjovenburgui/NextPlay/pull/37). |
 
+**Migraciones de las cinco ramas del 14 al 17/11** (aplicadas en tu base de datos el 21/11, justo después de fusionar, con una copia de seguridad antes):
+- `social.0011` y `social.0012`;
+- `accounts.0033` a `accounts.0036`.
+
 **Migraciones de las cinco ramas del 12 y el 13/11** (aplicadas en tu base de datos el 13/11, justo después de fusionar, con una copia de seguridad antes):
 - `accounts.0029` a `accounts.0032`;
 - `library.0017` y `library.0018`.
@@ -53,9 +57,63 @@ Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: 
 
 ---
 
-## 17/11/2026 · Configurar NextPlay: gente a la que seguir en el final
+## 21/11/2026 · Las cinco ramas del 14 al 17/11, en main y pendientes de revisión
 
-**Rama:** `configurar-nextplay`, tercer commit. Local, sin subir.
+**Ramas:** `publicaciones`, `primer-uso`, `avisos-que-llegan`, `comunidad-del-juego` y `configurar-nextplay`. Fusionadas con `main` en ese orden el 21/11/2026: [PR #45](https://github.com/mjovenburgui/NextPlay/pull/45), [#46](https://github.com/mjovenburgui/NextPlay/pull/46), [#47](https://github.com/mjovenburgui/NextPlay/pull/47), [#48](https://github.com/mjovenburgui/NextPlay/pull/48) y [#49](https://github.com/mjovenburgui/NextPlay/pull/49).
+
+**Por qué:** te enseñé cómo estaba todo y contestaste «fusiónalo todo, ya lo probaré». Como las ramas van una encima de otra, entraron las cinco, cada una con su PR.
+
+**Qué cambia para ti:**
+- **Todo está en `main`**, y el servidor de `main` (http://localhost:8000/) lo enseña junto, con tu base de datos de verdad.
+- **Tu base de datos tiene sus seis migraciones:** `social.0011` y `social.0012`, y `accounts.0033` a `accounts.0036`. Antes de aplicarlas hice una copia de seguridad. La última da por configuradas las cuentas que ya existían: el aviso de Configurar NextPlay solo les saldrá a las cuentas nuevas.
+- **Las claves VAPID, en el `.env` de `main`**, las mismas de la copia de revisión: los avisos en el móvil o el ordenador ya se pueden activar en el 8000.
+- **Pasan a «pendiente de revisión»** cinco propuestas:
+  - «Publicaciones con imágenes asociadas a un juego»;
+  - «Vincular cuentas empezando por «¿Dónde juegas?»»;
+  - «NextPlay en el móvil como aplicación, con avisos que llegan»;
+  - «Primer uso: traer tus juegos nada más crear la cuenta», hecha como Configurar NextPlay;
+  - «Preguntas sobre un juego que no destripan nada», que se cerró con la comunidad.
+- **«Comunidad de cada juego…» sigue «en curso»:** lo hecho ya está en `main`, pero falta «Tu partida como hilo».
+- **Cuando las pruebes**, dime cómo ha ido: lo que vaya bien pasa a «hecha», y lo que falle lo arreglo.
+
+**Qué he tocado:**
+- `docs/propuestas.json` y su PDF: el estado, la nota y la revisión de esas seis propuestas.
+- Esta bitácora: la tabla de arriba, cada entrada con su PR y la primera línea de cada guion, que dice en qué servidor seguirlo.
+- Fuera del repositorio: el `.env` de `main` (las dos claves VAPID) y la copia de seguridad de tu base de datos.
+
+**Cómo lo he comprobado:**
+- Antes de fusionar, los tests sin claves y con claves falsas: 685 en cada modo, todos bien.
+- Después, en tu base de datos, `migrate --check`, sin nada pendiente.
+- El servidor de `main` en el navegador: Inicio, Configurar NextPlay y la comunidad de un juego cargan sin errores.
+
+**Qué falta (depende de ti):** probarlo. Hay dos servidores, y no da igual cuál uses:
+- **El de revisión**, http://localhost:8001/, con una copia de tu base de datos y el mismo código que `main`. Tiene los datos de prueba de estos guiones: las publicaciones de `demo1` y `demo2` en Grand Theft Auto V, los hilos de la comunidad de Clair Obscur: Expedition 33 y la cuenta `cliente_nuevo`, recién creada. Casi todos los guiones van aquí.
+- **El de `main`**, http://localhost:8000/, con tu base de datos de verdad: lo que hagas ahí se queda. Es el sitio para activar los avisos con tu cuenta y quedártelos.
+- Si el de revisión ya no está (vive en la carpeta de esta sesión de Claude y se va con ella), sus datos de prueba tampoco: en el 8000 no están. Configurar NextPlay se puede probar igual allí, con una cuenta nueva que se quedará en tu base de datos.
+
+**Cómo comprobarlo tú (guion):** por orden de lo que más importa.
+1. **Los avisos en tu Chrome**, lo primero: es lo único que no he podido probar. Sigue el guion de «NextPlay instalable y avisos que llegan»; sus pasos 2, 3, 6 y 7 también en el 8000, con tu cuenta.
+2. **Configurar NextPlay con una cuenta nueva**, en el 8001: el guion de «Configurar NextPlay, cuarto paso» y el del final con gente a la que seguir.
+3. **La comunidad de Clair Obscur**, en el 8001 con `tester_steam`: el guion de «Comunidad de cada juego».
+4. **Publicaciones**, en el 8001 con `tester_steam`: su guion.
+5. **«Vincular cuentas»**, en el 8001 con `tester_steam`: el paso 6 de «Primer uso y «¿Dónde juegas?»».
+6. **Si un servidor no responde** (la app los para cuando la sesión se queda quieta), levántalo. El de `main`:
+
+   ```bash
+   C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/NextPlay/manage.py runserver 8000
+   ```
+
+   El de revisión:
+
+   ```bash
+   C:/Users/joven/Desktop/NextPlay/.venv/Scripts/python.exe C:/Users/joven/Desktop/NextPlay/.claude/worktrees/revision-tareas-pendientes-d85f54/manage.py runserver 8001
+   ```
+
+---
+
+## 17/11/2026 · Configurar NextPlay: gente a la que seguir en el final (fusionado con main, pendiente de revisión)
+
+**Rama:** `configurar-nextplay`, tercer commit. Fusionada con `main` el 21/11/2026: [PR #49](https://github.com/mjovenburgui/NextPlay/pull/49). Pendiente de tu revisión.
 
 **Por qué:** te pregunté «¿Añado al final gente a la que seguir que juegue a lo mismo que tú?» y contestaste «Sí, añádelo». Así tu Inicio, en «Siguiendo», no empieza vacío.
 
@@ -90,7 +148,7 @@ Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: 
 - Revisarlo.
 - Sin migraciones nuevas.
 
-**Cómo comprobarlo tú (guion):** en http://localhost:8001/, la copia de revisión. Para los cuatro pasos, sigue el guion de la entrada de abajo; esto es solo el final.
+**Cómo comprobarlo tú (guion):** en http://localhost:8001/, la copia de revisión. Para los cuatro pasos, sigue el guion de la entrada de abajo; esto es solo el final. Ya está en `main`, pero el guion sigue en la copia, como el de los cuatro pasos.
 1. **Sin juegos.** Con una cuenta nueva (o `cliente_nuevo`, que el panel de Claude ya tiene abierta como recién creada), abre http://localhost:8001/cuenta/configurar/listo/. Debajo del resumen sale «Gente activa en NextPlay», con `tester_steam`, `tester` y las cuentas demo.
    - Ojo: abrir «¡Listo!» da la configuración por terminada y quita el aviso de Inicio. Si quieres probar antes los cuatro pasos y el aviso, hazlo primero.
 2. **Con juegos.**
@@ -104,9 +162,9 @@ Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: 
 
 ---
 
-## 15/11/2026 · Configurar NextPlay, cuarto paso: tu perfil y los avisos en este dispositivo
+## 15/11/2026 · Configurar NextPlay, cuarto paso: tu perfil y los avisos en este dispositivo (fusionado con main, pendiente de revisión)
 
-**Rama:** `configurar-nextplay`, segundo commit, encima del de la pantalla. Local, sin subir.
+**Rama:** `configurar-nextplay`, segundo commit, encima del de la pantalla. Fusionada con `main` el 21/11/2026: [PR #49](https://github.com/mjovenburgui/NextPlay/pull/49). Pendiente de tu revisión.
 
 **Por qué:** te pregunté «¿Añado un cuarto paso para tu perfil y los avisos en el móvil?» y contestaste «Sí, añádelo».
 
@@ -153,7 +211,7 @@ Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: 
 - Revisarlo, y activar los avisos desde el paso en tu Chrome.
 - Sin migraciones nuevas: al fusionar basta con las de antes (`accounts.0036` de esta rama, más las de las otras).
 
-**Cómo comprobarlo tú (guion):** en http://localhost:8001/, la copia de revisión. Este guion sustituye al de la entrada de abajo.
+**Cómo comprobarlo tú (guion):** en http://localhost:8001/, la copia de revisión. Este guion sustituye al de la entrada de abajo. Ya está en `main`, pero el guion sigue en la copia: así las cuentas de prueba no se quedan en tu base de datos de verdad.
 1. **Crea una cuenta nueva** en http://localhost:8001/cuenta/registro/, con un correo inventado. Si no quieres crearla, el panel de Claude ya tiene abierta `cliente_nuevo` como recién creada, en Inicio, con el aviso «Termina de configurar NextPlay».
 2. **Dónde juegas.** Marca, por ejemplo, Steam y Nintendo Switch, y pulsa «Seguir».
 3. **Tus juegos.** Vincula Steam si quieres ver tus juegos en los favoritos del paso 4, o pulsa «Saltar por ahora».
@@ -175,9 +233,9 @@ Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: 
 
 ---
 
-## 15/11/2026 · Configurar NextPlay: el primer uso, en una pantalla con sus pasos
+## 15/11/2026 · Configurar NextPlay: el primer uso, en una pantalla con sus pasos (fusionado con main, pendiente de revisión)
 
-**Rama:** `configurar-nextplay`, encima de `comunidad-del-juego`. Commit local, sin subir.
+**Rama:** `configurar-nextplay`, encima de `comunidad-del-juego`. Fusionada con `main` el 21/11/2026: [PR #49](https://github.com/mjovenburgui/NextPlay/pull/49). Pendiente de tu revisión.
 
 **Por qué:** me dijiste que el primer uso no debería verse así, como una tarjeta en Inicio, sino como «una pantalla de configuración que ya no solo sirva para enlazar cuentas sino para elegir qué tiendas utiliza y tal para el tema de los precios».
 
@@ -254,9 +312,9 @@ Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: 
 
 ---
 
-## 15/11/2026 · Comunidad de cada juego: hilos, preguntas y spoilers según lo que llevas jugado
+## 15/11/2026 · Comunidad de cada juego: hilos, preguntas y spoilers según lo que llevas jugado (fusionado con main, pendiente de revisión)
 
-**Rama:** `comunidad-del-juego`, encima de `avisos-que-llegan`. Commit local, sin subir.
+**Rama:** `comunidad-del-juego`, encima de `avisos-que-llegan`. Fusionada con `main` el 21/11/2026: [PR #48](https://github.com/mjovenburgui/NextPlay/pull/48). Pendiente de tu revisión.
 
 **Por qué:** te pregunté «¿Sigo con la comunidad de cada juego (hilos y preguntas)?» y contestaste «Sí, sigue». Era tu petición del 14/11: que dentro de cada juego haya una pestaña de comunidad con todo lo que se publica de él, y poder hacer hilos.
 
@@ -328,7 +386,7 @@ Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: 
 - Revisarlo.
 - Al fusionarlo con `main`, tu base de datos necesitará `social.0012` y `accounts.0035`, además de las de las otras tres ramas.
 
-**Cómo comprobarlo tú (guion):** en http://localhost:8001/, la copia de revisión, con `tester_steam`. La comunidad de Clair Obscur: Expedition 33 ya tiene hilos y preguntas de prueba de `demo1`, `demo2`, `demo3` y `tester`.
+**Cómo comprobarlo tú (guion):** en http://localhost:8001/, la copia de revisión, con `tester_steam`. La comunidad de Clair Obscur: Expedition 33 ya tiene hilos y preguntas de prueba de `demo1`, `demo2`, `demo3` y `tester`. Ya está en `main`, pero esos hilos de prueba solo están en la copia: sigue el guion en el 8001.
 1. **La barra.** Abre http://localhost:8001/juegos/clair-obscur-expedition-33/.
    - Debajo de la cabecera está «Ficha · Comunidad 6 · Listas 0».
    - Baja hasta «Comunidad»: salen las tres cosas más recientes y «Ver toda la comunidad (6)».
@@ -364,9 +422,9 @@ Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: 
 
 ---
 
-## 14/11/2026 · NextPlay instalable y avisos que llegan al móvil y por correo
+## 14/11/2026 · NextPlay instalable y avisos que llegan al móvil y por correo (fusionado con main, pendiente de revisión)
 
-**Rama:** `avisos-que-llegan`, encima de `primer-uso`. Commit local, sin subir.
+**Rama:** `avisos-que-llegan`, encima de `primer-uso`. Fusionada con `main` el 21/11/2026: [PR #47](https://github.com/mjovenburgui/NextPlay/pull/47). Pendiente de tu revisión.
 
 **Por qué:** te pregunté «¿Sigo con los avisos que llegan al móvil y por correo?» y contestaste «Sí, sigue». Era lo segundo del repaso como cliente: hasta ahora, todo iba a la campana y solo las bajadas de precio podían ir por correo.
 
@@ -441,7 +499,7 @@ Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: 
   - tu base de datos necesitará `accounts.0034` (más `accounts.0033` y `social.0011`, de las otras dos ramas);
   - el `.env` de `main` necesitará sus dos claves VAPID. Las genera `manage.py vapid_keys`.
 
-**Cómo comprobarlo tú (guion):** en **tu Chrome** (no en el de Claude), en http://localhost:8001/, la copia de revisión. Ya tiene sus claves VAPID.
+**Cómo comprobarlo tú (guion):** en **tu Chrome** (no en el de Claude), en http://localhost:8001/, la copia de revisión. Ya tiene sus claves VAPID. Desde el 21/11 también va en `main` (http://localhost:8000/, tu base de datos de verdad), que tiene las mismas claves: ahí puedes activarlos con tu cuenta y quedártelos (pasos 2, 3, 6 y 7). Los pasos 4 y 5, que usan `tester` y una publicación de prueba de `tester_steam`, solo en la copia.
 1. **Entra** con `tester_steam`.
 2. **Activa los avisos.** Ve a Editar perfil y, en el menú de la izquierda, a «En el móvil».
    - Pulsa «Activar en este dispositivo» y acepta el permiso de Chrome.
@@ -478,9 +536,9 @@ Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: 
 
 ---
 
-## 14/11/2026 · Primer uso y «¿Dónde juegas?»
+## 14/11/2026 · Primer uso y «¿Dónde juegas?» (fusionado con main, pendiente de revisión)
 
-**Rama:** `primer-uso`, encima de `publicaciones`. Commit local, sin subir.
+**Rama:** `primer-uso`, encima de `publicaciones`. Fusionada con `main` el 21/11/2026: [PR #46](https://github.com/mjovenburgui/NextPlay/pull/46). Pendiente de tu revisión.
 
 **Por qué:** en el repaso como cliente, lo más flojo eran los primeros cinco minutos y la ventana de vincular, y me dijiste «empieza por el primer uso y lo de ¿dónde juegas?».
 
@@ -527,7 +585,7 @@ Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: 
 
 **Qué falta (depende de ti):** revisarlo. Al fusionarlo con `main`, tu base de datos necesitará `accounts.0033` (y `social.0011`, de `publicaciones`). Las aplicaré yo, con una copia de seguridad antes.
 
-**Cómo comprobarlo tú (guion):** en el servidor de revisión, http://localhost:8001/. Es una copia de tu base de datos: lo que hagas no toca la de verdad.
+**Cómo comprobarlo tú (guion):** en el servidor de revisión, http://localhost:8001/. Es una copia de tu base de datos: lo que hagas no toca la de verdad. Ya está en `main`, pero los pasos 1 a 5 no valen tal cual: desde Configurar NextPlay, al registrarte vas a esa pantalla y no a la tarjeta de Inicio (su guion es el de la entrada «Configurar NextPlay, cuarto paso»). El paso 6, «Vincular cuentas» con `tester_steam`, sí.
 1. **Una cuenta nueva.** En http://localhost:8001/cuenta/registro/ crea una cuenta cualquiera. Vas a Inicio, y arriba del todo está «Trae tus juegos» con «¿Dónde juegas?».
 2. **La pregunta.** Marca Steam, PlayStation y Nintendo Switch y pulsa «Seguir». Sin recargar, quedan esas tres:
    - Steam, desplegado, con lo que trae y «Vincular con Steam»;
@@ -549,9 +607,9 @@ Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: 
 
 ---
 
-## 14/11/2026 · Publicaciones: spoiler por imagen, pestaña del perfil, sección en la ficha y Guardados
+## 14/11/2026 · Publicaciones: spoiler por imagen, pestaña del perfil, sección en la ficha y Guardados (fusionado con main, pendiente de revisión)
 
-**Rama:** `publicaciones`, encima de `main` (`b0402ce`), después del commit del repaso de las propuestas. Commit local, sin subir.
+**Rama:** `publicaciones`, encima de `main` (`b0402ce`), después del commit del repaso de las propuestas. Fusionada con `main` el 21/11/2026: [PR #45](https://github.com/mjovenburgui/NextPlay/pull/45). Pendiente de tu revisión.
 
 **Por qué:** en el repaso de las gordas, a «Publicaciones con imágenes asociadas a un juego» le faltaban cuatro piezas, y me dijiste «Publicaciones».
 
@@ -585,7 +643,7 @@ Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: 
 
 **Qué falta (depende de ti):** revisarlo. Cuando se fusione con `main`, tu base de datos necesitará la migración `social.0011`. La aplicaré yo, con una copia de seguridad antes.
 
-**Cómo comprobarlo tú (guion):** en el servidor de revisión, http://localhost:8001/, con `tester_steam`. Su base de datos es una copia de la tuya, con unas publicaciones de ejemplo de `demo1` y `demo2` sobre Grand Theft Auto V.
+**Cómo comprobarlo tú (guion):** en el servidor de revisión, http://localhost:8001/, con `tester_steam`. Su base de datos es una copia de la tuya, con unas publicaciones de ejemplo de `demo1` y `demo2` sobre Grand Theft Auto V. Ya está en `main`, pero esas publicaciones de ejemplo solo están en la copia: sigue el guion en el 8001.
 1. **La ficha.** Abre http://localhost:8001/juegos/grand-theft-auto-v/ y baja hasta «Publicaciones». Salen las 5 últimas y «Cargar más». La de `demo1` («Por fin he llegado al jefe final…») tiene dos capturas: la segunda está borrosa, con «Spoiler». Púlsala y se ve.
 2. **Los filtros.** Pulsa «Con imágenes»: solo quedan las que llevan capturas.
 3. **Guardar.** En las dos primeras, la de `demo1` y la de `demo2`, el marcador ya está encendido, porque `tester_steam` las tiene guardadas. Guarda otra, por ejemplo la del consejo («Un consejo: no vendáis el equipo…»).
@@ -605,9 +663,9 @@ Todo está en `main` salvo cinco ramas locales y sin subir, una encima de otra: 
 
 ---
 
-## 14/11/2026 · Repaso de las propuestas: lo gordo, lo que vería un cliente y 11 nuevas
+## 14/11/2026 · Repaso de las propuestas: lo gordo, lo que vería un cliente y 11 nuevas (fusionado con main)
 
-**Rama:** `publicaciones`, encima de `main` (`b0402ce`). Commit local, sin subir. Solo cambia la documentación.
+**Rama:** `publicaciones`, encima de `main` (`b0402ce`). Fusionada con `main` el 21/11/2026: [PR #45](https://github.com/mjovenburgui/NextPlay/pull/45). Solo cambia la documentación.
 
 **Por qué:** me pediste revisar las propuestas gordas pendientes y, después, analizar NextPlay desde el punto de vista del cliente.
 
