@@ -1,0 +1,39 @@
+<script>
+  // Reducir una foto antes de subirla: si es más grande de lo que se guarda (o pesa más de lo que se admite), el
+  // navegador la reduce como haría el servidor, así se sube antes y no se rechaza. Las medidas son las del campo
+  // (data-max-width, data-max-height y data-max-mb, de accounts.images.KINDS). Llama a done con el archivo que se
+  // subirá y, si se ha reducido, un aviso para el usuario.
+  // Pantallas: Editar perfil (Apariencia: foto, cabecera y fondo), Configurar NextPlay (Tu perfil › Tu foto).
+  window.shrinkImage = function (input, file, done) {
+    var maxWidth = Number(input.dataset.maxWidth), maxHeight = Number(input.dataset.maxHeight);
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function () {
+      URL.revokeObjectURL(url);
+      var width = img.naturalWidth, height = img.naturalHeight;
+      var ratio = Math.min(1, maxWidth / width, maxHeight / height);
+      if (ratio === 1 && file.size <= input.dataset.maxMb * 1024 * 1024) return done(file, "");
+      var canvas = document.createElement("canvas");
+      canvas.width = Math.round(width * ratio);
+      canvas.height = Math.round(height * ratio);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      // En WebP, que guarda la transparencia; el navegador que no sabe hacerlo la da en PNG.
+      canvas.toBlob(function (blob) {
+        if (!blob) return done(file, "");
+        var smaller = new File([blob], file.name.replace(/\.\w+$/, "") + (blob.type === "image/webp" ? ".webp" : ".png"), { type: blob.type });
+        var files = new DataTransfer();
+        files.items.add(smaller);
+        input.files = files.files;
+        done(smaller, "Reducida antes de subirla: " + (ratio < 1
+          ? "de " + width + " × " + height + " a " + canvas.width + " × " + canvas.height + " píxeles."
+          : "pesaba " + (file.size / 1048576).toLocaleString("es-ES", { maximumFractionDigits: 1 }) + " MB."));
+      }, "image/webp", 0.9);
+    };
+    // Si el navegador no sabe leerla, que la compruebe el servidor y explique qué le pasa.
+    img.onerror = function () {
+      URL.revokeObjectURL(url);
+      done(file, "");
+    };
+    img.src = url;
+  };
+</script>

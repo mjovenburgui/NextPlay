@@ -1,0 +1,154 @@
+{% extends "accounts/setup/base.html" %}
+
+{% block step %}
+  {# Paso 4 (accounts.views.setup_profile): cómo te ven los demás (la foto, el nombre, la biografía y los favoritos, con SetupProfileForm) y los avisos en este dispositivo (accounts/_devices.html en pequeño). Lo demás del perfil está en Editar perfil. #}
+  <h1 class="setup-title" id="setup-title">Tu perfil</h1>
+  <p class="setup-lead">Así te verán los demás en tus reseñas, tus listas y la comunidad de cada juego. La cabecera, el color y el resto del escaparate los tienes en <a href="{% url 'edit_profile' %}">Editar perfil</a>.</p>
+  <form class="setup-profile" id="setup-profile" method="post" action="{% url 'setup_profile' %}" enctype="multipart/form-data" data-username="{{ user.username }}">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+
+    <fieldset class="setup-section">
+      <legend>Tu foto</legend>
+      <div class="photo-picks">
+        {% for key, label, url, checked in form.photo_rows %}
+          <label class="photo-pick">
+            <input type="radio" name="foto" value="{{ key }}"{% if checked %} checked{% endif %}>
+            <span class="avatar avatar-shape-{{ profile.avatar_shape }}" aria-hidden="true"{% if key == "upload" %} data-photo-preview{% elif key == "initial" %} data-photo-initial{% endif %}>{% if url %}<img src="{{ url }}" alt="">{% elif key == "upload" %}{% include "_icon.html" with name="image" %}{% else %}{{ profile.name|slice:":1"|upper }}{% endif %}</span>
+            <span class="photo-pick-label">{{ label }}</span>
+          </label>
+        {% endfor %}
+      </div>
+      <div class="photo-upload{% if form.avatar.errors %} has-error{% endif %}" data-photo-upload>
+        <label for="{{ form.avatar.id_for_label }}">{% if profile.avatar %}Subir otra foto{% else %}Subir una foto{% endif %}</label>
+        <input type="file" name="avatar" id="{{ form.avatar.id_for_label }}" accept="image/png,image/jpeg,image/webp,image/gif"
+               data-max-width="{{ avatar_kind.width }}" data-max-height="{{ avatar_kind.height }}" data-max-mb="{{ avatar_kind.max_mb }}">
+        <p class="help">JPG, PNG, WebP o GIF. Si es muy grande, se reduce antes de subirla. Qué parte se ve y su forma, en Editar perfil.</p>
+        <p class="help" data-shrunk hidden></p>
+        {{ form.avatar.errors }}
+      </div>
+      {{ form.foto.errors }}
+    </fieldset>
+
+    <div class="setup-section field{% if form.display_name.errors %} has-error{% endif %}">
+      <label for="{{ form.display_name.id_for_label }}">Tu nombre</label>
+      {{ form.display_name }}
+      {% if form.name_suggestions %}
+        <p class="name-picks" data-name-picks hidden>El de tus cuentas: {% for name in form.name_suggestions %}<button class="choice-chip" type="button" data-name="{{ name }}">{{ name }}</button>{% endfor %}</p>
+      {% endif %}
+      <p class="help">El que ven los demás. Si lo dejas vacío, se usa tu usuario, @{{ user.username }}.</p>
+      {{ form.display_name.errors }}
+    </div>
+
+    <div class="setup-section field{% if form.bio.errors %} has-error{% endif %}">
+      <label for="{{ form.bio.id_for_label }}">Sobre ti <span class="muted">(opcional)</span></label>
+      {{ form.bio }}
+      {{ form.bio.errors }}
+    </div>
+
+    <fieldset class="setup-section">
+      <legend>Tus favoritos <span class="muted">· hasta {{ max_favorites }}</span></legend>
+      {% if form.favorite_rows %}
+        <p class="help">Salen los primeros en tu perfil, en «Juegos favoritos». Te proponemos los que más has jugado.</p>
+        <div class="fav-picks" data-fav-picks data-max="{{ max_favorites }}">
+          {% for game, entry, checked in form.favorite_rows %}
+            <label class="fav-pick">
+              <input type="checkbox" name="favoritos" value="{{ game.pk }}"{% if checked %} checked{% endif %}>
+              <span class="fav-pick-cover">{% if game.cover_url %}<img src="{{ game.cover_url }}" alt="" loading="lazy">{% endif %}</span>
+              <span class="fav-pick-name">{{ game.name }}</span>
+              {% if entry.playtime_hours %}<span class="fav-pick-hours">{{ entry.playtime_hours|floatformat:"-1" }} h</span>{% endif %}
+            </label>
+          {% endfor %}
+        </div>
+        <p class="help" data-fav-full hidden>Ya tienes {{ max_favorites }}: desmarca uno para elegir otro.</p>
+        {{ form.favoritos.errors }}
+      {% else %}
+        <p class="help">Cuando tengas juegos en tu biblioteca, aquí te propondremos los que más has jugado. También puedes marcar cualquiera desde su ficha, con «Añadir a mis favoritos».</p>
+      {% endif %}
+    </fieldset>
+
+    {% include "accounts/_devices.html" with compact=True %}
+
+    <div class="setup-actions">
+      <a class="btn" href="{{ back_url }}">Atrás</a>
+      <a class="btn" href="{{ next_url }}">Saltar</a>
+      <button class="btn btn-primary" type="submit">Guardar y terminar</button>
+    </div>
+  </form>
+
+  {% include "accounts/_shrink_image.html" %}
+  <script>
+    // Tu perfil, en Configurar NextPlay: el campo de subir la foto solo sale con «Una tuya» marcada; la foto elegida se
+    // ve en su casilla y la marca (reducida si hace falta); los nombres de tus cuentas rellenan el tuyo y la inicial lo
+    // sigue; y los favoritos no pasan del máximo.
+    // Pantallas: Configurar NextPlay (Tu perfil).
+    (function () {
+      var form = document.getElementById("setup-profile");
+
+      var upload = form.querySelector("[data-photo-upload]");
+      var input = form.elements.avatar;
+      var mine = form.querySelector("input[name=foto][value=upload]");
+      var preview = form.querySelector("[data-photo-preview]");
+      var note = upload.querySelector("[data-shrunk]");
+      var failed = upload.classList.contains("has-error");
+      var local = "";
+      // Enseña el campo de subirla con «Una tuya» (o si la foto que subió ha dado un error).
+      function syncUpload() {
+        upload.hidden = !mine.checked && !failed;
+      }
+      form.querySelectorAll("input[name=foto]").forEach(function (radio) {
+        radio.addEventListener("change", syncUpload);
+      });
+      syncUpload();
+      input.addEventListener("change", function () {
+        var file = input.files && input.files[0];
+        note.hidden = true;
+        if (!file) return;
+        mine.checked = true;
+        window.shrinkImage(input, file, function (photo, message) {
+          if (local) URL.revokeObjectURL(local);
+          local = URL.createObjectURL(photo);
+          var img = document.createElement("img");
+          img.src = local;
+          img.alt = "";
+          preview.replaceChildren(img);
+          note.textContent = message;
+          note.hidden = !message;
+        });
+      });
+
+      // Los nombres de sus cuentas: al pulsar uno, pasa a ser el suyo. La casilla de la inicial enseña la de su nombre.
+      var name = form.elements.display_name;
+      var picks = form.querySelector("[data-name-picks]");
+      var initial = form.querySelector("[data-photo-initial]");
+      if (picks) {
+        picks.hidden = false;
+        picks.addEventListener("click", function (event) {
+          var button = event.target.closest("[data-name]");
+          if (!button) return;
+          name.value = button.dataset.name;
+          name.dispatchEvent(new Event("input", { bubbles: true }));
+          name.focus();
+        });
+      }
+      name.addEventListener("input", function () {
+        if (initial) initial.textContent = (name.value.trim() || form.dataset.username).charAt(0).toUpperCase();
+      });
+
+      // Con el máximo de favoritos marcado, los demás no se pueden marcar hasta desmarcar uno.
+      var favorites = form.querySelector("[data-fav-picks]");
+      if (favorites) {
+        var full = form.querySelector("[data-fav-full]");
+        var max = Number(favorites.dataset.max);
+        var boxes = favorites.querySelectorAll("input[type=checkbox]");
+        var syncFavorites = function () {
+          var count = favorites.querySelectorAll("input:checked").length;
+          boxes.forEach(function (box) { box.disabled = !box.checked && count >= max; });
+          full.hidden = count < max;
+        };
+        favorites.addEventListener("change", syncFavorites);
+        syncFavorites();
+      }
+    })();
+  </script>
+{% endblock %}

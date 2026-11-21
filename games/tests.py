@@ -1385,7 +1385,9 @@ class PreferredShopsTests(TestCase):
     def test_choose_shops_in_the_profile(self):
         response = self.client.get(reverse("edit_profile"))
         self.assertContains(response, "Tiendas en las que compras")
-        self.assertEqual([name for _, name, _ in response.context["shop_choices"]], ["Steam", "GOG", "Xbox"])
+        # Las tres son destacadas: van en baldosas con su logo, y no hay «Otras tiendas».
+        self.assertEqual([name for _, name, _, _ in response.context["featured_shops"]], ["Steam", "GOG", "Xbox"])
+        self.assertEqual(response.context["other_shops"], [])
         self.client.post(reverse("shops_update"), {"shops": ["61", "0", "999"]})
         self.user.profile.refresh_from_db()
         self.assertEqual(self.user.profile.shops, [0, 61])  # la desconocida se ignora

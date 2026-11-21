@@ -11,10 +11,9 @@ def signup(request):
     """Registro de cuenta nueva.
 
     Si el usuario ya ha iniciado sesión lo manda a su perfil. Al registrarse bien inicia su sesión y lo lleva a
-    Inicio, que con la biblioteca vacía empieza por la tarjeta «Trae tus juegos»: dónde juega y cómo traer sus juegos,
-    con sus horas, de cada sitio.
+    Configurar NextPlay: dónde juega, cómo traer sus juegos con sus horas y de qué tiendas quiere precios.
 
-    Pantallas: Registro, Inicio (tarjeta «Trae tus juegos»).
+    Pantallas: Registro, Configurar NextPlay.
     """
     if request.user.is_authenticated:
         return redirect("profile", username=request.user.username)
@@ -22,6 +21,6 @@ def signup(request):
     if request.method == "POST" and form.is_valid():
         user = form.save()
         login(request, user)
-        messages.success(request, "Cuenta creada. Lo primero: dinos dónde juegas y trae tus juegos con sus horas.")
-        return redirect("home")
+        messages.success(request, "Cuenta creada. Antes de empezar, deja NextPlay a tu gusto: son cuatro pasos.")
+        return redirect("setup")
     return render(request, "registration/signup.html", {"form": form})

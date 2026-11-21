@@ -17,7 +17,7 @@ from django.utils.http import urlencode
 from django.views.decorators.http import require_POST
 
 from accounts.models import Profile
-from accounts.views import favorite_context, linking_context
+from accounts.views import favorite_context, next_step_url
 from library.models import LibraryEntry, Review, WishlistItem
 from library.views import review_context
 from lists.views import game_page_context
@@ -68,14 +68,13 @@ def home(request):
     van los juegos populares y lo último de la comunidad. Con sesión, si el feed no trae ya sugerencias, la
     columna derecha lleva «A quién seguir»: gente con tus mismos juegos (social.views.suggested_people).
 
-    Con la biblioteca vacía (al registrarse, por ejemplo), arriba del todo va la tarjeta «Trae tus juegos»: la
-    pregunta «¿Dónde juegas?» y la forma recomendada de traerlos de cada sitio (accounts/linking/_where.html, la misma
-    de la ventana «Vincular cuentas» del perfil). Se va en cuanto hay un juego en la biblioteca.
+    Mientras no haya terminado Configurar NextPlay (Profile.setup_done_at), arriba del todo va un recordatorio para
+    seguir donde lo dejó (accounts.views.next_step_url) o decir que no le hace falta.
 
-    Pantallas: Inicio (y su tarjeta «Trae tus juegos»).
+    Pantallas: Inicio (y su recordatorio de terminar de configurar NextPlay).
     """
     summary = None
-    popular, composer, first_steps = [], {}, {}
+    popular, composer, setup_url = [], {}, ""
     if request.user.is_authenticated:
         library = LibraryEntry.objects.filter(user=request.user)
         summary = library.aggregate(
@@ -86,8 +85,8 @@ def home(request):
         summary["followers"] = request.user.followers.count()
         summary["following"] = request.user.following.count()
         composer = composer_context(request.user)
-        if not summary["games"]:
-            first_steps = {"first_steps": True, **linking_context()}
+        if request.user.profile.setup_done_at is None:
+            setup_url = next_step_url(request.user)
     else:
         popular = list(Game.objects.order_by("-popularity", "name")[:12])
     feed = feed_context(request.user, request.GET.get("ver", ""), request.GET.get("antes", ""))
@@ -102,7 +101,7 @@ def home(request):
         {
             "summary": summary,
             **composer,
-            **first_steps,
+            "setup_url": setup_url,
             "popular": popular,
             **feed,
             "who_to_follow": who_to_follow,

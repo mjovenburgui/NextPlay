@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}Configurar NextPlay · NextPlay{% endblock %}
+
+{% block content %}
+  {# Configurar NextPlay (accounts.views.configurar): la barra de pasos y, debajo, el paso en que está. Cada paso se puede saltar, y todo está también en Editar perfil. #}
+  <section class="setup" aria-labelledby="setup-title">
+    <header class="setup-head">
+      <p class="setup-eyebrow">Configura NextPlay</p>
+      <ol class="setup-steps">
+        {% for number, label, url, current, done in steps %}
+          <li class="setup-step{% if current %} is-current{% endif %}{% if done %} is-done{% endif %}">
+            <a href="{{ url }}"{% if current %} aria-current="step"{% endif %}>
+              <span class="setup-step-mark" aria-hidden="true">{% if done and not current %}{% include "_icon.html" with name="check" %}{% else %}{{ number }}{% endif %}</span>
+              <span class="setup-step-label">{{ label }}{% if done %}<span class="visually-hidden"> (hecho)</span>{% endif %}</span>
+            </a>
+          </li>
+        {% endfor %}
+      </ol>
+    </header>
+    <div class="card-box setup-card">
+      {% block step %}{% endblock %}
+    </div>
+    {% block later %}<p class="setup-later"><a href="{% url 'home' %}">Lo termino más tarde</a> <span class="muted">· Inicio te recordará seguir donde lo dejes.</span></p>{% endblock %}
+  </section>
+{% endblock %}

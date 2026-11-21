@@ -1,0 +1,54 @@
+{% extends "accounts/setup/base.html" %}
+
+{% block step %}
+  {# El final (accounts.views.setup_done): cómo ha quedado NextPlay y adónde ir ahora. Cada línea lleva a cambiarla. #}
+  <h1 class="setup-title" id="setup-title">{% include "_icon.html" with name="check" %} ¡Listo!</h1>
+  <p class="setup-lead">Así queda NextPlay. Todo se cambia cuando quieras en <a href="{% url 'edit_profile' %}">Editar perfil</a>.</p>
+  <dl class="setup-summary">
+    <div>
+      <dt>Juegas en</dt>
+      <dd>{% if where_names %}{{ where_names|join:", " }}{% else %}Sin decir · <a href="{% url 'setup' %}">Elegir</a>{% endif %}</dd>
+    </div>
+    <div>
+      <dt>Tu biblioteca</dt>
+      <dd>{% if game_count %}{{ game_count }} juego{{ game_count|pluralize }} · <a href="{% url 'profile' user.username %}">Verla</a>{% else %}Aún vacía · <a href="{% url 'setup_games' %}">Traer mis juegos</a>{% endif %}</dd>
+    </div>
+    <div>
+      <dt>Precios de</dt>
+      <dd>{% if shop_names %}{{ shop_names|join:", " }}{% else %}Todas las tiendas{% endif %} · <a href="{% url 'setup_shops' %}">Cambiar</a></dd>
+    </div>
+    <div>
+      <dt>Bajadas de precio</dt>
+      <dd>En la campana{% if price_email %} y por correo{% endif %}</dd>
+    </div>
+    <div>
+      <dt>Te ven como</dt>
+      <dd class="setup-summary-me">{% include "accounts/_avatar.html" with size="sm" %} <span><strong>{{ profile.name }}</strong> · <a href="{% url 'profile' user.username %}">Ver tu perfil</a></span></dd>
+    </div>
+    <div>
+      <dt>Tus favoritos</dt>
+      <dd>{% if favorite_names %}{{ favorite_names|join:", " }}{% else %}Ninguno todavía · <a href="{% url 'setup_profile' %}">Elegirlos</a>{% endif %}</dd>
+    </div>
+    {% if push_configured %}
+      <div>
+        <dt>En el móvil</dt>
+        <dd>{% if push_count %}Avisos activados en {{ push_count }} dispositivo{{ push_count|pluralize }}{% else %}Sin activar · <a href="{% url 'setup_profile' %}#dispositivos">Activarlos</a>{% endif %}</dd>
+      </div>
+    {% endif %}
+  </dl>
+  {% if people %}
+    {# Gente a la que seguir: la que tiene más juegos en común contigo, con cuáles, o, si aún no tienes juegos, la más activa (social.views.suggested_people). #}
+    <section class="setup-people" aria-labelledby="setup-people-title">
+      <h2 id="setup-people-title">{% if people_share_games %}Gente que juega a lo mismo que tú{% else %}Gente activa en NextPlay{% endif %}</h2>
+      <p class="help">Síguelos y en Inicio, en «Siguiendo», verás lo que juegan, reseñan y publican.</p>
+      <ul class="people setup-people-list">{% for person in people %}{% include "social/_person.html" %}{% endfor %}</ul>
+    </section>
+  {% endif %}
+  <div class="setup-actions">
+    <a class="btn" href="{% url 'games:catalog' %}">Buscar juegos</a>
+    <a class="btn btn-primary" href="{% url 'home' %}">Ir a Inicio</a>
+  </div>
+  <p class="setup-next">Añade a tu lista de deseos lo que quieras comprar: te avisaremos cuando baje en tus tiendas.</p>
+{% endblock %}
+
+{% block later %}{% endblock %}

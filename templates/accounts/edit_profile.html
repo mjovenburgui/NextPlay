@@ -7,7 +7,7 @@
   <header class="page-head settings-head">
     <div>
       <h1>Editar perfil</h1>
-      <p class="muted">Cómo te ven los demás, qué tiendas te interesan y de dónde se importan tus juegos.</p>
+      <p class="muted">Cómo te ven los demás, qué tiendas te interesan y de dónde se importan tus juegos. ¿Prefieres ir paso a paso? <a href="{% url 'setup' %}">Configurar NextPlay</a>.</p>
     </div>
     <a class="btn" href="{% url 'profile' user.username %}">Ver mi perfil</a>
   </header>
@@ -320,15 +320,11 @@
 
       <section class="settings-card" id="tiendas">
         <h2>Tiendas en las que compras</h2>
-        {% if shop_choices %}
+        {% if featured_shops or other_shops %}
           <p class="help">NextPlay solo te enseñará precios, historial y avisos de las que marques (en cada ficha puedes ver todas un momento). Sin ninguna marcada, se ven todas.</p>
           <form action="{% url 'shops_update' %}" method="post">
             {% csrf_token %}
-            <div class="shop-choices">
-              {% for shop_id, name, checked in shop_choices %}
-                <label class="shop-choice"><input type="checkbox" name="shops" value="{{ shop_id }}"{% if checked %} checked{% endif %}> {{ name }}</label>
-              {% endfor %}
-            </div>
+            {% include "accounts/_shop_picker.html" %}
             <div class="settings-actions">
               <button class="btn btn-primary" type="submit" data-busy="Guardando…">Guardar tiendas</button>
             </div>
@@ -428,6 +424,7 @@
     {% include "accounts/_preview_devices.html" %}
   </dialog>
 
+  {% include "accounts/_shrink_image.html" %}
   <script>
     // Editar perfil: contador de la biografía, emojis del estado, paleta de colores, imágenes elegidas y su
     // encuadre, campos que dependen de otra opción, orden de favoritos y secciones, oscurecido del fondo y vista
@@ -505,41 +502,8 @@
         });
       });
 
-      // Si la imagen es más grande de lo que se guarda (o pesa más de lo que se admite), el navegador la reduce
-      // antes de subirla, como haría el servidor: así se sube antes y no se rechaza. Llama a done con el archivo
-      // que se subirá y, si se ha reducido, un aviso para el usuario.
-      function shrink(input, file, done) {
-        var maxWidth = Number(input.dataset.maxWidth), maxHeight = Number(input.dataset.maxHeight);
-        var url = URL.createObjectURL(file);
-        var img = new Image();
-        img.onload = function () {
-          URL.revokeObjectURL(url);
-          var width = img.naturalWidth, height = img.naturalHeight;
-          var ratio = Math.min(1, maxWidth / width, maxHeight / height);
-          if (ratio === 1 && file.size <= input.dataset.maxMb * 1024 * 1024) return done(file, "");
-          var canvas = document.createElement("canvas");
-          canvas.width = Math.round(width * ratio);
-          canvas.height = Math.round(height * ratio);
-          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-          // En WebP, que guarda la transparencia; el navegador que no sabe hacerlo la da en PNG.
-          canvas.toBlob(function (blob) {
-            if (!blob) return done(file, "");
-            var smaller = new File([blob], file.name.replace(/\.\w+$/, "") + (blob.type === "image/webp" ? ".webp" : ".png"), { type: blob.type });
-            var files = new DataTransfer();
-            files.items.add(smaller);
-            input.files = files.files;
-            done(smaller, "Reducida antes de subirla: " + (ratio < 1
-              ? "de " + width + " × " + height + " a " + canvas.width + " × " + canvas.height + " píxeles."
-              : "pesaba " + (file.size / 1048576).toLocaleString("es-ES", { maximumFractionDigits: 1 }) + " MB."));
-          }, "image/webp", 0.9);
-        };
-        // Si el navegador no sabe leerla, que la compruebe el servidor y explique qué le pasa.
-        img.onerror = function () {
-          URL.revokeObjectURL(url);
-          done(file, "");
-        };
-        img.src = url;
-      }
+      // Las fotos demasiado grandes se reducen antes de subirlas (accounts/_shrink_image.html).
+      var shrink = window.shrinkImage;
 
       // Encuadre de la foto, la cabecera y el fondo: se arrastra la imagen dentro de su marco (o se mueve con las
       // flechas) para elegir qué parte se ve, el zoom la acerca y «Entera» la enseña toda. Los marcos usan las

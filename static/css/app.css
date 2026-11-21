@@ -629,13 +629,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, .btn:focus-vi
 .handle-row { display: flex; gap: .5rem; }
 .handle-row input { flex: 1; min-width: 0; }
 
-/* Tarjeta «Trae tus juegos» de Inicio, mientras la biblioteca esté vacía: la primera cosa que hacer, con el violeta. */
-.first-steps { border-color: rgba(157, 92, 255, .5); background: linear-gradient(180deg, rgba(157, 92, 255, .12), transparent 14rem), rgba(14, 18, 34, .88); }
-.first-steps-head h2 { display: flex; align-items: center; gap: .5rem; margin: 0 0 .3rem; font-size: 1.2rem; }
-.first-steps-head h2 .icon { color: var(--violet); }
-.first-steps-head p { margin: 0; }
-.first-steps-manual { margin: 1rem 0 0; color: var(--muted); }
-
 /* Avisos de Editar perfil: un grupo por fila, con lo que avisa a la izquierda y por dónde llega a la derecha: tres
    casillas de icono (campana, notificación y correo, en ese orden siempre; la leyenda de arriba dice cuál es cuál) que
    se encienden en violeta. Si el texto no cabe al lado (en el móvil), las casillas bajan a su propia línea. */
@@ -2786,4 +2779,131 @@ p.community-game { font-size: 1.2rem; font-weight: 700; }
   .thread-heading { font-size: 1.35rem; }
   .community-new { width: 100%; }
   .community-new .btn { flex: 1 1 auto; justify-content: center; }
+}
+
+/* Configurar NextPlay: la barra de pasos, la tarjeta de cada paso, las tiendas con su logo y el recordatorio de Inicio. */
+.setup { max-width: 820px; margin: 1.25rem auto 0; }
+.setup-head { margin-bottom: 1rem; }
+.setup-eyebrow { margin: 0 0 .6rem; color: var(--muted); font-size: .78rem; font-weight: 600; letter-spacing: .06em; text-align: center; text-transform: uppercase; }
+.setup-steps { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: .5rem; margin: 0; padding: 0; list-style: none; }
+.setup-step a { display: flex; align-items: center; gap: .55rem; height: 100%; padding: .55rem .75rem; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--muted); font-size: .9rem; font-weight: 600; }
+.setup-step a:hover { border-color: var(--violet); color: var(--text); text-decoration: none; }
+.setup-step-mark { flex: none; display: grid; place-items: center; width: 1.6rem; height: 1.6rem; border: 1px solid var(--border); border-radius: 50%; font-size: .8rem; }
+.setup-step-mark .icon { width: .9rem; height: .9rem; }
+.setup-step.is-done .setup-step-mark { border-color: rgba(34, 224, 240, .55); color: var(--cyan-text); }
+.setup-step.is-current a { border-color: var(--violet); background: rgba(157, 92, 255, .14); color: var(--text); }
+.setup-step.is-current .setup-step-mark { border-color: var(--violet); background: var(--violet); color: #fff; }
+.setup-card { padding: 1.5rem; }
+.setup-title { display: flex; align-items: center; gap: .5rem; margin: 0 0 .35rem; font-size: 1.5rem; }
+.setup-title .icon { width: 1.4rem; height: 1.4rem; color: var(--cyan); }
+.setup-lead { max-width: 62ch; margin: 0 0 1.25rem; color: var(--text-2); }
+.setup-hint, .setup-status { display: flex; align-items: center; gap: .4rem; margin: 0 0 1rem; color: var(--text-2); font-size: .92rem; }
+.setup-hint .icon, .setup-status .icon { flex: none; width: 1rem; height: 1rem; color: var(--cyan); }
+.setup-where > .link-block:first-child, .setup-where > .where-more:first-child { margin-top: 0; }
+.setup-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .5rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.setup-foot { margin-top: 1rem; }
+.setup-later { margin: 1rem 0 0; font-size: .9rem; text-align: center; }
+.setup-alerts { margin: 1.25rem 0 0; padding: .9rem 1rem; border: 1px solid var(--border); border-radius: 12px; }
+.setup-alerts legend { padding: 0 .3rem; font-weight: 700; }
+.setup-alerts .check { display: flex; align-items: flex-start; gap: .5rem; cursor: pointer; }
+.setup-alerts .check input { flex: none; margin-top: .25rem; accent-color: var(--violet); }
+.setup-summary { display: grid; gap: .6rem; margin: 0; }
+.setup-summary > div { display: grid; grid-template-columns: 10rem minmax(0, 1fr); gap: .75rem; padding: .7rem .9rem; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+.setup-summary dt { color: var(--muted); font-weight: 600; }
+.setup-summary dd { margin: 0; overflow-wrap: anywhere; }
+.setup-next { margin: 1rem 0 0; color: var(--text-2); font-size: .9rem; }
+.setup-summary-me { display: flex; align-items: center; gap: .6rem; }
+/* La gente a la que seguir del final: tarjetas como las líneas del resumen, en dos columnas si caben. */
+.setup-people { margin-top: 1.5rem; }
+.setup-people h2 { margin: 0; font-size: 1rem; }
+.setup-people-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr)); gap: .6rem; margin-top: .75rem; }
+.setup-people-list .person { padding: .65rem .8rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; }
+/* Lo que importa aquí es lo que tenéis en común: la biografía, a una línea. */
+.setup-people-list .person-bio + .person-bio { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
+/* Las tiendas: las destacadas en baldosas con su logo y su marca, como las plataformas de «¿Dónde juegas?»; las demás,
+   plegadas en «Otras tiendas». Sirve también en Editar perfil. */
+.shop-picker { min-width: 0; margin: 1rem 0 0; padding: 0; border: 0; }
+.shop-pick-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 8.5rem), 1fr)); gap: .6rem; }
+.shop-pick {
+  position: relative; display: flex; align-items: center; gap: .6rem; padding: .75rem 2.2rem .75rem .8rem;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
+  transition: border-color .15s, background-color .15s;
+}
+.shop-pick input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.shop-pick:hover { border-color: var(--violet); }
+.shop-pick:has(input:focus-visible) { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.shop-pick::after { content: ""; position: absolute; top: 50%; right: .7rem; width: 1.05rem; height: 1.05rem; border: 1px solid var(--star-off); border-radius: 50%; transform: translateY(-50%); }
+.shop-pick:has(input:checked) { border-color: var(--violet); background: rgba(157, 92, 255, .14); box-shadow: var(--glow); }
+.shop-pick:has(input:checked)::after { background: var(--violet); border-color: var(--violet); }
+.shop-pick:has(input:checked)::before {
+  content: ""; position: absolute; z-index: 1; top: 50%; right: 1.07rem; width: .3rem; height: .55rem;
+  border: solid #fff; border-width: 0 2px 2px 0; transform: translateY(-62%) rotate(45deg);
+}
+.shop-pick-logo { flex: none; display: flex; color: var(--text-2); }
+.shop-pick-logo .shop-logo { width: 1.5rem; height: 1.5rem; }
+.shop-pick strong { font-size: .92rem; line-height: 1.25; }
+.shop-others { margin-top: .9rem; }
+.shop-others > summary { color: var(--cyan); font-size: .92rem; cursor: pointer; }
+.shop-others .shop-choices { margin-top: .75rem; }
+/* Configurar NextPlay › Tu perfil: la foto (las de tus cuentas, una tuya o la inicial), el nombre, los favoritos (las
+   portadas de lo que más has jugado) y, en pequeño, los avisos en este dispositivo. */
+.setup-section { min-width: 0; margin: 0; padding: 0; border: 0; }
+.setup-section ~ .setup-section { margin-top: 1.5rem; }
+.setup-section > legend, .setup-section > label, .setup-section > h2 { display: block; margin: 0 0 .55rem; padding: 0; font-size: 1rem; font-weight: 700; }
+.setup-section > legend .muted, .setup-section > label .muted { font-weight: 500; }
+.photo-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.75rem, 1fr)); gap: .6rem; max-width: 34rem; }
+.photo-pick {
+  position: relative; display: grid; justify-items: center; gap: .45rem; padding: .8rem .4rem .7rem;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; cursor: pointer; text-align: center;
+  transition: border-color .15s, background-color .15s;
+}
+.photo-pick input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.photo-pick:hover { border-color: var(--violet); }
+.photo-pick:has(input:focus-visible) { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.photo-pick:has(input:checked) { border-color: var(--violet); background: rgba(157, 92, 255, .14); box-shadow: var(--glow); }
+.photo-pick .avatar { width: 60px; height: 60px; font-size: 1.6rem; }
+.photo-pick .avatar .icon { width: 1.5rem; height: 1.5rem; }
+.photo-pick-label { font-size: .85rem; font-weight: 600; line-height: 1.2; }
+.photo-upload { margin-top: .9rem; }
+.photo-upload > label { display: block; margin-bottom: .35rem; font-weight: 600; }
+.photo-upload[hidden], .name-picks[hidden] { display: none; }
+.name-picks { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: .55rem 0 0; color: var(--muted); font-size: .88rem; }
+.name-picks .choice-chip { padding: .3rem .7rem; color: var(--text); font: inherit; }
+.name-picks .choice-chip:hover { border-color: var(--violet); }
+.fav-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr)); gap: .75rem .6rem; margin-top: .75rem; }
+.fav-pick { position: relative; display: grid; align-content: start; gap: .3rem; min-width: 0; cursor: pointer; }
+.fav-pick input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.fav-pick-cover {
+  position: relative; display: block; aspect-ratio: 3 / 4; overflow: hidden; border: 2px solid var(--border); border-radius: 10px;
+  background: linear-gradient(145deg, #1b1440, #0b2740); transition: border-color .15s, box-shadow .15s;
+}
+.fav-pick-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.fav-pick:hover .fav-pick-cover { border-color: var(--violet); }
+.fav-pick:has(input:focus-visible) .fav-pick-cover { outline: 2px solid var(--cyan); outline-offset: 2px; }
+.fav-pick:has(input:checked) .fav-pick-cover { border-color: var(--violet); box-shadow: var(--glow); }
+/* La marca de elegido: un círculo violeta con su palomita, como en las tiendas. */
+.fav-pick:has(input:checked) .fav-pick-cover::after { content: ""; position: absolute; top: .4rem; right: .4rem; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--violet); box-shadow: 0 0 0 2px rgba(7, 9, 18, .6); }
+.fav-pick:has(input:checked) .fav-pick-cover::before { content: ""; position: absolute; z-index: 1; top: .68rem; right: .89rem; width: .32rem; height: .6rem; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.fav-pick:has(input:disabled) { cursor: not-allowed; opacity: .45; }
+.fav-pick-name { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: .84rem; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.fav-pick-hours { color: var(--muted); font-size: .78rem; }
+.setup-push { padding: 1rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; }
+.setup-push > h2 { margin-bottom: .3rem; }
+.setup-push .device-here { margin-top: .75rem; background: var(--surface); }
+.setup-push .device-install { margin-top: .9rem; }
+.push-devices-line { margin: .6rem 0 0; }
+/* El recordatorio de Inicio, mientras no termines Configurar NextPlay. */
+.setup-reminder { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem 1rem; border-color: rgba(157, 92, 255, .5); background: linear-gradient(90deg, rgba(157, 92, 255, .12), transparent 70%), rgba(14, 18, 34, .88); }
+.setup-reminder h2 { display: flex; align-items: center; gap: .45rem; margin: 0; font-size: 1.05rem; }
+.setup-reminder h2 .icon { width: 1.1rem; height: 1.1rem; color: var(--violet); }
+.setup-reminder p { margin: .2rem 0 0; }
+.setup-reminder-actions { display: flex; align-items: center; gap: .9rem; margin-left: auto; }
+.setup-reminder-actions form { margin: 0; }
+@media (max-width: 640px) {
+  .setup { margin-top: .5rem; }
+  .setup-card { padding: 1rem; }
+  .setup-title { font-size: 1.3rem; }
+  .setup-step a { flex-direction: column; gap: .3rem; padding: .5rem .3rem; font-size: .78rem; text-align: center; }
+  .setup-summary > div { grid-template-columns: minmax(0, 1fr); gap: .15rem; }
+  .setup-actions .btn { flex: 1 1 auto; justify-content: center; text-align: center; }
 }

@@ -1,7 +1,8 @@
 """Vistas de las cuentas vinculadas: vincular, importar y desvincular Steam, PlayStation, Xbox, GOG y Epic Games,
 añadir o quitar las cuentas de otras plataformas y guardar dónde juega cada uno (la pregunta «¿Dónde juegas?»). Se
-pulsan en Editar perfil › Cuentas vinculadas, en el modal «Vincular cuentas» del Perfil y en la tarjeta «Trae tus
-juegos» de Inicio, y lo que importan sale en el Perfil, la Ficha del juego, Juegos importados, Inicio y los retos.
+pulsan en Editar perfil › Cuentas vinculadas, en el modal «Vincular cuentas» del Perfil y en el paso Tus juegos de
+Configurar NextPlay, y lo que importan sale en el Perfil, la Ficha del juego, Juegos importados, Inicio y los retos.
+Steam y Xbox se vinculan iniciando sesión en su web: a la vuelta se va a la página desde la que se empezó (NEXT_KEY).
 """
 
 import logging
@@ -38,25 +39,51 @@ STEAM_PRIVATE_HINT = (
 )
 XBOX_NOT_CONFIGURED = "Todavía no se pueden traer los juegos de Xbox."
 XBOX_DETAIL = "Faltan XBOX_CLIENT_ID y XBOX_CLIENT_SECRET en el archivo .env."
+# Adónde volver tras iniciar sesión en Steam o en Microsoft: la página desde la que se pulsó vincular (su «next»).
+NEXT_KEY = "linking_next"
 logger = logging.getLogger(__name__)
+
+
+def _remember_next(request):
+    """Apunta en la sesión la página desde la que se empieza a vincular Steam o Xbox (el campo «next», si es de esta
+    web), para volver a ella después de iniciar sesión fuera; sin «next», la olvida.
+
+    Pantallas: Configurar NextPlay (Tus juegos), Perfil (modal «Vincular cuentas» de su dueño), Editar perfil (Cuentas
+    vinculadas: Steam y Xbox).
+    """
+    target = request.POST.get("next", "")
+    if target and url_has_allowed_host_and_scheme(target, allowed_hosts={request.get_host()}):
+        request.session[NEXT_KEY] = target
+    else:
+        request.session.pop(NEXT_KEY, None)
+
+
+def _return_after_login(request, default):
+    """Adónde ir al volver de iniciar sesión en Steam o en Microsoft: la página apuntada por _remember_next o, si no
+    hay, default.
+
+    Pantallas: Configurar NextPlay (Tus juegos), Perfil (modal «Vincular cuentas» de su dueño), Editar perfil (Cuentas
+    vinculadas: Steam y Xbox).
+    """
+    return redirect(request.session.pop(NEXT_KEY, None) or default)
 
 
 def _unavailable(request, text, detail):
     """Avisa de que una importación no está disponible: al cliente, con text, sin nombres técnicos; al personal de
     NextPlay (is_staff), también con detail, lo que falta configurar.
 
-    Pantallas: Editar perfil (Cuentas vinculadas: Steam y Xbox), Perfil (modal «Vincular cuentas» de su dueño), Inicio
-    (tarjeta «Trae tus juegos»).
+    Pantallas: Editar perfil (Cuentas vinculadas: Steam y Xbox), Perfil (modal «Vincular cuentas» de su dueño),
+    Configurar NextPlay (Tus juegos).
     """
     messages.error(request, f"{text} {detail}" if request.user.is_staff else text)
 
 
 def linking_context():
-    """Variables que necesitan los paneles de vinculación de cuentas (en Editar perfil, en el modal del perfil y en la
-    tarjeta «Trae tus juegos» de Inicio).
+    """Variables que necesitan los paneles de vinculación de cuentas (en Editar perfil, en el modal del perfil y en el
+    paso Tus juegos de Configurar NextPlay).
 
-    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño), Inicio (tarjeta «Trae
-    tus juegos»).
+    Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño), Configurar NextPlay
+    (Tus juegos).
     """
     return {
         # (clave, nombre, qué abarca) de cada plataforma de la pregunta «¿Dónde juegas?».
@@ -223,14 +250,16 @@ def _import_steam(request, include_unplayed=False):
 def steam_link(request):
     """Manda al usuario a iniciar sesión en Steam para vincular una cuenta más (Steam nunca nos da su contraseña).
 
-    No deja pasar de SteamAccount.MAX_PER_USER cuentas.
+    No deja pasar de SteamAccount.MAX_PER_USER cuentas. Apunta la página desde la que se pulsa (_remember_next) para
+    volver a ella.
 
     Pantallas: Editar perfil (Cuentas vinculadas: botón para vincular Steam), Perfil (modal «Vincular cuentas» de su
-    dueño).
+    dueño), Configurar NextPlay (Tus juegos).
     """
     if request.user.steam_accounts.count() >= SteamAccount.MAX_PER_USER:
         messages.error(request, f"Puedes vincular como mucho {SteamAccount.MAX_PER_USER} cuentas de Steam.")
         return redirect("edit_profile")
+    _remember_next(request)
     state = request.session[STEAM_STATE_KEY] = secrets.token_urlsafe(16)
     return redirect(steam.login_url(_steam_return_to(request, state), request.build_absolute_uri("/")))
 
@@ -240,23 +269,25 @@ def steam_callback(request):
     """Vuelta desde Steam: verifica el inicio de sesión, añade la cuenta a las del usuario e importa sus juegos.
 
     Rechaza la vuelta si el código anti-CSRF no coincide, si Steam no la confirma o si esa cuenta de
-    Steam ya está vinculada a otro usuario. Si ya era suya, solo avisa.
+    Steam ya está vinculada a otro usuario. Si ya era suya, solo avisa. Vuelve a la página desde la que se empezó
+    (_return_after_login): si no se apuntó ninguna, al perfil si ha ido bien y a Editar perfil si no.
 
     Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas;
     insignias de las portadas, cifras y sección «Logros»), Ficha del juego (tus horas; tus logros), Juegos importados
-    (los que no se encuentran), Inicio (feed: la importación), Retos (progreso), Página del reto (progreso).
+    (los que no se encuentran), Inicio (feed: la importación), Retos (progreso), Página del reto (progreso), Configurar
+    NextPlay (Tus juegos).
     """
     expected = request.session.pop(STEAM_STATE_KEY, None)
     if not expected or request.GET.get("state") != expected:
         messages.error(request, "El enlace de Steam ha caducado. Vuelve a intentarlo.")
-        return redirect("edit_profile")
+        return _return_after_login(request, "edit_profile")
     try:
         steam_id = steam.verify_login(request.GET, _steam_return_to(request, expected))
     except steam.SteamError:
         steam_id = None
     if not steam_id:
         messages.error(request, "No se pudo verificar tu cuenta de Steam.")
-        return redirect("edit_profile")
+        return _return_after_login(request, "edit_profile")
 
     account = SteamAccount.objects.filter(steam_id=steam_id).first()
     if account is not None:
@@ -268,27 +299,28 @@ def steam_callback(request):
                 f"La cuenta {account.name} ya estaba vinculada. Para añadir otra, cierra sesión en Steam "
                 "(o pulsa «¿No eres tú?») antes de iniciar sesión.",
             )
-        return redirect("edit_profile")
+        return _return_after_login(request, "edit_profile")
     if request.user.steam_accounts.count() >= SteamAccount.MAX_PER_USER:
         messages.error(request, f"Puedes vincular como mucho {SteamAccount.MAX_PER_USER} cuentas de Steam.")
-        return redirect("edit_profile")
+        return _return_after_login(request, "edit_profile")
 
     account = SteamAccount.objects.create(user=request.user, steam_id=steam_id)
     steam.refresh_account(account)
     messages.success(request, f"Cuenta de Steam vinculada: {account.name}.")
     _import_steam(request)
-    return redirect("profile", username=request.user.username)
+    return _return_after_login(request, reverse("profile", args=[request.user.username]))
 
 
 @require_POST
 @login_required
 def steam_import(request):
-    """Vuelve a importar los juegos de todas las cuentas de Steam vinculadas (con «unplayed» también los no jugados).
+    """Vuelve a importar los juegos de todas las cuentas de Steam vinculadas (con «unplayed» también los no jugados) y
+    vuelve a la página del formulario (campo «next») o, sin ella, al perfil, para ver lo importado.
 
     Pantallas: Editar perfil (Cuentas vinculadas: botón «Importar» de Steam), Perfil (modal «Vincular cuentas» de su
     dueño; biblioteca y horas; insignias de las portadas, cifras y sección «Logros»), Ficha del juego (tus horas; tus
     logros), Juegos importados (los que no se encuentran), Inicio (feed: la importación), Retos (progreso),
-    Página del reto (progreso).
+    Página del reto (progreso), Configurar NextPlay (Tus juegos).
     """
     accounts = list(request.user.steam_accounts.all())
     if not accounts:
@@ -297,7 +329,7 @@ def steam_import(request):
     for account in accounts:
         steam.refresh_account(account)
     _import_steam(request, include_unplayed=bool(request.POST.get("unplayed")))
-    return redirect("profile", username=request.user.username)
+    return _back(request, reverse("profile", args=[request.user.username]))
 
 
 @require_POST
@@ -587,7 +619,7 @@ def play_platforms(request):
     Con HTMX devuelve la pregunta ya contestada (accounts/linking/_where.html) para ponerla en su sitio; sin JavaScript,
     vuelve a la página del formulario (campo «next»).
 
-    Pantallas: Inicio (tarjeta «Trae tus juegos»), Perfil (modal «Vincular cuentas» de su dueño).
+    Pantallas: Perfil (modal «Vincular cuentas» de su dueño).
     """
     picked = set(request.POST.getlist("donde"))
     chosen = [key for key, _, _ in PLAY_PLATFORMS if key in picked]
@@ -662,14 +694,16 @@ def _xbox_redirect_uri(request):
 def xbox_link(request):
     """Manda al usuario a iniciar sesión con su cuenta Microsoft para vincular Xbox o volver a sincronizarla.
 
-    Sirve para las dos cosas porque no se guarda ningún token: cada sincronización pide iniciar sesión.
+    Sirve para las dos cosas porque no se guarda ningún token: cada sincronización pide iniciar sesión. Apunta la página
+    desde la que se pulsa (_remember_next) para volver a ella.
 
     Pantallas: Editar perfil (Cuentas vinculadas: botón para vincular Xbox), Perfil (modal «Vincular cuentas» de su
-    dueño).
+    dueño), Configurar NextPlay (Tus juegos).
     """
     if not xbox.is_configured():
         _unavailable(request, XBOX_NOT_CONFIGURED, XBOX_DETAIL)
         return _back(request, f"{reverse('edit_profile')}#xbox")
+    _remember_next(request)
     state = request.session[XBOX_STATE_KEY] = secrets.token_urlsafe(16)
     return redirect(xbox.login_url(_xbox_redirect_uri(request), state))
 
@@ -680,13 +714,16 @@ def xbox_callback(request):
 
     Si el usuario canceló el inicio de sesión, si el código no coincide o si Xbox Live falla, avisa y
     vuelve a Editar perfil. Después pide los precios de los juegos que nunca los han tenido (_fetch_library_prices).
+    Si se empezó desde otra página (_remember_next), vuelve a ella, vaya bien o mal.
 
     Pantallas: Editar perfil (Cuentas vinculadas), Perfil (modal «Vincular cuentas» de su dueño; biblioteca y horas;
     insignias de las portadas, cifras y sección «Logros»), Ficha del juego (tus horas; tus logros), Juegos importados
-    (los que no se encuentran), Inicio (feed: la importación), Retos (progreso), Página del reto (progreso).
+    (los que no se encuentran), Inicio (feed: la importación), Retos (progreso), Página del reto (progreso), Configurar
+    NextPlay (Tus juegos).
     """
     expected = request.session.pop(XBOX_STATE_KEY, None)
-    back = f"{reverse('edit_profile')}#xbox"
+    remembered = request.session.pop(NEXT_KEY, None)
+    back = remembered or f"{reverse('edit_profile')}#xbox"
     if request.GET.get("error"):
         messages.error(request, "Has cancelado el inicio de sesión con Microsoft.")
         return redirect(back)
@@ -710,7 +747,7 @@ def xbox_callback(request):
         text += f", {updated} con horas actualizadas"
     text += _achievements_note(result.get("achievements"))
     messages.success(request, _with_unmatched(text, result["unmatched"]))
-    return redirect("profile", username=request.user.username)
+    return redirect(remembered or reverse("profile", args=[request.user.username]))
 
 
 @require_POST

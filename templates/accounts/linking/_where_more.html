@@ -1,0 +1,21 @@
+{# «Otras formas» de traer los juegos, plegadas: un archivo de Playnite o CSV, Epic con un código (si no está ya #}
+{# vinculado) y las cuentas de otras plataformas. Necesita profile, next y las variables de linking_context. #}
+<details class="where-more">
+  <summary>Otras formas <span class="muted small">· un archivo de Playnite o CSV{% if not profile.epic %}, Epic con un código{% endif %} y tus cuentas de otras plataformas</span></summary>
+  <section class="link-block">
+    <h3>{% include "_icon.html" with name="list" %} Desde un archivo <span class="link-status">Playnite o CSV</span></h3>
+    {% include "accounts/linking/_file.html" %}
+  </section>
+  {% if not profile.epic %}
+    <section class="link-block">
+      <h3>{% include "games/shop_icons/epic.svg" %} Epic Games con un código</h3>
+      {% include "accounts/linking/_epic.html" %}
+    </section>
+  {% endif %}
+  <section class="link-block">
+    <h3>Tus cuentas de otras plataformas
+      <span class="link-status">{% with n=profile.platforms|length %}{% if n %}{{ n }} añadida{{ n|pluralize }}{% else %}Ninguna{% endif %}{% endwith %}</span>
+    </h3>
+    {% include "accounts/linking/_platforms.html" %}
+  </section>
+</details>

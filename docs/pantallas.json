@@ -4,7 +4,7 @@
     {
       "nombre": "Inicio",
       "urls": ["home", "social:feed"],
-      "que_es": "La portada (/). Con sesión: tu resumen y tu menú a la izquierda; mientras tu biblioteca esté vacía, arriba del todo la tarjeta «Trae tus juegos» (la pregunta «¿Dónde juegas?» y la forma recomendada de traerlos de cada sitio), y después la caja para publicar y el feed (pestañas «Siguiendo» y «Descubrir», con «Cargar más») en el centro y los juegos en tendencia, «A quién seguir» y los géneros a la derecha. Sin sesión: la bienvenida, los juegos populares y lo último de la comunidad."
+      "que_es": "La portada (/). Con sesión: tu resumen y tu menú a la izquierda; mientras no termines Configurar NextPlay, arriba del todo un recordatorio para seguir donde lo dejaste (o decir que no te hace falta), y después la caja para publicar y el feed (pestañas «Siguiendo» y «Descubrir», con «Cargar más») en el centro y los juegos en tendencia, «A quién seguir» y los géneros a la derecha. Sin sesión: la bienvenida, los juegos populares y lo último de la comunidad."
     },
     {
       "nombre": "Catálogo",
@@ -144,7 +144,7 @@
     {
       "nombre": "Editar perfil",
       "urls": ["edit_profile", "profile_preview", "banner_arts"],
-      "que_es": "Tu configuración: datos, apariencia (foto, cabecera —también «Lo que estoy jugando», que sigue sola al juego al que juegas—, fondo, color —que puede salir de la cabecera—, diseño y su encuadre), escaparate, redes, privacidad y avisos (por cada tipo, en la campana, como notificación y, algunos, por correo), los avisos en el móvil y el ordenador (activarlos en este dispositivo, mandar una prueba, la lista de tus dispositivos e instalar NextPlay), tiendas en las que compras y cuentas vinculadas (Steam, Xbox, PlayStation, GOG, que se lee del perfil público cada noche, Epic Games, con el código de inicio de sesión que se pega cada vez, otras plataformas, «Desde un archivo», que lleva a Importar desde un archivo, y Playnite, con el código y la descarga de la extensión NextPlay Sync, que manda sola la biblioteca), con la vista previa del perfil en directo."
+      "que_es": "Tu configuración: datos, apariencia (foto, cabecera —también «Lo que estoy jugando», que sigue sola al juego al que juegas—, fondo, color —que puede salir de la cabecera—, diseño y su encuadre), escaparate, redes, privacidad y avisos (por cada tipo, en la campana, como notificación y, algunos, por correo), los avisos en el móvil y el ordenador (activarlos en este dispositivo, mandar una prueba, la lista de tus dispositivos e instalar NextPlay), tiendas en las que compras (las principales con su logo y las demás plegadas) y cuentas vinculadas (Steam, Xbox, PlayStation, GOG, que se lee del perfil público cada noche, Epic Games, con el código de inicio de sesión que se pega cada vez, otras plataformas, «Desde un archivo», que lleva a Importar desde un archivo, y Playnite, con el código y la descarga de la extensión NextPlay Sync, que manda sola la biblioteca), con la vista previa del perfil en directo. Arriba, el enlace a Configurar NextPlay, para repasarlo paso a paso."
     },
     {
       "nombre": "Juegos importados",
@@ -159,7 +159,12 @@
     {
       "nombre": "Registro",
       "urls": ["signup"],
-      "que_es": "«Crear cuenta»: el formulario de registro. Al crear la cuenta lleva a Inicio, que empieza por la tarjeta «Trae tus juegos»."
+      "que_es": "«Crear cuenta»: el formulario de registro. Al crear la cuenta lleva a Configurar NextPlay."
+    },
+    {
+      "nombre": "Configurar NextPlay",
+      "urls": ["setup", "setup_games", "setup_shops", "setup_profile", "setup_done"],
+      "que_es": "Lo primero tras crear la cuenta (/cuenta/configurar/), en cuatro pasos con su barra arriba: Dónde juegas (las plataformas), Tus juegos (la forma recomendada de traerlos, con sus horas, de cada sitio en el que juegas, como en Vincular cuentas, y cuántos tienes ya), Dónde compras (las tiendas de las que quieres precios, historial y avisos, marcadas de entrada según dónde juegas, y si quieres las bajadas de tu lista de deseos también por correo) y Tu perfil (tu foto: la de Steam, PlayStation o Xbox, una tuya o tu inicial; tu nombre, con los de tus cuentas a un clic; unas líneas sobre ti; hasta cinco favoritos entre los juegos que más has jugado, y los avisos en el móvil o el ordenador desde el que estás). El final, Listo, resume lo que ha quedado, propone gente a la que seguir que juega a lo mismo que tú (con los juegos que tenéis en común; si aún no tienes juegos, la más activa) y lleva a Inicio. Cada paso se puede saltar, y todo se puede repasar cuando quieras desde Editar perfil."
     },
     {
       "nombre": "Iniciar sesión",

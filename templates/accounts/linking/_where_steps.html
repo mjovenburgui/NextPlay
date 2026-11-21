@@ -1,0 +1,68 @@
+{# Un paso plegable por cada sitio en el que juega (Profile.where_steps), con lo que trae y la forma recomendada de #}
+{# traer sus juegos: desplegado solo el siguiente que falta. Debajo, «Otras formas» (_where_more.html). Va en la ventana #}
+{# «Vincular cuentas» del perfil (_where.html) y en el paso Tus juegos de Configurar NextPlay. Necesita profile, next #}
+{# (adónde vuelven los formularios) y las variables de accounts.views.linking_context. #}
+{% for key, done, is_open in profile.where_steps %}
+  <details class="link-block where-block{% if done %} is-done{% endif %}" id="donde-{{ key }}"{% if is_open %} open{% endif %}>
+    {% if key == "steam" %}
+      <summary><h3>{% include "games/shop_icons/steam.svg" %} Steam
+        <span class="link-status">{% if done %}{% include "_icon.html" with name="check" %}{% with n=profile.steam_accounts|length %}{{ n }} cuenta{{ n|pluralize }}{% endwith %}{% else %}Sin vincular{% endif %}</span>
+      </h3></summary>
+      <ul class="where-brings" aria-label="Qué trae"><li>Horas</li><li>Logros</li><li>Lista de deseos</li><li class="where-when">{% include "_icon.html" with name="clock" %} Cada noche</li></ul>
+      {% include "accounts/linking/_steam.html" %}
+
+    {% elif key == "pc" %}
+      <summary><h3>{% include "_icon.html" with name="monitor" %} Otras tiendas de PC
+        <span class="link-status">{% if done %}{% include "_icon.html" with name="check" %}Vinculadas{% else %}Sin vincular{% endif %}</span>
+      </h3></summary>
+      <p class="muted small where-lead">Según dónde compres: puedes usar las dos.</p>
+      <details class="where-option"{% if profile.playnite or not done %} open{% endif %}>
+        <summary><strong>Epic, EA, Ubisoft, Battle.net, Amazon y GOG</strong> <span class="muted">con Playnite</span>
+          <span class="link-status">{% if profile.playnite %}Vinculado{% else %}Recomendado{% endif %}</span></summary>
+        <ul class="where-brings" aria-label="Qué trae"><li>Horas</li><li class="where-when">{% include "_icon.html" with name="clock" %} Cada día y con cada partida</li></ul>
+        {% include "accounts/linking/_playnite.html" %}
+      </details>
+      <details class="where-option"{% if profile.gog %} open{% endif %}>
+        <summary><strong>Solo GOG</strong> <span class="muted">sin instalar nada</span>
+          <span class="link-status">{% if profile.gog %}{{ profile.gog.username }}{% endif %}</span></summary>
+        <ul class="where-brings" aria-label="Qué trae"><li>Horas</li><li class="where-when">{% include "_icon.html" with name="clock" %} Cada noche</li></ul>
+        {% include "accounts/linking/_gog.html" %}
+      </details>
+      {% if profile.epic %}
+        <details class="where-option" open>
+          <summary><strong>Epic Games</strong> <span class="muted">con un código</span>
+            <span class="link-status">{{ profile.epic.name }}</span></summary>
+          {% include "accounts/linking/_epic.html" %}
+        </details>
+      {% endif %}
+
+    {% elif key == "playstation" %}
+      <summary><h3>{% include "games/shop_icons/playstation.svg" %} PlayStation
+        <span class="link-status">{% if done %}{% include "_icon.html" with name="check" %}{{ profile.psn.name }}{% else %}Sin vincular{% endif %}</span>
+      </h3></summary>
+      <ul class="where-brings" aria-label="Qué trae"><li>Horas de PS4 y PS5</li><li>Trofeos</li><li class="where-when">{% include "_icon.html" with name="clock" %} Cuando pegas un código nuevo</li></ul>
+      {% include "accounts/linking/_psn.html" %}
+
+    {% elif key == "xbox" %}
+      <summary><h3>{% include "games/shop_icons/xbox.svg" %} Xbox
+        <span class="link-status">{% if profile.xbox %}{% include "_icon.html" with name="check" %}{{ profile.xbox.name }}{% elif not xbox_configured %}{% if done %}{% include "_icon.html" with name="check" %}{{ profile.shown_accounts.xbox.handle }}{% else %}Pronto{% endif %}{% else %}Sin vincular{% endif %}</span>
+      </h3></summary>
+      {% if xbox_configured or profile.xbox %}
+        <ul class="where-brings" aria-label="Qué trae"><li>Horas</li><li>Logros</li><li class="where-when">{% include "_icon.html" with name="clock" %} Cuando vuelves a entrar</li></ul>
+        {% include "accounts/linking/_xbox.html" %}
+      {% else %}
+        <p class="muted">Pronto podrás traer tus juegos de Xbox con sus horas. Mientras, apúntalos a mano en el <a href="{% url 'games:catalog' %}">catálogo</a> y pon tu gamertag en tu perfil para que te encuentren.</p>
+        {% include "accounts/linking/_handle_form.html" with platform="xbox" account=profile.shown_accounts.xbox %}
+        {% if user.is_staff %}<p class="help">Para el equipo de NextPlay: faltan XBOX_CLIENT_ID y XBOX_CLIENT_SECRET en el archivo .env.</p>{% endif %}
+      {% endif %}
+
+    {% elif key == "switch" %}
+      <summary><h3>{% include "games/shop_icons/nintendo.svg" %} Nintendo Switch
+        <span class="link-status">{% if done %}{% include "_icon.html" with name="check" %}En tu perfil{% else %}A mano{% endif %}</span>
+      </h3></summary>
+      <p class="muted">Nintendo no deja leer desde fuera tus juegos ni tus horas, así que todavía no se pueden traer. Apúntalos a mano en el <a href="{% url 'games:catalog' %}">catálogo</a> y pon tu código de amigo en tu perfil para que te encuentren.</p>
+      {% include "accounts/linking/_handle_form.html" with platform="nintendo" account=profile.shown_accounts.nintendo %}
+    {% endif %}
+  </details>
+{% endfor %}
+{% include "accounts/linking/_where_more.html" %}

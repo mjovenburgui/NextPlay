@@ -1,0 +1,20 @@
+{% extends "accounts/setup/base.html" %}
+
+{% block step %}
+  {# Paso 2 (accounts.views.setup_games): la forma recomendada de traer los juegos de cada sitio en el que juega, como en Vincular cuentas (_where_steps.html), con los formularios volviendo aquí. #}
+  <h1 class="setup-title" id="setup-title">Trae tus juegos</h1>
+  <p class="setup-lead">Con sus horas y sus logros: así NextPlay sabe cuánto has jugado, qué tienes pendiente y por cuál seguir. Puedes hacerlo ahora o cuando quieras.</p>
+  {% if game_count %}
+    <p class="setup-status">{% include "_icon.html" with name="check" %} Ya tienes <strong>{{ game_count }} juego{{ game_count|pluralize }}</strong> en tu biblioteca.</p>
+  {% endif %}
+  {% if profile.where_you_play %}
+    <div class="where setup-where">{% include "accounts/linking/_where_steps.html" %}</div>
+  {% else %}
+    <p class="setup-hint">Aún no nos has dicho dónde juegas. <a href="{% url 'setup' %}">Elígelo</a> y te enseñamos la forma más fácil de traerlos de cada sitio.</p>
+    <div class="where setup-where">{% include "accounts/linking/_where_more.html" %}</div>
+  {% endif %}
+  <div class="setup-actions">
+    <a class="btn" href="{{ back_url }}">Atrás</a>
+    <a class="btn btn-primary" href="{{ next_url }}">{% if game_count %}Seguir{% else %}Saltar por ahora{% endif %}</a>
+  </div>
+{% endblock %}
