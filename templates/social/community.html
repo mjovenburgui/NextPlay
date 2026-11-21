@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Comunidad de {{ game.name }} · NextPlay{% endblock %}
+{% block description %}Hilos, preguntas y publicaciones sobre {{ game.name }} en NextPlay, con las horas de quien escribe y plegado lo que va por delante de lo que llevas jugado.{% endblock %}
+{# Va en el contenedor ancho para llevar «Lo que llevas» a la derecha en las pantallas grandes. #}
+{% block container_class %} container-wide{% endblock %}
+
+{% block content %}
+  {# La comunidad de un juego (social.community.community): lo que se publica sobre él, sus hilos y sus preguntas, por su última actividad y con sus pestañas. #}
+  {# Arriba, abrir un hilo, preguntar o publicar; a la derecha (debajo en el móvil), «Lo que llevas», que explica qué se te pliega. #}
+  {% include "social/_community_head.html" with active_tab="comunidad" %}
+  <div class="community-layout">
+    <div class="community-main">
+      <div class="community-bar">
+        <nav class="chip-links" aria-label="Qué enseñar">
+          {% for label, url, active, count in tabs %}
+            <a class="chip-link{% if active %} is-active{% endif %}" href="{{ url }}"{% if active %} aria-current="true"{% endif %}>{{ label }} <span class="muted">{{ count }}</span></a>
+          {% endfor %}
+        </nav>
+        {% if user.is_authenticated %}
+          <div class="community-new">
+            <a class="btn btn-primary" href="{% url 'social:thread_new' game.slug %}">{% include "_icon.html" with name="plus" %} Abrir un hilo</a>
+            <a class="btn" href="{% url 'social:thread_new' game.slug %}?tipo=pregunta">Preguntar</a>
+            <a class="btn" href="{% url 'social:post_new' %}?juego={{ game.pk }}">{% include "_icon.html" with name="image" %} Publicar</a>
+          </div>
+        {% endif %}
+      </div>
+      {% if posts or pinned %}
+        <div class="card-box"><ol class="activities community-list">{% include "social/_community_items.html" %}</ol></div>
+      {% else %}
+        <div class="empty community-empty">
+          <p>{% if tab == "hilos" %}Aún no hay hilos de {{ game.name }}.{% elif tab == "preguntas" %}Aún nadie ha preguntado nada de {{ game.name }}.{% elif tab == "imagenes" %}Aún nadie ha subido imágenes de {{ game.name }}.{% else %}Aún nadie ha escrito sobre {{ game.name }}.{% endif %}</p>
+          {% if user.is_authenticated %}
+            <p>Abre el primer hilo o pregunta lo que quieras saber: junto a lo que escribas saldrán tus horas, y lo que destripe se plegará a quien vaya por detrás.</p>
+          {% else %}
+            <p><a href="{% url 'login' %}?next={{ request.path|urlencode }}">Inicia sesión</a> para abrir el primer hilo.</p>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+    <aside class="community-side">
+      {% include "social/_reader_card.html" %}
+    </aside>
+  </div>
+{% endblock %}

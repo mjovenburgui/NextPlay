@@ -14,12 +14,27 @@
     {
       "nombre": "Ficha del juego",
       "urls": ["games:detail", "games:prices", "games:price_history", "games:media", "games:details", "games:addons", "game_achievements", "social:game_posts"],
-      "que_es": "La página de cada juego: cabecera con su arte, datos (y de qué juego es remake, DLC…) y notas (crítica, jugadores de IGDB y comunidad), lo que ha hecho con el juego la gente que sigues, cuánto dura, tu biblioteca (estado, nota, reseña, lista de deseos, tu primera partida y tus sesiones), favoritos y «Añadir a una lista», tus horas y tus logros (los de Steam y los trofeos de PlayStation, uno a uno), la ficha técnica (estudio, editora, modos, temas, saga, PEGI…), el carrusel de imágenes y vídeos, «Dónde comprarlo» con su historial de precios, «Expansiones y DLC» (cada uno con su precio y su propia ficha), «Ediciones y versiones» (ediciones, remakes, ports y recopilatorios), juegos parecidos, las reseñas (las de la gente que sigues, primero), las publicaciones de la comunidad sobre el juego (todas o solo las que llevan imágenes, que llegan al bajar hasta ellas) y las listas en las que sale. La ficha de una edición lleva a la de su juego."
+      "que_es": "La página de cada juego: cabecera con su arte y, debajo, la barra Ficha · Comunidad · Listas, datos (y de qué juego es remake, DLC…) y notas (crítica, jugadores de IGDB y comunidad), lo que ha hecho con el juego la gente que sigues, cuánto dura, tu biblioteca (estado, nota, reseña, lista de deseos, tu primera partida y tus sesiones), favoritos y «Añadir a una lista», tus horas y tus logros (los de Steam y los trofeos de PlayStation, uno a uno, con «¿Cómo se consigue?» en los que te faltan), la ficha técnica (estudio, editora, modos, temas, saga, PEGI…), el carrusel de imágenes y vídeos, «Dónde comprarlo» con su historial de precios, «Expansiones y DLC» (cada uno con su precio y su propia ficha), «Ediciones y versiones» (ediciones, remakes, ports y recopilatorios), juegos parecidos, las reseñas (las de la gente que sigues, primero), lo último de su comunidad (publicaciones, hilos y preguntas, que llega al bajar hasta ello) y las listas en las que sale. La ficha de una edición lleva a la de su juego."
     },
     {
       "nombre": "Listas del juego",
       "urls": ["lists:game"],
-      "que_es": "Todas las listas en las que está un juego («Ver todas» desde su ficha)."
+      "que_es": "Todas las listas en las que está un juego («Ver todas» desde su ficha y la pestaña Listas de su barra Ficha · Comunidad · Listas), con su carátula y su nombre arriba."
+    },
+    {
+      "nombre": "Comunidad del juego",
+      "urls": ["social:community"],
+      "que_es": "La pestaña Comunidad de cada juego (/juegos/<juego>/comunidad/), en la barra Ficha · Comunidad · Listas de debajo de su cabecera: lo que la gente publica sobre él, sus hilos y sus preguntas, de lo que tiene actividad más reciente a lo que menos, con las pestañas Todo, Hilos, Preguntas y Con imágenes y «Cargar más». Lo fijado por un administrador va arriba. Cada hilo dice quién lo abrió y cómo iba con el juego (sus horas importadas, si lo terminó y su insignia de logros), cuántas respuestas tiene, si es una pregunta resuelta y si va por delante de lo que llevas. Arriba, «Abrir un hilo», «Preguntar» y «Publicar»; a la derecha, «Lo que llevas»: tus horas y qué se te pliega por ir por detrás."
+    },
+    {
+      "nombre": "Hilo o pregunta",
+      "urls": ["social:thread"],
+      "que_es": "Un hilo o una pregunta de la comunidad de un juego (/juegos/<juego>/comunidad/<id>/): su título, quién lo abrió y cómo iba con el juego, el logro por el que pregunta (en los «¿Cómo se consigue?»), el texto y las imágenes, sus «me gusta», guardar, copiar el enlace, borrar o denunciar, y sus respuestas, cada una con las horas de quien la escribe, la cita de la que contesta y «Lo tiene» si tiene ese logro. Lo que va por delante de lo que llevas jugado sale plegado, diciendo por qué. En las preguntas, quien pregunta marca «Me ha servido» en la respuesta que le ha servido, que sale la primera."
+    },
+    {
+      "nombre": "Nuevo hilo o pregunta",
+      "urls": ["social:thread_new"],
+      "que_es": "Abrir un hilo o hacer una pregunta en la comunidad de un juego (/juegos/<juego>/comunidad/nuevo/): el tipo, el título, el texto si se quiere, imágenes, si todo es un spoiler y hasta qué logro destripa (de los que tienes de ese juego). Desde «¿Cómo se consigue?» de «Tus logros» llega ya como pregunta, con su logro y su título."
     },
     {
       "nombre": "Perfil",
@@ -49,7 +64,7 @@
     {
       "nombre": "Página de la publicación",
       "urls": ["social:post"],
-      "que_es": "Una publicación entera: su autor, el juego, el texto, las imágenes, los «me gusta», los comentarios y los botones de guardar, borrar y denunciar."
+      "que_es": "Una publicación entera: su autor, el juego, el texto, las imágenes, los «me gusta», los comentarios y los botones de guardar, borrar y denunciar. Los hilos y las preguntas tienen su página en la comunidad de su juego (Hilo o pregunta), y su dirección de publicación lleva a ella."
     },
     {
       "nombre": "Guardados",
@@ -124,7 +139,7 @@
     {
       "nombre": "Avisos",
       "urls": ["notifications"],
-      "que_es": "La campana de la barra de arriba: tus avisos (bajadas de precio, seguidores nuevos, «me gusta», comentarios, invitaciones a listas...). Si aún no los recibes en ningún dispositivo, dónde activarlos para que te lleguen al móvil o al ordenador."
+      "que_es": "La campana de la barra de arriba: tus avisos (bajadas de precio, seguidores nuevos, «me gusta», comentarios, respuestas en tus hilos y preguntas, invitaciones a listas...). Si aún no los recibes en ningún dispositivo, dónde activarlos para que te lleguen al móvil o al ordenador."
     },
     {
       "nombre": "Editar perfil",

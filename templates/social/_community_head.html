@@ -1,0 +1,14 @@
+{# Cabecera de las páginas de la comunidad de un juego y de sus listas: su carátula pequeña y su nombre, con enlace a la ficha, y debajo la barra Ficha · Comunidad · Listas (games/_tabs.html). #}
+{# Necesita game, active_tab, community_count y lists_count. Con subpage (un hilo, abrir uno), el nombre del juego no es el título de la página. #}
+<header class="community-head">
+  <a class="community-cover" href="{{ game.get_absolute_url }}" tabindex="-1" aria-hidden="true">{% if game.cover_url %}<img src="{{ game.cover_url }}" alt="">{% endif %}</a>
+  <div class="community-name">
+    <p class="community-eyebrow">{% if active_tab == "listas" %}Listas con{% else %}Comunidad de{% endif %}</p>
+    {% if subpage %}
+      <p class="community-game"><a href="{{ game.get_absolute_url }}">{{ game.name }}</a></p>
+    {% else %}
+      <h1 class="community-game"><a href="{{ game.get_absolute_url }}">{{ game.name }}</a></h1>
+    {% endif %}
+  </div>
+</header>
+{% include "games/_tabs.html" %}

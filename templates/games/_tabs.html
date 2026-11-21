@@ -1,0 +1,7 @@
+{# Barra de las páginas de un juego, debajo de su cabecera: su Ficha, su Comunidad y sus Listas, con cuántas cosas puede ver quien mira en las dos últimas. #}
+{# Necesita game, active_tab («ficha», «comunidad» o «listas»), community_count y lists_count. Con subpage (un hilo, abrir uno), la pestaña se marca pero no es la página. #}
+<nav class="tabs game-tabs" aria-label="Secciones de {{ game.name }}">
+  <a class="tab{% if active_tab == 'ficha' %} is-active{% endif %}" href="{{ game.get_absolute_url }}"{% if active_tab == 'ficha' %} aria-current="page"{% endif %}>Ficha</a>
+  <a class="tab{% if active_tab == 'comunidad' %} is-active{% endif %}" href="{% url 'social:community' game.slug %}"{% if active_tab == 'comunidad' and not subpage %} aria-current="page"{% endif %}>Comunidad <span>{{ community_count }}</span></a>
+  <a class="tab{% if active_tab == 'listas' %} is-active{% endif %}" href="{% url 'lists:game' game.slug %}"{% if active_tab == 'listas' %} aria-current="page"{% endif %}>Listas <span>{{ lists_count }}</span></a>
+</nav>

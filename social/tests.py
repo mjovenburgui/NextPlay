@@ -20,7 +20,7 @@ from games.models import Game, Genre
 from library.models import LibraryEntry, Report, Review, WishlistItem
 from lists.models import GameList
 
-from . import activity, affinity
+from . import activity, affinity, community
 from .models import Activity, Follow, Post, PostComment, PostImage, PostLike, SavedPost
 
 User = get_user_model()
@@ -740,7 +740,7 @@ class PostPagesTests(TestCase):
         self.make_private(self.ana)
         self.assertEqual(self.client.get(more, HTTP_HX_REQUEST="true").status_code, 404)
 
-    def test_game_page_loads_its_posts_when_reached(self):
+    def test_game_page_shows_the_latest_of_its_community(self):
         Post.objects.create(user=self.ana, text="Sin imágenes", game=self.hades)
         pictured = Post.objects.create(user=self.luis, text="Con captura", game=self.hades)
         PostImage.objects.create(post=pictured, igdb_image_id="sc6abc", position=0)
@@ -751,27 +751,30 @@ class PostPagesTests(TestCase):
         Post.objects.create(user=hidden, text="Secreta", game=self.hades)
 
         response = self.client.get(self.hades.get_absolute_url())
-        self.assertContains(response, 'Publicaciones <span class="muted">2</span>')
+        self.assertContains(response, 'Comunidad <span class="muted">2</span>')
+        self.assertContains(response, "Comunidad <span>2</span>")  # en la barra Ficha · Comunidad · Listas
         url = reverse("social:game_posts", args=["hades"])
         self.assertContains(response, f'hx-get="{url}" hx-trigger="intersect once"')
-        self.assertNotContains(response, "Sin imágenes")  # llegan después, con HTMX
-        self.assertRedirects(self.client.get(url), f"{self.hades.get_absolute_url()}#publicaciones", fetch_redirect_response=False)
+        self.assertNotContains(response, "Sin imágenes")  # llega después, con HTMX
+        community_url = reverse("social:community", args=["hades"])
+        self.assertRedirects(self.client.get(url), community_url, fetch_redirect_response=False)
         response = self.client.get(url, HTTP_HX_REQUEST="true")
         self.assertEqual([post.text for post in response.context["posts"]], ["Con captura", "Sin imágenes"])
-        self.assertContains(response, 'Con imágenes <span class="muted">1</span>')
         # En su propia ficha no se repite el juego, pero sí quién la ha publicado.
         self.assertNotContains(response, 'class="activity-game"')
         self.assertContains(response, 'class="activity-author"')
-        response = self.client.get(url, {"imagenes": "1"}, HTTP_HX_REQUEST="true")
+        self.assertNotContains(response, "Ver toda la comunidad")  # caben las dos
+        # Las que llevan imágenes tienen su pestaña en la comunidad.
+        response = self.client.get(community_url, {"ver": "imagenes"})
         self.assertEqual([post.text for post in response.context["posts"]], ["Con captura"])
         # La del perfil privado solo la ve su autora.
         self.client.force_login(hidden)
-        self.assertContains(self.client.get(self.hades.get_absolute_url()), 'Publicaciones <span class="muted">3</span>')
+        self.assertContains(self.client.get(self.hades.get_absolute_url()), 'Comunidad <span class="muted">3</span>')
 
     def test_empty_game_page_says_so(self):
         celeste = Game.objects.create(name="Celeste", slug="celeste")
         response = self.client.get(celeste.get_absolute_url())
-        self.assertContains(response, "Aún nadie ha publicado sobre Celeste.")
+        self.assertContains(response, "Aún nadie ha escrito sobre Celeste.")
         self.assertNotContains(response, reverse("social:game_posts", args=["celeste"]))
 
     def test_saving_posts(self):
@@ -1076,3 +1079,286 @@ class AffinityTests(TestCase):
         response = self.client.get(reverse("home"))
         self.assertEqual(response.context["who_to_follow"], [])
         self.assertNotContains(response, "A quién seguir")
+
+
+class CommunityTests(TestCase):
+    """La comunidad de cada juego: sus pestañas, los hilos y las preguntas con sus respuestas, lo que se pliega según lo
+    que lleva jugado quien lee, «Me ha servido», «¿Cómo se consigue?» y sus avisos."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.ana = User.objects.create_user("ana", "ana@example.com", "x")
+        cls.luis = User.objects.create_user("luis", "luis@example.com", "x")
+        cls.eva = User.objects.create_user("eva", "eva@example.com", "x")
+        cls.hades = Game.objects.create(name="Hades", slug="hades")
+        cls.title = ExternalTitle.objects.create(platform="steam", external_id="1145360", name="Hades", game=cls.hades)
+        cls.chapter = Achievement.objects.create(title=cls.title, api_name="CH5", name="Capítulo 5", percent=40, position=5)
+        cls.ending = Achievement.objects.create(
+            title=cls.title, api_name="END", name="El final", percent=3, position=9, hidden=True,
+        )
+
+    def play(self, user, hours, status=LibraryEntry.Status.PLAYING):
+        """user tiene Hades en su biblioteca con hours horas importadas de Steam."""
+        LibraryEntry.objects.update_or_create(
+            user=user, game=self.hades, defaults={"status": status, "steam_playtime_minutes": hours * 60},
+        )
+
+    def unlock(self, user, achievement):
+        """user tiene achievement, leído de Steam uno a uno."""
+        imported, _ = ImportedTitle.objects.get_or_create(user=user, title=self.title, defaults={"minutes": 600})
+        UnlockedAchievement.objects.create(imported=imported, achievement=achievement, unlocked_at=timezone.now())
+
+    def thread(self, user, title="¿Merece la pena el modo difícil?", kind=Post.Kind.THREAD, **fields):
+        """Un hilo (o una pregunta) de user en Hades, con cómo iba al escribirlo."""
+        post = Post(user=user, game=self.hades, kind=kind, title=title, **fields)
+        post.take_snapshot(user, self.hades)
+        post.save()
+        return post
+
+    def reply(self, user, post, text="Sí, merece la pena.", htmx=False, **data):
+        self.client.force_login(user)
+        headers = {"HTTP_HX_REQUEST": "true"} if htmx else {}
+        return self.client.post(reverse("social:thread_reply", args=[post.pk]), {"text": text, **data}, **headers)
+
+    def test_threads_and_questions_live_in_the_game_community(self):
+        self.play(self.ana, 10)
+        self.client.force_login(self.ana)
+        new = reverse("social:thread_new", args=["hades"])
+        self.assertContains(self.client.get(new, {"tipo": "pregunta"}), "Preguntar")
+        response = self.client.post(new, {"kind": "thread", "title": "  ", "text": "Sin título no vale"})
+        self.assertContains(response, "Ponle un título")
+        response = self.client.post(new, {"kind": "thread", "title": "Builds para el jefe final", "text": ""})
+        thread = Post.objects.get(title="Builds para el jefe final")
+        self.assertRedirects(response, thread.get_absolute_url(), fetch_redirect_response=False)
+        self.assertEqual(thread.get_absolute_url(), f"/juegos/hades/comunidad/{thread.pk}/")
+        self.assertEqual((thread.kind, thread.game, thread.hours, thread.status), ("thread", self.hades, 10, "playing"))
+        self.assertTrue(Activity.objects.filter(post=thread).exists())  # sale en el feed de quien la sigue
+        self.client.post(new, {"kind": "question", "title": "¿Cuánto dura?"})
+        Post.objects.create(user=self.luis, game=self.hades, text="Mi primera escapada")
+        hidden = User.objects.create_user("oculta", "oculta@example.com", "x")
+        Profile.objects.filter(user=hidden).update(is_public=False)
+        Post.objects.create(user=hidden, game=self.hades, kind=Post.Kind.THREAD, title="Secreto")
+
+        url = reverse("social:community", args=["hades"])
+        response = self.client.get(url)
+        self.assertEqual(
+            [post.title or post.text for post in response.context["posts"]],
+            ["Mi primera escapada", "¿Cuánto dura?", "Builds para el jefe final"],
+        )
+        self.assertEqual([(label, count) for label, _, _, count in response.context["tabs"]], [
+            ("Todo", 3), ("Hilos", 1), ("Preguntas", 1), ("Con imágenes", 0),
+        ])
+        self.assertContains(response, 'class="thread-kind is-question">Pregunta')
+        self.assertContains(response, "Sin resolver")
+        self.assertContains(response, "Comunidad <span>3</span>")
+        self.assertEqual([post.title for post in self.client.get(url, {"ver": "hilos"}).context["posts"]], [
+            "Builds para el jefe final",
+        ])
+        self.assertEqual([post.title for post in self.client.get(url, {"ver": "preguntas"}).context["posts"]], [
+            "¿Cuánto dura?",
+        ])
+        # Lo de un perfil privado solo lo ve su dueña.
+        self.client.force_login(hidden)
+        self.assertEqual(len(self.client.get(url).context["posts"]), 4)
+        # Su vieja dirección de publicación lleva al hilo, y en el feed sale con su título y sin su texto.
+        self.client.force_login(self.luis)
+        Follow.objects.follow(self.luis, self.ana)
+        old = reverse("social:post", args=["ana", thread.pk])
+        self.assertRedirects(self.client.get(old), thread.get_absolute_url(), fetch_redirect_response=False)
+        feed = self.client.get(reverse("home"))
+        self.assertContains(feed, "abrió un hilo")
+        self.assertContains(feed, 'class="thread-card-title"')
+        # La comunidad de una edición es la de su juego.
+        Game.objects.create(name="Hades GOTY", slug="hades-goty", parent=self.hades)
+        self.assertRedirects(self.client.get(reverse("social:community", args=["hades-goty"])), url)
+
+    def test_replies_quote_bump_the_thread_and_notify(self):
+        thread = self.thread(self.ana)
+        before = Post.objects.get(pk=thread.pk).last_activity_at
+        self.play(self.luis, 20)
+        response = self.reply(self.luis, thread)
+        first = PostComment.objects.get()
+        self.assertRedirects(response, f"{thread.get_absolute_url()}#respuesta-{first.pk}", fetch_redirect_response=False)
+        self.assertEqual(first.hours, 20)
+        self.assertGreater(Post.objects.get(pk=thread.pk).last_activity_at, before)
+        notice = Notification.objects.get(user=self.ana)
+        self.assertEqual((notice.kind, notice.actor), (Notification.Kind.THREAD_REPLY, self.luis))
+        self.assertEqual(notice.text, "luis ha respondido en tu hilo «¿Merece la pena el modo difícil?».")
+        # Eva contesta a luis: avisa a ana, por su hilo, y a luis, por su respuesta.
+        self.reply(self.eva, thread, "No estoy de acuerdo.", reply_to=first.pk)
+        self.assertEqual(Notification.objects.get(user=self.luis).kind, Notification.Kind.REPLY)
+        self.assertEqual(Notification.objects.filter(user=self.ana, actor=self.eva).count(), 1)
+        # Ana contesta a eva en su propio hilo: solo le llega a eva.
+        second = PostComment.objects.get(user=self.eva)
+        self.reply(self.ana, thread, "Gracias a los dos.", reply_to=second.pk)
+        self.assertEqual(Notification.objects.get(user=self.eva).text, "ana te ha respondido en «¿Merece la pena el modo difícil?».")
+        self.assertEqual(Notification.objects.filter(user=self.ana).count(), 2)
+        response = self.client.get(thread.get_absolute_url())
+        self.assertContains(response, "En respuesta a luis")
+        self.assertContains(response, 'class="own-tag">Abrió el hilo')
+        self.assertContains(response, "20 h")
+        # Con HTMX, las respuestas y el contador cambian en su sitio; no se contesta a respuestas de otro hilo.
+        other = self.thread(self.eva, "Otro hilo")
+        response = self.reply(self.luis, other, "Hola", htmx=True)
+        self.assertContains(response, f'id="thread-reply-count-{other.pk}" hx-swap-oob="true">1<')
+        self.reply(self.luis, other, "Cruzada", reply_to=first.pk)
+        self.assertFalse(PostComment.objects.filter(text="Cruzada").exists())
+        # Con «Hilos y preguntas» apagado, ya no llegan.
+        Notification.objects.all().delete()
+        self.ana.profile.notification_prefs = {"comunidad": {"campana": False}}
+        self.ana.profile.save()
+        self.reply(self.luis, thread, "Una más")
+        self.assertFalse(Notification.objects.filter(user=self.ana).exists())
+
+    def test_closed_threads_and_plain_posts(self):
+        thread = self.thread(self.ana, closed=True)
+        self.assertEqual(self.reply(self.luis, thread).status_code, 403)
+        self.assertContains(self.client.get(thread.get_absolute_url()), "Este hilo está cerrado")
+        post = Post.objects.create(user=self.ana, game=self.hades, text="Una publicación")
+        self.assertEqual(self.reply(self.luis, post).status_code, 400)
+        # Y en los hilos no se comenta como en las publicaciones.
+        response = self.client.post(reverse("social:post_comment", args=[thread.pk]), {"text": "Hola"})
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(PostComment.objects.exists())
+
+    def test_what_goes_ahead_of_you_is_folded(self):
+        self.play(self.ana, 50)
+        thread = self.thread(self.ana, text="El jefe final se derrota así.")
+        url = thread.get_absolute_url()
+        ahead = "Se escribió a las 50 h y tú llevas 10 h"
+        self.play(self.luis, 10)
+        self.client.force_login(self.luis)
+        response = self.client.get(url)
+        self.assertContains(response, ahead)
+        self.assertContains(response, "a partir de las <strong>20 h</strong>")
+        self.assertContains(self.client.get(reverse("social:community", args=["hades"])), "Va por delante de ti")
+        # Con 45 h ya no va tan por delante; quien lo ha terminado y quien lo escribió lo ven todo.
+        self.play(self.luis, 45)
+        self.assertNotContains(self.client.get(url), "Se escribió a las")
+        self.play(self.eva, 5, LibraryEntry.Status.COMPLETED)
+        self.client.force_login(self.eva)
+        self.assertNotContains(self.client.get(url), "Se escribió a las")
+        self.client.force_login(self.ana)
+        self.assertNotContains(self.client.get(url), "Se escribió a las")
+        # Las respuestas, igual: la de eva, escrita a las 80 h, se le pliega a luis.
+        self.play(self.eva, 80)
+        self.reply(self.eva, thread, "Y luego viene el epílogo.")
+        self.play(self.luis, 10)
+        self.client.force_login(self.luis)
+        self.assertContains(self.client.get(url), "Se escribió a las 80 h y tú llevas 10 h")
+
+    def test_spoilers_up_to_an_achievement(self):
+        self.unlock(self.ana, self.chapter)
+        self.client.force_login(self.ana)
+        new = reverse("social:thread_new", args=["hades"])
+        response = self.client.get(new)
+        self.assertContains(response, "¿Hasta dónde destripa?")
+        self.assertContains(response, '<option value="{}">Capítulo 5</option>'.format(self.chapter.pk))
+        self.assertNotContains(response, "El final")  # solo los que tiene ella
+        self.client.post(new, {
+            "kind": "thread", "title": "Lo que pasa en el capítulo 5", "text": "Muere alguien.",
+            "spoiler_achievement": self.chapter.pk,
+        })
+        thread = Post.objects.get()
+        self.assertEqual(thread.spoiler_achievement, self.chapter)
+        self.client.force_login(self.luis)
+        response = self.client.get(thread.get_absolute_url())
+        self.assertContains(response, "Destripa hasta «Capítulo 5», y aún no tienes ese logro")
+        self.unlock(self.luis, self.chapter)
+        response = self.client.get(thread.get_absolute_url())
+        self.assertNotContains(response, "y aún no tienes ese logro")
+        self.assertContains(response, "Destripa hasta «Capítulo 5»: lo ve plegado quien aún no tiene ese logro.")
+        # Quien no tiene un logro no puede marcarlo.
+        self.client.force_login(self.eva)
+        response = self.client.post(new, {"kind": "thread", "title": "Trampa", "spoiler_achievement": self.chapter.pk})
+        self.assertContains(response, "Elige uno de los logros que tienes de este juego.")
+
+    def test_the_asker_chooses_the_answer_that_helped(self):
+        question = self.thread(self.ana, "¿Cómo se abre la puerta del fondo?", kind=Post.Kind.QUESTION)
+        self.reply(self.luis, question, "Con la llave del jefe.")
+        self.reply(self.eva, question, "Con tres llaves de Ctonia.")
+        luis_answer, eva_answer = PostComment.objects.order_by("pk")
+        choose = reverse("social:choose_answer", args=[eva_answer.pk])
+        self.client.force_login(self.luis)
+        self.assertEqual(self.client.post(choose).status_code, 403)
+        self.client.force_login(self.ana)
+        self.assertRedirects(self.client.post(choose), eva_answer.get_absolute_url(), fetch_redirect_response=False)
+        self.assertEqual(Post.objects.get(pk=question.pk).answer, eva_answer)
+        notice = Notification.objects.get(user=self.eva, kind=Notification.Kind.ANSWER_CHOSEN)
+        self.assertEqual(notice.text, "A ana le ha servido tu respuesta en «¿Cómo se abre la puerta del fondo?».")
+        response = self.client.get(question.get_absolute_url())
+        self.assertEqual([reply.text for reply in response.context["replies"]], [
+            "Con tres llaves de Ctonia.", "Con la llave del jefe.",
+        ])
+        self.assertContains(response, "Le ha servido a ana")
+        self.assertContains(self.client.get(reverse("social:community", args=["hades"])), "Resuelta")
+        # Pulsarlo otra vez la desmarca, y volver a elegirla no repite el aviso.
+        self.client.post(choose, HTTP_HX_REQUEST="true")
+        self.assertIsNone(Post.objects.get(pk=question.pk).answer)
+        self.client.post(choose)
+        self.assertEqual(Notification.objects.filter(kind=Notification.Kind.ANSWER_CHOSEN).count(), 1)
+        # Si se borra, la pregunta vuelve a estar sin resolver.
+        self.client.force_login(self.eva)
+        self.client.post(reverse("social:reply_delete", args=[eva_answer.pk]))
+        self.assertIsNone(Post.objects.get(pk=question.pk).answer)
+        # Solo borran quien la escribió y quien preguntó.
+        self.assertEqual(self.client.post(reverse("social:reply_delete", args=[luis_answer.pk])).status_code, 403)
+
+    def test_how_do_you_get_an_achievement(self):
+        ExternalTitle.objects.filter(pk=self.title.pk).update(achievements_read_at=timezone.now())
+        self.play(self.luis, 12)
+        imported = ImportedTitle.objects.create(
+            user=self.luis, title=self.title, minutes=720, achievements_unlocked=1, achievements_total=2,
+            achievements_at=timezone.now(),
+        )
+        UnlockedAchievement.objects.create(imported=imported, achievement=self.chapter, unlocked_at=timezone.now())
+        self.client.force_login(self.luis)
+        panel = self.client.get(reverse("game_achievements", args=[self.hades.pk]), {"plataforma": "steam"})
+        ask = reverse("social:achievement_question", args=["hades", self.ending.pk])
+        self.assertContains(panel, ask)  # el que le falta
+        self.assertNotContains(panel, reverse("social:achievement_question", args=["hades", self.chapter.pk]))
+        # Sin pregunta aún, lleva a hacerla, ya con su logro y un título que no destapa el oculto.
+        response = self.client.get(ask)
+        self.assertRedirects(response, f"/juegos/hades/comunidad/nuevo/?tipo=pregunta&logro={self.ending.pk}", fetch_redirect_response=False)
+        form = self.client.get(response["Location"])
+        self.assertContains(form, "¿Cómo se consigue este logro oculto?")
+        self.assertContains(form, "Preguntas por el logro")
+        self.client.post(reverse("social:thread_new", args=["hades"]), {
+            "kind": "question", "title": "¿Cómo se consigue este logro oculto?", "achievement": self.ending.pk,
+        })
+        question = Post.objects.get()
+        self.assertEqual((question.kind, question.achievement), ("question", self.ending))
+        self.assertRedirects(self.client.get(ask), question.get_absolute_url(), fetch_redirect_response=False)
+        # Las respuestas de quien lo tiene lo dicen.
+        self.unlock(self.ana, self.ending)
+        self.reply(self.ana, question, "Hay que ganar sin morir.")
+        self.client.force_login(self.luis)
+        response = self.client.get(question.get_absolute_url())
+        self.assertContains(response, "Lo tiene</span>")
+        self.assertContains(response, "Aún no lo tienes")
+        # Un logro de otro juego no vale.
+        Game.objects.create(name="Celeste", slug="celeste")
+        self.assertEqual(self.client.get(reverse("social:achievement_question", args=["celeste", self.ending.pk])).status_code, 404)
+
+    def test_pinned_go_first_and_the_rest_in_batches(self):
+        start = timezone.now() - timedelta(days=30)
+        threads = [self.thread(self.ana, f"Hilo {n:02d}") for n in range(community.PAGE + 2)]
+        for days, thread in enumerate(threads):
+            Post.objects.filter(pk=thread.pk).update(last_activity_at=start + timedelta(days=days))
+        Post.objects.filter(pk=threads[0].pk).update(pinned=True)
+        url = reverse("social:community", args=["hades"])
+        response = self.client.get(url)
+        self.assertEqual([post.title for post in response.context["pinned"]], ["Hilo 00"])
+        shown = [post.title for post in response.context["posts"]]
+        self.assertEqual(shown, [f"Hilo {n:02d}" for n in range(community.PAGE + 1, 1, -1)])
+        self.assertContains(response, "Fijado")
+        more = self.client.get(response.context["more_url"], HTTP_HX_REQUEST="true")
+        self.assertEqual([post.title for post in more.context["posts"]], ["Hilo 01"])
+        self.assertNotContains(more, "Hilo 00")
+
+    def test_deleting_a_thread_goes_back_to_its_community(self):
+        thread = self.thread(self.ana)
+        self.client.force_login(self.ana)
+        response = self.client.post(reverse("social:post_delete", args=[thread.pk]))
+        self.assertRedirects(response, reverse("social:community", args=["hades"]), fetch_redirect_response=False)
+        self.assertFalse(Post.objects.exists())

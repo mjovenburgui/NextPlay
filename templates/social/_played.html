@@ -1,0 +1,10 @@
+{# Cómo iba quien escribe con el juego al escribirlo (social.models.PlaySnapshot): sus horas importadas con el logo de donde salen, cómo iba y su insignia de logros. Necesita item. #}
+{% if item.has_snapshot %}
+  <span class="played">
+    {% if item.hours is not None %}
+      <span class="played-fact" title="Horas importadas{% if item.hours_source_names %} de {{ item.hours_source_names }}{% endif %} al escribirlo: no las escribe el autor">{% include "_icon.html" with name="clock" %} {{ item.hours|floatformat:"-1" }} h{% for name, logo in item.hours_source_logos %} <span class="fact-logo" role="img" aria-label="{{ name }}">{% include logo %}</span>{% endfor %}</span>
+    {% endif %}
+    {% if item.status_note %}<span class="played-fact{% if item.finished %} is-done{% endif %}">{% if item.finished %}{% include "_icon.html" with name="check" %} {% endif %}{{ item.status_note }}</span>{% endif %}
+    {% if item.badge %}<span class="played-fact is-badge">{% include "_icon.html" with name="trophy" %} {{ item.badge }}</span>{% endif %}
+  </span>
+{% endif %}

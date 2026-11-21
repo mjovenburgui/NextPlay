@@ -1,8 +1,9 @@
 """Un solo sitio para crear los avisos de la campana (accounts.models.Notification) y decidir si llegan, y por dónde.
 
 Todo lo que avisa a alguien en NextPlay pasa por notify(): las bajadas de precio, los nuevos seguidores, los «me
-gusta», los comentarios, las invitaciones a editar listas, las reseñas que se han quedado atrás, las de la gente que
-sigues de juegos que quieres, los retos y las denuncias.
+gusta», los comentarios, las respuestas en los hilos y las preguntas de la comunidad de cada juego, las invitaciones a
+editar listas, las reseñas que se han quedado atrás, las de la gente que sigues de juegos que quieres, los retos y las
+denuncias.
 notify() decide lo mismo para todos: nadie recibe avisos de lo que hace él mismo, no se repiten (cada tipo tiene su
 regla en REPEAT) y solo llega lo que cada uno ha dejado encendido en la sección «Avisos» de Editar perfil (GROUPS y
 wants()). Además de a la campana, el aviso va como notificación a los dispositivos donde se han activado
@@ -62,6 +63,12 @@ REPEAT = {
     Kind.FOLLOW: Repeat(("actor",)),
     Kind.POST_LIKE: ONCE_PER_PERSON,
     Kind.POST_COMMENT: UNTIL_READ,
+    # Las respuestas en la comunidad, como los comentarios: varias seguidas de la misma persona en un hilo, un aviso.
+    Kind.THREAD_REPLY: UNTIL_READ,
+    Kind.QUESTION_ANSWER: UNTIL_READ,
+    Kind.REPLY: UNTIL_READ,
+    # Una vez por respuesta, aunque quien pregunta la quite y la vuelva a elegir.
+    Kind.ANSWER_CHOSEN: Repeat(("url",)),
     Kind.LIST_LIKE: ONCE_PER_PERSON,
     Kind.LIST_COMMENT: UNTIL_READ,
     Kind.LIST_INVITE: ALWAYS,
@@ -108,6 +115,12 @@ GROUPS = {
     "comentarios": Group(
         "Comentarios", "Cuando alguien comenta una reseña, una publicación o una lista tuya.",
         (Kind.COMMENT, Kind.POST_COMMENT, Kind.LIST_COMMENT),
+    ),
+    "comunidad": Group(
+        "Hilos y preguntas",
+        "Cuando alguien responde a un hilo o a una pregunta tuya o a un mensaje tuyo, y cuando a quien preguntó le sirve "
+        "tu respuesta.",
+        (Kind.THREAD_REPLY, Kind.QUESTION_ANSWER, Kind.REPLY, Kind.ANSWER_CHOSEN),
     ),
     "invitaciones": Group(
         "Invitaciones a editar listas", "Cuando alguien te invita a añadir y ordenar los juegos de una lista suya.",

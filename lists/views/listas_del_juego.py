@@ -6,7 +6,9 @@ from django.core.paginator import Paginator
 from django.db.models import Count, Exists, OuterRef
 from django.shortcuts import get_object_or_404, render
 
+from accounts.models import Profile
 from games.models import Game
+from social.models import Post
 
 from ..models import GameList, ListItem
 from .tarjetas import mark_progress
@@ -62,7 +64,8 @@ def game_page_context(request, game):
 
 def game_lists(request, slug):
     """Todas las listas en las que está un juego que puede ver quien mira, de la más reciente a la más antigua, de
-    LISTS_PER_PAGE en LISTS_PER_PAGE (?page=).
+    LISTS_PER_PAGE en LISTS_PER_PAGE (?page=), con la cabecera y la barra Ficha · Comunidad · Listas de la comunidad del
+    juego (por eso cuenta lo que puede ver de ella, como social.community.community_count).
 
     Pantallas: Listas del juego.
     """
@@ -70,4 +73,6 @@ def game_lists(request, slug):
     page = Paginator(_lists_with(game, request.user), LISTS_PER_PAGE).get_page(request.GET.get("page"))
     return render(request, "lists/game_lists.html", {
         "game": game, "page": page, "lists": mark_progress(list(page.object_list), request.user),
+        "lists_count": page.paginator.count,
+        "community_count": Post.objects.filter(Profile.visible_filter(request.user), game=game).count(),
     })

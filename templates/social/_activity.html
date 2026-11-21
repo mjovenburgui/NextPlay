@@ -7,12 +7,10 @@
     {% if activity.kind == "post" %}
       {% with post=activity.post %}
         <p class="activity-line">
-          {% if show_user %}<a class="activity-author" href="{{ activity.user.profile.get_absolute_url }}">{{ activity.user.profile.name }}</a> publicó{% else %}Publicó{% endif %}{% if post.game %} sobre <a class="activity-game" href="{{ post.game.get_absolute_url }}">{{ post.game.name }}</a>{% endif %}
+          {% if show_user %}<a class="activity-author" href="{{ activity.user.profile.get_absolute_url }}">{{ activity.user.profile.name }}</a> {{ post.verb }}{% else %}{{ post.verb|capfirst }}{% endif %}{% if post.game %} sobre <a class="activity-game" href="{{ post.game.get_absolute_url }}">{{ post.game.name }}</a>{% endif %}
         </p>
-        <div class="activity-post">
-          {% include "social/_post_body.html" with truncate=True %}
-          {% include "social/_post_actions.html" %}
-        </div>
+        {# Un hilo o una pregunta, con su título y sin su texto (social/_post_content.html). #}
+        <div class="activity-post">{% include "social/_post_content.html" %}</div>
       {% endwith %}
     {% elif activity.kind == "import" %}
       <p class="activity-line">

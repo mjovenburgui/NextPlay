@@ -1,5 +1,6 @@
 """Modelos de lo social: quién sigue a quién, las publicaciones con sus imágenes, «me gusta», comentarios y quién se las
-ha guardado, y la actividad de cada jugador (lo que hace con sus juegos, sus listas, sus importaciones y sus
+ha guardado (también los hilos y las preguntas de la comunidad de cada juego, que son publicaciones con título, y sus
+respuestas), y la actividad de cada jugador (lo que hace con sus juegos, sus listas, sus importaciones y sus
 publicaciones), que forma el feed de Inicio y la pestaña Actividad del Perfil.
 """
 
@@ -11,10 +12,17 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts import notices
+from accounts.achievements import badge as achievement_badge
+from accounts.achievements import progress_by_game
 from accounts.models import Notification
-from library.models import COMMENT_MAX_LENGTH, HOURS_SOURCES, MAX_RATING, AttachedImage, LibraryEntry
+from library.models import (
+    COMMENT_MAX_LENGTH, HOURS_SOURCES, MAX_RATING, STATUS_NOTES, AttachedImage, LibraryEntry, played_snapshot,
+    source_logos, source_names,
+)
 
 POST_MAX_LENGTH = 2000
+# Título de un hilo o de una pregunta.
+POST_TITLE_MAX_LENGTH = 120
 # Imágenes que caben en una publicación.
 POST_MAX_IMAGES = 4
 
@@ -87,44 +95,187 @@ class Follow(models.Model):
         return f"{self.follower} → {self.followed}"
 
 
-class Post(models.Model):
+class PlaySnapshot(models.Model):
+    """Cómo iba quien escribe con el juego cuando lo escribió, como en las reseñas: su estado, sus horas verificadas y de
+    dónde salen, y su insignia de logros («Platino» o «100 %»). Lo guardan las publicaciones (también los hilos y las
+    preguntas) y sus respuestas, para enseñarlo junto a cada mensaje y plegar lo que va por delante de quien lo lee
+    (social.community).
+    """
+
+    status = models.CharField("estado al escribirlo", max_length=20, choices=LibraryEntry.Status.choices, blank=True)
+    hours = models.DecimalField("horas al escribirlo", max_digits=7, decimal_places=1, null=True, blank=True)
+    hours_sources = models.CharField("de dónde salen las horas", max_length=30, blank=True)
+    badge = models.CharField("logros al escribirlo", max_length=10, blank=True)
+
+    class Meta:
+        abstract = True
+
+    def take_snapshot(self, user, game):
+        """Apunta cómo va user con game ahora mismo: su estado y sus horas verificadas (library.models.played_snapshot) y
+        su insignia de logros (accounts.achievements.badge). Sin juego se queda todo vacío; sin el juego en su biblioteca,
+        sin estado ni horas, pero con la insignia si tiene sus logros importados.
+
+        Pantallas: Publicar, Inicio (caja para publicar), Nuevo hilo o pregunta, Hilo o pregunta (al escribir se guarda
+        cómo iba con el juego).
+        """
+        if game is None:
+            self.status, self.hours, self.hours_sources, self.badge = "", None, "", ""
+            return
+        entry = LibraryEntry.objects.filter(user=user, game=game).first()
+        self.status, self.hours, self.hours_sources = played_snapshot(entry)
+        self.badge = achievement_badge(progress_by_game(user, [game.pk]).get(game.pk, []))
+
+    @property
+    def status_note(self):
+        """Cómo iba su autor con el juego al escribirlo: «Lo terminó», «Aún jugándolo»…; vacía si no se sabe o lo tenía en
+        Pendiente.
+
+        Pantallas: Comunidad del juego, Hilo o pregunta, Ficha del juego (comunidad: cómo iba quien escribe).
+        """
+        return STATUS_NOTES.get(self.status, "")
+
+    @property
+    def finished(self):
+        """Indica si su autor lo tenía como «Completado» al escribirlo.
+
+        Pantallas: Comunidad del juego, Hilo o pregunta, Ficha del juego (comunidad: la marca de «Lo terminó»).
+        """
+        return self.status == LibraryEntry.Status.COMPLETED
+
+    @property
+    def hours_source_names(self):
+        """Nombres de las plataformas de las que salen sus horas: «Steam» o «Steam y PlayStation».
+
+        Pantallas: Comunidad del juego, Hilo o pregunta, Ficha del juego (comunidad: de dónde salen las horas).
+        """
+        return source_names(self.hours_sources)
+
+    @property
+    def hours_source_logos(self):
+        """Plataformas de las que salen sus horas como [(nombre, plantilla de su logo)], para el sello de horas
+        verificadas.
+
+        Pantallas: Comunidad del juego, Hilo o pregunta, Ficha del juego (comunidad: sello de horas verificadas).
+        """
+        return source_logos(self.hours_sources)
+
+    @property
+    def has_snapshot(self):
+        """Indica si hay algo que contar de cómo iba su autor: su estado, sus horas o su insignia de logros.
+
+        Pantallas: Comunidad del juego, Hilo o pregunta, Ficha del juego (comunidad: cómo iba quien escribe).
+        """
+        return bool(self.status_note or self.hours is not None or self.badge)
+
+
+class Post(PlaySnapshot):
     """Publicación de un jugador: lo que quiera contar, con hasta POST_MAX_IMAGES imágenes y, si quiere, sobre un juego.
 
     Sale en el feed de la portada y en la actividad de su perfil (social.activity.post_published) y tiene su propia
     página. La ve quien puede ver su perfil (Profile.visible_filter). El texto lleva el mismo formato sencillo que
     las reseñas (library.markup) y, si es un spoiler, el texto y las imágenes van tapados hasta que se pulsan.
+
+    Hay tres tipos (kind): la publicación de siempre, un hilo, para hablar de algo con la comunidad del juego, y una
+    pregunta, en la que quien pregunta puede elegir la respuesta que le ha servido (answer), que sale la primera. Los
+    hilos y las preguntas llevan título, son siempre de un juego y viven en su Comunidad (social.community), ordenados
+    por su última actividad (last_activity_at, que sube con cada respuesta); un administrador puede fijarlos arriba
+    (pinned) o cerrarlos a más respuestas (closed). Todas guardan cómo iba su autor con el juego (PlaySnapshot) y él
+    puede decir hasta qué logro destripa (spoiler_achievement): se pliega a quien aún no lo tiene. Las preguntas de
+    «¿Cómo se consigue?», desde «Tus logros», van sobre un logro (achievement).
     """
 
+    class Kind(models.TextChoices):
+        POST = "post", "Publicación"
+        THREAD = "thread", "Hilo"
+        QUESTION = "question", "Pregunta"
+
+    # Lo que hizo, en minúscula, para el feed: «Ana abrió un hilo sobre Hades».
+    VERBS = {Kind.POST: "publicó", Kind.THREAD: "abrió un hilo", Kind.QUESTION: "preguntó"}
+
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="posts")
-    # Puede ir sin texto si lleva imágenes (lo comprueba social.forms.PostForm).
+    kind = models.CharField("tipo", max_length=10, choices=Kind.choices, default=Kind.POST)
+    # Los hilos y las preguntas lo llevan siempre (lo pide social.forms.ThreadForm); las publicaciones, no.
+    title = models.CharField("título", max_length=POST_TITLE_MAX_LENGTH, blank=True)
+    # Puede ir sin texto si lleva imágenes (lo comprueba social.forms.PostForm) o si es un hilo o una pregunta.
     text = models.TextField("texto", max_length=POST_MAX_LENGTH, blank=True)
     game = models.ForeignKey(
         "games.Game", on_delete=models.SET_NULL, null=True, blank=True, related_name="posts", verbose_name="juego"
     )
     has_spoilers = models.BooleanField("es un spoiler", default=False)
+    # Hasta qué logro destripa, si lo dice su autor (de los que él tiene): se pliega a quien aún no lo tiene.
+    spoiler_achievement = models.ForeignKey(
+        "accounts.Achievement", on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+        verbose_name="destripa hasta el logro",
+    )
+    # El logro por el que pregunta, en las preguntas de «¿Cómo se consigue?».
+    achievement = models.ForeignKey(
+        "accounts.Achievement", on_delete=models.SET_NULL, null=True, blank=True, related_name="questions",
+        verbose_name="pregunta por el logro",
+    )
+    # La respuesta que le ha servido a quien pregunta (solo en las preguntas). Si se borra, vuelve a estar sin resolver.
+    answer = models.ForeignKey(
+        "PostComment", on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+        verbose_name="respuesta que le ha servido",
+    )
+    pinned = models.BooleanField("fijado arriba", default=False)
+    closed = models.BooleanField("cerrado a respuestas", default=False)
     created_at = models.DateTimeField("publicada", auto_now_add=True)
+    # La de su última respuesta (o la de publicarla): la comunidad de cada juego se ordena por ella.
+    last_activity_at = models.DateTimeField("última actividad", default=timezone.now)
     # Sus denuncias se borran con ella.
     reports = GenericRelation("library.Report", related_query_name="post")
 
     class Meta:
         ordering = ["-created_at", "-id"]
+        # La comunidad de cada juego, de lo que tiene actividad más reciente a lo que menos.
+        indexes = [models.Index(fields=["game", "-last_activity_at", "-id"], name="post_game_activity")]
         verbose_name = "publicación"
         verbose_name_plural = "publicaciones"
 
     def __str__(self):
-        """Texto en el admin: «usuario: comienzo del texto».
+        """Texto en el admin: «usuario: título o comienzo del texto».
 
         Pantallas: Panel de administración.
         """
-        return f"{self.user}: {self.text[:40] or '(solo imágenes)'}"
+        return f"{self.user}: {self.title or self.text[:40] or '(solo imágenes)'}"
 
     def get_absolute_url(self):
-        """URL de la página de la publicación: /u/<usuario>/publicaciones/<id>/.
+        """URL de su página: la de un hilo o una pregunta va en la comunidad de su juego (/juegos/<juego>/comunidad/<id>/);
+        la de una publicación, en el perfil de su autor (/u/<usuario>/publicaciones/<id>/), igual que la de un hilo cuyo
+        juego ya no existe.
 
-        Pantallas: Inicio (feed), Perfil (pestaña Actividad), Página de la publicación, Avisos (los enlaces a cada
-        publicación).
+        Pantallas: Inicio (feed), Perfil (pestaña Actividad), Página de la publicación, Hilo o pregunta, Comunidad del
+        juego, Avisos (los enlaces a cada publicación).
         """
+        if self.is_thread and self.game_id:
+            return reverse("social:thread", args=[self.game.slug, self.pk])
         return reverse("social:post", args=[self.user.username, self.pk])
+
+    @property
+    def is_thread(self):
+        """Indica si es un hilo o una pregunta (con título y en la comunidad de su juego) y no una publicación.
+
+        Pantallas: Inicio (feed), Perfil (pestañas Actividad y Publicaciones), Guardados, Comunidad del juego, Ficha del
+        juego (comunidad: cómo sale cada cosa), Hilo o pregunta.
+        """
+        return self.kind in (self.Kind.THREAD, self.Kind.QUESTION)
+
+    @property
+    def is_question(self):
+        """Indica si es una pregunta, en la que quien pregunta elige la respuesta que le ha servido.
+
+        Pantallas: Comunidad del juego, Hilo o pregunta («Me ha servido»), Ficha del juego (comunidad).
+        """
+        return self.kind == self.Kind.QUESTION
+
+    @property
+    def verb(self):
+        """Lo que hizo su autor, en minúscula: «publicó», «abrió un hilo» o «preguntó».
+
+        Pantallas: Inicio (feed), Perfil (pestañas Actividad y Publicaciones), Guardados, Comunidad del juego, Ficha del
+        juego (comunidad: qué hizo cada uno).
+        """
+        return self.VERBS.get(self.kind, "publicó")
 
 
 class PostImage(AttachedImage):
@@ -171,12 +322,19 @@ class PostLike(models.Model):
         return f"{self.user} → {self.post}"
 
 
-class PostComment(models.Model):
-    """Comentario en una publicación, como los de las reseñas. Lo pueden borrar quien lo escribió y el autor de la publicación."""
+class PostComment(PlaySnapshot):
+    """Comentario en una publicación, como los de las reseñas; en un hilo o en una pregunta, una respuesta, que puede
+    contestar a otra del mismo hilo (reply_to): sale con su cita, sin anidarse. Guarda cómo iba su autor con el juego al
+    escribirlo (PlaySnapshot). Lo pueden borrar quien lo escribió y el autor de la publicación.
+    """
 
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="comments")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="post_comments")
     text = models.TextField("comentario", max_length=COMMENT_MAX_LENGTH)
+    # La respuesta del mismo hilo a la que contesta; si se borra, esta se queda sin cita.
+    reply_to = models.ForeignKey(
+        "self", on_delete=models.SET_NULL, null=True, blank=True, related_name="replies", verbose_name="en respuesta a"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     # Sus denuncias se borran con él.
     reports = GenericRelation("library.Report", related_query_name="post_comment")
@@ -194,11 +352,12 @@ class PostComment(models.Model):
         return f"{self.user} en {self.post}: {self.text[:40]}"
 
     def get_absolute_url(self):
-        """URL del comentario dentro de la página de su publicación.
+        """URL del comentario dentro de la página de su publicación o, en un hilo o una pregunta, de la respuesta.
 
-        Pantallas: Avisos (enlace a un comentario de una publicación).
+        Pantallas: Avisos (enlace a un comentario de una publicación o a una respuesta), Hilo o pregunta.
         """
-        return f"{self.post.get_absolute_url()}#comentario-{self.pk}"
+        anchor = "respuesta" if self.post.is_thread else "comentario"
+        return f"{self.post.get_absolute_url()}#{anchor}-{self.pk}"
 
     def can_delete(self, user):
         """Indica si user puede borrar el comentario: es suyo o es el autor de la publicación.

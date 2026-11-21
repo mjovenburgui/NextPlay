@@ -1,0 +1,15 @@
+{# Lo de dentro de una publicación en una lista (el feed, el perfil, Guardados y la comunidad): su texto recortado y sus imágenes con sus botones o, en un hilo #}
+{# o una pregunta, su título y sus respuestas sin su texto, que se lee en su página: así no destripa nada fuera de la comunidad de su juego. #}
+{# Necesita post, de social.views._posts, con liked y saved ya marcados. #}
+{% if post.is_thread %}
+  <a class="thread-card-title" href="{{ post.get_absolute_url }}">{{ post.title }}</a>
+  <p class="feed-actions">
+    {% include "social/_post_like.html" with liked=post.liked like_count=post.like_count %}
+    <a class="review-action" href="{{ post.get_absolute_url }}#respuestas">{% include "_icon.html" with name="comment" %} {{ post.comment_count|default:0 }}<span class="visually-hidden"> respuestas</span></a>
+    {% include "social/_post_save.html" with saved=post.saved %}
+    <a class="review-more" href="{{ post.get_absolute_url }}">{% if post.is_question %}Ver la pregunta{% else %}Ver el hilo{% endif %}</a>
+  </p>
+{% else %}
+  {% include "social/_post_body.html" with truncate=True %}
+  {% include "social/_post_actions.html" %}
+{% endif %}

@@ -35,6 +35,8 @@
     }, true);
   </script>
   {% include "games/_hero.html" %}
+  {# Debajo de la cabecera, la barra Ficha · Comunidad · Listas, como en las otras dos páginas del juego. #}
+  {% include "games/_tabs.html" with active_tab="ficha" lists_count=game_lists_count %}
   {# Tres bloques. En las pantallas grandes van en tres columnas: a la izquierda la carátula, las notas, Cuánto dura y tus #}
   {# logros; en medio lo que se lee y se usa (tu biblioteca, sinopsis, imágenes, precios, expansiones y DLC, ediciones, #}
   {# reseñas y publicaciones); y a la derecha los datos (ficha técnica, idiomas, juegos parecidos y listas). En las medianas los datos #}
@@ -155,23 +157,24 @@
 
       {% include "library/_reviews.html" %}
 
-      {# Lo que la gente publica sobre el juego (texto e imágenes): la cabecera va ya y la lista llega con HTMX al bajar hasta #}
-      {# ella (social.views.game_posts), para que la ficha no la espere. #}
-      <section class="reviews game-posts" id="publicaciones">
+      {# Lo último de la comunidad del juego (publicaciones, hilos y preguntas): la cabecera va ya y lo demás llega con HTMX al #}
+      {# bajar hasta ello (social.community.game_posts), para que la ficha no lo espere. Todo está en su pestaña Comunidad. #}
+      <section class="reviews game-posts" id="comunidad">
         <div class="reviews-head">
-          <h2>Publicaciones <span class="muted">{{ post_count }}</span></h2>
-          {% if user.is_authenticated %}
-            <div class="reviews-actions">
+          <h2>Comunidad <span class="muted">{{ community_count }}</span></h2>
+          <div class="reviews-actions">
+            {% if user.is_authenticated %}
               <a class="btn" href="{% url 'social:post_new' %}?juego={{ game.pk }}">{% include "_icon.html" with name="comment" %} Publicar sobre el juego</a>
-            </div>
-          {% endif %}
+            {% endif %}
+            <a class="btn" href="{% url 'social:community' game.slug %}">Hilos y preguntas</a>
+          </div>
         </div>
-        {% if post_count %}
+        {% if community_count %}
           <div aria-busy="true" hx-get="{% url 'social:game_posts' game.slug %}" hx-trigger="intersect once" hx-swap="outerHTML">
-            <p class="help">Cargando las publicaciones…</p>
+            <p class="help">Cargando lo último de la comunidad…</p>
           </div>
         {% else %}
-          <p class="empty">Aún nadie ha publicado sobre {{ game.name }}.{% if user.is_authenticated %} Cuenta cómo te va o sube tus capturas.{% endif %}</p>
+          <p class="empty">Aún nadie ha escrito sobre {{ game.name }}.{% if user.is_authenticated %} Cuenta cómo te va, sube tus capturas o pregunta lo que quieras en su <a href="{% url 'social:community' game.slug %}">comunidad</a>.{% endif %}</p>
         {% endif %}
       </section>
     </div>

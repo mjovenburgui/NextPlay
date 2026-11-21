@@ -386,6 +386,45 @@ STATUS_NOTES = {
 }
 
 
+def played_snapshot(entry):
+    """Cómo va un jugador con un juego ahora mismo, para guardarlo con lo que escribe (una reseña, una publicación o una
+    respuesta en la comunidad del juego): (estado, horas verificadas con una décima o None, de qué plataformas salen,
+    separadas por comas). Solo cuentan las horas verificadas, las de VERIFIED_SOURCES, que son las del sello. Sin entrada
+    de biblioteca (entry None), nada.
+
+    Pantallas: Escribir reseña (al publicar se guardan el estado y las horas), Página de la reseña, Ficha del juego,
+    Perfil (datos de la partida), Comunidad del juego, Hilo o pregunta (cómo iba quien escribe).
+    """
+    if entry is None:
+        return "", None, ""
+    minutes = entry.verified_minutes
+    if minutes is None:
+        return entry.status, None, ""
+    sources = ",".join(key for key in VERIFIED_SOURCES if entry.minutes_on(key) is not None)
+    return entry.status, Decimal(str(round(minutes / 60, 1))), sources
+
+
+def source_names(sources):
+    """Nombres de las plataformas de sources (claves de HOURS_SOURCES separadas por comas, como las guarda
+    played_snapshot): «Steam» o «Steam y PlayStation».
+
+    Pantallas: Ficha del juego, Perfil, Página de la reseña, Comunidad del juego, Hilo o pregunta (de dónde salen las
+    horas).
+    """
+    names = [HOURS_SOURCES[key] for key in sources.split(",") if key in HOURS_SOURCES]
+    return " y ".join([", ".join(names[:-1]), names[-1]]) if len(names) > 1 else "".join(names)
+
+
+def source_logos(sources):
+    """Plataformas de sources (como en source_names) como [(nombre, plantilla de su logo)], para el sello de horas
+    verificadas.
+
+    Pantallas: Ficha del juego, Perfil, Página de la reseña, Comunidad del juego, Hilo o pregunta (sello de horas
+    verificadas).
+    """
+    return [(HOURS_SOURCES[key], HOURS_LOGOS.get(key, "")) for key in sources.split(",") if key in HOURS_SOURCES]
+
+
 class ReviewQuerySet(models.QuerySet):
     def published(self):
         """Reseñas publicadas, sin los borradores.
@@ -508,8 +547,7 @@ class Review(models.Model):
 
         Pantallas: Ficha del juego, Perfil, Página de la reseña (de dónde salen las horas).
         """
-        names = [HOURS_SOURCES[key] for key in self.hours_sources.split(",") if key in HOURS_SOURCES]
-        return " y ".join([", ".join(names[:-1]), names[-1]]) if len(names) > 1 else "".join(names)
+        return source_names(self.hours_sources)
 
     @property
     def hours_source_logos(self):
@@ -517,7 +555,7 @@ class Review(models.Model):
 
         Pantallas: Ficha del juego, Perfil, Página de la reseña (sello de horas verificadas).
         """
-        return [(HOURS_SOURCES[key], HOURS_LOGOS.get(key, "")) for key in self.hours_sources.split(",") if key in HOURS_SOURCES]
+        return source_logos(self.hours_sources)
 
     def hours_since(self, entry):
         """Horas que ha jugado el autor desde que la publicó, si son bastantes para proponerle actualizarla; si no, None.
@@ -543,13 +581,7 @@ class Review(models.Model):
         Pantallas: Escribir reseña (al publicar se guardan el estado y las horas), Página de la reseña,
         Ficha del juego, Perfil (datos de la partida).
         """
-        self.status = entry.status if entry else ""
-        minutes = entry.verified_minutes if entry else None
-        hours = None if minutes is None else round(minutes / 60, 1)
-        self.hours = None if hours is None else Decimal(str(hours))
-        self.hours_sources = (
-            ",".join(key for key in VERIFIED_SOURCES if entry.minutes_on(key) is not None) if hours is not None else ""
-        )
+        self.status, self.hours, self.hours_sources = played_snapshot(entry)
 
 
 class ReviewLike(models.Model):

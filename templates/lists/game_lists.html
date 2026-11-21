@@ -4,13 +4,8 @@
 {% block description %}Listas de jugadores de NextPlay en las que está {{ game.name }}.{% endblock %}
 
 {% block content %}
-  {# Todas las listas en las que está un juego que puede ver quien mira (lists.views.game_lists). #}
-  <header class="page-head">
-    <div>
-      <h1>Listas con {{ game.name }}</h1>
-      <p class="muted">{{ page.paginator.count }} lista{{ page.paginator.count|pluralize }} · <a href="{{ game.get_absolute_url }}">Volver a la ficha</a></p>
-    </div>
-  </header>
+  {# Todas las listas en las que está un juego que puede ver quien mira (lists.views.game_lists), con la cabecera y la barra de las páginas del juego. #}
+  {% include "social/_community_head.html" with active_tab="listas" %}
   {% if lists %}
     <div class="lists-grid">{% for game_list in lists %}{% include "lists/_card.html" with show_user=True %}{% endfor %}</div>
     {% if page.has_other_pages %}

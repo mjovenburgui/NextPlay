@@ -1,0 +1,25 @@
+{# Un hilo o una pregunta en la comunidad de su juego y en lo último de la ficha: de qué tipo es y cómo está (resuelta, fijado, cerrado, si va por delante de ti), su título, quién lo abrió y cómo iba con el juego, y sus respuestas. #}
+{# Necesita post, de social.views._posts, con fold (social.community.mark_folded). Va dentro de <ol class="activities">. El título se ve siempre: quien lo escribe sabe que no puede destripar nada. #}
+<li class="activity thread-row{% if post.pinned %} is-pinned{% endif %}" id="publicacion-{{ post.pk }}">
+  {% include "accounts/_avatar.html" with profile=post.user.profile size="sm" %}
+  <div class="activity-main">
+    <p class="thread-flags">
+      <span class="thread-kind{% if post.is_question %} is-question{% endif %}">{{ post.get_kind_display }}</span>
+      {% if post.is_question %}
+        {% if post.answer_id %}<span class="thread-flag is-solved">{% include "_icon.html" with name="check" %} Resuelta</span>{% else %}<span class="thread-flag">Sin resolver</span>{% endif %}
+      {% endif %}
+      {% if post.pinned %}<span class="thread-flag">{% include "_icon.html" with name="pin" %} Fijado</span>{% endif %}
+      {% if post.closed %}<span class="thread-flag">Cerrado</span>{% endif %}
+      {% if post.fold == "logro" %}<span class="thread-flag is-ahead">Destripa un logro que no tienes</span>{% elif post.fold %}<span class="thread-flag is-ahead">Va por delante de ti</span>{% elif post.has_spoilers %}<span class="thread-flag is-spoiler">Spoiler</span>{% endif %}
+    </p>
+    <h3 class="thread-title"><a href="{{ post.get_absolute_url }}">{{ post.title }}</a></h3>
+    <p class="thread-meta">
+      <a class="activity-author" href="{{ post.user.profile.get_absolute_url }}">{{ post.user.profile.name }}</a>
+      {% include "social/_played.html" with item=post %}
+      <span class="muted">{% if post.comment_count %}última respuesta {% endif %}<time datetime="{{ post.last_activity_at|date:'c' }}">hace {{ post.last_activity_at|timesince }}</time></span>
+    </p>
+  </div>
+  <a class="thread-count{% if not post.comment_count %} is-zero{% endif %}" href="{{ post.get_absolute_url }}#respuestas">
+    {% include "_icon.html" with name="comment" %} {{ post.comment_count|default:0 }}<span class="visually-hidden"> respuesta{{ post.comment_count|pluralize }}</span>
+  </a>
+</li>

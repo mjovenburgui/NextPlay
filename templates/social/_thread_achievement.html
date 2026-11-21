@@ -1,0 +1,21 @@
+{# El logro por el que pregunta un «¿Cómo se consigue?» (social.models.Post.achievement): su icono, su nombre (tapado si es oculto y aún no lo tienes), su descripción, cuánta gente lo tiene y si lo tienes tú. #}
+{# Necesita achievement, has_achievement y label («Pregunta por el logro»). #}
+<div class="thread-achievement{% if has_achievement %} is-got{% endif %}">
+  {% if achievement.hidden and not has_achievement or not achievement.icon %}
+    <span class="achievement-icon is-blank" aria-hidden="true">{% include "_icon.html" with name="trophy" %}</span>
+  {% else %}
+    <img class="achievement-icon" src="{% if has_achievement %}{{ achievement.icon }}{% else %}{{ achievement.icon_locked|default:achievement.icon }}{% endif %}" alt="" width="48" height="48" loading="lazy">
+  {% endif %}
+  <span class="achievement-text">
+    <span class="muted small">{{ label }}</span>
+    {% if achievement.hidden and not has_achievement %}
+      <strong><span class="spoiler-inline" tabindex="0" role="button" aria-expanded="false" title="Logro oculto: pulsa para ver su nombre">{{ achievement.name }}</span></strong>
+    {% else %}
+      <strong>{{ achievement.name }}</strong>
+      {% if achievement.description %}<span class="muted small">{{ achievement.description }}</span>{% endif %}
+    {% endif %}
+    <span class="small">
+      {% if achievement.percent is not None %}Lo tiene el {{ achievement.percent|floatformat:"-1" }} % de los jugadores{% if achievement.rarity %} · {{ achievement.rarity }}{% endif %}{% endif %}{% if has_achievement %}{% if achievement.percent is not None %} · {% endif %}Tú ya lo tienes{% elif user.is_authenticated %}{% if achievement.percent is not None %} · {% endif %}Aún no lo tienes{% endif %}
+    </span>
+  </span>
+</div>
