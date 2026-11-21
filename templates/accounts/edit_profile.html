@@ -20,6 +20,7 @@
       <a href="#redes">Redes sociales</a>
       <a href="#privacidad">Privacidad</a>
       <a href="#avisos">Avisos</a>
+      <a href="#dispositivos">En el móvil</a>
       <a href="#tiendas">Tiendas</a>
       <a href="#cuentas">Cuentas vinculadas</a>
     </nav>
@@ -272,27 +273,36 @@
         {# Los avisos no cambian cómo se ve el perfil: data-no-preview hace que no se pida la vista previa al tocarlos. #}
         <section class="settings-card" id="avisos" data-no-preview>
           <h2>Avisos</h2>
-          <p class="help">De qué te avisamos en la campana de arriba. Lo que apagues deja de llegar; los avisos que ya tienes no se borran.</p>
-          {# Dice que el envío trae esta sección: sin él, los interruptores que no llegan no apagan nada. #}
+          <p class="help">De qué te avisamos y por dónde: en la campana de arriba, como notificación en el móvil o el ordenador donde las actives (<a href="#dispositivos">más abajo</a>) y, algunos, por correo. Lo que desmarques deja de llegar; los avisos que ya tienes no se borran.</p>
+          {# Dice que el envío trae esta sección: sin él, las casillas que no llegan no apagan nada. #}
           <input type="hidden" name="avisos" value="1">
-          {% for bell, email in form.notice_rows %}
-            <label class="switch-row" for="{{ bell.id_for_label }}">
-              <span>
-                <strong>{{ bell.label }}</strong>
-                <span class="help">{{ bell.help_text }}</span>
-              </span>
-              <span class="switch">{{ bell }}</span>
-            </label>
-            {% if email %}
-              <label class="switch-row switch-row-sub" for="{{ email.id_for_label }}">
-                <span>
-                  <strong>{{ email.label }}</strong>
-                  <span class="help">{{ email.help_text }}</span>
-                </span>
-                <span class="switch">{{ email }}</span>
-              </label>
-            {% endif %}
-          {% endfor %}
+          {# Qué es cada casilla: las de cada grupo solo llevan su icono (y su nombre para los lectores de pantalla). #}
+          <p class="help notice-legend" aria-hidden="true">
+            <span>{% include "_icon.html" with name="bell" %} Campana</span>
+            <span>{% include "_icon.html" with name="phone" %} Notificación</span>
+            <span>{% include "_icon.html" with name="comment" %} Correo{% if user.email %}, a {{ user.email }}{% endif %}</span>
+          </p>
+          <div class="notice-groups">
+            {% for bell, push, email in form.notice_rows %}
+              <fieldset class="notice-group">
+                <legend class="visually-hidden">{{ bell.label }}</legend>
+                <div class="notice-what" aria-hidden="true">
+                  <strong>{{ bell.label }}</strong>
+                  <span class="help">{{ bell.help_text }}</span>
+                </div>
+                <div class="notice-channels">
+                  <label class="notice-toggle" title="Campana">{{ bell }}{% include "_icon.html" with name="bell" %}<span class="visually-hidden">Campana</span></label>
+                  <label class="notice-toggle" title="Notificación en el móvil o el ordenador">{{ push }}{% include "_icon.html" with name="phone" %}<span class="visually-hidden">Notificación</span></label>
+                  {% if email %}
+                    <label class="notice-toggle" title="Correo. {{ email.help_text }}">{{ email }}{% include "_icon.html" with name="comment" %}<span class="visually-hidden">Correo</span></label>
+                  {% else %}
+                    {# Sin correo en este grupo: el hueco mantiene las columnas en su sitio. #}
+                    <span class="notice-toggle is-none" aria-hidden="true"></span>
+                  {% endif %}
+                </div>
+              </fieldset>
+            {% endfor %}
+          </div>
         </section>
 
         <div class="settings-savebar">
@@ -305,6 +315,8 @@
           <button class="btn btn-primary" type="submit" data-busy="Guardando…">Guardar cambios</button>
         </div>
       </form>
+
+      {% include "accounts/_devices.html" %}
 
       <section class="settings-card" id="tiendas">
         <h2>Tiendas en las que compras</h2>

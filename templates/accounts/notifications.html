@@ -6,6 +6,10 @@
   <section class="panel panel-wide">
     <h1>{% include "_icon.html" with name="bell" %} Avisos</h1>
     <p class="muted">Eliges de qué te avisamos en <a href="{% url 'edit_profile' %}#avisos">Editar perfil</a>.</p>
+    {% if push_hint %}
+      {# Puede recibirlos en el móvil o el ordenador y no lo ha activado en ninguno. #}
+      <p class="push-hint">{% include "_icon.html" with name="phone" %} <span>¿Quieres que te lleguen al móvil o al ordenador aunque no tengas NextPlay abierta? <a href="{% url 'edit_profile' %}#dispositivos">Actívalos en Editar perfil</a>.</span></p>
+    {% endif %}
     <ul class="notifications">
       {% for notification in shown %}
         <li class="notification{% if notification.pk in unread %} is-unread{% endif %}">

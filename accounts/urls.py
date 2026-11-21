@@ -3,7 +3,9 @@ y las imágenes de un juego para la cabecera), Juegos importados (cuenta/juegos-
 sesión y Recuperar contraseña (las de Django, en cuenta/), Importar desde un archivo (cuenta/importar-archivo/) y Perfil
 (u/<usuario>/). La extensión de Playnite manda la biblioteca a api/playnite/. El resto son acciones de botones:
 favoritos, tiendas, logros de la Ficha del juego, dónde juegas («¿Dónde juegas?», en Vincular cuentas y en Inicio) y
-vincular, importar o desvincular Steam, PlayStation, Xbox, GOG, Epic Games y otras plataformas.
+vincular, importar o desvincular Steam, PlayStation, Xbox, GOG, Epic Games y otras plataformas. NextPlay como aplicación
+cuelga de la raíz: su manifiesto (manifest.webmanifest), su service worker (sw.js) y Sin conexión (sin-conexion/); los
+avisos push de cada dispositivo, de avisos/push/.
 """
 
 from django.urls import include, path
@@ -41,6 +43,14 @@ urlpatterns = [
     path("cuenta/playnite/NextPlaySync.pext", views.playnite_extension, name="playnite_extension"),
     path("api/playnite/", views.playnite_api, name="playnite_api"),
     path("avisos/", views.notifications, name="notifications"),
+    path("avisos/push/activar/", views.push_subscribe, name="push_subscribe"),
+    path("avisos/push/desactivar/", views.push_unsubscribe, name="push_unsubscribe"),
+    path("avisos/push/probar/", views.push_test, name="push_test"),
+    path("avisos/push/pendientes/", views.push_pending, name="push_pending"),
+    path("avisos/push/<int:pk>/quitar/", views.push_remove, name="push_remove"),
+    path("manifest.webmanifest", views.manifest, name="manifest"),
+    path("sw.js", views.service_worker, name="service_worker"),
+    path("sin-conexion/", views.offline, name="offline"),
     path("cuenta/juegos-importados/<int:pk>/asignar/", views.imported_title_assign, name="imported_title_assign"),
     path("cuenta/juegos-importados/<int:pk>/ocultar/", views.imported_title_hide, name="imported_title_hide"),
     path("cuenta/donde-juegas/", views.play_platforms, name="play_platforms"),

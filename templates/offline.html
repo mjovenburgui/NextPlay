@@ -1,0 +1,29 @@
+{% load static %}<!doctype html>
+{# Sin conexión: la guarda el service worker (templates/sw.js) al instalarse y la enseña cuando no hay red. No lleva #}
+{# nada de nadie ni la cabecera de siempre: es la misma para todos y tiene que funcionar sin el servidor. #}
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070912">
+  <title>Sin conexión · NextPlay</title>
+  <link rel="icon" href="{% static 'favicon.svg' %}" type="image/svg+xml">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body class="offline-page">
+  <main class="offline">
+    <span class="brand-mark brand-mark-lg" aria-hidden="true">N</span>
+    <h1>Sin conexión</h1>
+    <p class="muted">NextPlay necesita internet para traer tus juegos, tus avisos y lo que hace tu gente. Cuando vuelva la conexión, vuelve a intentarlo.</p>
+    <button class="btn btn-primary" type="button" data-retry>Volver a intentarlo</button>
+  </main>
+  <script>
+    // Vuelve a pedir la página en la que estaba (o Inicio, si llegó aquí directamente).
+    // Pantallas: Sin conexión.
+    document.querySelector("[data-retry]").addEventListener("click", function () {
+      if (location.pathname === "{% url 'offline' %}") location.href = "/";
+      else location.reload();
+    });
+  </script>
+</body>
+</html>

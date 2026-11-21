@@ -2708,7 +2708,7 @@
   {
     "titulo": "NextPlay en el móvil como aplicación, con avisos que llegan",
     "fecha": "2026-11-14",
-    "estado": "pendiente",
+    "estado": "en curso",
     "prioridad": "media",
     "tipo": "Funcionalidad",
     "resumen": "Poder instalar NextPlay en el móvil desde el navegador y recibir avisos push (bajadas de precio, un reto que termina, respuestas). Y que por correo puedan ir más avisos que las bajadas de precio.",
@@ -2719,13 +2719,20 @@
       "Avisos push con Web Push (claves VAPID): un canal más en accounts.notices, junto a la campana y el correo, con su interruptor por grupo en Editar perfil › Avisos.",
       "Correo también para «A un reto le quedan pocos días» y «Un reto ha terminado», que no se ven si no entras."
     ],
-    "notas": "Necesita HTTPS, así que en local solo se puede probar en localhost. En el iPhone, el push solo llega con la web instalada en la pantalla de inicio (iOS 16.4 o posterior). Las bajadas de precio las detecta la tarea de cada noche: sin ella programada, no hay avisos que mandar.",
+    "notas": "Necesita HTTPS, así que en local solo se puede probar en localhost. En el iPhone, el push solo llega con la web instalada en la pantalla de inicio (iOS 16.4 o posterior). Las bajadas de precio las detecta la tarea de cada noche: sin ella programada, no hay avisos que mandar. 14/11/2026: hecha en la rama avisos-que-llegan, sin fusionar. Instalable: manifiesto (manifest.webmanifest, con accesos directos a Qué jugar, Deseos, Publicar y Avisos), iconos dibujados desde el favicon, «Instalar NextPlay» en el menú de la cuenta cuando el navegador lo ofrece y un service worker (sw.js) que va siempre primero a la red y solo sin ella enseña la página «Sin conexión». Avisos push: PushSubscription por dispositivo (migración accounts.0034), el canal notices.PUSH con su casilla «Notificación» por grupo y la tarjeta «Avisos en el móvil y el ordenador» en Editar perfil (activar, mandar una prueba, desactivar y la lista de tus dispositivos). Como no se pudo instalar pywebpush (el modo automático no deja instalar paquetes), la firma VAPID va hecha con la biblioteca estándar (accounts/vapid.py, ECDSA P-256 con el número de un solo uso de RFC 6979, comprobada con sus vectores) y los avisos viajan sin contenido: el service worker pide a NextPlay qué enseñar (avisos/push/pendientes/, con la dirección y el secreto de su navegador), así que no hay nada que cifrar y el texto no pasa por terceros. Se mandan en segundo plano tras guardar el aviso, solo a servicios push conocidos (Google, Mozilla, Apple y Microsoft), y los dispositivos caducados se borran solos. Por correo, además de los precios, los retos que se acaban y cómo han terminado. La sección Avisos de Editar perfil pasa de interruptores a una fila por grupo con tres casillas de icono (campana, notificación y correo). Lo que falta configurar (las claves VAPID, que genera manage.py vapid_keys) solo lo lee el personal.",
     "revision": {
       "fecha": "2026-11-14",
-      "hoy": "Sin empezar. Canales de avisos: la campana y el correo (notices.BELL y notices.EMAIL), y el correo solo en «precios».",
+      "hoy": "Hecha en la rama avisos-que-llegan, sin fusionar. Comprobado con tests (la firma, contra los vectores de RFC 6979) y en el navegador de Claude: el service worker, «Sin conexión», el manifiesto y Editar perfil. Falta que pruebes el push de verdad: el navegador de Claude no tiene servicio push. Después se fusiona y pasa a «hecha».",
+      "plan": [
+        "Probarlo en tu Chrome en http://localhost:8001/: activar en Editar perfil › Avisos en el móvil y el ordenador, «Mandar una prueba» y un aviso de verdad (que alguien te siga o le guste algo tuyo).",
+        "En el móvil Android, con la dirección de casa en chrome://flags/#unsafely-treat-insecure-origin-as-secure.",
+        "Fusionarlo con main con la migración accounts.0034 y las claves VAPID en el .env de main, y pasar a «hecha»."
+      ],
       "profundizar": [
         "Un resumen semanal opcional por correo: lo jugado, las bajadas de tu lista y los retos que acaban.",
-        "Accesos directos en el icono instalado: «Qué jugar», «Deseos» y «Publicar»."
+        "pywebpush, si se deja instalar, para mandar el aviso con su texto (cifrado) y ahorrarse la petición del service worker: la tabla ya guarda la clave del navegador (p256dh).",
+        "Volver a suscribirse sola cuando el navegador cambia la suscripción (pushsubscriptionchange): hoy se arregla al abrir Editar perfil en ese dispositivo.",
+        "Agrupar en una sola notificación los avisos de una misma noche («3 juegos de tu lista han bajado»)."
       ]
     }
   },

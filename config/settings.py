@@ -5,6 +5,7 @@ Steam o de Xbox.
 """
 
 import os
+from email.utils import parseaddr
 from pathlib import Path
 
 import dj_database_url
@@ -117,6 +118,12 @@ EMAIL_BACKEND = os.environ.get(
 DEFAULT_FROM_EMAIL = os.environ.get("DJANGO_DEFAULT_FROM_EMAIL", "NextPlay <no-reply@localhost>")
 # Dirección pública de la web, para los enlaces de los correos que se mandan sin petición (avisos de precio).
 SITE_URL = os.environ.get("SITE_URL", "http://localhost:8000").rstrip("/")
+# Avisos push (accounts.push): las claves VAPID de NextPlay, que genera «manage.py vapid_keys». Sin ellas, los avisos
+# solo llegan a la campana y por correo. VAPID_SUBJECT es a quién escriben los servicios push si algo va mal con
+# nuestros avisos: un mailto: o una web https.
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
+VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", "") or f"mailto:{parseaddr(DEFAULT_FROM_EMAIL)[1]}"
 # Formulario caducado (falla la comprobación CSRF): página propia, con la cabecera y la sesión de siempre.
 CSRF_FAILURE_VIEW = "config.views.csrf_failure"
 

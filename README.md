@@ -116,6 +116,35 @@ pieza (`templates/accounts/linking/_where.html`) es la ventana «Vincular cuenta
 Lo que no está configurado (`STEAM_API_KEY`, `XBOX_CLIENT_ID`…) se le dice al cliente sin nombres técnicos: Xbox sale
 como «Pronto». Solo el personal (`is_staff`) lee qué falta.
 
+## NextPlay como aplicación y avisos push
+
+NextPlay se puede instalar en el móvil o en el ordenador (manifiesto en `manifest.webmanifest`, iconos en
+`static/icons/`), y sus avisos pueden llegar como notificaciones aunque no esté abierta:
+
+- El service worker (`templates/sw.js`, servido en `/sw.js`) guarda la página «Sin conexión» y la enseña cuando no hay
+  red. Siempre va primero a la red, así que nunca enseña una página vieja.
+- Los avisos push (`accounts/push.py`) se activan en cada dispositivo desde Editar perfil › Avisos en el móvil y el
+  ordenador. Cada grupo de avisos tiene su casilla «Notificación».
+- Viajan sin contenido: el servicio push del navegador solo despierta al service worker, que pide a NextPlay qué
+  enseñar (`avisos/push/pendientes/`, con la dirección y el secreto de ese navegador). Se mandan en segundo plano,
+  después de guardar el aviso.
+- La firma VAPID (`accounts/vapid.py`) usa solo la biblioteca estándar: ECDSA P-256, comprobada con los vectores de
+  RFC 6979.
+
+Para activarlos hacen falta las claves VAPID en `.env`. Las genera `python manage.py vapid_keys`, que escribe las dos
+líneas que hay que añadir (`VAPID_PUBLIC_KEY` y `VAPID_PRIVATE_KEY`). `VAPID_SUBJECT` (opcional) es un `mailto:` o una
+web `https` de contacto; por defecto, el del remitente de los correos. Si se cambian las claves, cada dispositivo tiene
+que volver a activarlos.
+
+Los navegadores solo dejan usar el service worker y el push en `https://` o en `localhost`:
+
+- **Ordenador:** Chrome, Edge o Firefox en `http://localhost:8000/`.
+- **Android:** desde la red de casa (`http://192.168.x.x:8002/`), en Chrome hay que añadir esa dirección en
+  `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.
+- **iPhone:** necesita `https://` y NextPlay añadida a la pantalla de inicio (iOS 16.4 o posterior).
+
+Por correo, además de las bajadas de precio, llegan los retos a los que les quedan pocos días y cómo han terminado.
+
 ## Importar de Xbox (aplicación de Azure)
 
 Para el botón «Vincular con Microsoft» hace falta una aplicación de Azure (gratis):

@@ -1,24 +1,35 @@
-"""Un solo sitio para crear los avisos de la campana (accounts.models.Notification) y decidir si llegan.
+"""Un solo sitio para crear los avisos de la campana (accounts.models.Notification) y decidir si llegan, y por dónde.
 
 Todo lo que avisa a alguien en NextPlay pasa por notify(): las bajadas de precio, los nuevos seguidores, los «me
 gusta», los comentarios, las invitaciones a editar listas, las reseñas que se han quedado atrás, las de la gente que
-sigues de juegos que quieres y las denuncias.
+sigues de juegos que quieres, los retos y las denuncias.
 notify() decide lo mismo para todos: nadie recibe avisos de lo que hace él mismo, no se repiten (cada tipo tiene su
 regla en REPEAT) y solo llega lo que cada uno ha dejado encendido en la sección «Avisos» de Editar perfil (GROUPS y
-wants()). Un tipo de aviso nuevo necesita su regla y su grupo: los tests lo comprueban.
+wants()). Además de a la campana, el aviso va como notificación a los dispositivos donde se han activado
+(accounts.push) y, los que lo admiten, por correo. Un tipo de aviso nuevo necesita su regla y su grupo: los tests lo
+comprueban.
 
-Pantallas: Avisos, todas (el número de la campana), Editar perfil (Avisos).
+Pantallas: Avisos, todas (el número de la campana y las notificaciones del móvil o del ordenador), Editar perfil
+(Avisos).
 """
 
+import logging
 from dataclasses import dataclass
+
+from django.conf import settings
+from django.core.mail import send_mail
+from django.urls import reverse
 
 from .models import Notification
 
 Kind = Notification.Kind
 TEXT_MAX_LENGTH = Notification._meta.get_field("text").max_length
+logger = logging.getLogger(__name__)
 
-# Por dónde llega un aviso: la campana de la barra de arriba o el correo.
+# Por dónde llega un aviso: la campana de la barra de arriba, una notificación del móvil o del ordenador (push) o el
+# correo.
 BELL = "campana"
+PUSH = "notificacion"
 EMAIL = "correo"
 
 
@@ -73,13 +84,13 @@ REPEAT = {
 @dataclass(frozen=True)
 class Group:
     """Una línea de la sección «Avisos» de Editar perfil: su nombre, lo que explica, los tipos de aviso que enciende o
-    apaga y si también pueden llegar por correo.
+    apaga y cuáles de ellos también pueden llegar por correo (email).
     """
 
     label: str
     help_text: str
     kinds: tuple
-    email: bool = False
+    email: tuple = ()
 
 
 # Lo que se puede elegir en Editar perfil, en el orden en que sale. Las denuncias no están: solo llegan a los
@@ -87,7 +98,7 @@ class Group:
 GROUPS = {
     "precios": Group(
         "Bajadas de precio", "Cuando un juego de tu lista de deseos baja de tu límite o llega a su mínimo histórico.",
-        (Kind.PRICE,), email=True,
+        (Kind.PRICE,), email=(Kind.PRICE,),
     ),
     "seguidores": Group("Nuevos seguidores", "Cuando alguien empieza a seguirte.", (Kind.FOLLOW,)),
     "me_gusta": Group(
@@ -122,10 +133,15 @@ GROUPS = {
         "Cuando consigues un reto, cuando a uno en el que estás le quedan pocos días, cuando termina y cuando alguien "
         "se une a uno tuyo.",
         (Kind.CHALLENGE_WON, Kind.CHALLENGE_ENDING, Kind.CHALLENGE_RESULT, Kind.CHALLENGE_JOINED),
+        # Por correo, los que no se ven si no entras: que a uno le quedan pocos días y cómo ha terminado.
+        email=(Kind.CHALLENGE_ENDING, Kind.CHALLENGE_RESULT),
     ),
 }
 # El grupo de cada tipo de aviso.
 GROUP_OF = {kind: key for key, group in GROUPS.items() for kind in group.kinds}
+# Los que van por correo todos juntos y no uno a uno desde notify: las bajadas de precio de cada noche, en un solo
+# correo (library.wishlist).
+EMAIL_IN_BATCH = {Kind.PRICE}
 
 
 def enabled(prefs, key, channel=BELL):
@@ -138,17 +154,18 @@ def enabled(prefs, key, channel=BELL):
 
 
 def wants(user, kind, channel=BELL):
-    """Si user quiere los avisos de tipo kind por channel (BELL o EMAIL), según lo que eligió en Editar perfil.
+    """Si user quiere los avisos de tipo kind por channel (BELL, PUSH o EMAIL), según lo que eligió en Editar perfil.
 
-    Por correo solo llegan los grupos que lo admiten (hoy, las bajadas de precio). Los tipos sin grupo, las
-    denuncias, llegan siempre a la campana y nunca por correo.
+    Por correo solo llegan los tipos que lo admiten (las bajadas de precio y, de los retos, que se acaban y cómo han
+    terminado). Los tipos sin grupo, las denuncias, llegan siempre a la campana y nunca por correo ni como notificación.
 
-    Pantallas: Avisos, todas (el número de la campana), Lista de deseos (cómo te avisamos de las bajadas de precio).
+    Pantallas: Avisos, todas (el número de la campana y las notificaciones del móvil o del ordenador), Lista de deseos
+    (cómo te avisamos de las bajadas de precio).
     """
     key = GROUP_OF.get(kind)
     if key is None:
         return channel == BELL
-    if channel == EMAIL and not GROUPS[key].email:
+    if channel == EMAIL and kind not in GROUPS[key].email:
         return False
     profile = getattr(user, "profile", None)
     return enabled(profile.notification_prefs if profile else None, key, channel)
@@ -162,10 +179,12 @@ def notify(user, kind, text, url="", *, game=None, actor=None, since=None):
     - user ha apagado ese tipo de aviso en Editar perfil (wants);
     - ya tiene uno que la regla de ese tipo no deja repetir (REPEAT); con since, solo cuentan los de desde entonces.
 
-    El texto se corta a lo que cabe en Notification.text. Cuando existan los bloqueos y los silencios, este es el
+    El texto se corta a lo que cabe en Notification.text. Si lo crea, también lo manda por correo cuando ese tipo lo
+    admite y user lo quiere así (salvo los de EMAIL_IN_BATCH, que van juntos en otro correo), y como notificación a sus
+    dispositivos (accounts.push.schedule, que decide si toca). Cuando existan los bloqueos y los silencios, este es el
     único sitio que tendrá que mirarlos.
 
-    Pantallas: Avisos, todas (el número de la campana).
+    Pantallas: Avisos, todas (el número de la campana y las notificaciones del móvil o del ordenador).
     """
     if actor is not None and actor.pk == user.pk:
         return None
@@ -181,6 +200,32 @@ def notify(user, kind, text, url="", *, game=None, actor=None, since=None):
             earlier = earlier.filter(created_at__gte=since)
         if earlier.exists():
             return None
-    return Notification.objects.create(
+    notification = Notification.objects.create(
         user=user, kind=kind, text=text[:TEXT_MAX_LENGTH], url=url, game=game, actor=actor,
     )
+    if kind not in EMAIL_IN_BATCH and user.email and wants(user, kind, EMAIL):
+        _send_email(notification)
+    # Aquí y no arriba: accounts.push usa este módulo.
+    from . import push
+
+    push.schedule(notification)
+    return notification
+
+
+def _send_email(notification):
+    """Manda por correo un aviso de los que lo admiten (hoy, los retos que se acaban y cómo han terminado), con su
+    enlace y cómo dejar de recibirlos. Si falla, lo apunta en el log y sigue: un servidor de correo caído no debe parar
+    lo que estaba avisando.
+
+    Pantallas: ninguna (manda por correo los avisos que cada uno tiene encendidos en Editar perfil › Avisos).
+    """
+    user = notification.user
+    link = f"{settings.SITE_URL}{notification.url}\n" if notification.url else ""
+    body = (
+        f"Hola, {user.profile.name}:\n\n{notification.text}\n{link}\n"
+        f"Puedes dejar de recibir estos correos en {settings.SITE_URL}{reverse('edit_profile')}#avisos\n"
+    )
+    try:
+        send_mail(notification.text[:150], body, None, [user.email])
+    except Exception:
+        logger.exception("No se pudo mandar por correo el aviso %s a %s", notification.pk, user.username)

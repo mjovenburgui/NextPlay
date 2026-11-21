@@ -12,6 +12,8 @@
 - sincronizar_playnite.py: la extensión NextPlay Sync de Playnite (su código y su descarga, en Editar perfil › Cuentas
   vinculadas, y la dirección api/playnite/ a la que manda la biblioteca).
 - avisos.py: Avisos.
+- aplicacion.py: NextPlay como aplicación (el manifiesto, el service worker y la página Sin conexión) y los avisos push
+  de cada dispositivo (Editar perfil › Avisos en el móvil y el ordenador).
 - ficha_del_juego.py: los botones de las cuentas en la Ficha del juego (favoritos, «Tus logros» y poner de cabecera).
 - resumen_anual.py: Resumen del año (y su imagen para compartir).
 - comun.py: lo que comparten varias (volver a la página desde la que se envió un formulario).
@@ -19,6 +21,10 @@
 Aquí se reexportan las vistas y lo que usan otras apps, para que urls.py y quien importa de accounts.views no cambien.
 """
 
+from .aplicacion import (
+    devices_context, manifest, offline, push_pending, push_remove, push_subscribe, push_test, push_unsubscribe,
+    service_worker,
+)
 from .avisos import notifications
 from .cuentas_vinculadas import (
     epic_sync, epic_unlink, gog_sync, gog_unlink, linking_context, platform_add, platform_remove, play_platforms,
