@@ -52,6 +52,7 @@
             {# En el móvil, el menú de arriba no se ve y la barra de abajo ya tiene cinco botones: la pestaña Tier lists va aquí. #}
             <a href="{% url 'lists:tier_lists' %}">{% include "_icon.html" with name="tiers" %} Tier lists</a>
             <a href="{% url 'library:wishlist' %}">{% include "_icon.html" with name="heart" %} Lista de deseos</a>
+            <a href="{% url 'social:saved' %}">{% include "_icon.html" with name="bookmark" %} Guardados</a>
             <a href="{% url 'edit_profile' %}">{% include "_icon.html" with name="settings" %} Editar perfil</a>
             <form action="{% url 'logout' %}" method="post">
               {% csrf_token %}

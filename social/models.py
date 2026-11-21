@@ -1,6 +1,6 @@
-"""Modelos de lo social: quién sigue a quién, las publicaciones con sus imágenes, «me gusta» y comentarios, y la
-actividad de cada jugador (lo que hace con sus juegos, sus listas, sus importaciones y sus publicaciones), que forma
-el feed de Inicio y la pestaña Actividad del Perfil.
+"""Modelos de lo social: quién sigue a quién, las publicaciones con sus imágenes, «me gusta», comentarios y quién se las
+ha guardado, y la actividad de cada jugador (lo que hace con sus juegos, sus listas, sus importaciones y sus
+publicaciones), que forma el feed de Inicio y la pestaña Actividad del Perfil.
 """
 
 from django.conf import settings
@@ -206,6 +206,29 @@ class PostComment(models.Model):
         Pantallas: Página de la publicación (botón «Borrar» de los comentarios).
         """
         return user.is_authenticated and user.pk in (self.user_id, self.post.user_id)
+
+
+class SavedPost(models.Model):
+    """Publicación que un usuario se ha guardado para volver a ella, una vez por usuario y publicación. Solo la ve él, en
+    Guardados, y su autor no se entera. Se borra con la publicación; si su autor hace privado su perfil, deja de salir.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saved_posts")
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name="saves")
+    created_at = models.DateTimeField("guardada", auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [models.UniqueConstraint(fields=["user", "post"], name="unique_saved_post")]
+        verbose_name = "publicación guardada"
+        verbose_name_plural = "publicaciones guardadas"
+
+    def __str__(self):
+        """Texto en el admin: «usuario guardó publicación».
+
+        Pantallas: Panel de administración.
+        """
+        return f"{self.user} guardó {self.post}"
 
 
 class Activity(models.Model):

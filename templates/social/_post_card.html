@@ -1,0 +1,18 @@
+{# Una publicación suelta con el aspecto de las del feed: quién (con show_user), de qué juego (salvo con hide_game, en su propia ficha), #}
+{# el texto recortado, las imágenes y sus botones. Necesita post, de social.views._posts, con liked y saved ya marcados. Va dentro de <ol class="activities">. #}
+<li class="activity post-card" id="publicacion-{{ post.pk }}">
+  {% if show_user %}{% include "accounts/_avatar.html" with profile=post.user.profile size="sm" %}{% endif %}
+  <div class="activity-main">
+    <p class="activity-line">
+      {% if show_user %}<a class="activity-author" href="{{ post.user.profile.get_absolute_url }}">{{ post.user.profile.name }}</a> publicó{% else %}Publicó{% endif %}{% if post.game and not hide_game %} sobre <a class="activity-game" href="{{ post.game.get_absolute_url }}">{{ post.game.name }}</a>{% endif %}
+    </p>
+    <div class="activity-post">
+      {% include "social/_post_body.html" with truncate=True %}
+      {% include "social/_post_actions.html" %}
+    </div>
+    <p class="activity-time muted small"><a href="{{ post.get_absolute_url }}"><time datetime="{{ post.created_at|date:'c' }}">Hace {{ post.created_at|timesince }}</time></a></p>
+  </div>
+  {% if post.game and not hide_game %}
+    <a class="review-thumb activity-cover" href="{{ post.game.get_absolute_url }}" tabindex="-1" aria-hidden="true">{% if post.game.cover_url %}<img src="{{ post.game.cover_url }}" alt="" loading="lazy">{% endif %}</a>
+  {% endif %}
+</li>

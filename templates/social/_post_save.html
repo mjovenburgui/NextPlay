@@ -1,0 +1,11 @@
+{# Botón «Guardar» de una publicación: la guarda en Guardados o la quita. Sin sesión o en la vista previa del perfil no sale. #}
+{# Necesita post y saved. Con HTMX se cambia por el que devuelve social.views.save_post; sin él, vuelve a esta página (next). #}
+{% if user.is_authenticated and not preview %}
+  <form class="like-form" action="{% url 'social:save_post' post.pk %}" method="post"
+        hx-post="{% url 'social:save_post' post.pk %}" hx-swap="outerHTML">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+    <button class="review-action save-btn{% if saved %} is-on{% endif %}" type="submit" aria-pressed="{% if saved %}true{% else %}false{% endif %}"
+            title="{% if saved %}Quitar de Guardados{% else %}Guardar para luego{% endif %}">{% include "_icon.html" with name="bookmark" %}<span class="visually-hidden">{% if saved %}Guardada: quitar de Guardados{% else %}Guardar{% endif %}</span></button>
+  </form>
+{% endif %}

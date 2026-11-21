@@ -1,14 +1,15 @@
 {# Imágenes de una publicación: miniaturas que se abren en el visor a pantalla completa (el visor y su script están en base.html). #}
-{# Necesita post, con sus imágenes ya cargadas (social.views._posts). #}
+{# Las marcadas como spoiler van borrosas hasta que se pulsan, como las de las reseñas. Necesita post, con sus imágenes ya cargadas (social.views._posts). #}
 {% with images=post.images.all %}
   {% if images %}
     <div class="review-gallery count-{{ images|length }}" data-gallery data-heading="Publicación de {{ post.user.profile.name }}{% if post.game %} · {{ post.game.name }}{% endif %}">
       {% for image in images %}
-        <button class="gallery-tile" type="button" data-gallery-item
+        <button class="gallery-tile{% if image.is_spoiler %} is-spoiler{% endif %}" type="button" data-gallery-item
                 data-full="{{ image.url }}" data-alt="Imagen {{ forloop.counter }} de la publicación de {{ post.user.profile.name }}"
                 data-detail="Subida por {{ post.user.profile.name }}" data-label="Ampliar la imagen {{ forloop.counter }} de {{ images|length }}"
-                aria-label="Ampliar la imagen {{ forloop.counter }} de {{ images|length }}">
+                aria-label="{% if image.is_spoiler %}Imagen {{ forloop.counter }}: es un spoiler, púlsala para verla{% else %}Ampliar la imagen {{ forloop.counter }} de {{ images|length }}{% endif %}">
           <img src="{{ image.thumb_url }}" alt="" loading="lazy">
+          {% if image.is_spoiler %}<span class="gallery-spoiler" aria-hidden="true">{% include "_icon.html" with name="eye" %} Spoiler</span>{% endif %}
         </button>
       {% endfor %}
     </div>

@@ -35,6 +35,7 @@
             <a href="{% url 'profile' user.username %}?vista=tier-lists">{% include "_icon.html" with name="tiers" %} Mis tier lists</a>
             <a href="{% url 'challenges:explore' %}">{% include "_icon.html" with name="trophy" %} Retos</a>
             <a href="{% url 'library:wishlist' %}">{% include "_icon.html" with name="heart" %} Lista de deseos</a>
+            <a href="{% url 'social:saved' %}">{% include "_icon.html" with name="bookmark" %} Guardados</a>
             <a href="{% url 'notifications' %}">{% include "_icon.html" with name="bell" %} Avisos{% if unread_notifications %} <span class="count">{{ unread_notifications }}</span>{% endif %}</a>
             <a href="{% url 'edit_profile' %}">{% include "_icon.html" with name="settings" %} Editar perfil</a>
           </nav>

@@ -138,6 +138,7 @@
       "fase": "2. Remates rápidos",
       "texto": "Poco trabajo, y dejan la lista y la web más limpias.",
       "tareas": [
+        "Cuando Steam no da la última partida: que el juego entre en «Jugando» y sus logros se relean",
         "Que ningún juego se quede sin precio: pedirlo al importar o al abrir la ficha, y el de Steam a Steam",
         "Arreglos pequeños que han salido al medir: mejor precio, redirección y consultas de más",
         "Traducir al español los comentarios antiguos en inglés",
@@ -146,6 +147,7 @@
         "Formularios que avisan mientras trabajan",
         "Inicio en el móvil: la actividad antes que tu resumen",
         "Primer uso: traer tus juegos nada más crear la cuenta",
+        "Vincular cuentas empezando por «¿Dónde juegas?»",
         "Avisar al salir de Editar perfil con cambios sin guardar",
         "Páginas de error propias: no encontrada, fallo del servidor y formulario caducado",
         "Rediseño de toda la web con aspecto de red social",
@@ -167,6 +169,7 @@
         "Valor del pendiente y repaso de la biblioteca",
         "La gente que sigues en la ficha y en los perfiles",
         "Publicaciones con imágenes asociadas a un juego",
+        "Comunidad de cada juego: hilos, preguntas y spoilers según lo que llevas jugado",
         "Cabecera y color automáticos según lo que juegas",
         "Intercambio de pendientes: elige un juego del pendiente de un amigo"
       ]
@@ -186,7 +189,8 @@
         "Joyas ocultas y juegos en los que la comunidad discrepa",
         "Ediciones agrupadas bajo su juego (GOTY, Complete, Definitive…)",
         "Páginas de saga con tu progreso",
-        "Ampliar el catálogo por tandas"
+        "Ampliar el catálogo por tandas",
+        "«¿Algo está mal?» en cada ficha"
       ]
     },
     {
@@ -195,6 +199,7 @@
       "tareas": [
         "Estadísticas del perfil y resumen anual",
         "Recomendaciones «Qué jugar después»",
+        "Botón «Jugar» que abre el juego en tu lanzador",
         "¿Cuánta gente lo termina? Tasa de finalización con los logros de Steam",
         "¿A qué jugamos? Juegos en común con tus amigos",
         "Vistas previas al compartir y tarjeta para incrustar",
@@ -211,6 +216,7 @@
       "texto": "Independientes entre sí. «¿Cuándo bajará?» tiene más gracia si llega antes de las rebajas de invierno.",
       "tareas": [
         "¿Cuándo bajará? Próxima rebaja prevista en el veredicto",
+        "Lista de regalos: comparte tu lista de deseos para Navidad y Reyes",
         "Saber qué juegos están en Game Pass",
         "Juegos gratis para quedártelos",
         "Steam Deck, parches y «jugando ahora»",
@@ -241,7 +247,12 @@
         "Miniatura ya encuadrada de la foto de perfil para las listas",
         "Buscar grupo para jugar",
         "Publicar NextPlay y abrir una beta antes de las rebajas de invierno",
-        "Sincronización automática de la biblioteca"
+        "Sincronización automática de la biblioteca",
+        "Probar NextPlay con tu perfil de Steam sin crear la cuenta",
+        "Precios, días y horas del país de cada uno",
+        "NextPlay en el móvil como aplicación, con avisos que llegan",
+        "Que la comunidad no parezca vacía mientras haya poca gente",
+        "Antes de abrir: confirmar el correo y frenar el spam"
       ]
     }
   ],

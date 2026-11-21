@@ -13,8 +13,8 @@
     },
     {
       "nombre": "Ficha del juego",
-      "urls": ["games:detail", "games:prices", "games:price_history", "games:media", "games:details", "games:addons", "game_achievements"],
-      "que_es": "La página de cada juego: cabecera con su arte, datos (y de qué juego es remake, DLC…) y notas (crítica, jugadores de IGDB y comunidad), lo que ha hecho con el juego la gente que sigues, cuánto dura, tu biblioteca (estado, nota, reseña, lista de deseos, tu primera partida y tus sesiones), favoritos y «Añadir a una lista», tus horas y tus logros (los de Steam y los trofeos de PlayStation, uno a uno), la ficha técnica (estudio, editora, modos, temas, saga, PEGI…), el carrusel de imágenes y vídeos, «Dónde comprarlo» con su historial de precios, «Expansiones y DLC» (cada uno con su precio y su propia ficha), «Ediciones y versiones» (ediciones, remakes, ports y recopilatorios), juegos parecidos, las reseñas (las de la gente que sigues, primero) y las listas en las que sale. La ficha de una edición lleva a la de su juego."
+      "urls": ["games:detail", "games:prices", "games:price_history", "games:media", "games:details", "games:addons", "game_achievements", "social:game_posts"],
+      "que_es": "La página de cada juego: cabecera con su arte, datos (y de qué juego es remake, DLC…) y notas (crítica, jugadores de IGDB y comunidad), lo que ha hecho con el juego la gente que sigues, cuánto dura, tu biblioteca (estado, nota, reseña, lista de deseos, tu primera partida y tus sesiones), favoritos y «Añadir a una lista», tus horas y tus logros (los de Steam y los trofeos de PlayStation, uno a uno), la ficha técnica (estudio, editora, modos, temas, saga, PEGI…), el carrusel de imágenes y vídeos, «Dónde comprarlo» con su historial de precios, «Expansiones y DLC» (cada uno con su precio y su propia ficha), «Ediciones y versiones» (ediciones, remakes, ports y recopilatorios), juegos parecidos, las reseñas (las de la gente que sigues, primero), las publicaciones de la comunidad sobre el juego (todas o solo las que llevan imágenes, que llegan al bajar hasta ellas) y las listas en las que sale. La ficha de una edición lleva a la de su juego."
     },
     {
       "nombre": "Listas del juego",
@@ -23,8 +23,8 @@
     },
     {
       "nombre": "Perfil",
-      "urls": ["profile", "social:activity"],
-      "que_es": "La página de cada jugador (/u/<usuario>/): cabecera personalizada (foto, fondo, color, redes, cuentas, seguidores), escaparate (favoritos, jugando ahora, reseña destacada, estadísticas, logros, listas...) y las pestañas Biblioteca, Reseñas, Listas, Tier lists, Actividad, Diario (el diario de partidas: la última partida, el calendario de cada año con lo jugado y los días con logro, y las últimas sesiones), Estadísticas (las cifras de siempre en barras: plataformas, estados, géneros, notas, décadas y años, con enlaces al resumen de cada año) y, en el perfil de otro, En común (los juegos de los dos y lo compatibles que sois). También se ve dentro de Editar perfil, en su vista previa."
+      "urls": ["profile", "social:activity", "social:posts"],
+      "que_es": "La página de cada jugador (/u/<usuario>/): cabecera personalizada (foto, fondo, color, redes, cuentas, seguidores), escaparate (favoritos, jugando ahora, reseña destacada, estadísticas, logros, listas...) y las pestañas Biblioteca, Reseñas, Publicaciones (lo que ha publicado, con «Cargar más»), Listas, Tier lists, Actividad, Diario (el diario de partidas: la última partida, el calendario de cada año con lo jugado y los días con logro, y las últimas sesiones), Estadísticas (las cifras de siempre en barras: plataformas, estados, géneros, notas, décadas y años, con enlaces al resumen de cada año) y, en el perfil de otro, En común (los juegos de los dos y lo compatibles que sois). También se ve dentro de Editar perfil, en su vista previa."
     },
     {
       "nombre": "Qué jugar después",
@@ -49,7 +49,12 @@
     {
       "nombre": "Página de la publicación",
       "urls": ["social:post"],
-      "que_es": "Una publicación entera: su autor, el juego, el texto, las imágenes, los «me gusta», los comentarios y los botones de borrar y denunciar."
+      "que_es": "Una publicación entera: su autor, el juego, el texto, las imágenes, los «me gusta», los comentarios y los botones de guardar, borrar y denunciar."
+    },
+    {
+      "nombre": "Guardados",
+      "urls": ["social:saved"],
+      "que_es": "Las publicaciones que te has guardado con el marcador de cada una (en el feed, en los perfiles, en la ficha de cada juego y en su página), de la última que guardaste a la primera y con «Cargar más». Solo las ves tú. Se llega desde el menú de tu cuenta y desde el de Inicio."
     },
     {
       "nombre": "Escribir reseña",

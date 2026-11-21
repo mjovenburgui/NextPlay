@@ -1,0 +1,8 @@
+{# Botones de una publicación en una lista (feed, pestaña Publicaciones del perfil, ficha del juego y Guardados): «me gusta», #}
+{# comentarios, guardar y el enlace a su página. Necesita post, con like_count, comment_count, liked y saved (social.views._posts). #}
+<p class="feed-actions">
+  {% include "social/_post_like.html" with liked=post.liked like_count=post.like_count %}
+  <a class="review-action" href="{{ post.get_absolute_url }}#comentarios">{% include "_icon.html" with name="comment" %} {{ post.comment_count|default:0 }}<span class="visually-hidden"> comentarios</span></a>
+  {% include "social/_post_save.html" with saved=post.saved %}
+  <a class="review-more" href="{{ post.get_absolute_url }}">Ver la publicación</a>
+</p>

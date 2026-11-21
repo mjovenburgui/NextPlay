@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Guardados · NextPlay{% endblock %}
+
+{% block content %}
+  {# Las publicaciones que has guardado, de la última que guardaste a la primera (social.views.saved_posts). Solo las ves tú. #}
+  <section class="panel panel-wide saved-page">
+    <h1>{% include "_icon.html" with name="bookmark" %} Guardados</h1>
+    <p class="muted">Las publicaciones que te has guardado para volver a ellas. Solo las ves tú, y nadie se entera de lo que guardas.</p>
+    {% if posts %}
+      <ol class="activities">{% include "social/_posts.html" %}</ol>
+    {% else %}
+      <p class="empty">Aún no has guardado ninguna publicación. Pulsa {% include "_icon.html" with name="bookmark" %} en una para tenerla aquí.</p>
+    {% endif %}
+  </section>
+{% endblock %}

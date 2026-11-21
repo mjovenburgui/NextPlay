@@ -11,11 +11,7 @@
         </p>
         <div class="activity-post">
           {% include "social/_post_body.html" with truncate=True %}
-          <p class="feed-actions">
-            {% include "social/_post_like.html" with liked=post.liked like_count=post.like_count %}
-            <a class="review-action" href="{{ post.get_absolute_url }}#comentarios">{% include "_icon.html" with name="comment" %} {{ post.comment_count|default:0 }}<span class="visually-hidden"> comentarios</span></a>
-            <a class="review-more" href="{{ post.get_absolute_url }}">Ver la publicación</a>
-          </p>
+          {% include "social/_post_actions.html" %}
         </div>
       {% endwith %}
     {% elif activity.kind == "import" %}

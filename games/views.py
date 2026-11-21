@@ -16,11 +16,13 @@ from django.utils import timezone
 from django.utils.http import urlencode
 from django.views.decorators.http import require_POST
 
+from accounts.models import Profile
 from accounts.views import favorite_context
 from library.models import LibraryEntry, Review, WishlistItem
 from library.views import review_context
 from lists.views import game_page_context
 from social import affinity
+from social.models import Post
 from social.views import composer_context, feed_context, suggested_people
 
 from . import details, history, igdb, media, prices
@@ -196,7 +198,9 @@ def detail(request, slug):
     """Ficha de un juego: cabecera con su arte, datos (y de qué juego es remake, DLC…), notas de la crítica y de los
     jugadores de IGDB, valoración de la comunidad, Cuánto dura, widget de biblioteca, botones de favoritos del perfil
     y de «Añadir a una lista», las listas en las que está (lists.views.game_page_context), ficha técnica, carrusel de
-    imágenes y vídeos, idiomas, precios, «Expansiones y DLC», «Ediciones y versiones», «Juegos parecidos» y reseñas.
+    imágenes y vídeos, idiomas, precios, «Expansiones y DLC», «Ediciones y versiones», «Juegos parecidos», reseñas y
+    publicaciones: de estas solo cuenta cuántas puede ver quien mira (post_count), y la ficha las pide con HTMX al llegar
+    a ellas (social.views.game_posts).
 
     En las pantallas anchas va en tres columnas (la carátula con las notas, Cuánto dura y tus logros; en medio tu
     biblioteca, la sinopsis, las imágenes, los precios, las expansiones y DLC, las ediciones y las reseñas; y a la
@@ -248,6 +252,8 @@ def detail(request, slug):
             "community": game.community_rating(),
             # Lo que ha hecho con el juego la gente que sigue quien mira (None si nadie o sin sesión).
             "friends": affinity.friends_on_game(request.user, game),
+            # Las publicaciones sobre el juego que puede ver: la lista llega después, con HTMX.
+            "post_count": Post.objects.filter(Profile.visible_filter(request.user), game=game).count(),
             **review_context(request, game, entry),
             **(favorite_context(request.user, game) if request.user.is_authenticated else {}),
             **game_page_context(request, game),
